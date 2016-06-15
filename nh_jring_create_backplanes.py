@@ -1,0 +1,63 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Jun  5 22:45:22 2016
+
+@author: throop
+"""
+
+# Create all backplanes. This is a one-off script that is run (in theory) only one time ever.
+# It creates all of the navigation backplanes based on WCS keywords found in the image headers.
+# Any offset (from stellar navigation, or user-determined coeffs) is *not* added.
+
+import math      
+import astropy
+from   astropy.io import fits
+import numpy as np
+import cspice
+import wcsaxes
+import hbt
+from   astropy.wcs import WCS
+
+import pdb
+import glob
+import math  
+
+#from create_backplane import create_backplane
+
+# Get the full list of files
+
+dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
+
+dir_out = '/Users/throop/data/NH_Jring/out/'
+
+file_list = glob.glob(dir_images + '/*fit')
+files = np.array(file_list)
+
+DO_TEST = False
+
+if DO_TEST:
+    files = files[0:3]
+    
+for file in files:
+
+    file_short = file.split('/')[-1]
+    file_out = dir_out + file_short    
+    file_out = file_out.replace('.fit', '_planes.pkl')
+    print "Generating backplane for " + file_short
+
+    plane = create_backplane(file)
+
+    print "RA, Dec mean = " + repr(np.mean(plane['RA']) * hbt.r2d) + ', ' + repr(np.mean(plane['Dec']) * hbt.r2d)
+    
+    # Write one variable to a file        
+
+    lun = open(file_out, 'wb')
+    pickle.dump(plane, lun)
+    lun.close()
+
+    print "Wrote: " + file_out
+    print
+    
+    
+
+    
