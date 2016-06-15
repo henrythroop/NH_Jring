@@ -22,8 +22,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 #                     Distance from Jupiter. 
 #                     Time before/after C/A
 
-#filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
-filename_save = 'nh_jring_read_params_100.pkl' # Filename to save parameters in
+filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
+#filename_save = 'nh_jring_read_params_100.pkl' # Filename to save parameters in
 
 dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 
@@ -50,7 +50,9 @@ else:
     
     t = hbt.get_fits_info_from_files_lorri(dir_images)
 
-print 'Read ' + repr(np.size(t)) + ' files.'
+num_files = np.size(t)
+
+print 'Read ' + repr(num_files) + ' files.'
 
 # Now shorten the list arbitrarily, just for testing purposes
 
@@ -85,6 +87,7 @@ i_group = 0 # Index of this group, within the list of groups
 lines_out = [''] # This array is the output text file. It will be written monolithically at the end. Less chance of leaving open.
 
 plt.rc('image', cmap='Greys_r')  # Use a non-inverted colormap: White = stars and ring, etc.
+
 
 # Start the PDF
 
@@ -133,9 +136,10 @@ for i_group,group in enumerate(groups):
       
       file_trunc = file['Shortname'].replace('lor_', '').replace('_0x630_sci', '').replace('_0x633_sci', '')
       
-      # Print a line of the table, to the screen
+      # Print a line of the table, to the screen and the file
       
-      line =  "{:>3}, {:>3},  {},   {},   {},  {:6.3f},{:>12s},   {:<9}".format(int(i_group), int(i_file), file_trunc, file['Format'], file['UTC'], 
+      line =  "{:>3}/{:<3}: {:>3}, {:>3},  {},   {},   {},  {:6.3f},{:>12s},   {:<9}".format(int(i), int(num_files), int(i_group), 
+                                                     int(i_file), file_trunc, file['Format'], file['UTC'], 
                                                      file['Exptime'], (dt_str), file['Target'])
       print line
       lines_out.append(line)
@@ -155,11 +159,12 @@ for i_group,group in enumerate(groups):
       a.get_yaxis().set_visible(False)
  
       n1 = int(file['N1'])  # NAXIS1: This will be either 1024 [1x1], or 255 [4x4]
-      scalefac = n1  / 1024. # Generate a scaling factor. This is 1.0 for a normal image, or 0.25 for a 4x4. Use it for placing text() properly.
+      scalefac = n1  / 1024. # Generate a scaling factor. This is 1.0 for a normal image, 
+                             # or 0.25 for a 4x4. Use it for placing text() properly.
         
       # Generate the text to put next to each image on the PDF
       
-      label1 = "{}, {}, {} s; {}".format(file_trunc, file['Format'], file['Exptime'], dt_str)
+      label1 = "{}/{}: {}, {}, {} s; {}".format(int(i), int(num_files), file_trunc, file['Format'], file['Exptime'], dt_str)
       label2 = "{}, Group {}, File {}".format(file['UTC'], int(i_group), int(i_file)) 
       plt.text(0, -80*scalefac, label1, fontsize = fs)
       plt.text(0, -30*scalefac, label2, fontsize = fs)

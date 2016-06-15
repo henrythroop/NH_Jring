@@ -439,7 +439,8 @@ class App:
         self.bins_azimuth       = np.zeros((1))
         
         self.image              = np.zeros((1)) # Save a copy of the current image (including subtraction, filtering, etc.)
-        
+
+        self.do_autoextract     = 1   # Flag. But make it 1/0, not True/False, as per ttk.        
         radii                   = cspice.bodvrd('JUPITER', 'RADII')
         self.rj                 = radii[0]  # Jupiter radius, polar, in km. Usually 71492.
         
@@ -470,18 +471,24 @@ class App:
                    
 # Create the buttons
    
-        self.button_prev =     ttk.Button(master, text = 'Prev', command=self.select_image_prev)
-        self.button_next =     ttk.Button(master, text = 'Next', command=self.select_image_next)
-        self.button_plot   =   ttk.Button(master, text = 'Plot', command=self.plot_image)
-        self.button_extract =  ttk.Button(master, text = 'Extract', command=self.extract_profiles)
+        self.button_prev =     ttk.Button(master, text = 'Prev',     command=self.select_image_prev)
+        self.button_next =     ttk.Button(master, text = 'Next',     command=self.select_image_next)
+        self.button_plot   =   ttk.Button(master, text = 'Plot',     command=self.plot_image)
+        self.button_extract =  ttk.Button(master, text = 'Extract',  command=self.extract_profiles)
         self.button_navigate = ttk.Button(master, text = 'Navigate', command=self.navigate)
-        self.button_repoint =  ttk.Button(master, text = 'Repoint', command=self.repoint)
+        self.button_repoint =  ttk.Button(master, text = 'Repoint',  command=self.repoint)
         self.button_ds9 =      ttk.Button(master, text = 'Open in DS9', command=self.open_external)
         self.button_copy =     ttk.Button(master, text = 'Copy name to clipboard', command=self.copy_name_to_clipboard)
-        self.button_quit =     ttk.Button(master, text = 'Quit', command = self.quit)
-        self.button_load =     ttk.Button(master, text = 'Load', command = self.load)
-        self.button_save =     ttk.Button(master, text = 'Save', command = self.save_file)
-      
+        self.button_quit =     ttk.Button(master, text = 'Quit',     command = self.quit)
+        self.button_load =     ttk.Button(master, text = 'Load',     command = self.load)
+        self.button_save =     ttk.Button(master, text = 'Save',     command = self.save_file)
+
+        self.var_checkbutton_extract = Tkinter.IntVar()
+        self.var_checkbutton_extract.set(self.do_autoextract)        # Values are in fact 1,0  not  True,False. Ugh. 
+        self.checkbutton_extract = ttk.Checkbutton(master, text = 'Auto-Extract', command = self.handle_checkbutton, 
+                                                   var = self.var_checkbutton_extract)
+
+        
 # Create controls for the background subtraction
 # NB: Sometimes the current value for OptionMenu is left as blank. If this happens, need to restart spyder.
       
@@ -654,7 +661,8 @@ class App:
         self.button_extract.         grid(row=8, column=14)
     
         self.button_prev.            grid(row=9,  column=11, columnspan=1, sticky='we')
-        self.button_next.            grid(row=9,  column=13, columnspan=2, sticky='we')
+        self.button_next.            grid(row=9,  column=13, columnspan=1, sticky='we')
+        self.checkbutton_extract.    grid(row=9,  column=14)
 
         self.button_load.            grid(row=10,  column=11)
         self.button_save.            grid(row=10,  column=13)
@@ -702,8 +710,7 @@ class App:
         self.change_image(refresh=False) # Save all parameters. 
         
 # Now look up the new group name. Extract those elements.        
-        
-        
+          
         name_group = self.groups[index]
         
         self.groupmask = self.t['Desc'] == name_group
@@ -794,9 +801,7 @@ class App:
         
 # Extract radial / azimuthal profiles
 
-        DO_EXTRACT_PROFILES_ON_IMAGE_CHANGE = False
-
-        if (DO_EXTRACT_PROFILES_ON_IMAGE_CHANGE):
+        if (self.do_autoextract == 1):
             self.extract_profiles()        
 
 ##########
@@ -1300,6 +1305,11 @@ class App:
         root.destroy() # Q: How does root. get automatically imported here? Not sure.
         root.quit()
 
+    def handle_checkbutton(self):
+        
+        print "Button = " + repr(self.var_checkbutton_extract.get())
+        self.do_autoextract = self.var_checkbutton_extract.get() # Returns 1 or 0
+        
 ##########
 # Load settings
 ##########
