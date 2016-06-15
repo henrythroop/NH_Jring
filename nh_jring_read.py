@@ -438,9 +438,12 @@ class App:
         self.bins_radius        = np.zeros((1))
         self.bins_azimuth       = np.zeros((1))
         
-        self.image              = np.zeros((1)) # Save a copy of the current image (including subtraction, filtering, etc.)
-
-        self.do_autoextract     = 1   # Flag. But make it 1/0, not True/False, as per ttk.        
+        self.image_raw          = np.zeros((1)) # The current image, with *no* processing done. This prevents having to reread from disk.
+        self.image_processed    = np.zeros((1)) # Current image, after all processing is done (bg, scaling, etc)
+        self.image_bg_raw       = np.zeros((1)) # The 'raw' background image. No processing done to it. Assume bg is single image; revisit as needed.
+        
+        self.do_autoextract     = 1             # Flag to extract radial profile when possible. Flag is 1/0, not True/False, as per ttk.
+        
         radii                   = cspice.bodvrd('JUPITER', 'RADII')
         self.rj                 = radii[0]  # Jupiter radius, polar, in km. Usually 71492.
         
@@ -685,7 +688,7 @@ class App:
         
 # Finally, now that GUI is arranged, load the first image, and its backplane.
 
-#        self.save_settings()  # Small bug: for the first image, t[] is set, but not the gui, so plot is not made properly.
+#        self.save_gui()  # Small bug: for the first image, t[] is set, but not the gui, so plot is not made properly.
         
         self.load_backplane()
         
@@ -744,13 +747,17 @@ class App:
         self.refresh_gui()
 
 ##########
-# Save settings. Take all settings from the GUI, and put them into the proper table variables
+# Save GUI settings. 
 ##########
-# This does *not* save to disk. It saves the Tk widget settings into variables, which can then be saved later.
+    """
+    Take all settings from the GUI, and put them into the proper table variables
+    This does *not* save to disk. It saves the Tk widget settings into variables, 
+    which can then be saved later.
+    """
  
-    def save_settings(self):
+    def save_gui(self):
 
-#        print "save_settings"
+#        print "save_gui
         
 # Save the current values
          
@@ -785,7 +792,7 @@ class App:
 
         # Save current GUI settings into variables
         
-        self.save_settings()
+        self.save_gui()
         
 # Update the index, to show that new image is active
         
@@ -804,6 +811,119 @@ class App:
         if (self.do_autoextract == 1):
             self.extract_profiles()        
 
+
+##########
+# Load new image from disk
+##########
+	"""
+	Load current image from disk
+	"""
+	
+    def load_image(self):
+					
+        file = t['Filename'][index_image]					
+        self.image_raw = hbt.get_image_nh(file, frac_clip = 1., bg_method = 'None')
+							
+ 	  print "Loaded image: ' + file				
+                                     
+##########
+# Process Image -- do all necessary bg subtraction on current image
+##########
+																																					
+    def process_image(self):
+
+        method = self.var_option_bg.get()
+
+        print "OptionMenu: method = " + method
+        
+#        image = np.zeros((1023, 1023))
+        
+        frac, poly = 0, 0
+        
+        if (method == 'Previous'):
+            file_prev = self.t_group['Filename'][self.index_image-1]
+            print "file =      " + filename
+            print "file_prev = " + file_prev
+            image_bg = hbt.get_image_nh(file_prev, frac_clip = 1.0, bg_method = 'None')
+            image_fg = self.image_raw
+            image = image_fg - image_bg
+
+        if (method == 'Next'):
+            file_next = self.t_group['Filename'][self.index_image+1]
+            image_bg = hbt.get_image_nh(file_next, frac_clip = 1.0, bg_method = 'None')
+            image_fg = self.image_raw
+            image = image_fg - image_bg
+            
+        if (method == 'Median'): # XXX not working yet
+            file_prev = self.t_group['Filename'][self.index_image-1]
+            image_bg = hbt.get_image_nh(file_prev, frac_clip = 1.0, bg_method = 'None')
+            image_fg = self.image_raw
+            image = image_fg - image_bg
+
+        if (method == 'Polynomial'):
+		 power = self.entry_bg_get()
+            image = self.image_raw - hbt.sfit(self.image_raw, power) # Look up the exponenent and apply it 
+												
+        if (method == 'Grp Num Frac Pow'):  # This is the most common method, I think
+            vars = self.entry_bg.get().split(' ')
+            
+            if (np.size(vars) == 0): # If no args passed, just plot the image
+                power = 0
+                frac  = 0
+                image = self.image_raw
+
+            if (np.size(vars) == 1): # One variable: interpret as exponent
+                power = float(vars[0])
+                frac  = 0
+                image = self.image_raw
+                image = image - hbt.sfit(image, power)
+                
+            if (np.size(vars) == 2): # Two variables: interpret as group num and file num
+                (grp, num) = vars
+                frac  = 1
+                power = 0
+                
+            if (np.size(vars)) == 3: # Three variables: interpret as group num, file num, fraction
+                (grp, num, frac) = vars
+                power = 0
+                
+            if (np.size(vars) == 4): # Four variables: Group num, File num, Fraction, Exponent
+                (grp, num, frac, power) = vars
+                 
+            if int(np.size(vars)) in [2,3,4]:
+               
+                grp = int(grp)
+                num = int(num)
+                frac = float(frac)
+                power = int(power)
+                
+                print "group={}, num={}, frac={}".format(grp, num, frac)
+#            print "Group = {}, num{}, Name = {}".format(name_group, num, name)
+
+                name_group = self.groups[grp]
+                groupmask = self.t['Desc'] == name_group
+                group_tmp = self.t[groupmask]
+                filename_bg = group_tmp['Filename'][num]
+                                        
+                image_fg = self.image_raw
+                image_bg = hbt.get_image_nh(filename_bg, frac_clip = 1, bg_method = 'None')
+                
+                image = image_fg - float(frac) * image_bg                
+                image = image - hbt.sfit(image, power)
+                             
+        if (method == 'None'):
+            image = self.image_raw
+
+        # Scale image by removing stars, CRs, etc.
+
+        image =  hbt.remove_brightest( image, 0.97)   # Remove positive stars
+        image = -hbt.remove_brightest(-image, 0.97) # Remove negative stars also
+        
+        # Save the image where we can use it later for extraction. 
+
+        self.image_processed = image
+																																					
+                                     
 ##########
 # Select new image, based on user click
 ##########
@@ -849,18 +969,18 @@ class App:
         return 0
         
 ##########
-# Update UI for new settings. Also update image if requested.
+# Update UI for new settings.
 ##########
-# A general-purpose routine that is called when we have clicked on a new image, or otherwise changed
-# the image number. This updates all of the GUI elements to reflect the new image, based on 
-# the internal state which is already correct.
-#
-# This does *not* refresh the image itself, unless refresh_image=True is passed.
+        """
+A general-purpose routine that is sometimes called after (e.g.) switching images.
+the image number. This updates all of the GUI elements to reflect the new image, based on 
+the internal state which is already correct. This does *not* refresh the image itself.
+        """
 
-    def refresh_gui(self, refresh_image = True):
+    def refresh_gui(self):
          
-        if (refresh_image):
-            self.plot_image()
+#        if (refresh_image):
+#            self.plot_image()
         
 # Load and display the proper header
 
@@ -912,14 +1032,15 @@ class App:
         self.refresh_statusbar()
         
         return 0
-
+        
+        
 ##########
 # Plot image
 ##########
 
     def plot_image(self):
         """
-        Load the specified file from disk, looks up the correct plotting parameters, and plots it.
+        Plot the image. It has already been loaded and processed.
         """
 
 
@@ -931,12 +1052,6 @@ class App:
 #        self.index_image_new = self.index_image
 #        self.change_image()
 
-        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
-                                            # We can reference table['col'][n] or table[n]['col'] - either OK
-         
-        filename = self.t_group['Filename'][self.index_image]
-        filename = str(filename)
-
         # Clear the image
 
         self.ax1.clear()
@@ -946,102 +1061,6 @@ class App:
         plt.rc('image', cmap='Greys_r')
         
 # Plot the image itself.
-# This will always reload the image from disk.
-
-        method = self.var_option_bg.get()
-
-        print "OptionMenu: method = " + method
-        
-#        image = np.zeros((1023, 1023))
-        
-        frac, poly = 0, 0
-        
-        if (method == 'Previous'):
-            file_prev = self.t_group['Filename'][self.index_image-1]
-            print "file =      " + filename
-            print "file_prev = " + file_prev
-            image_bg = hbt.get_image_nh(file_prev, frac_clip = 1.0, bg_method = 'None')
-            image_fg = hbt.get_image_nh(filename,  frac_clip = 1.0, bg_method = 'None')
-            image = image_fg - image_bg
-
-        if (method == 'Next'):
-            file_next = self.t_group['Filename'][self.index_image+1]
-            image_bg = hbt.get_image_nh(file_next, frac_clip = 1.0, bg_method = 'None')
-            image_fg = hbt.get_image_nh(filename,  frac_clip = 1.0, bg_method = 'None')
-            image = image_fg - image_bg
-            
-        if (method == 'Median'): # XXX not working yet
-            file_prev = self.t_group['Filename'][self.index_image-1]
-            image_bg = hbt.get_image_nh(file_prev, frac_clip = 1.0, bg_method = 'None')
-            image_fg = hbt.get_image_nh(filename,  frac_clip = 1.0, bg_method = 'None')
-            image = image_fg - image_bg
-
-        if (method == 'Polynomial'):
-            image = hbt.get_image_nh(filename,     frac_clip = 1.0, bg_method = 'Polynomial',
-                                                   bg_argument = self.entry_bg.get())
-                         
-        if (method == 'Grp Num Frac Pow'):  # This is the most common method, I think
-            vars = self.entry_bg.get().split(' ')
-            
-            if (np.size(vars) == 0): # If no args passed, just plot the image
-                poly = 0
-                frac = 0
-                image = hbt.get_image_nh(filename,    frac_clip = 1.0, bg_method = 'None')
-
-            if (np.size(vars) == 1): # One variable: interpret as exponent
-                poly = float(vars[0])
-                frac = 0
-                image = hbt.get_image_nh(filename,    frac_clip = 1.0, bg_method = 'None')
-                image = image - hbt.sfit(image, poly)
-                
-            if (np.size(vars) == 2): # Two variables: interpret as group num and file num
-                (grp, num) = vars
-                frac = 1
-                poly = 0
-                
-            if (np.size(vars)) == 3: # Three variables: interpret as group num, file num, fraction
-                (grp, num, frac) = vars
-                poly = 0
-                
-            if (np.size(vars) == 4): # Four variables: Group num, File num, Fraction, Exponent
-                (grp, num, frac, poly) = vars
-                 
-            if int(np.size(vars)) in [2,3,4]:
-               
-                grp = int(grp)
-                num = int(num)
-                frac = float(frac)
-                poly = int(poly)
-                
-                print "group={}, num={}, frac={}".format(grp, num, frac)
-#            print "Group = {}, num{}, Name = {}".format(name_group, num, name)
-
-                name_group = self.groups[grp]
-                groupmask = self.t['Desc'] == name_group
-                group_tmp = self.t[groupmask]
-                filename_bg = group_tmp['Filename'][num]
-                                        
-                image_fg = hbt.get_image_nh(filename,    frac_clip = 0.9, bg_method = 'None')
-                image_bg = hbt.get_image_nh(filename_bg, frac_clip = 0.9, bg_method = 'None')
-                
-                image = image_fg - float(frac) * image_bg                
-                image = image - hbt.sfit(image, poly)
-                             
-        if (method == 'None'):
-            image = hbt.get_image_nh(filename, frac_clip = 1.0, bg_method = 'None')
-
-        # Scale image by removeing stars, CRs, etc.
-
-        image = hbt.remove_brightest(image, 0.97)   # Remove positive stars
-        
-        if (frac > 0):
-            image = -hbt.remove_brightest(-image, 0.97) # Remove negative stars also
-        
-        # Save the image where we can use it later for extraction. 
-        # XXX We might want to change this later: save a non-scaled, or non-subtracted version. 
-        # But this is a good start.
-
-        self.image = image
         
         # Render the main LORRI frame
         # *** In order to get things to plot in main plot window, 
@@ -1049,9 +1068,45 @@ class App:
         # ax1 is an instance of Axes, and contains most other methods (legend, imshow, plot, etc)
                              
         self.ax1.imshow(image)
+            
+        # Disable the tickmarks from plotting
 
+        self.ax1.get_xaxis().set_visible(False)
+        self.ax1.get_yaxis().set_visible(False)
+
+        # Set image size (so off-edge stars are clipped, rather than plot resizing)
+
+        self.ax1.set_xlim([0,1023])  # This is an array and not a tuple. Beats me, like so many things with mpl.
+        self.ax1.set_ylim([1023,0])
+  
+#        self.ax1.Axes(fig, [0,0,1,1])
+        
+        # Draw the figure on the Tk canvas
+        
+        self.fig1.tight_layout() # Remove all the extra whitespace -- nice!
+        self.canvas1.draw()
+        
+        print "finished drawing canvas"
+        
+        return 0
+
+##########
+# Plot Objects
+##########
+
+    def plot_objects(self):
+        """
+       	Plot rings and stars, etc, if we have them.
+	  """
+						
         # If we have them, draw the stars on top
 
+        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
+                                            # We can reference table['col'][n] or table[n]['col'] - either OK
+         
+        filename = self.t_group['Filename'][self.index_image]
+        filename = str(filename)
+								
         if (self.t_group['is_navigated'][self.index_image]):
 
             x_pos_ring1 = eval('np.' + t['x_pos_ring1']) # Convert from string (which can go in table) to array
@@ -1096,27 +1151,11 @@ class App:
 
             
             self.ax1.legend()
-            
-        # Disable the tickmarks from plotting
+												
+##########
+# Load Image from disk
+##########
 
-        self.ax1.get_xaxis().set_visible(False)
-        self.ax1.get_yaxis().set_visible(False)
-
-        # Set image size (so off-edge stars are clipped, rather than plot resizing)
-
-        self.ax1.set_xlim([0,1023])  # This is an array and not a tuple. Beats me, like so many things with mpl.
-        self.ax1.set_ylim([1023,0])
-  
-#        self.ax1.Axes(fig, [0,0,1,1])
-        
-        # Draw the figure on the Tk canvas
-        
-        self.fig1.tight_layout() # Remove all the extra whitespace -- nice!
-        self.canvas1.draw()
-        
-        print "finished drawing canvas"
-        
-        return 0
 
 ##########
 # Extract ring profiles (both radial and azimuthal), and plot them
@@ -1305,6 +1344,10 @@ class App:
         root.destroy() # Q: How does root. get automatically imported here? Not sure.
         root.quit()
 
+##########
+# Handle change to a checkbox
+##########
+
     def handle_checkbutton(self):
         
         print "Button = " + repr(self.var_checkbutton_extract.get())
@@ -1336,7 +1379,7 @@ class App:
 #    Save all settings to the pre-set filename 
 #    """
         # First save the current GUI settings to local variables in case they've not beeen saved yet.
-        self.save_settings()
+        self.save_gui()
     
         # Write one variable to a file    
     
