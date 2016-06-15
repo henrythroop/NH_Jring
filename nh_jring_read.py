@@ -442,6 +442,8 @@ class App:
         self.image_processed    = np.zeros((1)) # Current image, after all processing is done (bg, scaling, etc)
         self.image_bg_raw       = np.zeros((1)) # The 'raw' background image. No processing done to it. Assume bg is single image; revisit as needed.
         
+        self.file_backplane_shortname = ''      # Shortname for the currently loaded backplane.
+								
         self.do_autoextract     = 1             # Flag to extract radial profile when possible. Flag is 1/0, not True/False, as per ttk.
         
         radii                   = cspice.bodvrd('JUPITER', 'RADII')
@@ -689,11 +691,12 @@ class App:
 # Finally, now that GUI is arranged, load the first image, and its backplane.
 
 #        self.save_gui()  # Small bug: for the first image, t[] is set, but not the gui, so plot is not made properly.
-        
-        self.load_backplane()
-        
+                
         self.refresh_gui()
-
+        self.load_image()
+        self.process_image()
+        self.plot_image()
+                
 ##########
 # Change Group
 ##########
@@ -743,8 +746,8 @@ class App:
                  
 # Then set the group number, and refresh screen.
         
-        self.index_group = index
-        self.refresh_gui()
+        self.index_group_new = index
+        self.change_image()
 
 ##########
 # Save GUI settings. 
@@ -782,8 +785,9 @@ class App:
 # Change Image, and go to a new one
 ##########
 #
-# index_image has the current image (within the current group)
-# index_image_new has the new image we want to show (within the current group)
+# index_image     : old image has the current image (within the current group)
+# index_image_new : new image
+                                # has the new image we want to show (within the current group)
 # This does not change the group -- just the image      
 
     def change_image(self, refresh=True):
@@ -797,16 +801,21 @@ class App:
 # Update the index, to show that new image is active
         
         self.index_image = self.index_image_new
+        self.index_group = self.index_group_new
 
-# Load the new backplane, for the new image. Does not do any plotting.
+# Redraw the GUI for the new settings
 
-        self.load_backplane()
-        
-# Load the new image and header, and show them
-        
         self.refresh_gui()
-        
-# Extract radial / azimuthal profiles
+
+# Load, process, and display the image
+								
+        self.load_image()
+					
+        self.process_image()
+								
+        self.plot_image()
+                
+# Extract radial / azimuthal profiles, if desired
 
         if (self.do_autoextract == 1):
             self.extract_profiles()        
@@ -815,26 +824,29 @@ class App:
 ##########
 # Load new image from disk
 ##########
-	"""
-	Load current image from disk
-	"""
-	
+    """
+    Load current image from disk
+    """
+    
     def load_image(self):
-					
-        file = t['Filename'][index_image]					
+
+        print "load_image()"
+#        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.                    
+        file = self.t_group[self.index_image]['Filename']                    
         self.image_raw = hbt.get_image_nh(file, frac_clip = 1., bg_method = 'None')
-							
- 	  print "Loaded image: ' + file				
+        print "Loaded image: " + file                
                                      
 ##########
 # Process Image -- do all necessary bg subtraction on current image
 ##########
-																																					
+                                                                                                                                                    
     def process_image(self):
 
         method = self.var_option_bg.get()
 
-        print "OptionMenu: method = " + method
+        print "process_image()"
+								
+        print "  OptionMenu: method = " + method
         
 #        image = np.zeros((1023, 1023))
         
@@ -861,9 +873,9 @@ class App:
             image = image_fg - image_bg
 
         if (method == 'Polynomial'):
-		 power = self.entry_bg_get()
-            image = self.image_raw - hbt.sfit(self.image_raw, power) # Look up the exponenent and apply it 
-												
+         power = self.entry_bg_get()
+         image = self.image_raw - hbt.sfit(self.image_raw, power) # Look up the exponenent and apply it 
+                                                
         if (method == 'Grp Num Frac Pow'):  # This is the most common method, I think
             vars = self.entry_bg.get().split(' ')
             
@@ -922,7 +934,7 @@ class App:
         # Save the image where we can use it later for extraction. 
 
         self.image_processed = image
-																																					
+                                                                                                                                                    
                                      
 ##########
 # Select new image, based on user click
@@ -937,7 +949,7 @@ class App:
         name = self.t_group['Shortname'][index]
         print "selected = " + repr(index) + ' ' + name
         self.index_image_new = index
-        
+        self.index_group_new = self.index_group  # Keep the same group
         self.change_image()
 
 ##########
@@ -950,6 +962,8 @@ class App:
 # Note that this is sometimes just not printed at all.  This is usually caused by a non-closed Tk window.
 # To fix, quit IPython console from within spyder. Then restart.
 
+        print "refresh_statusbar()"
+								
         num_in_group = np.size(self.t_group)
         num_groups = np.size(self.groups)
                 
@@ -979,19 +993,17 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def refresh_gui(self):
          
-#        if (refresh_image):
-#            self.plot_image()
+        print "refresh_gui()"						
         
 # Load and display the proper header
 
         filename = self.t_group['Filename'][self.index_image]
-          
+        
+        print "refresh_gui() 2"
         header = hbt.get_image_header(filename, single=True)
         self.text_header.delete(1.0, "end")
         h2 = re.sub('\s+\n', '\n', header)  # Remove extra whitespace -- wraps around and looks bad
         self.text_header.insert(1.0, h2)
-
-        self.refresh_statusbar()
 
 # Make sure the proper comment is displayed. (It won't be if we have just changed images.)
 
@@ -1006,6 +1018,7 @@ the internal state which is already correct. This does *not* refresh the image i
         self.lbox_groups.selection_clear(0, 'end')
         self.lbox_groups.selection_set(self.index_group) # This seems to not work always
         self.lbox_groups.activate(self.index_group)
+        print "refresh_gui() 3"
 
 # Set the proper Listbox 'image' settings.
 
@@ -1043,8 +1056,7 @@ the internal state which is already correct. This does *not* refresh the image i
         Plot the image. It has already been loaded and processed.
         """
 
-
-#        print "plot_image"
+        print "plot_image()"
         
         # First save the current settings in case they've not beeen saved yet.
         # Then redraw the screen, based on new settings.
@@ -1067,7 +1079,7 @@ the internal state which is already correct. This does *not* refresh the image i
         # use self.ax1.<command>, not plt.<command>
         # ax1 is an instance of Axes, and contains most other methods (legend, imshow, plot, etc)
                              
-        self.ax1.imshow(image)
+        self.ax1.imshow(self.image_processed)
             
         # Disable the tickmarks from plotting
 
@@ -1096,9 +1108,9 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def plot_objects(self):
         """
-       	Plot rings and stars, etc, if we have them.
-	  """
-						
+           Plot rings and stars, etc, if we have them.
+      """
+                        
         # If we have them, draw the stars on top
 
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
@@ -1106,7 +1118,7 @@ the internal state which is already correct. This does *not* refresh the image i
          
         filename = self.t_group['Filename'][self.index_image]
         filename = str(filename)
-								
+                                
         if (self.t_group['is_navigated'][self.index_image]):
 
             x_pos_ring1 = eval('np.' + t['x_pos_ring1']) # Convert from string (which can go in table) to array
@@ -1151,11 +1163,6 @@ the internal state which is already correct. This does *not* refresh the image i
 
             
             self.ax1.legend()
-												
-##########
-# Load Image from disk
-##########
-
 
 ##########
 # Extract ring profiles (both radial and azimuthal), and plot them
@@ -1163,11 +1170,18 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def extract_profiles(self):
         
+	  # First check if image is navigated
+								
         if (self.t_group['is_navigated'][self.index_image] == False):
   
             print "Not navigated -- skipping profile"
-            return 0 # XXX for debugging -- turn this off since slow
-        
+            return 0
+
+        # Now check if the backplane is loaded already. Load it iff it is not loaded
+
+        if (self.file_backplane_shortname != self.t_group['Shortname'][self.index_image]):
+            self.load_backplane()
+												
         dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
         dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
         
@@ -1270,8 +1284,12 @@ the internal state which is already correct. This does *not* refresh the image i
         dir_backplanes = '/Users/throop/data/NH_Jring/out/'
         file_backplane = dir_backplanes + self.t_group['Shortname'][self.index_image].replace('.fit', '_planes.pkl')
 
+        # Save the shortname associated with the current backplane. That lets us verify if the backplane for current image is indeed loaded.
+
+        self.file_backplane_shortname = self.t_group['Shortname'][self.index_image]
+				
         if (os.path.isfile(file_backplane)):
-            print 'File_backplane = ' + file_backplane 
+            print 'load_backplane: loading ' + file_backplane 
             lun = open(file_backplane, 'rb')
             planes = pickle.load(lun)
             self.planes = planes # This will load self.t
@@ -1372,7 +1390,6 @@ the internal state which is already correct. This does *not* refresh the image i
 # Save everything to disk
 ##########
 
-
     def save_file(self, verbose=True):
 
 #    """ 
@@ -1405,6 +1422,8 @@ the internal state which is already correct. This does *not* refresh the image i
     def select_image_prev(self):
         
         self.index_image_new = (self.index_image - 1) % self.num_images_group
+        self.index_group_new = self.index_group
+								
         self.change_image()
 
 ##########
@@ -1414,6 +1433,7 @@ the internal state which is already correct. This does *not* refresh the image i
     def select_image_next(self):
           
         self.index_image_new = (self.index_image + 1) % self.num_images_group
+        self.index_group_new = self.index_group
         self.change_image()
 
 ##########
@@ -1424,12 +1444,12 @@ the internal state which is already correct. This does *not* refresh the image i
         
 # Get the slider positions, for the dx and dy nav offset positions, and put them into a variable we can use
 
+        print "set_offset()"
+								
         self.offset_dx = self.slider_offset_dx.get() # 
         self.offset_dy = self.slider_offset_dy.get() # 
         
-        self.plot_image()
-        
-        self.refresh_statusbar()
+        self.plot_objects()       
         
         return 0
         
