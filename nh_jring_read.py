@@ -306,7 +306,7 @@ class App:
 
         
 # Create controls for the background subtraction
-# NB: Sometimes the current value for OptionMenu is left as blank. If this happens, need to restart spyder.
+# NB: Sometimes the current value for OptionMenu is left as blank. If this happens, need to restart ipython console.
       
         self.var_option_bg = Tkinter.StringVar()
         self.var_option_bg.set("Polynomial Order:")
