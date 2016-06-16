@@ -144,202 +144,7 @@ def calc_offset_points(points_1, points_2, shape, plot=False):
 class App:
 
 # Now define the functions that are part of this module (or class, not sure). They are accessed with 
-# self.function(), and they have access to all of the variables within self. .
-
-
-##########
-# Navigate the image and plot it
-##########
-
-    def handle_navigate(self):
-        self.navigate()
-        self.refresh_statusbar()  # Put the new nav info into the statusbar
-        self.plot_image()
-        								
-								
-#########
-# Navigate the image
-#########
-
-    def navigate(self):        
-
-        t = self.t_group # We use this a lot, so make it shorter
-        d2r = hbt.d2r
-        r2d = hbt.r2d
-        
-        index_image = self.index_image
-        
-        xlim = (0,1023)
-        ylim = (1023,0)
-        
-# Now look up positions of stars in this field, from a star catalog
-
-        w = WCS(t['Filename'][index_image])                  # Look up the WCS coordinates for this frame
-        et = t['ET'][index_image]
-
-        print 'ET[i] =  ' + repr(et)
-        print 'UTC[i] = ' + repr(t['UTC'][index_image])
-        print 'crval[i] = ' + repr(w.wcs.crval)
-#        print 'RA[i] =  ' + repr(t['RAJ2000'][index_image] * d2r) + ' rad'
-#        print 'Dec[i] = ' + repr(t['DEJ2000'][index_image] * d2r) + ' rad'
-        
-        center  = w.wcs.crval  # degrees
-        DO_GSC      = True
-        DO_USNOA2   = False
-        
-        if (DO_GSC):
-            name_cat = 'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
-            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
-            ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
-            dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
-            table_stars = Table(stars.array.data)
-            
-        if (DO_USNOA2):        
-            name_cat = 'The USNO-A2.0 Catalogue (Monet+ 1998) 1' # Works but gives stars down to v=17; I want to v=13 
-            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
-            table_stars = Table(stars.array.data)
-            mask = table_stars['Bmag'] < 13
-            table_stars_m = table_stars[mask]            
-
-            ra_stars  = table_stars_m['RAJ2000']*d2r # Convert to radians
-            dec_stars = table_stars_m['DEJ2000']*d2r # Convert to radians
-
-# Get position of satellites
-
-        name_bodies = np.array(['Metis', 'Adrastea', 'Io'])        
-        x_bodies,  y_bodies   = hbt.get_pos_bodies(et, name_bodies, units='pixels', wcs=w)
-        ra_bodies, dec_bodies = hbt.get_pos_bodies(et, name_bodies, units='radec', wcs=w)
-        
-# Get an array of points along the ring
-
-        ra_ring1, dec_ring1 = hbt.get_pos_ring(et, name_body='Jupiter', radius=122000, units='radec', wcs=w)
-        ra_ring2, dec_ring2 = hbt.get_pos_ring(et, name_body='Jupiter', radius=129000, units='radec', wcs=w)
-
-                    # Return as radians              
-        x_ring1, y_ring1    = w.wcs_world2pix(ra_ring1*r2d, dec_ring1*r2d, 0) # Convert to pixels
-        x_ring2, y_ring2    = w.wcs_world2pix(ra_ring2*r2d, dec_ring2*r2d, 0) # Convert to pixels
-
-# Get position of Jupiter, in pixels
-
-#        ra_io, dec_io = get_pos_body(et, name_body='Io', units = 'radec', wcs=w)
-        
-# Look up velocity of NH, for stellar aberration
-        
-        abcorr = 'LT+S'
-        frame = 'J2000'
-        st,ltime = cspice.spkezr('New Horizons', et, frame, abcorr, 'Sun') # Get velocity of NH 
-        vel_sun_nh_j2k = st[3:6]
-        
-# Correct stellar RA/Dec for stellar aberration
-
-        radec_stars        = np.transpose(np.array((ra_stars,dec_stars)))
-        radec_stars_abcorr = hbt.correct_stellab(radec_stars, vel_sun_nh_j2k) # Store as radians
-
-# Convert ring RA/Dec for stellar aberration
-
-        radec_ring1        = np.transpose(np.array((ra_ring1,dec_ring1)))
-        radec_ring1_abcorr = hbt.correct_stellab(radec_ring1, vel_sun_nh_j2k) # radians
-        radec_ring2        = np.transpose(np.array((ra_ring2,dec_ring2)))
-        radec_ring2_abcorr = hbt.correct_stellab(radec_ring2, vel_sun_nh_j2k) # radians
-        
-# Convert RA/Dec values back into pixels
-        
-        x_stars,        y_stars          = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)        
-        x_stars_abcorr, y_stars_abcorr   = w.wcs_world2pix(radec_stars_abcorr[:,0]*r2d, radec_stars_abcorr[:,1]*r2d, 0)
-        x_ring1_abcorr, y_ring1_abcorr   = w.wcs_world2pix(radec_ring1_abcorr[:,0]*r2d, radec_ring1_abcorr[:,1]*r2d, 0)
-        x_ring2_abcorr, y_ring2_abcorr   = w.wcs_world2pix(radec_ring2_abcorr[:,0]*r2d, radec_ring2_abcorr[:,1]*r2d, 0)
-
-        points_stars        = np.transpose((x_stars, y_stars))
-        points_stars_abcorr = np.transpose((x_stars_abcorr, y_stars_abcorr))
-
-# Read the image file from disk
-
-        image_polyfit = hbt.get_image_nh(t['Filename'][index_image], frac_clip = 1.,  
-                                     bg_method = 'Polynomial', bg_argument = 4)
-        image_raw     = hbt.get_image_nh(t['Filename'][index_image], frac_clip = 0.9, 
-                                     bg_method = 'None')
-
-# Use DAOphot to search the image for stars. It works really well.
-
-        points_phot = find_stars(image_polyfit)
-        
-# Now look up the shift between the photometry and the star catalog. 
-# Do this by making a pair of fake images, and then looking up image registration on them.
-# I call this 'opnav'. It is returned in order (y,x) because that is what imreg_dft uses, even though it is a bit weird.
-#
-# For this, I can use either abcorr stars or normal stars -- whatever I am going to compute the offset from.        
-
-        (dy_opnav, dx_opnav) = calc_offset_points(points_phot, points_stars, np.shape(image_raw), plot=False)
-
-# Save the newly computed values to variables that we can access externally
-# For the star locations, we can't put an array into an element of an astropy table.
-# But we *can* put a string into astropy table! Do that: wrap with repr(), unwrap with eval('np.' + ).
-       
-        self.t_group['dx_opnav'][self.index_image] = dx_opnav
-        self.t_group['dy_opnav'][self.index_image] = dy_opnav
-        
-        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars_abcorr)
-        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars_abcorr)
-
-#        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars) # For test purposes, ignore the abcorr
-#        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars)
-        
-        self.t_group['x_pos_star_image'][self.index_image] = repr(points_phot[:,0])
-        self.t_group['y_pos_star_image'][self.index_image] = repr(points_phot[:,1])
-        self.t_group['is_navigated'][self.index_image] = True             # Set the flag saying we have navigated image
-
-        self.t_group['x_pos_ring1'][self.index_image] = repr(x_ring1_abcorr)
-        self.t_group['y_pos_ring1'][self.index_image] = repr(y_ring1_abcorr)
-        self.t_group['x_pos_ring2'][self.index_image] = repr(x_ring2_abcorr)
-        self.t_group['y_pos_ring2'][self.index_image] = repr(y_ring2_abcorr)
-        
-        print "Opnav computed: {dx,dy}_opnav = " + repr(dx_opnav) + ', ' + repr(dy_opnav)
-
-        print 'ra_stars      : ' + repr(ra_stars*r2d) + ' deg'
-               
-        # Now that we have navigated it, replot the image!
-               
-        return 0
-
-### THIS STUFF BELOW HERE IS NOT USED -- KEPT FOR HISTORICAL PURPOSES ONLY?? ###
-        
-
-######## TEST WCS OFFSETTING ##########
-
-# Now convert the dx / dy offset (from opnav) into an RA/Dec offset.
-# Put the new correct center position into WCS, so plots from now on will be correct.
-
-        do_offset_wcs = False
-        
-        if (do_offset_wcs):
-            m = w.wcs.piximg_matrix
-            w.wcs.crval[0] -= (dy_opnav * (m[0,0] + m[1,0])) # RA. I am sort of guessing about these params, but looks good.
-            w.wcs.crval[1] -= (dx_opnav * (m[1,1] + m[0,1])) # Dec
-    
-            ax1 = figs.add_subplot(1,2,2, projection=w) # nrows, ncols, plotnum. Returns an 'axis'
-            fig1 = plt.imshow(np.log(image_polyfit))
-            # Get the x and y pixel positions from WCS. The final argument ('0') refers to row vs. column order
-            x_stars,        y_stars        = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)       
-            
-            plt.plot(points_phot[:,0], points_phot[:,1], marker='o', ls='None', fillstyle='none', color='red', 
-                              markersize=12)
-    
-            x_stars,        y_stars        = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)      
-            x_stars_abcorr, y_stars_abcorr = w.wcs_world2pix(radec_stars_abcorr[:,0]*r2d, radec_stars_abcorr[:,1]*r2d, 0)
-            x_ring_abcorr, y_ring_abcorr = w.wcs_world2pix(radec_ring_abcorr[:,0]*r2d, radec_ring_abcorr[:,1]*r2d, 0)
-    
-    
-            plt.plot(x_stars, y_stars, marker='o', ls='None', color='lightgreen', mfc = 'None', mec = 'red', \
-                              ms=12, mew=2, label='Cat')
-            plt.plot(x_stars_abcorr, y_stars_abcorr, marker='o', ls='None', mfc = 'None', mec = 'green', \
-                              ms=12, mew=2, label = 'Cat, abcorr')
-            plt.plot(x_ring_abcorr, y_ring_abcorr, marker='o', ls='-', color='blue', mfc = 'None', mec = 'blue', 
-                              ms=12, mew=2, 
-                     label = 'Ring, LT+S')
-                    
-            plt.xlim((0,1000))
-            plt.ylim((0,1000))
-            plt.title('WCS, center = ' + repr(w.wcs.crval))
+# self.function(), and they have access to all of the variables within self. .	
 
 ##########
 # INIT CLASS
@@ -703,6 +508,201 @@ class App:
         self.process_image()
         self.plot_image()
                        
+##########
+# Navigate the image and plot it
+##########
+
+    """
+    Handle the 'navigate image' button. Plots image when done.
+    Extracts profile if that is default.
+    """
+				
+    def handle_navigate(self):
+        self.navigate()
+        self.refresh_statusbar()  # Put the new nav info into the statusbar
+        self.plot_image()								
+							
+#########
+# Navigate the image
+#########
+
+    def navigate(self):        
+
+        t = self.t_group # We use this a lot, so make it shorter
+        d2r = hbt.d2r
+        r2d = hbt.r2d
+        
+        index_image = self.index_image       
+        
+# Now look up positions of stars in this field, from a star catalog
+
+        w = WCS(t['Filename'][index_image])                  # Look up the WCS coordinates for this frame
+        et = t['ET'][index_image]
+
+        print 'ET[i] =  ' + repr(et)
+        print 'UTC[i] = ' + repr(t['UTC'][index_image])
+        print 'crval[i] = ' + repr(w.wcs.crval)
+#        print 'RA[i] =  ' + repr(t['RAJ2000'][index_image] * d2r) + ' rad'
+#        print 'Dec[i] = ' + repr(t['DEJ2000'][index_image] * d2r) + ' rad'
+        
+        center  = w.wcs.crval  # degrees
+        DO_GSC      = True
+        DO_USNOA2   = False
+        
+        if (DO_GSC):
+            name_cat = 'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
+            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+            ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
+            dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
+            table_stars = Table(stars.array.data)
+            
+        if (DO_USNOA2):        
+            name_cat = 'The USNO-A2.0 Catalogue (Monet+ 1998) 1' # Works but gives stars down to v=17; I want to v=13 
+            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+            table_stars = Table(stars.array.data)
+            mask = table_stars['Bmag'] < 13
+            table_stars_m = table_stars[mask]            
+
+            ra_stars  = table_stars_m['RAJ2000']*d2r # Convert to radians
+            dec_stars = table_stars_m['DEJ2000']*d2r # Convert to radians
+
+# Get position of satellites
+
+        name_bodies = np.array(['Metis', 'Adrastea', 'Io'])        
+        x_bodies,  y_bodies   = hbt.get_pos_bodies(et, name_bodies, units='pixels', wcs=w)
+        ra_bodies, dec_bodies = hbt.get_pos_bodies(et, name_bodies, units='radec', wcs=w)
+        
+# Get an array of points along the ring
+
+        ra_ring1, dec_ring1 = hbt.get_pos_ring(et, name_body='Jupiter', radius=122000, units='radec', wcs=w)
+        ra_ring2, dec_ring2 = hbt.get_pos_ring(et, name_body='Jupiter', radius=129000, units='radec', wcs=w)
+
+                    # Return as radians              
+        x_ring1, y_ring1    = w.wcs_world2pix(ra_ring1*r2d, dec_ring1*r2d, 0) # Convert to pixels
+        x_ring2, y_ring2    = w.wcs_world2pix(ra_ring2*r2d, dec_ring2*r2d, 0) # Convert to pixels
+
+# Get position of Jupiter, in pixels
+
+#        ra_io, dec_io = get_pos_body(et, name_body='Io', units = 'radec', wcs=w)
+        
+# Look up velocity of NH, for stellar aberration
+        
+        abcorr = 'LT+S'
+        frame = 'J2000'
+        st,ltime = cspice.spkezr('New Horizons', et, frame, abcorr, 'Sun') # Get velocity of NH 
+        vel_sun_nh_j2k = st[3:6]
+        
+# Correct stellar RA/Dec for stellar aberration
+
+        radec_stars        = np.transpose(np.array((ra_stars,dec_stars)))
+        radec_stars_abcorr = hbt.correct_stellab(radec_stars, vel_sun_nh_j2k) # Store as radians
+
+# Convert ring RA/Dec for stellar aberration
+
+        radec_ring1        = np.transpose(np.array((ra_ring1,dec_ring1)))
+        radec_ring1_abcorr = hbt.correct_stellab(radec_ring1, vel_sun_nh_j2k) # radians
+        radec_ring2        = np.transpose(np.array((ra_ring2,dec_ring2)))
+        radec_ring2_abcorr = hbt.correct_stellab(radec_ring2, vel_sun_nh_j2k) # radians
+        
+# Convert RA/Dec values back into pixels
+        
+        x_stars,        y_stars          = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)        
+        x_stars_abcorr, y_stars_abcorr   = w.wcs_world2pix(radec_stars_abcorr[:,0]*r2d, radec_stars_abcorr[:,1]*r2d, 0)
+        x_ring1_abcorr, y_ring1_abcorr   = w.wcs_world2pix(radec_ring1_abcorr[:,0]*r2d, radec_ring1_abcorr[:,1]*r2d, 0)
+        x_ring2_abcorr, y_ring2_abcorr   = w.wcs_world2pix(radec_ring2_abcorr[:,0]*r2d, radec_ring2_abcorr[:,1]*r2d, 0)
+
+        points_stars        = np.transpose((x_stars, y_stars))
+        points_stars_abcorr = np.transpose((x_stars_abcorr, y_stars_abcorr))
+
+# Read the image file from disk
+
+        image_polyfit = hbt.get_image_nh(t['Filename'][index_image], frac_clip = 1.,  
+                                     bg_method = 'Polynomial', bg_argument = 4)
+        image_raw     = hbt.get_image_nh(t['Filename'][index_image], frac_clip = 0.9, 
+                                     bg_method = 'None')
+
+# Use DAOphot to search the image for stars. It works really well.
+
+        points_phot = find_stars(image_polyfit)
+        
+# Now look up the shift between the photometry and the star catalog. 
+# Do this by making a pair of fake images, and then looking up image registration on them.
+# I call this 'opnav'. It is returned in order (y,x) because that is what imreg_dft uses, even though it is a bit weird.
+#
+# For this, I can use either abcorr stars or normal stars -- whatever I am going to compute the offset from.        
+
+        (dy_opnav, dx_opnav) = calc_offset_points(points_phot, points_stars, np.shape(image_raw), plot=False)
+
+# Save the newly computed values to variables that we can access externally
+# For the star locations, we can't put an array into an element of an astropy table.
+# But we *can* put a string into astropy table! Do that: wrap with repr(), unwrap with eval('np.' + ).
+       
+        self.t_group['dx_opnav'][self.index_image] = dx_opnav
+        self.t_group['dy_opnav'][self.index_image] = dy_opnav
+        
+        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars_abcorr)
+        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars_abcorr)
+
+#        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars) # For test purposes, ignore the abcorr
+#        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars)
+        
+        self.t_group['x_pos_star_image'][self.index_image] = repr(points_phot[:,0])
+        self.t_group['y_pos_star_image'][self.index_image] = repr(points_phot[:,1])
+        self.t_group['is_navigated'][self.index_image] = True             # Set the flag saying we have navigated image
+
+        self.t_group['x_pos_ring1'][self.index_image] = repr(x_ring1_abcorr)
+        self.t_group['y_pos_ring1'][self.index_image] = repr(y_ring1_abcorr)
+        self.t_group['x_pos_ring2'][self.index_image] = repr(x_ring2_abcorr)
+        self.t_group['y_pos_ring2'][self.index_image] = repr(y_ring2_abcorr)
+        
+        print "Opnav computed: {dx,dy}_opnav = " + repr(dx_opnav) + ', ' + repr(dy_opnav)
+
+        print 'ra_stars      : ' + repr(ra_stars*r2d) + ' deg'
+               
+        # Now that we have navigated it, replot the image!
+               
+        return 0
+
+### THIS STUFF BELOW HERE IS NOT USED -- KEPT FOR HISTORICAL PURPOSES ONLY?? ###
+        
+
+######## TEST WCS OFFSETTING ##########
+
+# Now convert the dx / dy offset (from opnav) into an RA/Dec offset.
+# Put the new correct center position into WCS, so plots from now on will be correct.
+
+        do_offset_wcs = False
+        
+        if (do_offset_wcs):
+            m = w.wcs.piximg_matrix
+            w.wcs.crval[0] -= (dy_opnav * (m[0,0] + m[1,0])) # RA. I am sort of guessing about these params, but looks good.
+            w.wcs.crval[1] -= (dx_opnav * (m[1,1] + m[0,1])) # Dec
+    
+            ax1 = figs.add_subplot(1,2,2, projection=w) # nrows, ncols, plotnum. Returns an 'axis'
+            fig1 = plt.imshow(np.log(image_polyfit))
+            # Get the x and y pixel positions from WCS. The final argument ('0') refers to row vs. column order
+            x_stars,        y_stars        = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)       
+            
+            plt.plot(points_phot[:,0], points_phot[:,1], marker='o', ls='None', fillstyle='none', color='red', 
+                              markersize=12)
+    
+            x_stars,        y_stars        = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)      
+            x_stars_abcorr, y_stars_abcorr = w.wcs_world2pix(radec_stars_abcorr[:,0]*r2d, radec_stars_abcorr[:,1]*r2d, 0)
+            x_ring_abcorr, y_ring_abcorr = w.wcs_world2pix(radec_ring_abcorr[:,0]*r2d, radec_ring_abcorr[:,1]*r2d, 0)
+    
+    
+            plt.plot(x_stars, y_stars, marker='o', ls='None', color='lightgreen', mfc = 'None', mec = 'red', \
+                              ms=12, mew=2, label='Cat')
+            plt.plot(x_stars_abcorr, y_stars_abcorr, marker='o', ls='None', mfc = 'None', mec = 'green', \
+                              ms=12, mew=2, label = 'Cat, abcorr')
+            plt.plot(x_ring_abcorr, y_ring_abcorr, marker='o', ls='-', color='blue', mfc = 'None', mec = 'blue', 
+                              ms=12, mew=2, 
+                     label = 'Ring, LT+S')
+                    
+            plt.xlim((0,1000))
+            plt.ylim((0,1000))
+            plt.title('WCS, center = ' + repr(w.wcs.crval))
+
 
 ##########
 # Save GUI settings. 
@@ -1439,8 +1439,8 @@ the internal state which is already correct. This does *not* refresh the image i
         lun = open(self.filename_save, 'rb')
         t = pickle.load(lun)
         self.t = t # All of the variables we need are in the 't' table.
-
         lun.close()
+
         if (verbose):
             tkMessageBox.showinfo("Loaded", "File " + self.filename_save + " loaded.")
 

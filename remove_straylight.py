@@ -13,6 +13,12 @@ import cspice
 import wcsaxes
 import hbt
 from   astropy.wcs import WCS
+import matplotlib.pyplot as plt
+import matplotlib
+import pickle # For load/save
+import scipy
+import scipy.misc
+#import Image
 
 def remove_stray():
     
@@ -39,7 +45,7 @@ a4 = hbt.get_image_nh(dir_images + file4, bg_method='raw', frac_clip = 1.)
 
 hbt.set_plot_defaults()
 
-#plt.rc('image', cmap='Greys')
+plt.rc('image', cmap='Greys_r')
 plt.rcParams['figure.figsize'] = (10, 10)
 
 plt.imshow(a1)
@@ -65,3 +71,88 @@ diff_s = diff - hbt.sfit(diff, degree=5)
 plt.imshow(diff_s)
 plt.ylim((1023, 0))
 plt.show()
+import scipy.misc
+
+
+######
+
+filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
+
+lun = open(filename_save, 'rb')
+t = pickle.load(lun)
+lun.close()
+	
+groupmask = (t['Desc'] == 'Jupiter ring - search for embedded moons')
+t_group = t[groupmask]	
+
+frames_med = np.array([2,3,4,5,6,7,8,9,10,11])
+num_frames_med = np.size(frames_med)
+
+frame_arr = np.zeros((num_frames_med, 1024, 1024))
+
+do_output_png = False
+ 
+for i in range(num_frames_med):
+    f = t_group['Filename'][i] # Look up filename
+    print f
+    frame = hbt.get_image_nh(f,frac_clip = 1)
+    frame_arr[i,:,:] = frame	
+				
+if (do_output_png):
+    for i in range(num_frames_med):				
+#        scipy.misc.toimage(frame_arr[i,:,:], cmin=0.0).save('outfile' + repr(i)+ '.jpg')
+#        im = Image.fromarray(frame_arr[i,:,:])
+#        im.save('outfile' + repr(i) + '.png')
+        matplotlib.image.imsave('outfile' + repr(i) + '.png', hbt.remove_brightest(frame_arr[i,:,:], 0.97, symmetric=True))								
+
+# Take the median of all of these
+
+frame_med = np.median(frame_arr, axis=0)
+frame_min = np.min(frame_arr, axis=0)
+frame_max = np.max(frame_arr, axis=0)
+
+
+file = t_group['Filename'][0]
+
+image = hbt.get_image_nh(file, frac_clip=1)
+
+plt.imshow(hbt.remove_brightest(image, 0.9, symmetric=True))
+plt.title('image')
+plt.show()
+
+plt.imshow(hbt.remove_brightest(frame_med, 0.9, symmetric=True))
+plt.title('median')
+plt.show()
+
+plt.imshow(hbt.remove_brightest(frame_max, 0.9, symmetric=True))
+plt.title('max')
+plt.show()
+
+plt.imshow(hbt.remove_brightest(frame_min, 0.9, symmetric=True))
+plt.title('min')
+plt.show()
+
+im = hbt.remove_brightest(image - frame_med, 0.9, symmetric=True)
+plt.imshow(im - hbt.sfit(im,3))
+plt.title('image - median, sfit')
+plt.show()
+
+im = hbt.remove_brightest(image - frame_min, 0.9, symmetric=True)
+plt.imshow(im - hbt.sfit(im,3))
+plt.title('image - min, sfit')
+plt.show()
+
+im = hbt.remove_brightest(image - frame_max, 0.9, symmetric=True)
+plt.imshow(im - hbt.sfit(im,3))
+plt.title('image - max, sfit')
+plt.show()
+
+
+im = hbt.remove_brightest(image - frame_arr[3,:,:], 0.9, symmetric=True)
+plt.imshow(im - hbt.sfit(im,3))
+plt.title('image - frame_3, sfit')
+plt.show()
+
+
+
+						
