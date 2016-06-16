@@ -146,14 +146,20 @@ class App:
 # Now define the functions that are part of this module (or class, not sure). They are accessed with 
 # self.function(), and they have access to all of the variables within self. .
 
+
+##########
+# Navigate the image and plot it
+##########
+
+    def handle_navigate(self):
+        self.navigate()
+        self.refresh_statusbar()  # Put the new nav info into the statusbar
+        self.plot_image()
+        								
+								
 #########
-# (N)avigate the image -- plot rings and everything on it
+# Navigate the image
 #########
-# Things I want to return from here, or at least get set into the global variable table:
-#
-#  Star positions for the catalog, abcorr. Pixels.
-#  Star positions in this frame, abcorr. Pixels.
-#  dx and dy offset between these two sets
 
     def navigate(self):        
 
@@ -280,7 +286,7 @@ class App:
         
         self.t_group['x_pos_star_image'][self.index_image] = repr(points_phot[:,0])
         self.t_group['y_pos_star_image'][self.index_image] = repr(points_phot[:,1])
-        self.t_group['is_navigated'][self.index_image] = True
+        self.t_group['is_navigated'][self.index_image] = True             # Set the flag saying we have navigated image
 
         self.t_group['x_pos_ring1'][self.index_image] = repr(x_ring1_abcorr)
         self.t_group['y_pos_ring1'][self.index_image] = repr(y_ring1_abcorr)
@@ -292,9 +298,7 @@ class App:
         print 'ra_stars      : ' + repr(ra_stars*r2d) + ' deg'
                
         # Now that we have navigated it, replot the image!
-       
-        self.plot_image()
-        
+               
         return 0
 
 ### THIS STUFF BELOW HERE IS NOT USED -- KEPT FOR HISTORICAL PURPOSES ONLY?? ###
@@ -446,6 +450,8 @@ class App:
 								
         self.do_autoextract     = 1             # Flag to extract radial profile when possible. Flag is 1/0, not True/False, as per ttk.
         
+        self.legend             = False         # Store pointer to plot legend here, so it can be deleted
+								
         radii                   = cspice.bodvrd('JUPITER', 'RADII')
         self.rj                 = radii[0]  # Jupiter radius, polar, in km. Usually 71492.
         
@@ -478,9 +484,9 @@ class App:
    
         self.button_prev =     ttk.Button(master, text = 'Prev',     command=self.select_image_prev)
         self.button_next =     ttk.Button(master, text = 'Next',     command=self.select_image_next)
-        self.button_plot   =   ttk.Button(master, text = 'Plot',     command=self.plot_image)
-        self.button_extract =  ttk.Button(master, text = 'Extract',  command=self.extract_profiles)
-        self.button_navigate = ttk.Button(master, text = 'Navigate', command=self.navigate)
+        self.button_plot   =   ttk.Button(master, text = 'Plot',     command=self.handle_plot_image)
+        self.button_extract =  ttk.Button(master, text = 'Extract',  command=self.handle_extract_profiles)
+        self.button_navigate = ttk.Button(master, text = 'Navigate', command=self.handle_navigate)
         self.button_repoint =  ttk.Button(master, text = 'Repoint',  command=self.repoint)
         self.button_ds9 =      ttk.Button(master, text = 'Open in DS9', command=self.open_external)
         self.button_copy =     ttk.Button(master, text = 'Copy name to clipboard', command=self.copy_name_to_clipboard)
@@ -696,58 +702,7 @@ class App:
         self.load_image()
         self.process_image()
         self.plot_image()
-                
-##########
-# Change Group
-##########
-
-    def select_group(self, event):
-
-        print "select_group"
-
-        index = (self.lbox_groups.curselection())[0]
-
-        print "index = " + repr(index)
-        
-# First change the image # back to zero (or anything, but 0 is safest, and works even if currently at 0).
-# This is necessary to save the state of the image (extraction params, etc.)
-
-        self.index_image_new = 0
-        self.change_image(refresh=False) # Save all parameters. 
-        
-# Now look up the new group name. Extract those elements.        
-          
-        name_group = self.groups[index]
-        
-        self.groupmask = self.t['Desc'] == name_group
-        
-        self.t_group = self.t[self.groupmask]
-
-        self.num_images_group = np.size(self.t_group)
-
-        print "Group #{} = {} of size {} hit!".format(index, name_group, self.num_images_group)
-
-# Create the listbox for files, and load it up
-
-        files_short = self.t_group['Shortname']
-
-        self.lbox_files.delete(0, "end")
- 
-        for i in range(np.size(files_short)):
-            
-             s = '{0:3}.   {1}   {2:.3f}   {3}  {4}'.format( \
-                 repr(i), 
-                 files_short[i], 
-                 self.t_group['Exptime'][i], 
-                 self.t_group['Format'][i],                 
-                 self.t_group['UTC'][i])
-
-             self.lbox_files.insert("end", s)
-                 
-# Then set the group number, and refresh screen.
-        
-        self.index_group_new = index
-        self.change_image()
+                       
 
 ##########
 # Save GUI settings. 
@@ -760,7 +715,7 @@ class App:
  
     def save_gui(self):
 
-#        print "save_gui
+        print "save_gui()"
         
 # Save the current values
          
@@ -803,6 +758,13 @@ class App:
         self.index_image = self.index_image_new
         self.index_group = self.index_group_new
 
+#  Update the frequently used 't_group' list to reflect new group
+
+        name_group = self.groups[self.index_group]
+        self.groupmask = self.t['Desc'] == name_group        
+        self.t_group = self.t[self.groupmask]
+        self.num_images_group = np.size(self.t_group)							
+								
 # Redraw the GUI for the new settings
 
         self.refresh_gui()
@@ -846,7 +808,7 @@ class App:
 
         print "process_image()"
 								
-        print "  OptionMenu: method = " + method
+#        print "  OptionMenu: method = " + method
         
 #        image = np.zeros((1023, 1023))
         
@@ -873,7 +835,7 @@ class App:
             image = image_fg - image_bg
 
         if (method == 'Polynomial'):
-         power = self.entry_bg_get()
+         power = self.entry_bg.get()
          image = self.image_raw - hbt.sfit(self.image_raw, power) # Look up the exponenent and apply it 
                                                 
         if (method == 'Grp Num Frac Pow'):  # This is the most common method, I think
@@ -934,6 +896,54 @@ class App:
         # Save the image where we can use it later for extraction. 
 
         self.image_processed = image
+
+##########
+# Change Group
+##########
+
+    def select_group(self, event):
+
+        print "select_group"
+
+        index = (self.lbox_groups.curselection())[0]
+        name_group = self.groups[index]
+
+# Create the listbox for files, and load it up
+# NB: We are using a local copy of t_group here -- not self.t_group, 
+# which still reflects the old group, not new one.
+
+        groupmask = self.t['Desc'] == name_group        
+        t_group = self.t[groupmask]
+        num_images_group = np.size(t_group)
+        print "Group #{} = {} of size {} hit!".format(index, name_group, self.num_images_group)								
+
+# Now look up the new group name. Extract those elements.        
+								
+#        name = self.t_group['Shortname'][index]
+#        print "selected = " + repr(index) + ' ' + name
+
+
+        files_short = t_group['Shortname']
+
+        self.lbox_files.delete(0, "end")
+ 
+        for i in range(np.size(files_short)):
+            
+             s = '{0:3}.   {1}   {2:.3f}   {3}  {4}'.format( \
+                 repr(i), 
+                 files_short[i], 
+                 t_group['Exptime'][i], 
+                 t_group['Format'][i],                 
+                 t_group['UTC'][i])
+
+             self.lbox_files.insert("end", s)
+                 
+# Then set the group number, and refresh screen.
+
+        self.index_image_new = 0      # Set image number to zero
+        self.index_group_new = index  # Set the new group number
+#        print " ** Calling change								
+        self.change_image() 
                                                                                                                                                     
                                      
 ##########
@@ -1045,7 +1055,41 @@ the internal state which is already correct. This does *not* refresh the image i
         self.refresh_statusbar()
         
         return 0
+
+
+##########
+# Extract profiles - button handler
+##########
+
+    def handle_extract_profiles(self):
+        """
+        Extract and plot radial / azimuthal profiles. Because plotting params
+        have likely changed, we replot as well.
+        Identical to handle_plot_image, but forces the extraction.								
+        """
         
+        self.save_gui()
+        self.process_image()
+        self.plot_image()
+
+        self.extract_profiles()								
+
+##########
+# Plot image - button handler
+##########
+
+    def handle_plot_image(self):
+        """
+        Plot the image. Reprocess to reflect any changes from GUI.
+        Plots objects and extracts profiles, as available.								
+        """
+        
+        self.save_gui()
+        self.process_image()
+        self.plot_image()
+
+        if (self.do_autoextract):
+            self.extract_profiles()								
         
 ##########
 # Plot image
@@ -1054,16 +1098,12 @@ the internal state which is already correct. This does *not* refresh the image i
     def plot_image(self):
         """
         Plot the image. It has already been loaded and processed.
+        This is an internal routine, which does not process.	
+        This plots the image itself, *and* the objects, if navigated.								
         """
 
         print "plot_image()"
         
-        # First save the current settings in case they've not beeen saved yet.
-        # Then redraw the screen, based on new settings.
-        
-#        self.index_image_new = self.index_image
-#        self.change_image()
-
         # Clear the image
 
         self.ax1.clear()
@@ -1100,6 +1140,9 @@ the internal state which is already correct. This does *not* refresh the image i
         
         print "finished drawing canvas"
         
+        if (self.t_group['is_navigated'][self.index_image]):
+            self.plot_objects()									
+								
         return 0
 
 ##########
@@ -1110,7 +1153,10 @@ the internal state which is already correct. This does *not* refresh the image i
         """
            Plot rings and stars, etc, if we have them.
       """
-                        
+        
+        print 'plot_objects()'
+
+        
         # If we have them, draw the stars on top
 
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
@@ -1118,9 +1164,19 @@ the internal state which is already correct. This does *not* refresh the image i
          
         filename = self.t_group['Filename'][self.index_image]
         filename = str(filename)
-                                
+        
+        print "is_navigated: " + repr(self.t_group['is_navigated'][self.index_image])                        
+								
         if (self.t_group['is_navigated'][self.index_image]):
 
+            # Remove all of the current 'lines' (aka points) from the plot. This leaves the axis and the image
+            # preserved, but just removes the lines. Awesome. Using ax1.cla() will clear the entire 'axis', including image.
+            # Q: Does this remove legend? Not sure.
+		
+            lines = self.ax1.get_lines()
+            for line in lines:
+                line.remove()		# Not vectorized -- have to do it one-by-one											
+												
             x_pos_ring1 = eval('np.' + t['x_pos_ring1']) # Convert from string (which can go in table) to array
             y_pos_ring1 = eval('np.' + t['y_pos_ring1'])
             x_pos_ring2 = eval('np.' + t['x_pos_ring2'])
@@ -1148,10 +1204,10 @@ the internal state which is already correct. This does *not* refresh the image i
             DO_PLOT_RING_OUTER = True
             
             if (DO_PLOT_RING_OUTER):
-                self.ax1.plot(x_pos_ring2, y_pos_ring2, marker='o', ls = '--',
+                self.ax1.plot(x_pos_ring2, y_pos_ring2, marker='o', color = 'blue', ls = '--',
                               label = 'Ring, OpNav only')
 
-                self.ax1.plot(x_pos_ring2 + dx, y_pos_ring2 + dy, marker='o', ls = '--',
+                self.ax1.plot(x_pos_ring2 + dx, y_pos_ring2 + dy, marker='o', color = 'lightblue', ls = '--',
                               label = 'Ring, OpNav+User')
                     
             if (DO_PLOT_RING_INNER):
@@ -1161,9 +1217,11 @@ the internal state which is already correct. This does *not* refresh the image i
                 self.ax1.plot(x_pos_ring1 + dx, y_pos_ring1 + dy, \
                     marker='o', color='purple', ls = '-', ms=8, label='Ring, LT, Shifted')
 
-            
-            self.ax1.legend()
+            self.legend = self.ax1.legend()  # Draw legend. Might be irrel since remove() might keep it; not sure.
 
+            self.canvas1.draw()
+
+    
 ##########
 # Extract ring profiles (both radial and azimuthal), and plot them
 ##########
@@ -1185,7 +1243,7 @@ the internal state which is already correct. This does *not* refresh the image i
         dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
         dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
         
-        image_roll = np.roll(np.roll(self.image, dx_total, axis=1), dy_total, axis=0)
+        image_roll = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
         
         radius = self.planes['Radius_eq'] / self.rj   # Radius stored as km, but do the calc in R_J
         azimuth = self.planes['Longitude_eq'] * hbt.r2d # Azimuth is stored as radians, but do the calc in degrees
@@ -1396,7 +1454,13 @@ the internal state which is already correct. This does *not* refresh the image i
 #    Save all settings to the pre-set filename 
 #    """
         # First save the current GUI settings to local variables in case they've not beeen saved yet.
+  
         self.save_gui()
+        print "Set saving..."
+
+        # Put up a message for the user. A dialog is too intrusive.
+
+        self.var_label_status_io.set('SAVING...') # This one doens't work for some reason...
     
         # Write one variable to a file    
     
@@ -1404,17 +1468,11 @@ the internal state which is already correct. This does *not* refresh the image i
         t = self.t
         pickle.dump(t, lun)
         lun.close()
-        
-        # Put up a message for the user. A dialog is too intrusive.
-                
-        self.var_label_status_io.set('SAVING...')
-        print "Set saving..."
-        time.sleep(0.5)
-        self.var_label_status_io.set('')
+                       
+#        time.sleep(1)
+        self.var_label_status_io.set('')  # This one works
 
-#            tkMessageBox.showinfo("Saved", "File " + self.filename_save + " saved.")
         
-#        tk
 ##########
 # (p)revious image
 ##########
