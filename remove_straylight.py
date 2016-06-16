@@ -75,6 +75,9 @@ import scipy.misc
 
 
 ######
+# Now look at how to create a good median filter to subtract. 
+# These routines here are unrelated to the ones above.
+######
 
 filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
 
@@ -86,18 +89,23 @@ groupmask = (t['Desc'] == 'Jupiter ring - search for embedded moons')
 t_group = t[groupmask]	
 
 frames_med = np.array([2,3,4,5,6,7,8,9,10,11])
-num_frames_med = np.size(frames_med)
+num_frames_med = np.size(frames_med) 
 
-frame_arr = np.zeros((num_frames_med, 1024, 1024))
+frame_arr      = np.zeros((num_frames_med, 1024, 1024))
+frame_sfit_arr = np.zeros((num_frames_med, 1024, 1024))
 
 do_output_png = False
+
+power = 5
  
 for i in range(num_frames_med):
     f = t_group['Filename'][i] # Look up filename
     print f
     frame = hbt.get_image_nh(f,frac_clip = 1)
     frame_arr[i,:,:] = frame	
-				
+    
+    frame_sfit_arr[i,:,:] = frame - hbt.sfit(frame, power)
+    			
 if (do_output_png):
     for i in range(num_frames_med):				
 #        scipy.misc.toimage(frame_arr[i,:,:], cmin=0.0).save('outfile' + repr(i)+ '.jpg')
@@ -107,7 +115,11 @@ if (do_output_png):
 
 # Take the median of all of these
 
-frame_med = np.median(frame_arr, axis=0)
+frame_med = np.median(frame_arr, axis=0) # Take median. This is not a very good median -- not sure why.
+						        # If we take median of 10 frames vs. 9, it looks vs. different. (try doing 2 .. 10 vs. 2 .. 11)
+
+frame_sfit_med = np.median(frame_sfit_arr, axis=0) # Take median.
+
 frame_min = np.min(frame_arr, axis=0)
 frame_max = np.max(frame_arr, axis=0)
 
@@ -153,6 +165,41 @@ plt.imshow(im - hbt.sfit(im,3))
 plt.title('image - frame_3, sfit')
 plt.show()
 
+im = hbt.remove_brightest(image - frame_sfit_med, 0.97, symmetric=True)
+plt.imshow(hbt.remove_brightest(im - hbt.sfit(im,3), 0.97, symmetric=True))
+plt.title('image - multi_median_sfit, sfit')
+plt.show()
 
+# Concl: we need to somehow normalize and/or flatten these individual frames before turning into a median.
+# We should probably also smooth the median before applying it!
 
 						
+# Now plot a histogram of each of these N frames. Just to compare them and see what's going on with them...
+
+fig, ax = plt.subplots(1, 2, figsize=(13, 6))
+      
+mm    = (200,500)
+bins  = 100          
+
+for i in range(num_frames_med):
+    
+    hist,bin_edges = np.histogram(frame_arr[i,:,:], range=mm, bins=bins)  
+    ax[0].plot(bin_edges[:-1], hist)
+    
+ax[0].set_xlim(min(bin_edges), max(bin_edges))    
+ax[0].set_title('Histogram, FITS, N=' + repr(num_frames_med), fontsize=15)
+#ax[0].show()
+
+mm = (5,30)
+for i in range(num_frames_med):
+    
+    hist,bin_edges = np.histogram(frame_sfit_arr[i,:,:], range=mm, bins=bins)  
+    ax[1].plot(bin_edges[:-1], hist)
+    
+ax[1].set_xlim(min(bin_edges), max(bin_edges))
+ax[1].set_title('Histogram, FITS, N=' + repr(num_frames_med) + ', sfit power=' + repr(power), fontsize=15)    
+fig.show()
+
+#ax[1].show()
+
+
