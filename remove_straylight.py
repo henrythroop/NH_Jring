@@ -93,6 +93,7 @@ num_frames_med = np.size(frames_med)
 
 frame_arr      = np.zeros((num_frames_med, 1024, 1024))
 frame_sfit_arr = np.zeros((num_frames_med, 1024, 1024))
+frame_ffit_arr = np.zeros((num_frames_med, 1024, 1024))
 
 do_output_png = False
 
@@ -105,6 +106,7 @@ for i in range(num_frames_med):
     frame_arr[i,:,:] = frame	
     
     frame_sfit_arr[i,:,:] = frame - hbt.sfit(frame, power)
+    frame_ffit_arr[i,:,:] = frame - hbt.ffit(frame)
     			
 if (do_output_png):
     for i in range(num_frames_med):				
@@ -119,6 +121,7 @@ frame_med = np.median(frame_arr, axis=0) # Take median. This is not a very good 
 						        # If we take median of 10 frames vs. 9, it looks vs. different. (try doing 2 .. 10 vs. 2 .. 11)
 
 frame_sfit_med = np.median(frame_sfit_arr, axis=0) # Take median.
+frame_ffit_med = np.median(frame_ffit_arr, axis=0) # Take median.
 
 frame_min = np.min(frame_arr, axis=0)
 frame_max = np.max(frame_arr, axis=0)
@@ -165,10 +168,48 @@ plt.imshow(im - hbt.sfit(im,3))
 plt.title('image - frame_3, sfit')
 plt.show()
 
+fig, ax = plt.subplots(3, 2, figsize=(20, 30 ))
+
+plt.subplot(3,2,1) # Reversed! num cols, num rows ** Good reduction. Largest az etent.
 im = hbt.remove_brightest(image - frame_sfit_med, 0.97, symmetric=True)
-plt.imshow(hbt.remove_brightest(im - hbt.sfit(im,3), 0.97, symmetric=True))
+plt.imshow(hbt.remove_brightest(im - hbt.sfit(im,8), 0.97, symmetric=True), vmin=-20, vmax=20)
 plt.title('image - multi_median_sfit, sfit')
+#plt.show()
+
+plt.subplot(3,2,2) # OK reduction. Bit lumpy though.
+im = hbt.remove_brightest(image - frame_ffit_med, 0.97, symmetric=True)
+plt.imshow(hbt.remove_brightest(im - hbt.ffit(im), 0.97, symmetric=True), vmin=-20, vmax=20)
+plt.title('image - multi_median_ffit, ffit')
+#plt.show()
+
+plt.subplot(3,2,3) # ** Good reduction. Less az extent, but maybe cleaner? 
+im = hbt.remove_brightest(image - frame_sfit_med, 0.97, symmetric=True)
+plt.imshow(hbt.remove_brightest(im - hbt.ffit(im), 0.97, symmetric=True), vmin=-20, vmax=20)
+plt.title('image - multi_median_sfit, ffit')
+#plt.show()
+
+plt.subplot(3,2,4) # ** Not good. Too lumpy.
+im = hbt.remove_brightest(image - frame_ffit_med, 0.97, symmetric=True)
+plt.imshow(hbt.remove_brightest(im - hbt.sfit(im,8), 0.97, symmetric=True), vmin=-20, vmax=20)
+plt.title('image - multi_median_ffit, sfit')
+
+# Now do two more, denoised. For these, use a median filter but only in the vertical direction (10,1).
+# Otherwise the median will lose its vertical zebra stripes. Those are a source of noise that 
+# we actually want to keep in the median, so they are removed when we subtract them.
+
+plt.subplot(3,2,5) # *** I think this is the best overall reduction
+frame_sfit_med_denoise = scipy.ndimage.median_filter(frame_sfit_med,size=(10,1))
+im = hbt.remove_brightest(image - frame_sfit_med_denoise, 0.97, symmetric=True)
+plt.imshow(hbt.remove_brightest(im - hbt.ffit(im), 0.97, symmetric=True), vmin=-20, vmax=20)
+plt.title('image - multi_median_sfit_denoise, ffit')
+
+plt.subplot(3,2,6) # *** too lumpy
+frame_ffit_med_denoise = scipy.ndimage.median_filter(frame_ffit_med,size=(10,1))
+im = hbt.remove_brightest(image - frame_ffit_med_denoise, 0.97, symmetric=True)
+plt.imshow(hbt.remove_brightest(im - hbt.sfit(im,8), 0.97, symmetric=True), vmin=-20, vmax=20)
+plt.title('image - multi_median_ffit_denoise, sfit')
 plt.show()
+
 
 # Concl: we need to somehow normalize and/or flatten these individual frames before turning into a median.
 # We should probably also smooth the median before applying it!
