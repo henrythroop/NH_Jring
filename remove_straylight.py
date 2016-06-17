@@ -170,28 +170,30 @@ plt.show()
 
 fig, ax = plt.subplots(3, 2, figsize=(20, 30 ))
 
+fs = 15
+
 plt.subplot(3,2,1) # Reversed! num cols, num rows ** Good reduction. Largest az etent.
 im = hbt.remove_brightest(image - frame_sfit_med, 0.97, symmetric=True)
 plt.imshow(hbt.remove_brightest(im - hbt.sfit(im,8), 0.97, symmetric=True), vmin=-20, vmax=20)
-plt.title('image - multi_median_sfit, sfit')
+plt.title('image - multi_median_sfit, sfit', fontsize=fs)
 #plt.show()
 
 plt.subplot(3,2,2) # OK reduction. Bit lumpy though.
 im = hbt.remove_brightest(image - frame_ffit_med, 0.97, symmetric=True)
 plt.imshow(hbt.remove_brightest(im - hbt.ffit(im), 0.97, symmetric=True), vmin=-20, vmax=20)
-plt.title('image - multi_median_ffit, ffit')
+plt.title('image - multi_median_ffit, ffit', fontsize=fs)
 #plt.show()
 
 plt.subplot(3,2,3) # ** Good reduction. Less az extent, but maybe cleaner? 
 im = hbt.remove_brightest(image - frame_sfit_med, 0.97, symmetric=True)
 plt.imshow(hbt.remove_brightest(im - hbt.ffit(im), 0.97, symmetric=True), vmin=-20, vmax=20)
-plt.title('image - multi_median_sfit, ffit')
+plt.title('image - multi_median_sfit, ffit', fontsize=fs)
 #plt.show()
 
 plt.subplot(3,2,4) # ** Not good. Too lumpy.
 im = hbt.remove_brightest(image - frame_ffit_med, 0.97, symmetric=True)
 plt.imshow(hbt.remove_brightest(im - hbt.sfit(im,8), 0.97, symmetric=True), vmin=-20, vmax=20)
-plt.title('image - multi_median_ffit, sfit')
+plt.title('image - multi_median_ffit, sfit', fontsize=fs)
 
 # Now do two more, denoised. For these, use a median filter but only in the vertical direction (10,1).
 # Otherwise the median will lose its vertical zebra stripes. Those are a source of noise that 
@@ -200,14 +202,16 @@ plt.title('image - multi_median_ffit, sfit')
 plt.subplot(3,2,5) # *** I think this is the best overall reduction
 frame_sfit_med_denoise = scipy.ndimage.median_filter(frame_sfit_med,size=(10,1))
 im = hbt.remove_brightest(image - frame_sfit_med_denoise, 0.97, symmetric=True)
-plt.imshow(hbt.remove_brightest(im - hbt.ffit(im), 0.97, symmetric=True), vmin=-20, vmax=20)
-plt.title('image - multi_median_sfit_denoise, ffit')
+im2 = hbt.remove_brightest(im - hbt.ffit(im), 0.97, symmetric=True)
+plt.imshow(im2, vmin=-20, vmax=20)
+
+plt.title('image - multi_median_sfit_denoise, ffit', fontsize=fs)
 
 plt.subplot(3,2,6) # *** too lumpy
 frame_ffit_med_denoise = scipy.ndimage.median_filter(frame_ffit_med,size=(10,1))
 im = hbt.remove_brightest(image - frame_ffit_med_denoise, 0.97, symmetric=True)
 plt.imshow(hbt.remove_brightest(im - hbt.sfit(im,8), 0.97, symmetric=True), vmin=-20, vmax=20)
-plt.title('image - multi_median_ffit_denoise, sfit')
+plt.title('image - multi_median_ffit_denoise, sfit', fontsize=fs)
 plt.show()
 
 
