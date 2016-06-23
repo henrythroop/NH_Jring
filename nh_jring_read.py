@@ -208,14 +208,14 @@ class App:
             t['bg_argument'] = entry_bg_default # A number (if 'Polynomial'). A range (if 'Median')
             t['Comment']  = 'Empty comment'  # Blank -- I'm not sure how to init its length if needed
             t['is_navigated'] = False  # Flag
-            t['x_pos_star_cat']   = np.array(t['Format'],dtype='S5000')   # 1 x n array, pixels, with abcorr
-            t['y_pos_star_cat']   = np.array(t['Format'],dtype='S5000')   # 1 x n array, pixels, with abcorr            
-            t['x_pos_star_image'] = np.array(t['Format'],dtype='S5000') # 1 x n array, pixels, with abcorr
-            t['y_pos_star_image'] = np.array(t['Format'],dtype='S5000') # 1 x n array, pixels, with abcorr
-            t['x_pos_ring1']      = np.array(t['Format'],dtype='S5000')
-            t['y_pos_ring1']      = np.array(t['Format'],dtype='S5000')
-            t['x_pos_ring2']      = np.array(t['Format'],dtype='S5000')
-            t['y_pos_ring2']      = np.array(t['Format'],dtype='S5000')
+            t['x_pos_star_cat']   = np.array(t['Format'],dtype='S10000')   # 1 x n array, pixels, with abcorr
+            t['y_pos_star_cat']   = np.array(t['Format'],dtype='S10000')   # 1 x n array, pixels, with abcorr            
+            t['x_pos_star_image'] = np.array(t['Format'],dtype='S10000') # 1 x n array, pixels, with abcorr
+            t['y_pos_star_image'] = np.array(t['Format'],dtype='S10000') # 1 x n array, pixels, with abcorr
+            t['x_pos_ring1']      = np.array(t['Format'],dtype='S10000')  # 5000 char is not long enough!
+            t['y_pos_ring1']      = np.array(t['Format'],dtype='S10000')
+            t['x_pos_ring2']      = np.array(t['Format'],dtype='S10000')
+            t['y_pos_ring2']      = np.array(t['Format'],dtype='S10000')
                       
             self.t = t
         
@@ -253,7 +253,7 @@ class App:
         
         self.file_backplane_shortname = ''      # Shortname for the currently loaded backplane.
 								
-        self.do_autoextract     = 1             # Flag to extract radial profile when possible. Flag is 1/0, not True/False, as per ttk.
+        self.do_autoextract     = 0             # Flag to extract radial profile when possible. Flag is 1/0, not True/False, as per ttk.
         
         self.legend             = False         # Store pointer to plot legend here, so it can be deleted
 								
@@ -270,9 +270,9 @@ class App:
 
 # Create the sliders, for navigation offset
         
-        self.slider_offset_dx  = ttk.Scale(master, from_=-100, to=100, orient=Tkinter.HORIZONTAL, 
+        self.slider_offset_dx  = ttk.Scale(master, from_=-260, to=260, orient=Tkinter.HORIZONTAL, 
                                    command=self.set_offset) # Slider dx offset
-        self.slider_offset_dy  = ttk.Scale(master, from_=-100, to=100, orient=Tkinter.VERTICAL, 
+        self.slider_offset_dy  = ttk.Scale(master, from_=-260, to=260, orient=Tkinter.VERTICAL, 
                                    command=self.set_offset) # Slider dy offset
 
 # Define labels
@@ -646,8 +646,10 @@ class App:
 #        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars) # For test purposes, ignore the abcorr
 #        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars)
         
-        self.t_group['x_pos_star_image'][self.index_image] = repr(points_phot[:,0])
-        self.t_group['y_pos_star_image'][self.index_image] = repr(points_phot[:,1])
+        print 'x_pos_star_image: length = ' + repr(len(repr(points_phot[:,0]).replace(' ', '')))
+        
+        self.t_group['x_pos_star_image'][self.index_image] = repr(points_phot[:,0]).replace(' ', '') # Shorten if possible!
+        self.t_group['y_pos_star_image'][self.index_image] = repr(points_phot[:,1]).replace(' ', '')
         self.t_group['is_navigated'][self.index_image] = True             # Set the flag saying we have navigated image
 
         self.t_group['x_pos_ring1'][self.index_image] = repr(x_ring1_abcorr)
@@ -1260,7 +1262,7 @@ the internal state which is already correct. This does *not* refresh the image i
         
         # Extract and plot radial profile
 
-        self.bins_radius = hbt.frange(1.6, 1.9, num_bins_radius)
+        self.bins_radius = hbt.frange(1.7, 1.85, num_bins_radius)
         self.profile_radius = np.zeros(num_bins_radius)
         
         for i in range(num_bins_radius-1):

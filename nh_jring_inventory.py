@@ -8,6 +8,7 @@ Created on Mon Jun 13 15:21:46 2016
 import hbt
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+import numpy as np
 
 ##########
 # NH_Jring_invengory
@@ -219,5 +220,59 @@ print "Wrote: " + file_out_txt
 
 print 'Processed ' + repr(np.size(t)) + ' files.'
 
+
+# Now make some plots of various quantities vs. time
+# For ring itself (excluding the Io 'monitoring' obs), the total is N = 517 obs.
+# Including the erroneous 'monitoring' ones, N = 571.
+# And then thre is also LORRI and anything at random. And Himalia ring of Cheng et al.
+
+jca_utc = '2007 FEB 28 05:41:48' # Looked up from GV
+jca_et  = cspice.utc2et(jca_utc)
+
+groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
+
+for i_group,group in enumerate(groups):
+
+    plt.subplots(1, 3, figsize=(13,4))
+
+    mask = t['Desc'] == group
+
+    t_days = (t['ET'][mask] - jca_et) / 86400
+    phase  = t['Phase'][mask] * hbt.r2d
+    dist   = t['dxyz'][mask] / 71492 # Distance from Jup, km
+    res = 0.3 / 1024 * hbt.d2r * t['dxyz'][mask] # Spatial resolution, km
+
+
+    plt.subplot(1,3,1)
+    plt.plot(t_days, phase, marker = 'o', linestyle='none', label=group)
+
+    plt.xlabel('Days from Jupiter C/A')
+    plt.ylabel('Phase Angle')
+    plt.xlim((-5,4))
+    plt.ylim((20,180))
+    
+    
+    plt.subplot(1,3,2)
+    plt.plot(t_days, dist, marker = 'o', linestyle='none')
+    plt.title(group + ', n=' + repr(np.sum(mask)))
+    plt.xlim((-5,4))
+    plt.ylabel('Distance [RJ]')
+    plt.xlabel('Days from Jupiter C/A')
+    plt.ylim((20, 110))
+
+    plt.subplot(1,3,3)
+
+    plt.plot(t_days, res, marker = 'o', linestyle='none')
+    plt.xlim((-5,4))
+    plt.ylabel('Resolution [km]')
+    plt.xlabel('Days from Jupiter C/A')
+    plt.ylim((10, 110))
+    plt.show()
+
+    
+plt.plot((t['ET'] - jca_et) / 86400, t['Exptime'],linestyle='none', marker = '+')
+plt.xlabel('Days from Jupiter C/A')
+plt.ylabel('Exptime [s]')
+    
 # arr = hbt.get_image_nh(dir_images + '/lor_0035122328_0x633_sci_1.fit')
 # arr = hbt.get_image_nh(dir_images + '/lor_0035282790_0x633_sci_1.fit')
