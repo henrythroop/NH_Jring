@@ -1186,7 +1186,7 @@ the internal state which is already correct. This does *not* refresh the image i
             
             dx = t['dx_opnav'] + self.slider_offset_dx.get()
             dy = t['dy_opnav'] + self.slider_offset_dy.get()
-            
+#            
             self.ax1.plot(eval('np.' + t['x_pos_star_cat']) + t['dx_opnav'], 
                      eval('np.' + t['y_pos_star_cat']) + t['dy_opnav'], 
                      marker='o', ls='None', 

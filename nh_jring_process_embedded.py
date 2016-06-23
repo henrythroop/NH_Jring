@@ -175,7 +175,9 @@ print 'Wrote: ' + outfile
 outfile = dir_out + 'embedded_seg' + repr(int(segment)) + '_med' + repr(int(num_frames_med)) + '_ffit.png'
 matplotlib.image.imsave(outfile, frame_ffit_med)
 print 'Wrote: ' + outfile
- 
+
+file_out = 'med_g9_n0-49_sfit8_571_ps.pkl'
+
   
 stop
 
