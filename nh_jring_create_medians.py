@@ -29,11 +29,12 @@ import scipy.misc
 # These routines here are unrelated to the ones above.
 ######
 
-def nh_create_straylight_median(group, files, file_save, do_fft=False, do_sfit=True, power1=5, power2=5):
+def nh_create_straylight_median(index_group, index_files, file_save, do_fft=False, do_sfit=True, power1=5, power2=5):
     
     """
     This takes a set of related observations, and creates a median image of all of them,
-    in a form useful for straylight removal.j
+    in a form useful for straylight removal.
+    For now this routine is hard-coded to NH J-ring, but it could be generalized later.
     """
 
 #     o group:   What set of observations, grouped by 'Desc' field. Integer.
@@ -55,13 +56,14 @@ def nh_create_straylight_median(group, files, file_save, do_fft=False, do_sfit=T
 
     groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
     
-    groupname = 'Jupiter ring - search for embedded moons'
+#    groupname = 'Jupiter ring - search for embedded moons'
     groupnum = np.where(groupname == groups)[0][0]
         
     groupmask = (t['Desc'] == groupname)
     t_group = t[groupmask]	
     
     # Create the output arrays
+    # For now I am assuming 1X1... I'll have to rewrite this if I use 4X4's very much.
     
     frame_arr      = np.zeros((num_frames_med, 1024, 1024))
     frame_sfit_arr = np.zeros((num_frames_med, 1024, 1024))
@@ -89,17 +91,41 @@ def nh_create_straylight_median(group, files, file_save, do_fft=False, do_sfit=T
         file_base = 'median_g{}_n{}-{}_sfit{},{}'
         return (frame_sfit_med, file_base)
         
+def nh_create_stralight_medians():
+
+    """
+    This is the wrapper routine which calls the main function 
+    """
     
-    # Now read all the frames, and process them one by one.
-    # Output as images which can be animated.
-    
-    ## *** Need to roll the image properly as per navigation!
+    plt.rc('image', cmap='Greys_r')
      
+    segment = 1  # 1, 2, or 3
     
+    dir_out = '/Users/throop/data/NH_Jring/out/' 
     
+    fs = 15 # Set the font size
     
-    #    stop
-        
+    if (segment == 1): # 50 frames, upright
+        frames_med = np.array([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19])
+        frames_med = np.array([1,2,3,4,5])
+    #    num_frames_med = np.size(frames_med)     
+    
+        frames_data = hbt.frange(0,48,49) # 0 .. 49
+    
+    if (segment == 2): # 5 frames, tilted sideways
+        frames_med = np.array([49,51,52,53,53])
+        num_frames_med = np.size(frames_med) 
+        frames_data = frames_med
+    
+    if (segment == 3): # 5 frames, tilted sideways
+        frames_med = hbt.frange(54,111,58)
+        num_frames_med = np.size(frames_med) 
+        frames_data = frames_med
+
+    # Get the straylight frame
+
+    im = nh_create_straylight_median(group, files, file_save, do_fft=False, do_sfit=True, power1=5, power2=5):
+
     # Save the straylight frame itself
     
     outfile = dir_out + 'embedded_seg' + repr(int(segment)) + '_med' + repr(int(num_frames_med)) + '_sfit.png'
@@ -111,41 +137,7 @@ def nh_create_straylight_median(group, files, file_save, do_fft=False, do_sfit=T
     print 'Wrote: ' + outfile
     
     file_out = 'med_g9_n0-49_sfit8_571_ps.pkl'
-
-  
-  
-#def nh_create_stralight_medians():
-
-    """
-    This is the wrapper routine which calls the main function 
-    """
     
-plt.rc('image', cmap='Greys_r')
- 
-segment = 1  # 1, 2, or 3
-
-dir_out = '/Users/throop/data/NH_Jring/out/' 
-
-fs = 15 # Set the font size
-
-if (segment == 1): # 50 frames, upright
-    frames_med = np.array([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19])
-    frames_med = np.array([1,2,3,4,5])
-#    num_frames_med = np.size(frames_med)     
-
-    frames_data = hbt.frange(0,48,49) # 0 .. 49
-
-if (segment == 2): # 5 frames, tilted sideways
-    frames_med = np.array([49,51,52,53,53])
-    num_frames_med = np.size(frames_med) 
-    frames_data = frames_med
-
-if (segment == 3): # 5 frames, tilted sideways
-    frames_med = hbt.frange(54,111,58)
-    num_frames_med = np.size(frames_med) 
-    frames_data = frames_med
-
- 
 for i,n in enumerate(frames_data):
 #for i in range(5):
 
@@ -180,6 +172,13 @@ for i,n in enumerate(frames_data):
     if (segment == 3):     
         roll_x = -int(xmean - 400)+100
         roll_y = -int(ymean - 2600)    # -3200 is toward top. -3400 is toward bottom 
+
+
+    # Now read all the frames, and process them one by one.
+    # Output as images which can be animated.
+    
+    ## *** Need to roll the image properly as per navigation!
+
          
     pad_dx = 400 # Amount to add in x dir, total
     pad_dy = 400
