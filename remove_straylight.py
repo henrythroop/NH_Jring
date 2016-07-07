@@ -113,12 +113,14 @@ if (do_output_png):
 #        scipy.misc.toimage(frame_arr[i,:,:], cmin=0.0).save('outfile' + repr(i)+ '.jpg')
 #        im = Image.fromarray(frame_arr[i,:,:])
 #        im.save('outfile' + repr(i) + '.png')
-        matplotlib.image.imsave('outfile' + repr(i) + '.png', hbt.remove_brightest(frame_arr[i,:,:], 0.97, symmetric=True))								
+        matplotlib.image.imsave('outfile' + repr(i) + '.png', hbt.remove_brightest(frame_arr[i,:,:], 0.97, 
+                                symmetric=True))								
 
 # Take the median of all of these
 
 frame_med = np.median(frame_arr, axis=0) # Take median. This is not a very good median -- not sure why.
-						        # If we take median of 10 frames vs. 9, it looks vs. different. (try doing 2 .. 10 vs. 2 .. 11)
+						        # If we take median of 10 frames vs. 9, it looks vs. different. 
+                                         # (try doing 2 .. 10 vs. 2 .. 11)
 
 frame_sfit_med = np.median(frame_sfit_arr, axis=0) # Take median.
 frame_ffit_med = np.median(frame_ffit_arr, axis=0) # Take median.

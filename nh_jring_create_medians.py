@@ -29,7 +29,7 @@ import scipy.misc
 # These routines here are unrelated to the ones above.
 ######
 
-def nh_create_straylight_median(index_group, index_files, file_save, do_fft=False, do_sfit=True, power1=5, power2=5):
+def nh_create_straylight_median(index_group, index_files, do_fft=False, do_sfit=True, power1=5, power2=5):
     
     """
     This takes a set of related observations, and creates a median image of all of them,
@@ -57,21 +57,23 @@ def nh_create_straylight_median(index_group, index_files, file_save, do_fft=Fals
     groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
     
 #    groupname = 'Jupiter ring - search for embedded moons'
-    groupnum = np.where(groupname == groups)[0][0]
+#    groupnum = np.where(groupname == groups)[0][0]
         
-    groupmask = (t['Desc'] == groupname)
+    groupmask = (t['Desc'] == groups[index_group])
     t_group = t[groupmask]	
     
     # Create the output arrays
     # For now I am assuming 1X1... I'll have to rewrite this if I use 4X4's very much.
+   
+    num_files = np.size(index_files)
     
-    frame_arr      = np.zeros((num_frames_med, 1024, 1024))
-    frame_sfit_arr = np.zeros((num_frames_med, 1024, 1024))
-    frame_ffit_arr = np.zeros((num_frames_med, 1024, 1024))
+    frame_arr      = np.zeros((num_files, 1024, 1024))
+    frame_sfit_arr = np.zeros((num_files, 1024, 1024))
+    frame_ffit_arr = np.zeros((num_files, 1024, 1024))
     
-    # read frames in to make a median
+    # Read frames in to make a median
      
-    for i,n in enumerate(frames_med):
+    for i,n in enumerate(index_files):
         file = t_group['Filename'][n] # Look up filename
         print "Reading: " + file
         frame = hbt.get_image_nh(file,frac_clip = 1)
@@ -83,12 +85,19 @@ def nh_create_straylight_median(index_group, index_files, file_save, do_fft=Fals
     frame_sfit_med = np.median(frame_sfit_arr, axis=0) # Take median using sfit images
     frame_ffit_med = np.median(frame_ffit_arr, axis=0) # Take median using fft  images
     
-    if (do_fft):    #fig, ax = plt.subplots(2, 1, figsize=(20, 15 ))
-        file_base = 'median_g{}_n{}-{}_fft'.format()
+    # Do a very small removal of hot pixels. Between 0.99 and 0.999 seems to be fine. Make as small 
+    # as possible, but something is often necessary
+    
+#    frame_sfit_med = hbt.remove_brightest(frame_sfit_med, 0.999)
+#    frame_ffit_med = hbt.remove_brightest(frame_sfit_med, 0.999)
+#    
+    file_base = nh_create_straylight_median_filename(index_group, index_files, do_fft=do_fft, do_sfit=do_sfit, 
+                                                     power1=power1, power2=power2)
+                                                     
+    if (do_fft):   
         return (frame_ffit_med, file_base)
     
     if (do_sfit):
-        file_base = 'median_g{}_n{}-{}_sfit{},{}'
         return (frame_sfit_med, file_base)
         
 def nh_create_stralight_medians():
@@ -108,6 +117,9 @@ def nh_create_stralight_medians():
     if (segment == 1): # 50 frames, upright
         frames_med = np.array([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19])
         frames_med = np.array([1,2,3,4,5])
+        index_files = frames_med
+        index_group = 8
+        
     #    num_frames_med = np.size(frames_med)     
     
         frames_data = hbt.frange(0,48,49) # 0 .. 49
@@ -124,7 +136,7 @@ def nh_create_stralight_medians():
 
     # Get the straylight frame
 
-    im = nh_create_straylight_median(group, files, file_save, do_fft=False, do_sfit=True, power1=5, power2=5):
+    im = nh_create_straylight_median(index_group, index_files, do_fft=False, do_sfit=True, power1=5, power2=5)
 
     # Save the straylight frame itself
     
@@ -138,7 +150,7 @@ def nh_create_stralight_medians():
     
     file_out = 'med_g9_n0-49_sfit8_571_ps.pkl'
     
-for i,n in enumerate(frames_data):
+#for i,n in enumerate(frames_data):
 #for i in range(5):
 
     outfile = dir_out + 'embedded_seg' + repr(int(segment)) + '_med' + repr(int(num_frames_med)) + \
@@ -210,8 +222,77 @@ for i,n in enumerate(frames_data):
     plt.title('frame_ffit_med, n=' + repr(num_frames_med))
     plt.show()    
     
-stop
+#stop
 
+def nh_create_straylight_median_filename(index_group, index_files, do_fft=False, do_sfit=True, power1=5, power2=5):
+    """
+    Just create the base filename for a stray likght median file.
+    """
+    # Usually we will add extensions onto this:
+    #  .pkl -- save file
+    #  .png -- file to be edited in photoshop
+    
+    if (do_fft):    #fig, ax = plt.subplots(2, 1, figsize=(20, 15 ))
+        file_base = 'straylight_median_g{:.0f}_n{:.0f}..{:.0f}_fft'.format(index_group, np.min(index_files), np.max(index_files))
+        return file_base
+    
+    # NB: The print format string :.0f is useful for taking a float *or* int and formatting as an int.
+    #     The 'd' string is for a decimal (int) but chokes on a float.
+    
+    if (do_sfit):
+        file_base = 'straylight_median_g{:.0f}_n{:.0f}..{:.0f}_sfit{:.0f},{:.0f}'.format(index_group, 
+                                                             np.min(index_files), np.max(index_files), power1, power2)
+        return file_base
+        
+def nh_get_straylight_median(index_group, index_files, do_fft=False, do_sfit=True, power1=5, power2=5):
+    
+    """
+    This is a user-level routine to get a straylight median image.
+    If the image exists, it will load it. If it doesn't exist, it will create it.
+    This is the one to call under most circumstances.
+    """
+    
+    dir_straylight = '/Users/throop/data/NH_Jring/out/'
+    
+    file_base = nh_create_straylight_median_filename(index_group, index_files, 
+                                                      do_fft=do_fft, do_sfit=do_sfit, power1=power1, power2=power2)
+    
+    file_pkl = dir_straylight + file_base + '.pkl'
+    
+    print "Pickle file = " + file_pkl
+    
+    # If file exists, load it and return
+    
+    if os.path.exists(file_pkl):
+        print 'Reading file: ' + file_pkl
+        lun = open(file_pkl, 'rb')
+        arr = pickle.load(lun)
+        lun.close() 
+        return arr
+
+    # If file doesn't exist, create it, save it, and return
+        
+    else:
+        (arr, file) = nh_create_straylight_median(index_group, index_files, 
+                                                      do_fft=do_fft, do_sfit=do_sfit, power1=power1, power2=power2)
+
+        lun = open(file_pkl, 'wb')
+        pickle.dump(arr, lun)
+        lun.close()
+        print 'Wrote file: ' + file_pkl
+        
+        return arr
+
+#####
+
+#def f():
+#    nh_get_straylight_median(8,[50,51,52,52], do_sfit=True, power1=5, power2=5) # long movie, tilted portion
+#    nh_get_straylight_median(8,hbt.frange(0,49,50), do_sfit=True, power1=5, power2=5) # long movie, first 50 frames
+nh_get_straylight_median(5,hbt.frange(1,6,6), do_sfit=True, power1=5, power2=5) # best portrait, ansa
+
+
+
+        
 #plt.subplot(3,2,1) # Reversed! num cols, num rows ** Good reduction. Largest az etent.
 #im = hbt.remove_brightest(image - frame_sfit_med, 0.97, symmetric=True)
 #plt.imshow(hbt.remove_brightest(im - hbt.sfit(im,8), 0.97, symmetric=True), vmin=-20, vmax=20)

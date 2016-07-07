@@ -57,7 +57,7 @@ print 'Read ' + repr(num_files) + ' files.'
 
 # Now shorten the list arbitrarily, just for testing purposes
 
-#t = t[0:12] # XXX shorten it! 100 does not get to 4x4 territory
+#t = t[100:112] # XXX shorten it! 100 does not get to 4x4 territory
     
 # Get a list of unique observation descriptions (i.e., 'groups')
 
@@ -93,6 +93,8 @@ plt.rc('image', cmap='Greys_r')  # Use a non-inverted colormap: White = stars an
 # Start the PDF
 
 pp = PdfPages(file_out_pdf)
+
+fs = 8 # Font size
 
 # Now loop over every image
 
@@ -154,7 +156,7 @@ for i_group,group in enumerate(groups):
 
       p = plt.subplot(num_rows, num_cols,i_on_page) # Image 1       
       plt.imshow(arr)
-      plt.tight_layout()
+#      plt.tight_layout()              # Reduces whitespace, but in this case pushes captions off the edge of page!
       a = plt.gca()                    # Get the axes
       a.get_xaxis().set_visible(False) # Do not plot the axes
       a.get_yaxis().set_visible(False)
@@ -167,11 +169,12 @@ for i_group,group in enumerate(groups):
       
       label1 = "{}/{}: {}, {}, {} s; {}".format(int(i), int(num_files), file_trunc, file['Format'], file['Exptime'], dt_str)
       label2 = "{}, Group {}, File {}".format(file['UTC'], int(i_group), int(i_file)) 
-      plt.text(0, -80*scalefac, label1, fontsize = fs)
+      plt.text(0, -90*scalefac, label1, fontsize = fs)
       plt.text(0, -30*scalefac, label2, fontsize = fs)
       
       if (i_on_page == 1):
-          plt.text(-120*scalefac, 1000*scalefac, group + ", page " + repr(i_page), fontsize=fs*2, rotation=90)
+          plt.text(-250*scalefac, 200*scalefac, group + ', group ' + repr(i_group) + '         ' +  " page " + repr(i_page), 
+                   fontsize=fs*2, rotation=90)
            
 #      print "Just plotted string: " + str
       

@@ -270,9 +270,9 @@ class App:
 
 # Create the sliders, for navigation offset
         
-        self.slider_offset_dx  = ttk.Scale(master, from_=-260, to=260, orient=Tkinter.HORIZONTAL, 
+        self.slider_offset_dx  = ttk.Scale(master, from_=-350, to=350, orient=Tkinter.HORIZONTAL, 
                                    command=self.set_offset) # Slider dx offset
-        self.slider_offset_dy  = ttk.Scale(master, from_=-260, to=260, orient=Tkinter.VERTICAL, 
+        self.slider_offset_dy  = ttk.Scale(master, from_=-350, to=350, orient=Tkinter.VERTICAL, 
                                    command=self.set_offset) # Slider dy offset
 
 # Define labels

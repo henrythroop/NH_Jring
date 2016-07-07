@@ -31,12 +31,27 @@ lun = open(file_pickle, 'rb')
 t = pickle.load(lun)
 lun.close()
 
-groupmask = (t['Desc'] == 'Jupiter ring - search for embedded moons')
-index_image = 49 # Which frame from the group do we extract?
+index_group = 8
+index_image = 10 # Which frame from the group do we extract?
+index_image_stray = [49, 50, 51, 52, 53]
 
-t_group = t[groupmask]	
+index_group = 8
+index_image = 4 # Which frame from the group do we extract?
+index_images_stray = hbt.frange(0,48,49)
 
-f = t_group['Filename'][index_image] # Look up filename
+index_group = 5
+index_image = 1
+index_images_stray = hbt.frange(1,6,6)
+
+groupmask = (t['Desc'] == groups[index_group])
+t_group = t[groupmask]
+
+# Load stray light (or generate if this one has not been made yet)
+
+image_stray = nh_get_straylight_median(index_group, index_images_stray, do_sfit=True, power1=5, power2=5)
+
+f       = t_group['Filename'][index_image] # Look up filename
+f_short = t_group['Shortname'][index_image]
 
 file_backplane = dir_backplanes + t_group['Shortname'][index_image].replace('.fit', '_planes.pkl')
 
@@ -50,11 +65,14 @@ if (os.path.isfile(file_backplane)):
     lun.close()
     
 # Load image
-
+# Then do basic image processing on it to remove stray light, etc.
+# To remove stray light, we first remove low-frq terms using an sfit. Then we remove hi-frq terms with the stray light image.
+    
 image = hbt.get_image_nh(t_group['Filename'][index_image])
 image_processed = hbt.remove_brightest(image, 0.97, symmetric=True)
 image_processed = image_processed - hbt.sfit(image_processed, 5)
 image_processed = hbt.remove_brightest(image_processed, 0.97, symmetric=True)
+image_processed -= image_stray 
 
 plt.imshow(image_processed)
 												
@@ -72,16 +90,24 @@ num_bins_azimuth = 10000 # Might make this a user parameter later
 num_bins_radius  = 400
 
 r_ring_inner_rj = 1.7
-r_ring_outer_rj = 1.8
+r_ring_outer_rj = 1.81
 
 plt.rc('image', cmap='Greys_r')               # Default color table for imshow
 
-plt.imshow( ( np.array(radius > 1.7) & np.array(radius < 1.8)) + 1* image_roll / np.max(image_roll))
+fs = 15
+plt.imshow( ( np.array(radius > r_ring_inner_rj) & np.array(radius < r_ring_outer_rj)) + 
+              1* image_roll / np.max(image_roll))
+plt.title(f_short, fontsize=fs)              
+plt.show()
+
+plt.imshow( ( np.array(radius > r_ring_inner_rj) & np.array(radius < r_ring_outer_rj)) + 
+              20* image_roll / np.max(image_roll))
+plt.title(f_short, fontsize=fs)              
 plt.show()
 
 # Extract and plot radial profile
 
-bins_radius = hbt.frange(1.7, 1.8, num_bins_radius)
+bins_radius = hbt.frange(r_ring_inner_rj, r_ring_outer_rj, num_bins_radius)
 bins_azimuth = hbt.frange(-180,180,num_bins_azimuth+1)
     
 # Select the ring points
@@ -96,56 +122,22 @@ dn_all      = image_roll[is_ring_all]
 
 azimuth_all[azimuth_all < 0] += 2 * math.pi
 
-# For diagnostic purposes, draw a line at 1.75 Rj
+# For diagnostic purposes, draw a line at 1.75 Rj and 3.6 radians = -153 deg
 
-dr = 0.003
-r_mid = 1.78
+DO_DIAGNOSTIC = False
 
-is_ring_mid =  ( np.array(radius > 1.78-dr) & np.array(radius < 1.78+dr))
-image_roll[is_ring_mid] = np.max(image_roll)
-
-#is_ring_azmid = 
-# Create the output grid. This is kind of funny but it is what sample code does
-# This mpgrid function creates a pair of 2D grids: one with all the x values, and one with all the y.
-
-#grid_radius, grid_azimuth = np.mgrid[0:1:(num_bins_radius)*1j, 0:1:(num_bins_azimuth)*1j]
-#
-#grid_radius *= 0.1*rj
-#grid_radius += 1.7*rj
-#grid_azimuth *= 4 * math.pi
+if (DO_DIAGNOSTIC):
+    dr = 0.003
+    r_mid = 1.78
+    daz = 0.5
+    az_mid = 3.6 * hbt.r2d - 360
+    
+    is_ring_mid =  ( np.array(radius > 1.78-dr) & np.array(radius < 1.78+dr))
+    image_roll[is_ring_mid] = np.max(image_roll)
+    is_ring_az_mid =  ( np.array(azimuth > az_mid-daz) & np.array(azimuth < az_mid+daz))
+    image_roll[is_ring_az_mid] = np.max(image_roll)
 
 grid_azimuth_1d = hbt.frange(0, 4. * math.pi, num_bins_azimuth)
-
-# Grid the data in 1D (in azimuth, single radius)
-
-#grid_lin     = griddata(azimuth_i, dn_i, grid_azimuth_1d, method='linear')
-#grid_lin_1   = griddata(azimuth_1, dn_1, grid_azimuth_1d, method='linear')
-#grid_lin_2   = griddata(azimuth_2, dn_2, grid_azimuth_1d, method='linear')
-#grid_lin_3   = griddata(azimuth_3, dn_3, grid_azimuth_1d, method='linear')
-
-#grid_lin_123 = 
-#plt.plot(azimuth_i, dn_i, label='ungridded')
-#plt.plot(grid_azimuth_1d, grid_lin, label='gridded', color='red', marker='o' )
-#plt.xlabel('Azimuth [rad]')
-#plt.ylabel('DN')
-#
-#plt.legend()
-#plt.show()
-
-# Grid the data in 2D
-
-#grid = griddata(np.transpose((azimuth_all, radius_all)), dn_all, (bins_azimuth, bins_radius), method='nearest')
-
-#points = np.transpose((azimuth_all, radius_all))
-#values = dn_all
-#grid_x = grid_azimuth
-#grid_y = grid_radius
-#
-#grid_lin_2d   = griddata(points, values, (grid_x, grid_y), method='linear')
-#
-#grid_lin_2d   = griddata(np.transpose((azimuth_all, radius_all)), dn_all, (grid_azimuth, grid_radius), method='linear')
-#grid_near_2d  = griddata(np.transpose((azimuth_all, radius_all)), dn_all, (grid_azimuth, grid_radius), method='nearest')
-#grid_cub_2d   = griddata(np.transpose((azimuth_all, radius_all)), dn_all, (grid_azimuth, grid_radius), method='cubic')
 
 # Create output array
 
@@ -184,14 +176,19 @@ az_max = grid_azimuth_1d[bin_az_max]
 #plt.show()
 
 # And make a plot of the unwrapped ring!
+# Set the aspect ratio manually -- we do not really need square pixels here.
+
+fs = 15
 
 plt.rcParams['figure.figsize'] = 16, 10
 
 plt.imshow(grid_lin_2d, 
            extent = [np.min(grid_azimuth_1d), np.max(grid_azimuth_1d), 
-                     r_ring_outer_rj, r_ring_inner_rj])
-           
+                     r_ring_outer_rj, r_ring_inner_rj], aspect=5)
 plt.xlim((az_min, az_max))
+plt.xlabel('Azimuth [radians]', fontsize=fs)
+plt.ylabel('Radius [$R_J$]', fontsize=fs)
+plt.title(f_short, fontsize=fs)
 plt.show()
 
 stop
@@ -224,55 +221,26 @@ plt.show()
 
 # Create the azimuthal bins. 
 
-        
-#print
-#for i in range(num_bins_azimuth-1):
-#    
-#    is_good = np.array(radius > 1.5)                  & np.array(radius < 2.2) & \
-#              np.array(azimuth > self.bins_azimuth[i]) & np.array(azimuth < self.bins_azimuth[i+1])
-#              
-#    self.profile_azimuth[i] = np.mean(image_roll[is_good])
-##            print "{:<3}. {:<7} {:<7}".format(i, self.bins_azimuth[i], self.profile_azimuth[i])
+
+###    
+# Grid the data in 2D. This causes no errors, but the result doesn't look right.
+# Thus, I went to gridding data line-by-line in 1D instead, rather than a single call to 2D-grid it.
+###
+
+# Create the output grid. This is kind of funny but it is what sample code does
+# This mpgrid function creates a pair of 2D grids: one with all the x values, and one with all the y.
+
+#grid_radius, grid_azimuth = np.mgrid[0:1:(num_bins_radius)*1j, 0:1:(num_bins_azimuth)*1j]
 #
-## Now we do some crazy logic to unwrap the azimuth, so that start will be in -180 .. 180, and end after that.
-## First, copy the azimuth and intensity, so we have two full loops in the array (720 deg)
+#grid_radius *= 0.1*rj
+#grid_radius += 1.7*rj
+#grid_azimuth *= 4 * math.pi
+
+#grid = griddata(np.transpose((azimuth_all, radius_all)), dn_all, (bins_azimuth, bins_radius), method='nearest')
+
+#points = np.transpose((azimuth_all, radius_all))
+#values = dn_all
+#grid_x = grid_azimuth
+#grid_y = grid_radius
 #
-#profile_azimuth_2      = np.concatenate((self.profile_azimuth[:-2], self.profile_azimuth[:-2]))
-#bins_azimuth_2         = np.concatenate((self.bins_azimuth[:-2], self.bins_azimuth[:-2]+360))     
-#
-## Now, search this for the first pattern of [nan, non-nan]. That will be the start of the valid data.
-#
-#i = np.array(range(np.size(profile_azimuth_2)-1)) # Just an index. Chop off last entry so we can use i+1
-#
-#is_start = np.isnan(profile_azimuth_2[i]) & np.logical_not(np.isnan(profile_azimuth_2[i+1]))
-#bin_start = i[is_start][0]+1 # get first match
-#
-## And then look for the end pattern: [non-nan, nan], starting *after* bin_start
-#
-#is_end = np.logical_not(np.isnan(profile_azimuth_2[i])) & 
-        # np.isnan(profile_azimuth_2[i+1]) & np.array(i > bin_start)
-#bin_end = i[is_end][0]
-#
-## Now we have the proper indices for the start and end.
-# 
-#az_start = bins_azimuth_2[bin_start]
-#az_end   = bins_azimuth_2[bin_end]
-#
-#print "az = " + repr(bins_azimuth_2[bin_start]) + ' .. ' + repr(bins_azimuth_2[bin_end])
-#
-#self.ax3.plot(bins_azimuth_2, profile_azimuth_2)
-#fs = 20
-#
-##        self.ax3.set_xlim([az_start-10, az_end+10])  
-        # This is an array and not a tuple. Beats me, like so many things with mpl.
-##        self.ax3.set_ylim([-5, 5])           # Hard-code this.... not sure what is best.
-#self.canvas3.show()
-#
-#plot4 = self.ax4.imshow(azimuth)
-##        plt.title('Lon_eq [deg]', fontsize=fs)
-##        plt.xlim((0,1000))
-##        plt.ylim((0,1000))
-#
-##        self.fig4.colorbar(plot4)  # Need to get this to updated itself. Not sure how.
-#self.canvas4.show()
-    
+#grid_lin_2d   = griddata(points, values, (grid_x, grid_y), method='linear')
