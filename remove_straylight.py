@@ -2,6 +2,8 @@
 """
 Created on Fri Jun 10 08:51:56 2016
 
+Experimental routine to test stray light subtraction methods.
+
 @author: throop
 """
 

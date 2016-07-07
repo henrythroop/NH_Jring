@@ -100,7 +100,7 @@ def nh_create_straylight_median(index_group, index_files, do_fft=False, do_sfit=
     if (do_sfit):
         return (frame_sfit_med, file_base)
         
-def nh_create_stralight_medians():
+def nh_create_straylight_medians():
 
     """
     This is the wrapper routine which calls the main function 

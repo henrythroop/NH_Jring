@@ -14,6 +14,10 @@ Created on Fri Jun 10 08:51:56 2016
 # This routine reads NH J-RING files from the 'Jupiter ring - search for embedded moons' sequence.
 # It does stray light subtraction on them, and repoints, then writes them out as pngs, where they can be animated.
 # Flux is preserved until the end.
+# 
+# This is a one-off routine, originally written to test stray light subtraction, and then used to mae the movie.
+# It can be generalized, and should probably call remove_stray() instead of doing it manually.
+#
 #
 @author: throop
 """
