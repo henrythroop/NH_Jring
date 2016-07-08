@@ -31,6 +31,12 @@ t.replace_column('x_pos_star_image', col)
 col = t['y_pos_star_image'].astype('S20000')
 t.replace_column('y_pos_star_image', col)
 
+col = t['bg_argument'].astype('S30')  # Expand argument column from str1 to str30
+t.replace_column('bg_argument', col)
+
+col = t['Comment'].astype('S100')    # expand comment column from str13 to str100
+t.replace_column('Comment', col)
+
 file_save = file_save.replace('.pkl', '.tmp.pkl')
 
 lun = open(file_save, 'wb')

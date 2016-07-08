@@ -167,7 +167,7 @@ class App:
         self.figsize_3 = (7,4)
         
         option_bg_default = 'Grp Num Frac Pow'
-        entry_bg_default  = '4' # Default polynomial order
+        entry_bg_default  = '4' # Default polynomial order XXX need to set a longer string length here!
         index_group_default = 2 # Jupiter ring phase curve
         index_image_default = 0 # Image number within the group
 
@@ -181,7 +181,7 @@ class App:
 
 # Start up SPICE
 
-        cspice.furnsh(file_tm)
+        cspice.furnsh(file_tm) # Commented out for testing while SPICE was recopying kernel pool.
 
 # Check if there is a pickle save file found. If it is there, go ahead and read it.
 
@@ -315,7 +315,7 @@ class App:
         self.option_bg =        ttk.OptionMenu(master, self.var_option_bg,\
                                     option_bg_default,  # First argument is the default
                                     "Polynomial", "Previous", "Next", "Median Range", "None", "Grp Num Frac Pow", \
-                                     command = self.select_bg)
+                                     "String", command = self.select_bg)
 #        self.option_bg.config(width=25)
         self.entry_bg=          ttk.Entry(master, width=12)
         self.entry_bg.insert(0, entry_bg_default) # Set the value (e.g., order = "4")
@@ -350,8 +350,9 @@ class App:
 
         self.lbox_groups = Tkinter.Listbox(master, height=5, selectmode = "browse",
                                            width=25, exportselection=False)
-        for item in self.groups.data:
-            self.lbox_groups.insert("end", item)
+                                           
+        for ii,item in enumerate(self.groups.data):    # "groups.data" gives the name of the group
+            self.lbox_groups.insert("end", repr(ii) + ". " + item)
 
         self.lbox_groups.bind('<<ListboxSelect>>', self.select_group) # Define the event handler for 
 # Listbox is tied to an event handler, *not* to the normal command= thing.
@@ -734,6 +735,9 @@ class App:
         self.t_group['bg_method'][self.index_image] = self.var_option_bg.get()
         self.t_group['bg_argument'][self.index_image] = self.entry_bg.get()
         
+        print "saved bg_method = " + self.var_option_bg.get()
+        print "saved bg_argument = " + self.entry_bg.get()
+        
 # Copy the entire current 'group' back to the main table
 
         self.t[self.groupmask] = self.t_group
@@ -794,10 +798,12 @@ class App:
     
     def load_image(self):
 
-        print "load_image()"
-#        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.                    
+#        print "load_image()"
+
+# autozoom: if set, and we are loading a 4x4 image, then scale it up to a full 1x1.
+
         file = self.t_group[self.index_image]['Filename']                    
-        self.image_raw = hbt.get_image_nh(file, frac_clip = 1., bg_method = 'None')
+        self.image_raw = hbt.get_image_nh(file, frac_clip = 1., bg_method = 'None', autozoom=True)
         print "Loaded image: " + file                
                                      
 ##########
@@ -808,7 +814,7 @@ class App:
 
         method = self.var_option_bg.get()
 
-        print "process_image()"
+#        print "process_image()"
 								
 #        print "  OptionMenu: method = " + method
         
@@ -820,13 +826,13 @@ class App:
             file_prev = self.t_group['Filename'][self.index_image-1]
             print "file =      " + filename
             print "file_prev = " + file_prev
-            image_bg = hbt.get_image_nh(file_prev, frac_clip = 1.0, bg_method = 'None')
+            image_bg = hbt.get_image_nh(file_prev, frac_clip = 1.0, bg_method = 'None', autozoom=True)
             image_fg = self.image_raw
             image = image_fg - image_bg
 
         if (method == 'Next'):
             file_next = self.t_group['Filename'][self.index_image+1]
-            image_bg = hbt.get_image_nh(file_next, frac_clip = 1.0, bg_method = 'None')
+            image_bg = hbt.get_image_nh(file_next, frac_clip = 1.0, bg_method = 'None', autozoom=True)
             image_fg = self.image_raw
             image = image_fg - image_bg
             
@@ -840,7 +846,12 @@ class App:
          power = self.entry_bg.get()
          image = self.image_raw - hbt.sfit(self.image_raw, power) # Look up the exponenent and apply it 
                                                 
-        if (method == 'Grp Num Frac Pow'):  # This is the most common method, I think
+        if (method == 'Grp Num Frac Pow'):  # Specify to subtract a specified group#/image#, mult factor, and sfit power.
+                                            # I thought this would be useful, but it turns out we usually need to subtract
+                                            # a median of multiple images -- not just one -- so this is not very useful.
+                                            # Plus, the best power is usually 5, and the best frac can be calc'd
+                                            # with a linfit.
+        
             vars = self.entry_bg.get().split(' ')
             
             if (np.size(vars) == 0): # If no args passed, just plot the image
@@ -886,14 +897,50 @@ class App:
                 
                 image = image_fg - float(frac) * image_bg                
                 image = image - hbt.sfit(image, power)
-                             
+        
+        if (method == 'String'):
+
+# Parse a string like "6/112-6/129", or "129", or "6/114", or "124-129" or "6/123 - 129"
+# As of 8-July-2016, this is the one I will generally use for most purposes.
+
+            str = self.entry_bg.get()
+            str2 = str.replace('-', ' ').replace('/', ' ')
+
+            vars = str2.split(' ')
+
+#            print "str = " + repr(str2)
+#            print "vars = " + repr(vars)
+            
+            if (np.size(vars) == 0):
+                image = self.image_raw
+                self.image_processed = image
+                return
+                
+            if (np.size(vars) == 1):
+                stray = hbt.nh_get_straylight_median(self.index_group, [int(vars[0])])  # "122" -- assume current group
+                
+            if (np.size(vars) == 2):
+                stray = hbt.nh_get_straylight_median(self.index_group, hbt.frange(int(vars[0]), int(vars[1])))  # "122-129" -- assume current group
+ 
+            if (np.size(vars) == 3):
+                stray = hbt.nh_get_straylight_median(int(vars[0]), hbt.frange(vars[1], vars[2])) # "5/122 - 129"
+                
+            if (np.size(vars) == 4):
+                stray = hbt.nh_get_straylight_median(int(vars[0]), hbt.frange(vars[1], vars[3])) # "6/122 - 6/129"
+
+            image_proc = hbt.remove_sfit(self.image_raw, 5)
+            (stray_norm,coeffs) = hbt.normalize_images(stray, image_proc)
+            image_sub = image_proc - stray_norm
+            
+            image = image_sub
+            
         if (method == 'None'):
             image = self.image_raw
 
-        # Scale image by removing stars, CRs, etc.
+        # Scale image by removing stars, CRs, etc. But be careful not to clamp too much: the whole point is that 
+        # we are trying to make the ring bright, so don't reduce its peak!
 
-        image =  hbt.remove_brightest( image, 0.97)   # Remove positive stars
-        image = -hbt.remove_brightest(-image, 0.97) # Remove negative stars also
+        image =  hbt.remove_brightest( image, 0.97, symmetric=True)   # Remove positive stars
         
         # Save the image where we can use it later for extraction. 
 
@@ -1005,13 +1052,11 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def refresh_gui(self):
          
-        print "refresh_gui()"						
         
 # Load and display the proper header
 
         filename = self.t_group['Filename'][self.index_image]
         
-        print "refresh_gui() 2"
         header = hbt.get_image_header(filename, single=True)
         self.text_header.delete(1.0, "end")
         h2 = re.sub('\s+\n', '\n', header)  # Remove extra whitespace -- wraps around and looks bad
@@ -1030,7 +1075,6 @@ the internal state which is already correct. This does *not* refresh the image i
         self.lbox_groups.selection_clear(0, 'end')
         self.lbox_groups.selection_set(self.index_group) # This seems to not work always
         self.lbox_groups.activate(self.index_group)
-        print "refresh_gui() 3"
 
 # Set the proper Listbox 'image' settings.
 
@@ -1052,6 +1096,8 @@ the internal state which is already correct. This does *not* refresh the image i
         self.entry_bg.delete(0, 'end') # Clear existing value
         self.entry_bg.insert(0, self.t_group['bg_argument'][self.index_image]) # Set the value (e.g., order = "4")
 
+        print "set bg_method = " + self.t_group['bg_method'][self.index_image]
+        
 # Set the statusbar
 
         self.refresh_statusbar()
@@ -1156,9 +1202,8 @@ the internal state which is already correct. This does *not* refresh the image i
            Plot rings and stars, etc, if we have them.
       """
         
-        print 'plot_objects()'
+#        print 'plot_objects()'
 
-        
         # If we have them, draw the stars on top
 
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
@@ -1167,7 +1212,7 @@ the internal state which is already correct. This does *not* refresh the image i
         filename = self.t_group['Filename'][self.index_image]
         filename = str(filename)
         
-        print "is_navigated: " + repr(self.t_group['is_navigated'][self.index_image])                        
+#        print "is_navigated: " + repr(self.t_group['is_navigated'][self.index_image])                        
 								
         if (self.t_group['is_navigated'][self.index_image]):
 
@@ -1504,7 +1549,7 @@ the internal state which is already correct. This does *not* refresh the image i
         
 # Get the slider positions, for the dx and dy nav offset positions, and put them into a variable we can use
 
-        print "set_offset()"
+#        print "set_offset()"
 								
         self.offset_dx = self.slider_offset_dx.get() # 
         self.offset_dy = self.slider_offset_dy.get() # 
