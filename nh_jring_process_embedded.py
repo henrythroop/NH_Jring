@@ -86,7 +86,7 @@ power = 5
 for i,n in enumerate(frames_med):
     file = t_group['Filename'][n] # Look up filename
     print "Reading: " + file
-    frame = hbt.get_image_nh(file,frac_clip = 1)
+    frame = hbt.read_lorri(file,frac_clip = 1)
     frame_arr[i,:,:] = frame	
     
     frame_sfit_arr[i,:,:] = frame - hbt.sfit(frame, power)
@@ -122,7 +122,7 @@ for i,n in enumerate(frames_data):
     file = t_group['Filename'][n] # Look up filename
     print file
     print "Writing: " + outfile
-    frame = hbt.get_image_nh(file,frac_clip = 1)
+    frame = hbt.read_lorri(file,frac_clip = 1)
     im  = hbt.remove_brightest(frame - frame_sfit_med, 0.97, symmetric=True)
     im2 = hbt.remove_brightest(im    - hbt.sfit(im,8), 0.97, symmetric=True)
     

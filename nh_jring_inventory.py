@@ -147,7 +147,7 @@ for i_group,group in enumerate(groups):
       print line
       lines_out.append(line)
       
-      arr = hbt.get_image_nh(file['Filename'], bg_method = 'Polynomial', bg_argument = 4, frac_clip = 1)
+      arr = hbt.read_lorri(file['Filename'], bg_method = 'Polynomial', bg_argument = 4, frac_clip = 1)
       
       arr = hbt.remove_brightest(arr, 0.99)
       arr = -hbt.remove_brightest(-arr, 0.99)
@@ -277,5 +277,5 @@ plt.plot((t['ET'] - jca_et) / 86400, t['Exptime'],linestyle='none', marker = '+'
 plt.xlabel('Days from Jupiter C/A')
 plt.ylabel('Exptime [s]')
     
-# arr = hbt.get_image_nh(dir_images + '/lor_0035122328_0x633_sci_1.fit')
-# arr = hbt.get_image_nh(dir_images + '/lor_0035282790_0x633_sci_1.fit')
+# arr = hbt.read_lorri(dir_images + '/lor_0035122328_0x633_sci_1.fit')
+# arr = hbt.read_lorri(dir_images + '/lor_0035282790_0x633_sci_1.fit')

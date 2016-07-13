@@ -40,10 +40,10 @@ print hdulist[0].header['REQDESC']
 print hdulist[0].header['SPCUTCAL']
 hdulist.close()
     
-a1 = hbt.get_image_nh(dir_images + file1, bg_method='raw', frac_clip = 1.)
-a2 = hbt.get_image_nh(dir_images + file2, bg_method='raw', frac_clip = 1.)
-a3 = hbt.get_image_nh(dir_images + file3, bg_method='raw', frac_clip = 1.)
-a4 = hbt.get_image_nh(dir_images + file4, bg_method='raw', frac_clip = 1.)
+a1 = hbt.read_lorri(dir_images + file1, bg_method='raw', frac_clip = 1.)
+a2 = hbt.read_lorri(dir_images + file2, bg_method='raw', frac_clip = 1.)
+a3 = hbt.read_lorri(dir_images + file3, bg_method='raw', frac_clip = 1.)
+a4 = hbt.read_lorri(dir_images + file4, bg_method='raw', frac_clip = 1.)
 
 hbt.set_plot_defaults()
 
@@ -104,7 +104,7 @@ power = 5
 for i in range(num_frames_med):
     f = t_group['Filename'][i] # Look up filename
     print f
-    frame = hbt.get_image_nh(f,frac_clip = 1)
+    frame = hbt.read_lorri(f,frac_clip = 1)
     frame_arr[i,:,:] = frame	
     
     frame_sfit_arr[i,:,:] = frame - hbt.sfit(frame, power)
@@ -133,7 +133,7 @@ frame_max = np.max(frame_arr, axis=0)
 
 file = t_group['Filename'][0]
 
-image = hbt.get_image_nh(file, frac_clip=1)
+image = hbt.read_lorri(file, frac_clip=1)
 
 plt.imshow(hbt.remove_brightest(image, 0.9, symmetric=True))
 plt.title('image')

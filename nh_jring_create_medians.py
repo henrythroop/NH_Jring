@@ -116,7 +116,7 @@ def nh_create_straylight_median(index_group, index_files, do_fft=False, do_sfit=
     for i,n in enumerate(index_files):
         file = t_group['Filename'][n] # Look up filename
         print "Reading: " + file
-        frame = hbt.get_image_nh(file,frac_clip = 1)
+        frame = hbt.read_lorri(file,frac_clip = 1)
         if (np.shape(frame)[0] == 256):
             
     # Resize the image to 1024x1024, if it is a 4x4 frame. 
@@ -228,7 +228,7 @@ def nh_create_straylight_medians():
     file = t_group['Filename'][n] # Look up filename
     print file
     print "Writing: " + outfile
-    frame = hbt.get_image_nh(file,frac_clip = 1)
+    frame = hbt.read_lorri(file,frac_clip = 1)
     im  = hbt.remove_brightest(frame - frame_sfit_med, 0.97, symmetric=True)
     im2 = hbt.remove_brightest(im    - hbt.sfit(im,power2), 0.97, symmetric=True)
     
@@ -304,8 +304,8 @@ def nh_create_straylight_medians():
 #nh_get_straylight_median(5,hbt.frange(1,6,6), do_sfit=True, power1=5, power2=5) # best portrait, ansa
 
 s = nh_get_straylight_median(6,hbt.frange(229,232), do_sfit=True, power1=5, power2=5) # 4x4 gossamer 
-a = hbt.get_image_nh(35117774)
-a = hbt.get_image_nh(35120054)
+a = hbt.read_lorri(35117774)
+a = hbt.read_lorri(35120054)
 a = a - hbt.sfit(a,5)
 a = hbt.remove_brightest(a,0.99,symmetric=True)  # Careful here -- don't crop the ring!
 (s_norm,coeffs) = hbt.normalize_images(s,a)

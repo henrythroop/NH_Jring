@@ -196,7 +196,7 @@ def bandpass(data, highpass, lowpass, n, pxd, eq='histogram'):
 dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
 file1 = 'lor_0034602723_0x630_sci_1.fit'
 
-image_orig = hbt.remove_brightest(hbt.get_image_nh(dir_images + file1), 0.97, symmetric=True)
+image_orig = hbt.remove_brightest(hbt.read_lorri(dir_images + file1), 0.97, symmetric=True)
 
 fft_orig = np.fft.fftshift(np.fft.fft2(image_orig))
 recon_image = np.abs(np.fft.ifft2(np.fft.ifftshift(fft_orig)))

@@ -21,6 +21,8 @@ Created on Mon Feb 29 14:55:00 2016
 @author: throop
 """
 
+# General python imports
+
 import pdb
 import glob
 import math       # We use this to get pi. Documentation says math is 'always available' 
@@ -56,8 +58,9 @@ from   scipy.stats import mode
 from   scipy.stats import linregress
 from   photutils import daofind
 import wcsaxes
-import hbt
 import time
+from scipy.interpolate import griddata
+
 
 import imreg_dft as ird
 import re # Regexp
@@ -70,6 +73,10 @@ import ttk
 import tkMessageBox
 from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
+
+# HBT imports
+
+import hbt
 
 #pdb.set_trace()
 
@@ -92,6 +99,8 @@ def find_stars(im):
     points_phot = np.transpose((x_phot, y_phot)) # Create an array N x 2
 
     return points_phot
+
+
 
 ##########
 # Calc offset between two sets of points
@@ -168,7 +177,7 @@ class App:
         
         option_bg_default = 'Grp Num Frac Pow'
         entry_bg_default  = '4' # Default polynomial order XXX need to set a longer string length here!
-        index_group_default = 2 # Jupiter ring phase curve
+        index_group_default = 7 # Jupiter ring phase curve
         index_image_default = 0 # Image number within the group
 
 # Do some general code initialization
@@ -247,13 +256,15 @@ class App:
         self.bins_radius        = np.zeros((1))
         self.bins_azimuth       = np.zeros((1))
         
-        self.image_raw          = np.zeros((1)) # The current image, with *no* processing done. This prevents having to reread from disk.
+        self.image_raw          = np.zeros((1)) # The current image, with *no* processing done. This prevents re-reading from disk.
         self.image_processed    = np.zeros((1)) # Current image, after all processing is done (bg, scaling, etc)
-        self.image_bg_raw       = np.zeros((1)) # The 'raw' background image. No processing done to it. Assume bg is single image; revisit as needed.
+        self.image_bg_raw       = np.zeros((1)) # The 'raw' background image. No processing done to it. 
+                                                # Assume bg is single image; revisit as needed.
         
         self.file_backplane_shortname = ''      # Shortname for the currently loaded backplane.
 								
-        self.do_autoextract     = 0             # Flag to extract radial profile when possible. Flag is 1/0, not True/False, as per ttk.
+        self.do_autoextract     = 0             # Flag to extract radial profile when possible. Flag is 1/0, 
+                                                # not True/False, as per ttk.
         
         self.legend             = False         # Store pointer to plot legend here, so it can be deleted
 								
@@ -407,21 +418,21 @@ class App:
  
         self.canvas1 = FigureCanvasTkAgg(self.fig1,master=master)
         self.canvas1.show()
-        self.ax1.imshow(hbt.get_image_nh('')) # Put up an empty frame, if file = ''
+        self.ax1.imshow(hbt.read_lorri('')) # Put up an empty frame, if file = ''
         
-# Set up Plot 2 : Radial profile
+# Set up Plot 2 : Radial / Azimuthal profiles
         
         self.fig2 = Figure(figsize = (7,3))
         junk = self.fig2.set_facecolor(self.bgcolor)
 
         self.ax2 = self.fig2.add_subplot(1,1,1, 
-                                    xlabel = 'Radius', ylabel = 'Intensity', 
+                                    xlabel = 'Radius or Azimuth', ylabel = 'Intensity', 
                                     label = 'Plot') # Return the axes
  
         self.canvas2 = FigureCanvasTkAgg(self.fig2,master=master)
         self.canvas2.show()  
 
-# Set up Plot 3 : Azimuthal profile
+# Set up Plot 3 : Unwrapped ring
         
         self.fig3 = Figure(figsize = (7,4))
         junk = self.fig3.set_facecolor(self.bgcolor)
@@ -431,6 +442,7 @@ class App:
                                     label = 'Plot') # Return the axes
  
         self.canvas3 = FigureCanvasTkAgg(self.fig3,master=master)
+        self.ax3.imshow(hbt.read_lorri(''))
         self.canvas3.show()  
 
 # Set up Plot 4 : Debugging / Misc window
@@ -446,7 +458,7 @@ class App:
  
         self.canvas4 = FigureCanvasTkAgg(self.fig4,master=master)
         self.canvas4.show()
-        plot4 = self.ax4.imshow(hbt.get_image_nh('')) # Put up an empty frame, if file = ''
+        plot4 = self.ax4.imshow(hbt.read_lorri('')) # Put up an empty frame, if file = ''
         self.fig4.colorbar(plot4)
         
 # Put objects into appropriate grid positions
@@ -508,6 +520,106 @@ class App:
         self.load_image()
         self.process_image()
         self.plot_image()
+
+##########
+# Unwrap xy ring image into lon, radius
+##########
+
+    def unwrap_ring(self):
+    
+        num_bins_azimuth = 10000 # Might make this a user parameter later
+        num_bins_radius  = 400
+        
+        image_processed = self.image_processed
+        
+        dx_total =  -(self.t_group['dx_offset'][self.index_image] + self.t_group['dx_opnav'][self.index_image])
+        dy_total =  -(self.t_group['dy_offset'][self.index_image] + self.t_group['dy_opnav'][self.index_image])
+        
+        image_roll = np.roll(np.roll(image_processed, dx_total, axis=1), dy_total, axis=0)
+            
+        grid_lin_2d = np.zeros((num_bins_radius, num_bins_azimuth))
+    
+        rj = 71492  # Jovian radius, in km
+    
+        r_ring_inner_rj = 1.7
+        r_ring_outer_rj = 1.81
+    
+    # Now check if the backplane is loaded already. Load it iff it is not loaded
+    
+        if (self.file_backplane_shortname != self.t_group['Shortname'][self.index_image]):
+            self.load_backplane()
+                
+        radius  = self.planes['Radius_eq'] / rj   # Radius stored as km, but do the calc in R_J
+        azimuth = self.planes['Longitude_eq'] * hbt.r2d # Azimuth is stored as radians, but do the calc in degrees
+    
+    # Extract and plot radial profile
+    
+        bins_radius = hbt.frange(r_ring_inner_rj, r_ring_outer_rj, num_bins_radius)
+        bins_azimuth = hbt.frange(-180,180,num_bins_azimuth+1)
+
+        grid_azimuth_1d = hbt.frange(0, 4. * math.pi, num_bins_azimuth)
+
+        # We should be able to use a single call to griddata() to grid the entire dataset. But it gives
+        # screwy results, obviously wrong. So instead, I am doing it line-by-line (in radial bins).
+        # The speed is not that much different.
+        
+        for i in range(num_bins_radius-1):
+            
+            is_ring_i = np.array(radius > bins_radius[i]) & np.array(radius < bins_radius[i+1])
+            dn_i = image_roll[is_ring_i]
+            radius_i = self.planes['Radius_eq'][is_ring_i]
+            azimuth_i = self.planes['Longitude_eq'][is_ring_i]
+            azimuth_i[azimuth_i < 0] += 2*math.pi
+            grid_lin_i   = griddata(azimuth_i, dn_i, grid_azimuth_1d, method='linear')
+            
+            grid_lin_2d[i,:] = grid_lin_i
+
+        # Remove the NaN's
+        
+        grid_lin_2d[np.isnan(grid_lin_2d)] = 0
+        
+        profile_azimuth = np.sum(grid_lin_2d, 0)
+        profile_radius  = np.sum(grid_lin_2d, 1)
+        
+        bin_az_min = np.where(profile_azimuth > 0)[0][0]
+        bin_az_max = np.where(profile_azimuth > 0)[0][-1]
+        
+        az_min = grid_azimuth_1d[bin_az_min]
+        az_max = grid_azimuth_1d[bin_az_max]
+        
+        #plt.plot(grid_azimuth_1d, profile_azimuth)
+        #plt.xlim(az_min, az_max)
+        #plt.plot(bins_radius, profile_radius)
+        #plt.show()
+        
+        # And make a plot of the unwrapped ring!
+        # Set the aspect ratio manually -- we do not really need square pixels here.
+        
+        fs = 15
+        
+        plt.rcParams['figure.figsize'] = 16, 10
+
+#        self.ax3.imshow(grid_lin_2d, aspect='auto')
+        print "imshow(grid_lin2d)"
+        
+        self.ax3.imshow(grid_lin_2d, 
+                   extent = [np.min(grid_azimuth_1d), np.max(grid_azimuth_1d), 
+                             r_ring_outer_rj, r_ring_inner_rj], aspect='auto')
+        
+        self.ax3.set_xlim([az_min, az_max])
+        self.ax3.set_xlabel('Azimuth [radians]', fontsize=fs)
+        self.ax3.set_ylabel('Radius [$R_J$]', fontsize=fs)
+        self.canvas3.show()
+
+        print "az_min = " + repr(az_min)
+        print "az_max = " + repr(az_max)
+
+        
+#        self.canvas3.show()
+#        self.canvas3 = FigureCanvasTkAgg(self.fig3,master=master)
+#        self.ax3.imshow(hbt.read_lorri(''))
+#        self.canvas3.show()  
+#        
                        
 ##########
 # Navigate the image and plot it
@@ -617,9 +729,9 @@ class App:
 
 # Read the image file from disk
 
-        image_polyfit = hbt.get_image_nh(t['Filename'][index_image], frac_clip = 1.,  
+        image_polyfit = hbt.read_lorri(t['Filename'][index_image], frac_clip = 1.,  
                                      bg_method = 'Polynomial', bg_argument = 4)
-        image_raw     = hbt.get_image_nh(t['Filename'][index_image], frac_clip = 0.9, 
+        image_raw     = hbt.read_lorri(t['Filename'][index_image], frac_clip = 0.9, 
                                      bg_method = 'None')
 
 # Use DAOphot to search the image for stars. It works really well.
@@ -803,7 +915,7 @@ class App:
 # autozoom: if set, and we are loading a 4x4 image, then scale it up to a full 1x1.
 
         file = self.t_group[self.index_image]['Filename']                    
-        self.image_raw = hbt.get_image_nh(file, frac_clip = 1., bg_method = 'None', autozoom=True)
+        self.image_raw = hbt.read_lorri(file, frac_clip = 1., bg_method = 'None', autozoom=True)
         print "Loaded image: " + file                
                                      
 ##########
@@ -826,19 +938,19 @@ class App:
             file_prev = self.t_group['Filename'][self.index_image-1]
             print "file =      " + filename
             print "file_prev = " + file_prev
-            image_bg = hbt.get_image_nh(file_prev, frac_clip = 1.0, bg_method = 'None', autozoom=True)
+            image_bg = hbt.read_lorri(file_prev, frac_clip = 1.0, bg_method = 'None', autozoom=True)
             image_fg = self.image_raw
             image = image_fg - image_bg
 
         if (method == 'Next'):
             file_next = self.t_group['Filename'][self.index_image+1]
-            image_bg = hbt.get_image_nh(file_next, frac_clip = 1.0, bg_method = 'None', autozoom=True)
+            image_bg = hbt.read_lorri(file_next, frac_clip = 1.0, bg_method = 'None', autozoom=True)
             image_fg = self.image_raw
             image = image_fg - image_bg
             
         if (method == 'Median'): # XXX not working yet
             file_prev = self.t_group['Filename'][self.index_image-1]
-            image_bg = hbt.get_image_nh(file_prev, frac_clip = 1.0, bg_method = 'None')
+            image_bg = hbt.read_lorri(file_prev, frac_clip = 1.0, bg_method = 'None')
             image_fg = self.image_raw
             image = image_fg - image_bg
 
@@ -893,7 +1005,7 @@ class App:
                 filename_bg = group_tmp['Filename'][num]
                                         
                 image_fg = self.image_raw
-                image_bg = hbt.get_image_nh(filename_bg, frac_clip = 1, bg_method = 'None')
+                image_bg = hbt.read_lorri(filename_bg, frac_clip = 1, bg_method = 'None')
                 
                 image = image_fg - float(frac) * image_bg                
                 image = image - hbt.sfit(image, power)
@@ -920,7 +1032,8 @@ class App:
                 stray = hbt.nh_get_straylight_median(self.index_group, [int(vars[0])])  # "122" -- assume current group
                 
             if (np.size(vars) == 2):
-                stray = hbt.nh_get_straylight_median(self.index_group, hbt.frange(int(vars[0]), int(vars[1])))  # "122-129" -- assume current group
+                stray = hbt.nh_get_straylight_median(self.index_group, hbt.frange(int(vars[0]), int(vars[1])))  # "122-129" 
+                                                                                            # -- assume current group
  
             if (np.size(vars) == 3):
                 stray = hbt.nh_get_straylight_median(int(vars[0]), hbt.frange(vars[1], vars[2])) # "5/122 - 129"
@@ -1120,7 +1233,9 @@ the internal state which is already correct. This does *not* refresh the image i
         self.process_image()
         self.plot_image()
 
-        self.extract_profiles()								
+#        self.extract_profiles()	
+        
+        self.unwrap_ring()
 
 ##########
 # Plot image - button handler
@@ -1389,7 +1504,8 @@ the internal state which is already correct. This does *not* refresh the image i
         dir_backplanes = '/Users/throop/data/NH_Jring/out/'
         file_backplane = dir_backplanes + self.t_group['Shortname'][self.index_image].replace('.fit', '_planes.pkl')
 
-        # Save the shortname associated with the current backplane. That lets us verify if the backplane for current image is indeed loaded.
+        # Save the shortname associated with the current backplane. 
+        # That lets us verify if the backplane for current image is indeed loaded.
 
         self.file_backplane_shortname = self.t_group['Shortname'][self.index_image]
 				
@@ -1449,8 +1565,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
         str = self.t_group['Shortname'][self.index_image]
         hbt.write_to_clipboard(str)
-        print "{} copied to clipboard".format(str)
-    
+        print "{} copied to clipboard".format(str) 
         
         return 0
         

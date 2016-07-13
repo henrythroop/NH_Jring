@@ -131,7 +131,7 @@ def match_image_brightness(arr1, arr2, frac=0.5):
     arr2_fixed = arr2 * m + b
     return (m,b)
     
-def get_image_nh(file, frac=0.9, polyfit=True, raw=False, ):
+def read_lorri(file, frac=0.9, polyfit=True, raw=False, ):
     " Reads an NH FITS file from disk. Does simple image processing on it, removes background,"
     " and roughly scales is for display."
     " Might still need a log scaling applied for J-ring images."
@@ -535,7 +535,7 @@ while (IS_DONE == False):
         plotnum = 1
 
         for j in range_selected:
-            arr = get_image_nh(file = files[j], polyfit=True)
+            arr = read_lorri(file = files[j], polyfit=True)
 #            rownum = plotnum / num_cols + 1
 #            colnum = plotnum % num_cols + 1        
             plt.subplot(num_rows, num_cols, plotnum)
@@ -772,8 +772,8 @@ while (IS_DONE == False):
 
 # Read the image file from disk
 
-        image_polyfit = get_image_nh(t['Filename'][i], frac=1., polyfit = True)
-        image_raw     = get_image_nh(t['Filename'][i], raw = True)
+        image_polyfit = read_lorri(t['Filename'][i], frac=1., polyfit = True)
+        image_raw     = read_lorri(t['Filename'][i], raw = True)
 
 # Use DAOphot to search the image for stars. It works really well.
 
@@ -924,7 +924,7 @@ while (IS_DONE == False):
     if (DO_PLOT_I):     
         print t['#', 'MET', 'UTC', 'Exptime', 'Target', 'Desc'][i]
 
-        arr = get_image_nh(t['Filename'][i], polyfit=True)
+        arr = read_lorri(t['Filename'][i], polyfit=True)
 #        plt.imshow(np.log(arr))
         plt.imshow(arr)
         plt.title(t['Shortname'][i])

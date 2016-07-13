@@ -73,6 +73,6 @@ print "mean error = " + repr(np.mean(error))
 print
     
 file3 = 'lor_0035120624_0x630_sci_1.fit'
-image_1x1 = hbt.get_image_nh(dir_images + '/' + file3)
+image_1x1 = hbt.read_lorri(dir_images + '/' + file3)
 print "file = " + file3
 print "mean DN = " + repr(np.mean(image_1x1))

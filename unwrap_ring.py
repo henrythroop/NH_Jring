@@ -17,6 +17,7 @@ import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import os.path
+import astropy
 from scipy.interpolate import griddata
 import math
 
@@ -30,32 +31,33 @@ plt.rcParams['figure.figsize'] = 12, 12
 lun = open(file_pickle, 'rb')
 t = pickle.load(lun)
 lun.close()
+groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
 
 index_group = 8
 index_image = 10 # Which frame from the group do we extract?
 index_image_stray = [49, 50, 51, 52, 53]
 
-index_group = 8
-index_image = 4 # Which frame from the group do we extract?
-index_images_stray = hbt.frange(0,48,49)
+index_group = 7
+index_image = 0 # Which frame from the group do we extract?
+index_images_stray = hbt.frange(1,2)
 
-index_group = 5
-index_image = 1
-index_images_stray = hbt.frange(1,6,6)
+#index_group = 5
+#index_image = 1
+#index_images_stray = hbt.frange(1,6,6)
 
 groupmask = (t['Desc'] == groups[index_group])
 t_group = t[groupmask]
 
 # Load stray light (or generate if this one has not been made yet)
 
-image_stray = nh_get_straylight_median(index_group, index_images_stray, do_sfit=True, power1=5, power2=5)
+image_stray = hbt.nh_get_straylight_median(index_group, index_images_stray, do_sfit=True, power1=5, power2=5)
 
 f       = t_group['Filename'][index_image] # Look up filename
 f_short = t_group['Shortname'][index_image]
 
 file_backplane = dir_backplanes + t_group['Shortname'][index_image].replace('.fit', '_planes.pkl')
 
-# Load backplane
+# Load backplane, which is required for navigation
 				
 if (os.path.isfile(file_backplane)):
     print 'load_backplane: loading ' + file_backplane 
@@ -67,8 +69,10 @@ if (os.path.isfile(file_backplane)):
 # Load image
 # Then do basic image processing on it to remove stray light, etc.
 # To remove stray light, we first remove low-frq terms using an sfit. Then we remove hi-frq terms with the stray light image.
+# This is my standard cookbook routine
+# One change though: I should make my image clamping (remove_brightest) only apply to the plotted image -- not the internal one
     
-image = hbt.get_image_nh(t_group['Filename'][index_image])
+image = hbt.read_lorri(t_group['Filename'][index_image])
 image_processed = hbt.remove_brightest(image, 0.97, symmetric=True)
 image_processed = image_processed - hbt.sfit(image_processed, 5)
 image_processed = hbt.remove_brightest(image_processed, 0.97, symmetric=True)
@@ -161,6 +165,10 @@ for i in range(num_bins_radius-1):
 
 grid_lin_2d[np.isnan(grid_lin_2d)] = 0
 
+# Clamp the result
+
+grid_lin_2d = hbt.remove_brightest(grid_lin_2d, 0.97, symmetric=True)
+
 profile_azimuth = np.sum(grid_lin_2d, 0)
 profile_radius  = np.sum(grid_lin_2d, 1)
 
@@ -182,14 +190,8 @@ fs = 15
 
 plt.rcParams['figure.figsize'] = 16, 10
 
-plt.imshow(grid_lin_2d, 
-           extent = [np.min(grid_azimuth_1d), np.max(grid_azimuth_1d), 
-                     r_ring_outer_rj, r_ring_inner_rj], aspect=5)
-plt.xlim((az_min, az_max))
-plt.xlabel('Azimuth [radians]', fontsize=fs)
-plt.ylabel('Radius [$R_J$]', fontsize=fs)
-plt.title(f_short, fontsize=fs)
-plt.show()
+
+
 
 stop
 

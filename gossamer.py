@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 """
+
+One-off routine to read and plot the Gossamer ring images in the NH flyby data.
+1x3 pointing mosaic. At each pointing, I co-add four 4x4 frames, and subtract a 
+median stray light image created based on some other nearby frames (either 4x4 or 1x1).
+
 Created on Fri Jul  8 21:51:55 2016
 
 @author: throop
@@ -47,13 +52,8 @@ import imreg_dft as ird
 import re # Regexp
 import pickle # For load/save
 
-# Imports for Tk
-
-import Tkinter
-import ttk
-import tkMessageBox
-from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from   matplotlib.figure import Figure
+# Read in the main pickle file, which will give us access to groups and image numbers, to standardeize 
+# with all the other NH files that I am using.
 
 file_pickle = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
 dir_images =         '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
@@ -72,6 +72,10 @@ t_group = t[groupmask]
 
 ####
 
+# Read and plot the LHS image of a 1x3 mosaic of Gossamer ring images.
+# This is a lot of lines of code, but most of it is just stacking images and scaling, which should be rewritten 
+# into a function.
+
 index_group = 6
 index_image = hbt.frange(181,184).astype(int) # Which frame from the group do we extract?
 
@@ -79,7 +83,7 @@ image_stray = hbt.nh_get_straylight_median(6, hbt.frange(185,188)) #
 
 image_arr = np.zeros((1024, 1024, 4))
 for i in range(4):
-    image = hbt.get_image_nh(t_group[index_image[i]]['Filename'], autozoom=True)
+    image = hbt.read_lorri(t_group[index_image[i]]['Filename'], autozoom=True)
     image_arr[:,:,i] = image
 
 image_sum = np.sum(image_arr,axis=2)
@@ -99,14 +103,17 @@ ax.get_xaxis().set_visible(False)
 ax.get_yaxis().set_visible(False)
 plt.imshow(final)
 #plt.show()
+
 ###
+
+# Do the same thing, for the middle image
 
 index_image = hbt.frange(177,180).astype(int) # Which frame from the group do we extract?
 image_stray = hbt.nh_get_straylight_median(6, hbt.frange(185,188))
 
 image_arr = np.zeros((1024, 1024, 4))
 for i in range(4):
-    image = hbt.get_image_nh(t_group[index_image[i]]['Filename'], autozoom=True)
+    image = hbt.read_lorri(t_group[index_image[i]]['Filename'], autozoom=True)
     image_arr[:,:,i] = image
 
 image_sum = np.sum(image_arr,axis=2)
@@ -129,12 +136,14 @@ plt.imshow(final)
 
 ####
 
+# Now do the exact same thing, for the RHS image
+
 index_image = hbt.frange(185,188).astype(int) # Which frame from the group do we extract?
 image_stray = hbt.nh_get_straylight_median(6, hbt.frange(173,176))
 
 image_arr = np.zeros((1024, 1024, 4))
 for i in range(4):
-    image = hbt.get_image_nh(t_group[index_image[i]]['Filename'], autozoom=True)
+    image = hbt.read_lorri(t_group[index_image[i]]['Filename'], autozoom=True)
     image_arr[:,:,i] = image
 
 image_sum = np.sum(image_arr,axis=2)
@@ -156,4 +165,4 @@ plt.imshow(final)
 plt.show()
 
 
-im1 = get_image_nh(35108923)
+im1 = read_lorri(35108923)
