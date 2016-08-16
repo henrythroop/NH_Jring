@@ -63,11 +63,13 @@ from   matplotlib.figure import Figure
 
 import hbt
 
-####
+##########
+# Select which of the sequences we want to read in
+##########
+# (NB: The spellling / capitalization is inconsistent in SAPNAME vs. VISITNAM. I have standardized it here.)
 
-sequence 	= 'O_RING_Occ3'
-
-#   sequence 	= 'O_Ring_Occ2'
+#   sequence 	= 'O_RING_OC3'
+sequence 	= 'O_RING_OC2'
 
 fs           	= 15		# Font size
 
@@ -90,27 +92,39 @@ for file in file_list:
     data = hbt.read_alice(file)
 #    print "."
     startmet = data['header_spect']['STARTMET']
-    dt = data['header_count_rate']['SAMPLINT']
+    spcutcal = data['header_spect']['SPCUTCAL']	# Mid-obs time
+
+    visitnam = data['header_spect']['VISITNAM']
+    sapname   = data['header_spect']['SAPNAME']
+
+    dt       = data['header_count_rate']['SAMPLINT']
     count_rate_i = data['count_rate']              # Extract count rate from file
 
     met_i = startmet + dt * hbt.frange(0, np.shape(count_rate_i)[0]-1)   # Create the MET by interpolation
 
     print "Read file " + os.path.basename(file) + ", MET " + repr(startmet) + ' = ' + hbt.met2utc(startmet) + \
       ', N = ' + repr(len(count_rate_i)) + ' samples' + \
-      ', duration = ' + repr(dt * len(count_rate_i)) + ' sec'
-    
+      ', duration = ' + hbt.trunc(dt * len(count_rate_i),3) + ' sec'
+#       print "  " + visitnam + " " + spcutcal
+
     met_all.append(met_i)
     count_rate_all.append(count_rate_i)
 
 count_rate  = np.array([item for sublist in count_rate_all for item in sublist])  # Flatten the count rate (from 2D, to 1D)
+count_rate  = np.array(count_rate, dtype=float)					  # Convert to float. Otherwise get wraparound.
 met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
 
-# Compute ET for each timestep
+# Compute UTC and ET for the initial timestep
 
-et_start = cspice.utc2et(hbt.met2utc(startmet))
+utc_start= hbt.met2utc(np.min(met))
+et_start = cspice.utc2et(utc_start)
+
+# Compute MET and ET for all timesteps. Both ET and MET are in seconds, but their offset is different.
+
 et       = met - met[0] + et_start    # ET is now fully populated and correct
-
 t        = et - et[0]                 # Seconds since start of observation
+
+num_dt   = np.size(et)
 
 # Computed a smoothed count rate. _s indicates smoothed. Array is cropped at edges too.
 
@@ -134,6 +148,9 @@ met_s        = met[binning:-binning]
 ra_star  = 91.89 * hbt.d2r
 dec_star = 14.77 * hbt.d2r
 
+ra       = np.zeros(num_dt)
+dec      = np.zeros(num_dt)
+
 vec_star_j2k = cspice.radrec(1., ra_star, dec_star)
 
 name_fov = 'NH_ALICE_AIRGLOW'
@@ -147,7 +164,18 @@ for i,et_i in enumerate(et):
   vec_alice_j2k = cspice.mxvg(mx, vec_bsight_alice)		# ICY did not have mxvg(), but pdstools does.
   vsep[i] = cspice.vsep(vec_star_j2k, vec_alice_j2k)   # Angular separation, in radians
 
+  (junk, ra[i], dec[i]) = cspice.recrad(vec_alice_j2k)
+
 #plt.plot(t, count_rate, marker = '.', linestyle='none')
+
+##########
+# Calculate statistics
+##########
+
+# Sigma_s = S / SNR = (mean) / (sqrt(n * mean) / (n * mean))
+# This is the expected stdev for binned data (i.e., 63% of data should be within this amount of the mean, etc.)
+
+sigma_s = np.mean(count_rate) * np.sqrt(np.mean(count_rate * binning)) / (np.mean(count_rate * binning))
 
 ##########
 # Make plots
@@ -158,9 +186,16 @@ plt.rcParams['figure.figsize'] = 15,5
 # Plot of count rate vs. time
 
 plt.plot(t_s, count_rate_s, marker = '.', linestyle='none', ms=0.1)
-plt.title(sequence + ', dt = ' + repr(dt) + ' sec, binned x ' + repr(binning) + ' = ' + repr(dt * binning) + ' sec', fontsize=fs)
+plt.title(sequence + ', dt = ' + repr(dt) + ' sec, binned x ' + repr(binning) + ' = ' + repr(dt * binning) + ' sec' + \
+                     ', 1$\sigma$ = ' + hbt.trunc(sigma_s,4), fontsize=fs)
+
+plt.errorbar(100, np.mean(count_rate_s) - 4 * sigma_s, xerr=binning*dt/2, yerr=None, label='Binning Width') 
+			# X 'error bar' -- show the bin width
+plt.errorbar(300, np.mean(count_rate_s) - 4 * sigma_s, xerr=None, yerr=sigma_s/2, label='1$\sigma$ shot noise') 
+			# Y 'error bar' -- show the binned shot noise error
+plt.legend()
 plt.ylabel('Count Rate', fontsize=fs)
-plt.xlabel('t since start [sec]', fontsize=fs)
+plt.xlabel('Time since ' + utc_start + ' [sec]', fontsize=fs)
 plt.show()
 
 # Plot of pointing vs. time
@@ -168,7 +203,7 @@ plt.show()
 #   plt.plot(et - et[0], (vsep % 0.02) * hbt.r2d - 0.65 - ((et-et[0] - 1900) / 1000))
 plt.plot(et - et[0], (vsep % 0.02) * hbt.r2d)
 #   plt.title(sequence + ', dt = ' + repr(dt) + ' sec, binned x ' + repr(binning) + ' = ' + repr(dt * binning) + ' sec', fontsize=fs)
-plt.xlabel('Seconds', fontsize=fs)
+plt.xlabel('Seconds since ' + utc_start, fontsize=fs)
 plt.ylabel('Degrees from star', fontsize=fs)
 plt.show()
 
@@ -189,4 +224,16 @@ plt.ylim((0,0.04))
 plt.xlabel('Seconds', fontsize=fs)
 plt.ylabel('Degrees from star', fontsize=fs)
 plt.show()
+
+##########
+# Make a plot of motion thru the deadband
+##########
+
+plt.rcParams['figure.figsize'] = 5,5
+plt.plot(ra*hbt.r2d, dec*hbt.r2d, linestyle='none', marker='.', ms=1)
+plt.title(sequence + ', start = ' + utc_start)
+plt.xlabel('RA [deg]')
+plt.ylabel('Dec [deg]')
+
+
 
