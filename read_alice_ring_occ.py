@@ -60,7 +60,7 @@ from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
 
 # HBT imports
-
+ymmm
 import hbt
 
 ##########
@@ -114,6 +114,8 @@ count_rate  = np.array([item for sublist in count_rate_all for item in sublist])
 count_rate  = np.array(count_rate, dtype=float)					  # Convert to float. Otherwise get wraparound.
 met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
 
+count_rate_fake = np.random.poisson(np.mean(count_rate), np.size(count_rate))
+
 # Compute UTC and ET for the initial timestep
 
 utc_start= hbt.met2utc(np.min(met))
@@ -126,22 +128,9 @@ t        = et - et[0]                 # Seconds since start of observation
 
 num_dt   = np.size(et)
 
-# Computed a smoothed count rate. _s indicates smoothed. Array is cropped at edges too.
-
-binning      = 3000		# Smoothing. 25000 is too much (shows opposite trend!). 5000 and 1000 look roughly similar.
-                            # To be meaningful, the binning timescale must be less than the deadband timescale (~20-30 sec RT).
-                            # At binning=3000, it's 12 sec... so that is the longest we'd really want to go.
-                            
-count_rate_s = hbt.smooth_boxcar(count_rate, binning)[binning:-binning]
-
-# Compute truncated versions of the time arrays, just in case they are useful
-
-t_s          = t[binning:-binning]
-et_s         = et[binning:-binning]
-met_s        = met[binning:-binning]
-
 ##########
 # Compute the angle from the star to Alice boresight, for every timestep.
+# Also compute the RA and Dec for each timestep
 ##########
 
 # NB: For FSS, I got the FSS-Sun angle directly from Gabe -- I didn't get it from SPICE.
@@ -168,8 +157,33 @@ for i,et_i in enumerate(et):
   vsep[i] = cspice.vsep(vec_star_j2k, vec_alice_j2k)   # Angular separation, in radians
 
   (junk, ra[i], dec[i]) = cspice.recrad(vec_alice_j2k)
+  
+# Do some linear regression on the count rate vs. RA, to remove nonlinearity across the detector
 
-#plt.plot(t, count_rate, marker = '.', linestyle='none')
+coeffs_ra = linregress(ra, count_rate)
+count_rate_nonlinear = coeffs_ra.intercept + coeffs_ra.slope * ra - np.mean(count_rate)
+count_rate_fixed = count_rate - count_rate_nonlinear 
+
+# Computed a smoothed count rate. _s indicates smoothed. Array is cropped at edges too.
+
+binning      = 25000		# Smoothing. 25000 is too much (shows opposite trend!). 5000 and 1000 look roughly similar.
+                            # To be meaningful, the binning timescale must be less than the deadband timescale (~20-30 sec RT).
+                            # At binning=3000, it's 12 sec... so that is the longest we'd really want to go.
+                            #
+                            # Use binning = 25,000 for the data analysis.
+                            # Use binning = 3000 to make a plot of the trend of DN vs. RA
+                            
+count_rate_s = hbt.smooth_boxcar(count_rate, binning)[binning:-binning]
+
+count_rate_fake_s = hbt.smooth_boxcar(count_rate_fake, binning)[binning:-binning]
+
+count_rate_fixed_s = hbt.smooth_boxcar(count_rate_fixed, binning)[binning:-binning]
+
+# Compute truncated versions of the time arrays, just in case they are useful
+
+t_s          = t[binning:-binning]
+et_s         = et[binning:-binning]
+met_s        = met[binning:-binning]
 
 ##########
 # Calculate statistics
@@ -188,17 +202,22 @@ plt.rcParams['figure.figsize'] = 15,5
 
 # Plot of count rate vs. time
 
-plt.plot(t_s, count_rate_s, marker = '.', linestyle='none', ms=0.1)
-plt.title(sequence + ', dt = ' + repr(dt) + ' sec, binned x ' + repr(binning) + ' = ' + repr(dt * binning) + ' sec' + \
+plt.plot(t_s, count_rate_s, marker = '.', linewidth=0.5, ms=0.1, label='Alice, Raw')
+plt.plot(t_s, count_rate_fixed_s, linewidth=0.5, ms=0.1, label='Alice, Linear Row Trend Removed')
+plt.plot(t_s, count_rate_fake_s - 0.15, linewidth=0.5, ms=0.1, label='Fake Poisson Data')
+
+plt.title(sequence + ', dt = ' + repr(dt) + ' sec, smoothed x ' + repr(binning) + ' = ' + repr(dt * binning) + ' sec' + \
                      ', 1$\sigma$ = ' + hbt.trunc(sigma_s,4), fontsize=fs)
 
-plt.errorbar(100, np.mean(count_rate_s) - 4 * sigma_s, xerr=binning*dt/2, yerr=None, label='Binning Width') 
+plt.errorbar(100, np.mean(count_rate_s) + 5 * sigma_s, xerr=binning*dt/2, yerr=None, label='Binning Width', linewidth=2) 
 			# X 'error bar' -- show the bin width
-plt.errorbar(300, np.mean(count_rate_s) - 4 * sigma_s, xerr=None, yerr=sigma_s/2, label='1$\sigma$ shot noise') 
+plt.errorbar(300, np.mean(count_rate_s) + 5 * sigma_s, xerr=None, yerr=sigma_s/2, label='1$\sigma$ shot noise', linewidth=2) 
 			# Y 'error bar' -- show the binned shot noise error
 plt.legend()
 plt.ylabel('Count Rate', fontsize=fs)
 plt.xlabel('Time since ' + utc_start + ' [sec]', fontsize=fs)
+plt.ylim((np.mean(count_rate_s) -8*sigma_s, np.mean(count_rate_s) +11*sigma_s))
+
 plt.show()
 
 # Plot of pointing vs. time
@@ -266,6 +285,8 @@ vsep_test = cspice.vsep(vec_star_j2k, vec_alice_j2k)   # Angular separation, in 
 ra_s = ra[binning:-binning]    # Same as RA, but cropped, so the edges are missing. Has same # elements as count_rate_s (smoothed)
 dec_s = dec[binning:-binning]
 
+# Make a plot of RA vs DN. This is to see if there is a trend in brightness as we move from one side of slit to the other.
+
 plt.rcParams['figure.figsize'] = 10,10
 plt.plot(ra_s, count_rate_s, linestyle='none', marker='.', ms=0.1)
 plt.xlabel('RA [deg]', fontsize=fs)
@@ -305,8 +326,9 @@ plt.show()
 #plt.colorbar()
 #plt.show()
 
+# Just for a reality check, create some fake data and plot it too.
 
-# 
+
 
 
   
