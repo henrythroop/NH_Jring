@@ -60,7 +60,6 @@ from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
 
 # HBT imports
-ymmm
 import hbt
 
 ##########
@@ -68,9 +67,17 @@ import hbt
 ##########
 # (NB: The spellling / capitalization is inconsistent in SAPNAME vs. VISITNAM. I have standardized it here.)
 
-#sequence 	= 'O_RING_OC3'
-sequence 	= 'O_RING_OC2'
+sequence 	= 'O_RING_OC3'
+#sequence 	= 'O_RING_OC2'
 
+
+binning      = 3000		# Smoothing. 25000 is too much (shows opposite trend!). 5000 and 1000 look roughly similar.
+                            # To be meaningful, the binning timescale must be less than the deadband timescale (~20-30 sec RT).
+                            # At binning=3000, it's 12 sec... so that is the longest we'd really want to go.
+                            #
+                            # Use binning = 25,000 for the data analysis.
+                            # Use binning = 3000 to make a plot of the trend of DN vs. RA
+                            
 fs           	= 15		# Font size
 
 dir_images = '/Users/throop/Data/NH_Alice_Ring/' + sequence + '/data/pluto/level2/ali/all'
@@ -161,17 +168,12 @@ for i,et_i in enumerate(et):
 # Do some linear regression on the count rate vs. RA, to remove nonlinearity across the detector
 
 coeffs_ra = linregress(ra, count_rate)
+coeffs_dec = linregress(dec, count_rate)
 count_rate_nonlinear = coeffs_ra.intercept + coeffs_ra.slope * ra - np.mean(count_rate)
 count_rate_fixed = count_rate - count_rate_nonlinear 
 
 # Computed a smoothed count rate. _s indicates smoothed. Array is cropped at edges too.
 
-binning      = 25000		# Smoothing. 25000 is too much (shows opposite trend!). 5000 and 1000 look roughly similar.
-                            # To be meaningful, the binning timescale must be less than the deadband timescale (~20-30 sec RT).
-                            # At binning=3000, it's 12 sec... so that is the longest we'd really want to go.
-                            #
-                            # Use binning = 25,000 for the data analysis.
-                            # Use binning = 3000 to make a plot of the trend of DN vs. RA
                             
 count_rate_s = hbt.smooth_boxcar(count_rate, binning)[binning:-binning]
 
@@ -194,9 +196,10 @@ met_s        = met[binning:-binning]
 
 sigma_s = np.mean(count_rate) * np.sqrt(np.mean(count_rate * binning)) / (np.mean(count_rate * binning))
 
-##########
+
+#==============================================================================
 # Make plots
-##########
+#==============================================================================
 
 plt.rcParams['figure.figsize'] = 15,5
 
@@ -216,44 +219,22 @@ plt.errorbar(300, np.mean(count_rate_s) + 5 * sigma_s, xerr=None, yerr=sigma_s/2
 plt.legend()
 plt.ylabel('Count Rate', fontsize=fs)
 plt.xlabel('Time since ' + utc_start + ' [sec]', fontsize=fs)
-plt.ylim((np.mean(count_rate_s) -8*sigma_s, np.mean(count_rate_s) +11*sigma_s))
+plt.ylim((np.mean(count_rate_s) -10*sigma_s, np.mean(count_rate_s) +11*sigma_s))
 
 plt.show()
 
-# Plot of pointing vs. time
+#==============================================================================
+# Make a plot of (angle from star) vs (time). This is a line-plot of thruster firings.
+#==============================================================================
 
-#   plt.plot(et - et[0], (vsep % 0.02) * hbt.r2d - 0.65 - ((et-et[0] - 1900) / 1000))
 plt.plot(et - et[0], (vsep % 0.02) * hbt.r2d)
-#   plt.title(sequence + ', dt = ' + repr(dt) + ' sec, binned x ' + repr(binning) + ' = ' + \
-#  repr(dt * binning) + ' sec', fontsize=fs)
 plt.xlabel('Seconds since ' + utc_start, fontsize=fs)
 plt.ylabel('Degrees from star', fontsize=fs)
-#plt.xlim(0,500)
 plt.show()
 
-##########
-# Do another plot of pointing v. time
-#########
-
-#plt.plot(t_s, count_rate_s, marker = '.', linestyle='none', ms=0.1)
-#plt.title(sequence + ', dt = ' + repr(dt) + ' sec, binned x ' + repr(binning) + ' = ' + \
-# repr(dt * binning) + ' sec', fontsize=fs)
-#plt.ylabel('Count Rate', fontsize=fs)
-#plt.xlim((0,210))
-#plt.show()
-#
-#plt.plot(et - et[0], (vsep % 0.02) * hbt.r2d)
-#plt.xlim((0,210))
-#plt.ylim((0,0.04))
-##   plt.title(sequence + ', dt = ' + repr(dt) + ' sec, binned x ' + repr(binning) + \
-#  ' = ' + repr(dt * binning) + ' sec', fontsize=fs)
-#plt.xlabel('Seconds', fontsize=fs)
-#plt.ylabel('Degrees from star', fontsize=fs)
-#plt.show()
-
-##########
-# Make a plot of motion thru the deadband
-##########
+#==============================================================================
+# Make a line plot of motion thru the deadband -- following the FOV thru every thruster firing
+#==============================================================================
 
 plt.rcParams['figure.figsize'] = 5,5
 plt.plot(ra*hbt.r2d, dec*hbt.r2d, linestyle='none', marker='.', ms=1)
@@ -264,39 +245,50 @@ ax = plt.gca()
 ax.ticklabel_format(useOffset=False)  # Turn off the 'offset' that matplotlib can use
 plt.show()
 
-### Testing for pointing
-
-utc_test = '2015 jul 16 21:25:00'  # First timestep of OC3 movie
-et_test  = cspice.utc2et(utc_test)
-
-mx = cspice.pxform('NH_ALICE_AIRGLOW', 'J2000', et_test)
-vec_alice_j2k = cspice.mxvg(mx, vec_bsight_alice)		# ICY did not have mxvg(), but pdstools does.
-vsep_test = cspice.vsep(vec_star_j2k, vec_alice_j2k)   # Angular separation, in radians
-
-(junk, ra_test, dec_test) = cspice.recrad(vec_alice_j2k)
-
 ## Now do some correlation between position and pointing, to see if there is anything I should unwrap there.
 #
 # Concl: there is quite a bit of trend across the detector. So, a lot of the variation I'm seeing
 # in DN value is probably not due to statistics, but due to sensitivity across the detector.
 
-# Now I need to make an XY scatter plot of all these data points. I really have no idea how to do this.
-
 ra_s = ra[binning:-binning]    # Same as RA, but cropped, so the edges are missing. Has same # elements as count_rate_s (smoothed)
 dec_s = dec[binning:-binning]
 
-# Make a plot of RA vs DN. This is to see if there is a trend in brightness as we move from one side of slit to the other.
+#==============================================================================
+# Make a plot of RA vs DN. 
+# This is to see if there is a trend in brightness as we move from one side of slit to the other.
+#==============================================================================
 
+plt.rcParams['figure.figsize'] = 16,8
+
+plt.subplot(1,2,1)
 plt.rcParams['figure.figsize'] = 10,10
-plt.plot(ra_s, count_rate_s, linestyle='none', marker='.', ms=0.1)
+plt.plot(ra_s*hbt.r2d, count_rate_s, linestyle='none', marker='.', ms=0.1)
+plt.plot(ra*hbt.r2d, count_rate_nonlinear + np.mean(count_rate), color='red')
 plt.xlabel('RA [deg]', fontsize=fs)
-plt.title(sequence, fontsize=fs*1.5)
+plt.title(sequence + ': DN vs. Position', fontsize=fs*1.5)
 ax = plt.gca()
 ax.ticklabel_format(useOffset=False)
-plt.ylabel('DN (binned ' + repr(binning) + ')', fontsize=fs)
+plt.ylabel('DN (smoothed x ' + repr(binning) + ')', fontsize=fs)
+
+plt.subplot(1,2,2)
+
+plt.rcParams['figure.figsize'] = 10,10
+plt.plot(dec_s*hbt.r2d, count_rate_s, linestyle='none', marker='.', ms=0.1)
+plt.xlabel('Dec [deg]', fontsize=fs)
+plt.title(sequence + ': DN vs. Position', fontsize=fs*1.5)
+ax = plt.gca()
+ax.ticklabel_format(useOffset=False)
+plt.ylabel('DN (smoothed x ' + repr(binning) + ')', fontsize=fs)
 plt.show()
 
-plt.plot(dec_s, count_rate_s, linestyle='none', marker='.', ms=0.1)
+#==============================================================================
+# Regrid the data, and make a plot of the actual spatial variation.
+# This is similar to plots above, but in a color image.
+# Must use binning = 3000 (or something small) for this.
+#==============================================================================
+
+plt.rcParams['figure.figsize'] = 5,5
+plt.subplot(1,1,1)
 
 num_dx = 100
 num_dy = num_dx
@@ -306,8 +298,12 @@ dec_arr = np.linspace(np.min(dec), np.max(dec), num_dy)
 
 count_rate_s_arr = griddata((ra_s, dec_s), count_rate_s, (ra_arr[None,:], dec_arr[:,None]), method='cubic')
 
-plt.imshow(count_rate_s_arr, interpolation='none', vmin=16.2,vmax=16.45)
-plt.imshow(count_rate_s_arr, interpolation='none', vmin=16.4,vmax=16.8)
+# Make the plot, scaled vertically as per the sequence read in
+
+if (sequence == 'O_RING_OC3'):
+    plt.imshow(count_rate_s_arr, interpolation='none', vmin=16.2,vmax=16.45)
+if (sequence == 'O_RING_OC2'):
+    plt.imshow(count_rate_s_arr, interpolation='none', vmin=16.4,vmax=16.8)
 
 plt.title(sequence + ', Mean DN vs position, binning=' + repr(binning), fontsize=fs)
 plt.xlabel('RA bin', fontsize=fs)
@@ -315,19 +311,112 @@ plt.ylabel('Dec bin', fontsize=fs)
 plt.colorbar()
 plt.show()
 
-# Same, but unbinned
+#==============================================================================
+# Now do some geometry calculations: Get the Pluto radii for this particular sequence.
+#==============================================================================
 
-#count_rate_arr = griddata((ra, dec), count_rate, (ra_arr[None,:], dec_arr[:,None]), method='cubic')
-#
-#plt.imshow(count_rate_arr, interpolation='none', vmin=15, vmax=17)
-#plt.title(sequence + ', Mean DN vs position, binning=none', fontsize=fs)
-#plt.xlabel('RA bin', fontsize=fs)
-#plt.ylabel('Dec bin', fontsize=fs)
-#plt.colorbar()
-#plt.show()
+# Overall picture
 
-# Just for a reality check, create some fake data and plot it too.
+# Define a plane centered on Pluto. This is in Pluto coords (not J2K).
+# The orientation of IAU_PLUTO will change from start to end of observation, and this will give us a 
+# different answer in the end vs. start.
+         
+et_start = np.min(et)
+et_end   = np.max(et)
 
+plane_plu = cspice.nvp2pl([0,0,1], [0,0,0])    # nvp2pl: Normal Vec + Point to Plane
+
+# Define a ray from NH, out along the Alice boresight direction.
+# Ray starts at NH position and points toward star (*not* boresight). It should be in IAU_PLUTO coords.
+
+(st_plu_nh_plu, lt) = cspice.spkezr('NEW_HORIZONS', et_start, 'IAU_PLUTO', 'LT+S', 'PLUTO')
+
+vec_plu_nh_plu = st_plu_nh_plu[0:3]
+
+   targ       I   Target body name. 
+   et         I   Observer epoch. 
+   ref        I   Reference frame of output state vector. 
+   abcorr     I   Aberration correction flag. 
+   obs        I   Observing body name. 
+   starg      O   State of target. 
+   lt         O   One way light time between observer and target. 
+ 
+   
+vec_plu_star_plu = cspice.radrec(1d, ra_star, dec_star) # Vector from Pluto to star, in IAU_PLUTo
+
+vec_nh_star_plu = 
+# Get xformation matrix from J2K to jupiter system coords. I can use this for points *or* vectors.
+
+mx_j2k_plu = cspice.pxform('J2000', frame, np.min(et)) # from, to, et
+
+            
+
+    
+name_fov = 'NH_ALICE_AIRGLOW'
+
+vec_start = 
+
+vec_bsight_alice = (-1, 0, 0)  # -X defines Alice SOC FOV
+
+vsep = np.zeros(np.size(et))
+
+mx_start = cspice.pxform(name_fov, 'J2000', np.min(et))
+mx_end   = cspice.pxform(name_fov, 'J2000', np.max(et))
+vec_alice_j2k = cspice.mxvg(mx, vec_bsight_alice)	
+  
+  
+# Call CSPICE_INRYPL to get the intersection between ray and plane.
+
+# Then get the distance from this point, to Pluto (or alternatively, the Pluto system barycenter)
+
+    2. 
+
+quit
+
+####################
+# Now do some testing to read in the housekeeping data. Randy says that the same data from the main FITS header should be
+# available here, but in 'analog' form rather than 'digital.'
+####################
+
+# Just test one file for now
+
+file = '/Users/throop/Data/NH_Alice_Ring/O_RING_OC3/data/pluto/level2/ali/all/ali_0299391413_0x4b5_sci_1.fit' # Or file_list[0]
+
+# Open the file directly
+# Can use hdulist.info() to get a list of all the different fields available.
+
+hdulist = fits.open(file)
+        
+spect         = hdulist['PRIMARY'].data            # 32           x 1024              
+hk            = hdulist['HOUSEKEEPING_TABLE']
+pix           = hdulist['PIXEL_LIST_TABLE']          # A time-tagged list of every photon that has come in. 30883 x 5. columns X_INDEX, Y_INDEX, WAVELEN, TIMESTEP, MET.
+                                                     # During this 7-second observation, 30883 photons were received & counted.
+
+timestep_list = pix.data['TIMESTEP']                 # Extract the list of 30883 timesteps.
+
+# Print a few fields from the HK data. However, these seem to be mostly flags and settings -- no real 'raw' data here useful for me.
+# This 'COUNT_RATE' field is a bit of a misnomer. I don't know what it is. It seems to be integrated over all bins or something.
+
+print 'Housekeeping: MET = ' + repr(int(hk.data['MET']))
+print 'Housekeeping: COUNT_RATE = ' + repr(int(hk.data['COUNT_RATE']))
+
+# Now try to extract the 'raw' data from the time-tagged pixel list.
+
+# First create bins -- one for each timestep, including start and end... so N+1 elements in this total. We feed this to histogram() to define the bins.
+
+bins = hbt.frange(0, np.max(timestep_list)+1)
+
+# Now count how many photons are in each timestep bin. I have defined those timestep bins up above with range().
+
+(count_rate_raw, junk) = np.histogram(timestep_list, bins)
+
+# Now read the count rate as processed by the SOC directly, from the FITS 'COUNT_RATE' extension.
+
+count_rate_soc = hbt.read_alice(file)['count_rate']
+
+# Concl: the values in the FITS 'COUNT_RATE' extension, and in the time-tagged photon list, are 100% identical.
+
+hk.data
 
 
 
