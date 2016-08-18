@@ -324,52 +324,39 @@ plt.show()
 et_start = np.min(et)
 et_end   = np.max(et)
 
-plane_plu = cspice.nvp2pl([0,0,1], [0,0,0])    # nvp2pl: Normal Vec + Point to Plane
+for et_i in (et_start, et_end):
+    plane_plu = cspice.nvp2pl([0,0,1], [0,0,0])    # nvp2pl: Normal Vec + Point to Plane
 
-# Define a ray from NH, out along the Alice boresight direction.
+# Define a ray from NH, toward the star.
 # Ray starts at NH position and points toward star (*not* boresight). It should be in IAU_PLUTO coords.
 
-(st_plu_nh_plu, lt) = cspice.spkezr('NEW_HORIZONS', et_start, 'IAU_PLUTO', 'LT+S', 'PLUTO')
+# Get vector from Pluto to S/C, in IAU_PLUTO. This will define the *point* (the ray is a point plus a vector)
 
-vec_plu_nh_plu = st_plu_nh_plu[0:3]
+    (st_plu_sc_plu, lt) = cspice.spkezr('NEW_HORIZONS', et_i, 'IAU_PLUTO', 'LT+S', 'PLUTO')
+    pt_plu_sc_plu = st_plu_sc_plu[0:3]
 
-   targ       I   Target body name. 
-   et         I   Observer epoch. 
-   ref        I   Reference frame of output state vector. 
-   abcorr     I   Aberration correction flag. 
-   obs        I   Observing body name. 
-   starg      O   State of target. 
-   lt         O   One way light time between observer and target. 
- 
-   
-vec_plu_star_plu = cspice.radrec(1d, ra_star, dec_star) # Vector from Pluto to star, in IAU_PLUTo
+# Get vector from Pluto to star, in IAU_PLUTO. This will define the *vector* portion of the ray.
 
-vec_nh_star_plu = 
-# Get xformation matrix from J2K to jupiter system coords. I can use this for points *or* vectors.
+    vec_plu_star = cspice.radrec(1., ra_star, dec_star) # Vector from Pluto to star, in J2K
+    mx = cspice.pxform('J2000', 'IAU_PLUTO', et_i)
+    vec_plu_star_plu = cspice.mxvg(mx, vec_plu_star)
 
-mx_j2k_plu = cspice.pxform('J2000', frame, np.min(et)) # from, to, et
+# Now find the intersection. A ray is *not* a datatype. Instead, we just pass a point and a vector, and that defines the ray.
+# Point = vector from Pluto to NH in Pluto coords.
+# Vector = vector from Pluto star in Pluto coords
 
-            
+    (npts, pt_intersect_plu) = cspice.inrypl(pt_plu_sc_plu, vec_plu_star_plu, plane_plu) # intersect ray and plane. Jup coords.
 
+    (radius, lon, lat) = cspice.reclat(pt_intersect_plu)  # Convert to lon/lat and distance from Pluto
+
+    print cspice.et2utc(et_i, 'C', 1)
+    print "Intercept distance = " + repr(radius) + " km from Pluto"
+    print "NH distance = " + repr(cspice.vnorm(pt_plu_sc_plu)) + " km from Pluto"
+    print
     
-name_fov = 'NH_ALICE_AIRGLOW'
-
-vec_start = 
-
-vec_bsight_alice = (-1, 0, 0)  # -X defines Alice SOC FOV
-
-vsep = np.zeros(np.size(et))
-
-mx_start = cspice.pxform(name_fov, 'J2000', np.min(et))
-mx_end   = cspice.pxform(name_fov, 'J2000', np.max(et))
-vec_alice_j2k = cspice.mxvg(mx, vec_bsight_alice)	
-  
-  
 # Call CSPICE_INRYPL to get the intersection between ray and plane.
 
 # Then get the distance from this point, to Pluto (or alternatively, the Pluto system barycenter)
-
-    2. 
 
 quit
 
