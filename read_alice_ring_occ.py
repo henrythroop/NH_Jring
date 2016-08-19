@@ -46,7 +46,6 @@ import wcsaxes
 import time
 from scipy.interpolate import griddata
 
-
 import imreg_dft as ird
 import re # Regexp
 import pickle # For load/save
@@ -67,11 +66,11 @@ import hbt
 ##########
 # (NB: The spellling / capitalization is inconsistent in SAPNAME vs. VISITNAM. I have standardized it here.)
 
-sequence 	= 'O_RING_OC3'
-#sequence 	= 'O_RING_OC2'
+#sequence 	= 'O_RING_OC3'
+sequence 	= 'O_RING_OC2'
 
 
-binning      = 3000		# Smoothing. 25000 is too much (shows opposite trend!). 5000 and 1000 look roughly similar.
+binning      = 25000		# Smoothing. 25000 is too much (shows opposite trend!). 5000 and 1000 look roughly similar.
                             # To be meaningful, the binning timescale must be less than the deadband timescale (~20-30 sec RT).
                             # At binning=3000, it's 12 sec... so that is the longest we'd really want to go.
                             #
@@ -94,6 +93,7 @@ file_list = glob.glob(dir_images + '/*fit')
 #file_list = file_list[0:10]
 met_all = []  # A long array with a list of all of the timestamps
 count_rate_all = []
+duration_all = []
 
 for file in file_list:
     data = hbt.read_alice(file)
@@ -108,18 +108,22 @@ for file in file_list:
     count_rate_i = data['count_rate']              # Extract count rate from file
 
     met_i = startmet + dt * hbt.frange(0, np.shape(count_rate_i)[0]-1)   # Create the MET by interpolation
+    duration_i = dt * len(count_rate_i)    
 
+    
     print "Read " + os.path.basename(file) + ", MET " + repr(startmet) + ' = ' + hbt.met2utc(startmet) + \
       ', N = ' + repr(len(count_rate_i)) + ' samples' + \
-      ', duration = ' + hbt.trunc(dt * len(count_rate_i),3) + ' sec'
+      ', duration = ' + hbt.trunc(duration_i,3) + ' sec'
 #       print "  " + visitnam + " " + spcutcal
 
     met_all.append(met_i)
     count_rate_all.append(count_rate_i)
+    duration_all.append(duration_i)
 
 count_rate  = np.array([item for sublist in count_rate_all for item in sublist])  # Flatten the count rate (from 2D, to 1D)
 count_rate  = np.array(count_rate, dtype=float)					  # Convert to float. Otherwise get wraparound.
 met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
+duration    = np.array(duration_all)
 
 count_rate_fake = np.random.poisson(np.mean(count_rate), np.size(count_rate))
 
@@ -205,9 +209,14 @@ plt.rcParams['figure.figsize'] = 15,5
 
 # Plot of count rate vs. time
 
+if (sequence == 'O_RING_OC3'):
+    offset_fake = 0.15
+if (sequence == 'O_RING_OC2'):
+    offset_fake = 0.15
+    
 plt.plot(t_s, count_rate_s, marker = '.', linewidth=0.5, ms=0.1, label='Alice, Raw')
 plt.plot(t_s, count_rate_fixed_s, linewidth=0.5, ms=0.1, label='Alice, Linear Row Trend Removed')
-plt.plot(t_s, count_rate_fake_s - 0.15, linewidth=0.5, ms=0.1, label='Fake Poisson Data')
+plt.plot(t_s, count_rate_fake_s - offset_fake, linewidth=0.5, ms=0.1, label='Fake Poisson Data')
 
 plt.title(sequence + ', dt = ' + repr(dt) + ' sec, smoothed x ' + repr(binning) + ' = ' + repr(dt * binning) + ' sec' + \
                      ', 1$\sigma$ = ' + hbt.trunc(sigma_s,4), fontsize=fs)
@@ -217,10 +226,16 @@ plt.errorbar(100, np.mean(count_rate_s) + 5 * sigma_s, xerr=binning*dt/2, yerr=N
 plt.errorbar(300, np.mean(count_rate_s) + 5 * sigma_s, xerr=None, yerr=sigma_s/2, label='1$\sigma$ shot noise', linewidth=2) 
 			# Y 'error bar' -- show the binned shot noise error
 plt.legend()
-plt.ylabel('Count Rate', fontsize=fs)
+plt.ylabel('Count Rate (smoothed)', fontsize=fs)
 plt.xlabel('Time since ' + utc_start + ' [sec]', fontsize=fs)
-plt.ylim((np.mean(count_rate_s) -10*sigma_s, np.mean(count_rate_s) +11*sigma_s))
+plt.xlim((0, np.max(t_s)+50))
 
+if (sequence == 'O_RING_OC3'):
+  plt.ylim((np.mean(count_rate_s) -10*sigma_s, np.mean(count_rate_s) +11*sigma_s))
+
+if (sequence == 'O_RING_OC2'):
+  plt.ylim((np.mean(count_rate_s) -9*sigma_s, np.mean(count_rate_s) +11*sigma_s))
+    
 plt.show()
 
 #==============================================================================
@@ -322,13 +337,13 @@ plt.show()
 # different answer in the end vs. start.
          
 et_start = np.min(et)
-et_end   = np.max(et)
+et_end   = np.max(et) + duration[-1]
 
 for et_i in (et_start, et_end):
     plane_plu = cspice.nvp2pl([0,0,1], [0,0,0])    # nvp2pl: Normal Vec + Point to Plane
 
 # Define a ray from NH, toward the star.
-# Ray starts at NH position and points toward star (*not* boresight). It should be in IAU_PLUTO coords.
+# Ray starts at NH position and points toward star (*not* boresight). It should be in IAU_PLUTO coordxmas.
 
 # Get vector from Pluto to S/C, in IAU_PLUTO. This will define the *point* (the ray is a point plus a vector)
 
@@ -350,8 +365,8 @@ for et_i in (et_start, et_end):
     (radius, lon, lat) = cspice.reclat(pt_intersect_plu)  # Convert to lon/lat and distance from Pluto
 
     print cspice.et2utc(et_i, 'C', 1)
-    print "Intercept distance = " + repr(radius) + " km from Pluto"
-    print "NH distance = " + repr(cspice.vnorm(pt_plu_sc_plu)) + " km from Pluto"
+    print "Intercept distance = " + hbt.trunc(radius,1) + " km from Pluto"
+#    print "NH distance = " + hbt.trunc(cspice.vnorm(pt_plu_sc_plu),1) + " km from Pluto"
     print
     
 # Call CSPICE_INRYPL to get the intersection between ray and plane.
@@ -405,6 +420,59 @@ count_rate_soc = hbt.read_alice(file)['count_rate']
 
 hk.data
 
+#==============================================================================
+# Now do a plot with differeng binning widths. To look for narrow rings.
+#==============================================================================
 
+binning = [1, 30, 300, 3000, 30000]
 
-  
+plt.rcParams['figure.figsize'] = 20,12
+
+count_rate_fixed_30000 = hbt.smooth_boxcar(count_rate_fixed, 30000)
+count_rate_fixed_3000 = hbt.smooth_boxcar(count_rate_fixed, 3000)
+count_rate_fixed_300 = hbt.smooth_boxcar(count_rate_fixed, 300)
+count_rate_fixed_30 = hbt.smooth_boxcar(count_rate_fixed, 30)
+
+plt.plot(t, count_rate, ms=0.1, linestyle='none', marker='.', color='orange', 
+         label = 'Alice, Raw, 250/sec [orange]')
+plt.plot(t, count_rate_fixed_30, linewidth=0.1, ms=0.1, color='green', 
+         label='Alice, smoothed 30 bins = ' + repr(30*dt) + ' sec [green]' )
+plt.plot(t, count_rate_fixed_300, linewidth=0.1, ms=0.1, color='blue', 
+         label='Alice, smoothed 300 bins = ' + repr(300*dt) + ' sec [blue]')
+plt.plot(t, count_rate_fixed_3000, linewidth=0.3, ms=0.1, color='red', 
+         label='Alice, smoothed 3000 bins = ' + repr(3000*dt) + ' sec [red]')
+plt.plot(t, count_rate_fixed_30000, linewidth=0.2, ms=0.1, color='yellow', 
+         label='Alice, smoothed 30000 bins = ' + repr(30000 * dt) + ' sec [yellow]' )
+plt.ylim((14,20))
+plt.xlim(hbt.mm(t))
+plt.title(sequence, fontsize=fs)
+plt.ylabel('DN', fontsize=fs)
+plt.xlabel('Seconds since ' + utc_start, fontsize=fs)
+plt.legend()
+plt.show()
+
+#==============================================================================
+# Do a histogram of the count rate
+#==============================================================================
+
+bins = hbt.frange(0, int(np.max(count_rate))+1)
+(h,b) = np.histogram(count_rate,bins=bins)
+plt.rcParams['figure.figsize'] = 5,5
+plt.plot(bins[0:-1],h)
+plt.xlabel('COUNT RATE')
+plt.ylabel('# of samples')
+plt.title(os.path.basename(file))
+plt.yscale('log')
+#plt.set_yscale('log')
+plt.show()
+
+#==============================================================================
+# Look for any count=1 bins right next to each other
+#==============================================================================
+
+plt.rcParams['figure.figsize'] = 15,15
+w = np.where(count_rate < 4)[0]
+plt.plot(range(np.size(w)), w)
+
+## This is kind of an auto-correlation function. Maybe I should look at that too.
+## But honestly it looks unlikely.
