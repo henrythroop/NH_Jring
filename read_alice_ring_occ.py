@@ -64,10 +64,81 @@ from   matplotlib.figure import Figure
 # HBT imports
 import hbt
 
+def read_alice_occ_data(file_list):
+
+#==============================================================================
+# Read the Alice data
+#==============================================================================
+    
+    met_all = []               # A long array with a list of all of the timestamps, one per 4 ms (i.e., at 250 hz)
+    count_rate_fits_all = []   # The count rate as read from the COUNT_RATE extension directly
+    count_rate_all = []        # Count rate computed from the PIXEL_LIST_TABLE. Should match that in COUNT_RATE extension
+    count_rate_target_all = [] # Count rate for the target only, extracted by spatially filtering the PIXEL_LIST_TABLE
+    
+    d_target_summed = np.zeros((5,540))
+    
+    for i,file in enumerate(file_list):
+        
+        hdulist = fits.open(file)
+        d = hdulist['PRIMARY'].data # Units of this are float, but I'm not sure what they are. I would prefer raw counts.
+        d_target = d[13:18, 370:910]
+        d_target_summed += d_target
+        p = hdulist['PIXEL_LIST_TABLE'].data
+        count_rate_fits_i = hdulist['COUNT_RATE'].data
+        num_samples = hdulist['COUNT_RATE'].header['NAXIS1'] # Number of samples in this file
+        dt          = hdulist['COUNT_RATE'].header['SAMPLINT']  # Count rate sampling interval [sec]
+        
+        bins = hbt.frange(0, num_samples) # Get a list of all of the timestep bins, inclusive, for this file.
+                                            # Use '+1' so we create the histogram upper size bin.
+        
+        # Now downselect the pixel list for just the photons in the proper X and Y position on the detector
+        
+        is_good = (p['Y_INDEX'] < 19) & (p['Y_INDEX'] >= 13) & (p['X_INDEX'] > 370) & (p['X_INDEX'] < 910)
+    
+        # Now we have a list of all of the good pixels. For each of these, now we want to grab its timestep.
+    
+        timesteps_good = p['TIMESTEP'][is_good]
+        timesteps_all  = p['TIMESTEP']
+    
+    # Now count how many photons are in each timestep bin. I have defined those timestep bins up above.
+    
+        (count_rate_target_i, junk) = np.histogram(timesteps_good, bins)
+        (count_rate_i, junk)        = np.histogram(timesteps_all,  bins) 
+        met_i = hdulist['PRIMARY'].header['STARTMET'] + dt * np.array(range(num_samples))
+              
+    #    print "File " + os.path.basename(file) + ' : ' + repr(np.sum(count_rate_target_i)) + ' / ' + repr(np.sum(count_rate_i))
+    
+    # Now append these into the output lists
+    
+        count_rate_fits_all.append(count_rate_fits_i)
+        count_rate_all.append(count_rate_i)
+        count_rate_target_all.append(count_rate_target_i)
+        met_all.append(met_i)
+        
+        hdulist.close()
+    
+    count_rate_fits  = np.array([item for sublist in count_rate_fits_all for item in sublist])  # Flatten the count rate (from 2D, to 1D)
+    count_rate_fits  = np.array(count_rate_fits, dtype=float)					          # Convert to float. Otherwise get wraparound.
+    
+    count_rate  = np.array([item for sublist in count_rate_all for item in sublist])
+    count_rate  = np.array(count_rate, dtype=float)					  
+    
+    count_rate_target  = np.array([item for sublist in count_rate_target_all for item in sublist]) 
+    count_rate_target  = np.array(count_rate_target, dtype=float)					  
+    
+    met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
+    met         = np.array(met, dtype=float)
+    
+    return (met, count_rate_target, count_rate)
+
+#==============================================================================
+# Start of main program
+#==============================================================================
+
 ##########
 # Select which of the sequences we want to read in
 ##########
-# (NB: The spellling / capitalization is inconsistent in SAPNAME vs. VISITNAM. I have standardized it here.)
+# (NB: The spelling / capitalization is inconsistent in SAPNAME vs. VISITNAM. I have standardized it here.)
 
 sequence 	= 'O_RING_OC3'
 #sequence 	= 'O_RING_OC2'
@@ -93,40 +164,42 @@ cspice.furnsh(file_tm)
 
 file_list = glob.glob(dir_images + '/*fit')
 
+(met, count_rate_target, count_rate) = read_alice_occ_data(file_list)
+
 #file_list = file_list[0:10]
-met_all = []  # A long array with a list of all of the timestamps
-count_rate_all = []
-duration_all = []
-
-for file in file_list:
-    data = hbt.read_alice(file)
-#    print "."
-    startmet = data['header_spect']['STARTMET']
-    spcutcal = data['header_spect']['SPCUTCAL']	# Mid-obs time
-
-    visitnam = data['header_spect']['VISITNAM']
-    sapname   = data['header_spect']['SAPNAME']
-
-    dt       = data['header_count_rate']['SAMPLINT']
-    count_rate_i = data['count_rate']              # Extract count rate from file
-
-    met_i = startmet + dt * hbt.frange(0, np.shape(count_rate_i)[0]-1)   # Create the MET by interpolation
-    duration_i = dt * len(count_rate_i)    
-
-    
-    print "Read " + os.path.basename(file) + ", MET " + repr(startmet) + ' = ' + hbt.met2utc(startmet) + \
-      ', N = ' + repr(len(count_rate_i)) + ' samples' + \
-      ', duration = ' + hbt.trunc(duration_i,3) + ' sec'
-#       print "  " + visitnam + " " + spcutcal
-
-    met_all.append(met_i)
-    count_rate_all.append(count_rate_i)
-    duration_all.append(duration_i)
-
-count_rate  = np.array([item for sublist in count_rate_all for item in sublist])  # Flatten the count rate (from 2D, to 1D)
-count_rate  = np.array(count_rate, dtype=float)					  # Convert to float. Otherwise get wraparound.
-met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
-duration    = np.array(duration_all)
+#met_all = []  # A long array with a list of all of the timestamps
+#count_rate_all = []
+#duration_all = []
+#
+#for file in file_list:
+#    data = hbt.read_alice(file)
+##    print "."
+#    startmet = data['header_spect']['STARTMET']
+#    spcutcal = data['header_spect']['SPCUTCAL']	# Mid-obs time
+#
+#    visitnam = data['header_spect']['VISITNAM']
+#    sapname   = data['header_spect']['SAPNAME']
+#
+#    dt       = data['header_count_rate']['SAMPLINT']
+#    count_rate_i = data['count_rate']              # Extract count rate from file
+#
+#    met_i = startmet + dt * hbt.frange(0, np.shape(count_rate_i)[0]-1)   # Create the MET by interpolation
+#    duration_i = dt * len(count_rate_i)    
+#
+#    
+#    print "Read " + os.path.basename(file) + ", MET " + repr(startmet) + ' = ' + hbt.met2utc(startmet) + \
+#      ', N = ' + repr(len(count_rate_i)) + ' samples' + \
+#      ', duration = ' + hbt.trunc(duration_i,3) + ' sec'
+##       print "  " + visitnam + " " + spcutcal
+#
+#    met_all.append(met_i)
+#    count_rate_all.append(count_rate_i)
+#    duration_all.append(duration_i)
+#
+#count_rate  = np.array([item for sublist in count_rate_all for item in sublist])  # Flatten the count rate (from 2D, to 1D)
+#count_rate  = np.array(count_rate, dtype=float)					  # Convert to float. Otherwise get wraparound.
+#met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
+#duration    = np.array(duration_all)
 
 count_rate_fake = np.random.poisson(np.mean(count_rate), np.size(count_rate))
 
@@ -438,7 +511,8 @@ hk.data
 # Now do a plot with differeng binning widths. To look for narrow rings.
 #==============================================================================
 
-#binning = [1, 30, 300, 3000, 30000]
+# Put another axis here: et vs. radius_pluto
+
 
 #plt.rcParams['figure.figsize'] = 20,12
 plt.rcParams['figure.figsize'] = 10,6
@@ -475,33 +549,6 @@ par.set_xlabel('Distance from Pluto barycenter [km]')
 plt.legend()
 plt.show()
 
-#
-
-
-
-
-
-
-host.set_xlim(0, 2)
-host.set_ylim(0, 2)
-
-host.set_xlabel("Distance")
-host.set_ylabel("Density")
-par.set_xlabel("Velocity")
-
-p1, = host.plot([0, 1, 2], [0, 1, 2], label="Density")
-
-par.set_ylim(1, 65)
-
-host.axis["left"].label.set_color(p1.get_color())
-par.axis["right"].label.set_color(p3.get_color())
-
-plt.draw()
-plt.show()
-
-
-
-# Put another axis here: et vs. radius_pluto
  
 #==============================================================================
 # Do a histogram of the count rate
