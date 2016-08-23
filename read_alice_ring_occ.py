@@ -215,10 +215,9 @@ t        = et - et[0]                 # Seconds since start of observation
 
 num_dt   = np.size(et)
 
-##########
-# Compute the angle from the star to Alice boresight, for every timestep.
-# Also compute the RA and Dec for each timestep
-##########
+#==============================================================================
+# Compute the Alice boresight RA/Dec position for every timestep
+#==============================================================================
 
 # NB: For FSS, I got the FSS-Sun angle directly from Gabe -- I didn't get it from SPICE.
 
@@ -244,13 +243,15 @@ for i,et_i in enumerate(et):
   vsep[i] = cspice.vsep(vec_star_j2k, vec_alice_j2k)   # Angular separation, in radians
 
   (junk, ra[i], dec[i]) = cspice.recrad(vec_alice_j2k)
-  
-# Do some linear regression on the count rate vs. RA, to remove nonlinearity across the detector
 
-coeffs_ra = linregress(ra, count_rate)
-coeffs_dec = linregress(dec, count_rate)
+#==============================================================================
+# Use linear fit to compute correlation between count rate and RA / Dec
+#==============================================================================
+  
+coeffs_ra   = linregress(ra, count_rate)
+coeffs_dec  = linregress(dec, count_rate)
 count_rate_nonlinear = coeffs_ra.intercept + coeffs_ra.slope * ra - np.mean(count_rate)
-count_rate_fixed = count_rate - count_rate_nonlinear 
+count_rate_fixed     = count_rate - count_rate_nonlinear 
 
 #==============================================================================
 # Smooth the data at several different binnings
@@ -260,6 +261,11 @@ count_rate_fixed_30000 = hbt.smooth_boxcar(count_rate_fixed, 30000)
 count_rate_fixed_3000 = hbt.smooth_boxcar(count_rate_fixed, 3000)
 count_rate_fixed_300 = hbt.smooth_boxcar(count_rate_fixed, 300)
 count_rate_fixed_30 = hbt.smooth_boxcar(count_rate_fixed, 30)
+
+count_rate_target_30000 = hbt.smooth_boxcar(count_rate_target, 30000)
+count_rate_target_3000 = hbt.smooth_boxcar(count_rate_target, 3000)
+count_rate_target_300 = hbt.smooth_boxcar(count_rate_target, 300)
+count_rate_target_30 = hbt.smooth_boxcar(count_rate_target, 30)
 
 count_rate_3000 = hbt.smooth_boxcar(count_rate, 3000)
 count_rate_30000 = hbt.smooth_boxcar(count_rate, 30000)
@@ -291,13 +297,12 @@ plt.rcParams['figure.figsize'] = 15,5
 
 # Plot of count rate vs. time
 
-
 if (sequence == 'O_RING_OC3'):
     offset_fake = 0.15
 if (sequence == 'O_RING_OC2'):
     offset_fake = 0.15
     
-binning = 30000
+#binning = 30000
     
 plt.plot(t, count_rate_30000, marker = '.', linewidth=0.5, ms=0.1, label='Alice, Raw')
 plt.plot(t, count_rate_fixed_30000, linewidth=0.5, ms=0.1, label='Alice, Linear Row Trend Removed')
@@ -379,7 +384,7 @@ plt.xlabel('Dec [deg]', fontsize=fs)
 plt.title(sequence + ': DN vs. Position', fontsize=fs*1.5)
 ax = plt.gca()
 ax.ticklabel_format(useOffset=False)
-plt.ylabel('DN (smoothed x ' + repr(binning) + ')', fontsize=fs)
+plt.ylabel('DN (smoothed x ' + repr(crop) + ')', fontsize=fs)
 plt.show()
 
 #==============================================================================

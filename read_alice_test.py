@@ -97,7 +97,7 @@ for i,file in enumerate(file_list):
     
     hdulist = fits.open(file)
     d = hdulist['PRIMARY'].data # Units of this are float, but I'm not sure what they are. I would prefer raw counts.
-    d_target = d[13:18, 370:910]
+    d_target = d[13:18, 370:911]
     d_target_summed += d_target
     p = hdulist['PIXEL_LIST_TABLE'].data
     count_rate_fits_i = hdulist['COUNT_RATE'].data
@@ -109,7 +109,7 @@ for i,file in enumerate(file_list):
     
     # Now downselect the pixel list for just the photons in the proper X and Y position on the detector
     
-    is_good = (p['Y_INDEX'] < 19) & (p['Y_INDEX'] >= 13) & (p['X_INDEX'] > 370) & (p['X_INDEX'] < 910)
+    is_good = (p['Y_INDEX'] < 18) & (p['Y_INDEX'] >= 13) & (p['X_INDEX'] >= 370) & (p['X_INDEX'] < 910)
 
     # Now we have a list of all of the good pixels. For each of these, now we want to grab its timestep.
 
@@ -149,9 +149,9 @@ met         = np.array(met, dtype=float)
 # Done reading Alice data
 #==============================================================================
 
-plt.plot(count_rate_target[0:100], drawstyle='steps')
-plt.plot(count_rate[0:100], drawstyle='steps')
-plt.plot(count_rate_fits[0:100]+1, drawstyle='steps')
+plt.plot(count_rate_target[0:100]) # drawstyle='steps'  <-- to make histogram style
+plt.plot(count_rate[0:100])
+plt.plot(count_rate_fits[0:100]+1)
 
 plt.plot(met, count_rate_target, linestyle='none', ms=0.5, marker='.')
 
@@ -168,6 +168,12 @@ plt.ylim((13.5,13.8))
 plt.plot(count_rate_s - count_rate_target_s + 11.1)
 #plt.plot(count_rate_s)
 plt.show()
+
+# Compare to Steffl's OC3 plot
+
+plt.plot(hbt.smooth_boxcar(count_rate_target, 2500)*250)
+plt.ylim((3300,3500))
+
 
 
 met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
