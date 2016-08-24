@@ -93,7 +93,7 @@ def read_alice_occ_data(file_list):
         
         # Now downselect the pixel list for just the photons in the proper X and Y position on the detector
         
-        is_good = (p['Y_INDEX'] < 19) & (p['Y_INDEX'] >= 13) & (p['X_INDEX'] > 370) & (p['X_INDEX'] < 910)
+        is_good = (p['Y_INDEX'] < 19) & (p['Y_INDEX'] >= 15) & (p['X_INDEX'] > 370) & (p['X_INDEX'] < 910)
     
         # Now we have a list of all of the good pixels. For each of these, now we want to grab its timestep.
     
@@ -140,8 +140,8 @@ def read_alice_occ_data(file_list):
 ##########
 # (NB: The spelling / capitalization is inconsistent in SAPNAME vs. VISITNAM. I have standardized it here.)
 
-sequence 	= 'O_RING_OC3'
-#sequence 	= 'O_RING_OC2'
+#sequence 	= 'O_RING_OC3'
+sequence 	= 'O_RING_OC2'
 
 
 binning      = 25000		# Smoothing. 25000 is too much (shows opposite trend!). 5000 and 1000 look roughly similar.
@@ -165,6 +165,8 @@ cspice.furnsh(file_tm)
 file_list = glob.glob(dir_images + '/*fit')
 
 (met, count_rate_target, count_rate) = read_alice_occ_data(file_list)
+
+dt = int((met[1] - met[0])*1000)/1000.          # Interval between consecutive samples
 
 #file_list = file_list[0:10]
 #met_all = []  # A long array with a list of all of the timestamps
@@ -201,7 +203,8 @@ file_list = glob.glob(dir_images + '/*fit')
 #met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
 #duration    = np.array(duration_all)
 
-count_rate_fake = np.random.poisson(np.mean(count_rate), np.size(count_rate))
+count_rate_target_fake = np.random.poisson(np.mean(count_rate_target), np.size(count_rate))
+count_rate_fake        = np.random.poisson(np.mean(count_rate), np.size(count_rate))
 
 # Compute UTC and ET for the initial timestep
 
@@ -272,6 +275,7 @@ count_rate_30000 = hbt.smooth_boxcar(count_rate, 30000)
 
 count_rate_fake_3000 = hbt.smooth_boxcar(count_rate_fake, 3000)
 count_rate_fake_30000 = hbt.smooth_boxcar(count_rate_fake, 30000)
+count_rate_target_fake_30000 = hbt.smooth_boxcar(count_rate_target_fake, 30000)
 
 # Compute truncated versions of the time arrays, just in case they are useful
 # _s extension = 'smoothed'
@@ -290,7 +294,7 @@ count_rate_fake_30000 = hbt.smooth_boxcar(count_rate_fake, 30000)
 sigma_s = np.mean(count_rate) * np.sqrt(np.mean(count_rate * binning)) / (np.mean(count_rate * binning))
 
 #==============================================================================
-# Make plots
+# Make a time-series plot of Counts vs. Time, for Target, Off-Target, Fake Data, etc.
 #==============================================================================
 
 plt.rcParams['figure.figsize'] = 15,5
@@ -298,33 +302,41 @@ plt.rcParams['figure.figsize'] = 15,5
 # Plot of count rate vs. time
 
 if (sequence == 'O_RING_OC3'):
-    offset_fake = 0.15
+    offset_fake = 60
+    offset_total = 765
+    offset_diff = 2545
 if (sequence == 'O_RING_OC2'):
-    offset_fake = 0.15
-    
-#binning = 30000
-    
-plt.plot(t, count_rate_30000, marker = '.', linewidth=0.5, ms=0.1, label='Alice, Raw')
-plt.plot(t, count_rate_fixed_30000, linewidth=0.5, ms=0.1, label='Alice, Linear Row Trend Removed')
-plt.plot(t, count_rate_fake_30000 - offset_fake, linewidth=0.5, ms=0.1, label='Fake Poisson Data')
+    offset_fake = 45
+    offset_total = 765
+    offset_diff = 2630
 
-plt.title(sequence + ', dt = ' + repr(dt) + ' sec, smoothed x ' + repr(binning) + ' = ' + repr(dt * binning) + ' sec' + \
-                     ', 1$\sigma$ = ' + hbt.trunc(sigma_s,4), fontsize=fs)
+binning = 30000
 
-plt.errorbar(100, np.mean(count_rate_3000) + 5 * sigma_s, xerr=binning*dt/2, yerr=None, label='Binning Width', linewidth=2) 
+do_fake = False
+        
+plt.plot(t, 1/dt * count_rate_target_30000, linewidth=0.5, ms=0.1, label='Alice, 67 Ori only')
+plt.plot(t, 1/dt * count_rate_30000 - offset_total, marker = '.', linewidth=0.5, ms=0.1, label='Alice, Total [+offset]')
+plt.plot(t, 1/dt * count_rate_30000 - count_rate_target_30000/dt + offset_diff, linewidth=0.5, ms=0.1, label='Alice, Total - 67 Ori [+offset]')
+#plt.plot(t, 1/dt * count_rate_target_fake_30000 - offset_fake, linewidth=0.5, ms=0.1, label='Fake Poisson data [+offset]')
+
+
+plt.title(sequence + ', dt = ' + repr(dt) + ' sec, smoothed x ' + repr(binning) + ' = ' + repr(dt * binning) + ' sec', \
+                     fontsize=fs)
+
+#plt.errorbar(200, np.mean(count_rate_target_3000) + 5 * sigma_s, xerr=binning*dt/2, yerr=None, label='Binning Width', linewidth=2) 
 			# X 'error bar' -- show the bin width
-plt.errorbar(300, np.mean(count_rate_3000) + 5 * sigma_s, xerr=None, yerr=sigma_s/2, label='1$\sigma$ shot noise', linewidth=2) 
+#plt.errorbar(300, np.mean(count_rate_target_3000) + 5 * sigma_s, xerr=None, yerr=sigma_s/2, label='1$\sigma$ shot noise', linewidth=2) 
 			# Y 'error bar' -- show the binned shot noise error
 plt.legend()
-plt.ylabel('Count Rate (smoothed)', fontsize=fs)
+plt.ylabel('Counts/sec (smoothed)', fontsize=fs)
 plt.xlabel('Time since ' + utc_start + ' [sec]', fontsize=fs)
 plt.xlim((t[binning], t[-binning])) # Remove transients at edges
 
 if (sequence == 'O_RING_OC3'):
-  plt.ylim((np.mean(count_rate_3000) -10*sigma_s, np.mean(count_rate_3000) +11*sigma_s))
+  plt.ylim((np.mean(count_rate_target_3000/dt) -13*sigma_s/dt, np.mean(count_rate_target_3000/dt) +11*sigma_s/dt))
 
 if (sequence == 'O_RING_OC2'):
-  plt.ylim((np.mean(count_rate_3000) -9*sigma_s, np.mean(count_rate_3000) +11*sigma_s))
+  plt.ylim((np.mean(count_rate_target_3000/dt) -9*sigma_s/dt, np.mean(count_rate_target_3000/dt) +8*sigma_s/dt))
     
 plt.show()
 
@@ -369,13 +381,13 @@ plt.rcParams['figure.figsize'] = 16,8
 
 plt.subplot(1,2,1)
 plt.rcParams['figure.figsize'] = 10,10
-plt.plot(ra[crop:-crop]*hbt.r2d, count_rate_3000[crop:-crop], linestyle='none', marker='.', ms=0.1)
-plt.plot(ra[crop:-crop]*hbt.r2d, count_rate_nonlinear[crop:-crop] + np.mean(count_rate), color='red') # Add linear fit on top
+plt.plot(ra[crop:-crop]*hbt.r2d, count_rate_target_3000[crop:-crop], linestyle='none', marker='.', ms=0.1)
+#plt.plot(ra[crop:-crop]*hbt.r2d, count_rate_nonlinear[crop:-crop] + np.mean(count_rate), color='red') # Add linear fit on top
 plt.xlabel('RA [deg]', fontsize=fs)
 plt.title(sequence + ': DN vs. Position', fontsize=fs*1.5)
 ax = plt.gca()
 ax.ticklabel_format(useOffset=False)
-plt.ylabel('DN (smoothed x ' + repr(binning) + ')', fontsize=fs)
+plt.ylabel('DN (smoothed x ' + repr(crop) + ')', fontsize=fs)
 
 plt.subplot(1,2,2)
 plt.rcParams['figure.figsize'] = 10,10
@@ -392,6 +404,9 @@ plt.show()
 # This is similar to plots above, but in a color image.
 # Must use binning = 3000 (or something small) for this.
 #==============================================================================
+# NB: The effect that this routine was plotting was caused by not subtracting
+# the field star. Now that I am extracting only the flux of the target star, then
+# this routine is not needed.
 
 plt.rcParams['figure.figsize'] = 5,5
 plt.subplot(1,1,1)
@@ -402,12 +417,13 @@ num_dy = num_dx
 ra_arr  = np.linspace(np.min(ra),  np.max(ra),  num_dx)
 dec_arr = np.linspace(np.min(dec), np.max(dec), num_dy)
 
-count_rate_s_arr = griddata((ra[crop:-crop], dec[crop:-crop]), count_rate_3000[crop:-crop], (ra_arr[None,:], dec_arr[:,None]), method='cubic')
+count_rate_s_arr = griddata((ra[crop:-crop], dec[crop:-crop]), count_rate_target_3000[crop:-crop], 
+                            (ra_arr[None,:], dec_arr[:,None]), method='cubic')
 
 # Make the plot, scaled vertically as per the sequence read in
 
 if (sequence == 'O_RING_OC3'):
-    plt.imshow(count_rate_s_arr, interpolation='none', vmin=16.2,vmax=16.45)
+    plt.imshow(count_rate_s_arr, interpolation='none', vmin=13,vmax=14)
 if (sequence == 'O_RING_OC2'):
     plt.imshow(count_rate_s_arr, interpolation='none', vmin=16.4,vmax=16.8)
 
@@ -513,14 +529,14 @@ count_rate_soc = hbt.read_alice(file)['count_rate']
 hk.data
 
 #==============================================================================
-# Now do a plot with differeng binning widths. To look for narrow rings.
+# Now make a time-series plot, but with several binning widths. To look for narrow rings.
 #==============================================================================
 
-# Put another axis here: et vs. radius_pluto
+plt.rcParams['figure.figsize'] = 20,12
+#plt.rcParams['figure.figsize'] = 10,6
 
-
-#plt.rcParams['figure.figsize'] = 20,12
-plt.rcParams['figure.figsize'] = 10,6
+#fs = 25
+# Jump through some hoops to place a second x-axis here: et vs. radius_pluto
 
 host = host_subplot(111, axes_class=AA.Axes) # Set up the host axis
 par = host.twiny()                           # Set up the parasite axis
@@ -532,41 +548,46 @@ par.axis["bottom"] = new_fixed_axis(loc="bottom", axes=par,
 par.axis["bottom"].toggle(all=True)          # Make sure the bottom axis is displayed
 par.axis["top"].set_visible(False)           # Do not display the axis on *top* of the plot.
 
-p1, = host.plot(t, count_rate, ms=0.1, linestyle='none', marker='.', color='orange', 
-         label = 'Alice, Raw, 250/sec = 1.5 m [orange]')
-host.plot(t, count_rate_fixed_30, linewidth=0.1, ms=0.1, color='green', 
-         label='Alice, smoothed 30 bins = ' + repr(30*dt) + ' = 4 sec = 40 m[green]' )
-host.plot(t, count_rate_fixed_300, linewidth=0.1, ms=0.1, color='blue', 
+p1, = host.plot(t, count_rate_target/dt, ms=0.1, linestyle='none', marker='.', color='orange', 
+         label = 'Alice, raw, ' + repr(dt) + ' sec = 1.5 m [orange]')
+
+host.plot(t, count_rate_target_30/dt, linewidth=0.1, ms=0.1, color='green', 
+         label='Alice, smoothed 30 bins = ' + repr(30*dt) + ' sec = 40 m [green]' )
+
+host.plot(t, count_rate_target_300/dt, linewidth=0.1, ms=0.1, color='blue', 
          label='Alice, smoothed 300 bins = ' + repr(300*dt) + ' sec = 0.4 km [blue]')
-host.plot(t, count_rate_fixed_3000, linewidth=0.3, ms=0.1, color='red', 
+
+host.plot(t, count_rate_target_3000/dt, linewidth=0.3, ms=0.1, color='red', 
          label='Alice, smoothed 3000 bins = ' + repr(3000*dt) + ' sec = 4 km [red]')
-host.plot(t, count_rate_fixed_30000, linewidth=0.2, ms=0.1, color='yellow', 
+
+host.plot(t, count_rate_target_30000/dt, linewidth=0.2, ms=0.1, color='yellow', 
          label='Alice, smoothed 30000 bins = ' + repr(30000 * dt) + 
          ' sec = 40 km [yellow]' )
-host.set_ylim((14,20))
+
+host.set_ylim((2800,4000))
 plt.xlim(hbt.mm(t))
 par.set_xlim(hbt.mm(radius_bary))
 plt.title(sequence, fontsize=fs)
-plt.ylabel('DN', fontsize=fs)
+plt.ylabel('Counts/sec', fontsize=fs) # Fontsize is ignored here, probably because of the twin-axis thing...
 plt.xlabel('Seconds since ' + utc_start, fontsize=fs)
-par.set_xlabel('Distance from Pluto barycenter [km]')
+par.set_xlabel('Distance from Pluto barycenter [km]', fontsize=fs)
 
 plt.legend()
 plt.show()
-
  
 #==============================================================================
 # Do a histogram of the count rate
 #==============================================================================
 
 bins = hbt.frange(0, int(np.max(count_rate))+1)
-(h,b) = np.histogram(count_rate,bins=bins)
+(h,b) = np.histogram(count_rate_target,bins=bins)
 plt.rcParams['figure.figsize'] = 5,5
-plt.plot(bins[0:-1],h)
-plt.xlabel('COUNT RATE')
+plt.plot(bins[0:-1]/dt,h, drawstyle='steps')
+plt.xlabel('67 Ori Count Rate')
 plt.ylabel('# of samples')
-plt.title(os.path.basename(file))
-plt.yscale('log')
+plt.title(sequence)
+plt.xlim((0,7000))
+#plt.yscale('log')
 #plt.set_yscale('log')
 plt.show()
 
@@ -574,9 +595,25 @@ plt.show()
 # Look for any count=1 bins right next to each other
 #==============================================================================
 
-plt.rcParams['figure.figsize'] = 15,15
+plt.rcParams['figure.figsize'] = 5,5
 w = np.where(count_rate < 4)[0]
 plt.plot(range(np.size(w)), w)
 
 ## This is kind of an auto-correlation function. Maybe I should look at that too.
 ## But honestly it looks unlikely.
+
+#==============================================================================
+# Do some autocorrelation
+#==============================================================================
+
+offsets = np.array(hbt.frange(-100,100),dtype=int)
+corr_full = np.zeros(np.size(offsets))
+for i in range(np.size(offsets)):
+    corr_full[i] = np.correlate(count_rate_target_30, np.roll(count_rate_target,offsets[i]))
+
+corr = corr_full[100:]    
+
+plt.plot(hbt.ln01(corr))
+plt.xlabel('Offset [bins]')
+plt.ylabel('ln(Correlation)')
+plt.show()

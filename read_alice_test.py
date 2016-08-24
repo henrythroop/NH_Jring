@@ -91,14 +91,16 @@ count_rate_fits_all = []   # The count rate as read from the COUNT_RATE extensio
 count_rate_all = []        # Count rate computed from the PIXEL_LIST_TABLE. Should match that in COUNT_RATE extension
 count_rate_target_all = [] # Count rate for the target only, extracted by spatially filtering the PIXEL_LIST_TABLE
 
-d_target_summed = np.zeros((5,540))
+d_target_summed = np.zeros((5,541))
+d_summed        = np.zeros((32,1024))
 
 for i,file in enumerate(file_list):
     
     hdulist = fits.open(file)
     d = hdulist['PRIMARY'].data # Units of this are float, but I'm not sure what they are. I would prefer raw counts.
-    d_target = d[13:18, 370:911]
+    d_target = d[13:18, 370:911]  # Keep in mind that 13:18 really means 13:17...
     d_target_summed += d_target
+    d_summed += d
     p = hdulist['PIXEL_LIST_TABLE'].data
     count_rate_fits_i = hdulist['COUNT_RATE'].data
     num_samples = hdulist['COUNT_RATE'].header['NAXIS1'] # Number of samples in this file
@@ -109,7 +111,7 @@ for i,file in enumerate(file_list):
     
     # Now downselect the pixel list for just the photons in the proper X and Y position on the detector
     
-    is_good = (p['Y_INDEX'] < 18) & (p['Y_INDEX'] >= 13) & (p['X_INDEX'] >= 370) & (p['X_INDEX'] < 910)
+    is_good = (p['Y_INDEX'] < 18) & (p['Y_INDEX'] >= 15) & (p['X_INDEX'] >= 370) & (p['X_INDEX'] < 910)
 
     # Now we have a list of all of the good pixels. For each of these, now we want to grab its timestep.
 
@@ -174,15 +176,23 @@ plt.show()
 plt.plot(hbt.smooth_boxcar(count_rate_target, 2500)*250)
 plt.ylim((3300,3500))
 
-
-
 met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
-duration    = np.array(duration_all)
+duration_all    = []
+
+#==============================================================================
+# Make an image from the Alice summed data
+#==============================================================================
+
+d_summed_n = d_summed - np.min(d_summed)
+d_summed_n = d_summed_n / np.max(d_summed_n)
+
+plt.imshow(hbt.ln01(d_summed_n), aspect=10, interpolation='none', origin='lower')
+plt.title(sequence)
+plt.show()
 
 quit
     
 plt.imshow(d_target_summed, aspect = 100, interpolation = 'none')
-plt.show()
 
 file = file_list[0]
 hdulist = fits.open(file)
