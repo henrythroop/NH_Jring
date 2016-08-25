@@ -60,6 +60,8 @@ import ttk
 import tkMessageBox
 from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
+#import numericalunits as nu
+from astropy import units as u
 
 # HBT imports
 import hbt
@@ -143,7 +145,6 @@ def read_alice_occ_data(file_list):
 #sequence 	= 'O_RING_OC3'
 sequence 	= 'O_RING_OC2'
 
-
 binning      = 25000		# Smoothing. 25000 is too much (shows opposite trend!). 5000 and 1000 look roughly similar.
                             # To be meaningful, the binning timescale must be less than the deadband timescale (~20-30 sec RT).
                             # At binning=3000, it's 12 sec... so that is the longest we'd really want to go.
@@ -152,9 +153,11 @@ binning      = 25000		# Smoothing. 25000 is too much (shows opposite trend!). 50
                             # Use binning = 3000 to make a plot of the trend of DN vs. RA
                             
 fs           	= 15		# Font size
+plt.rc('image', interpolation='None')       # Turn of interpolation for imshow. Could also do hbt.set_plot_defaults()
+#nu.reset_units()
 
 dir_images = '/Users/throop/Data/NH_Alice_Ring/' + sequence + '/data/pluto/level2/ali/all'
-file_tm = '/Users/throop/gv/dev/gv_kernels_new_horizons.txt'
+file_tm = '/Users/throop/gv/dev/kernels/15sci_rhr_25aug16.tm' # Def need to use an encounter kernel here.
 
 cspice.furnsh(file_tm)
 
@@ -269,6 +272,8 @@ count_rate_target_30000 = hbt.smooth_boxcar(count_rate_target, 30000)
 count_rate_target_3000 = hbt.smooth_boxcar(count_rate_target, 3000)
 count_rate_target_300 = hbt.smooth_boxcar(count_rate_target, 300)
 count_rate_target_30 = hbt.smooth_boxcar(count_rate_target, 30)
+count_rate_target_5 = hbt.smooth_boxcar(count_rate_target, 5)
+count_rate_target_3 = hbt.smooth_boxcar(count_rate_target, 3)
 
 count_rate_3000 = hbt.smooth_boxcar(count_rate, 3000)
 count_rate_30000 = hbt.smooth_boxcar(count_rate, 30000)
@@ -551,7 +556,7 @@ par.axis["top"].set_visible(False)           # Do not display the axis on *top* 
 p1, = host.plot(t, count_rate_target/dt, ms=0.1, linestyle='none', marker='.', color='orange', 
          label = 'Alice, raw, ' + repr(dt) + ' sec = 1.5 m [orange]')
 
-host.plot(t, count_rate_target_30/dt, linewidth=0.1, ms=0.1, color='green', 
+host.plot(t, count_rate_target_30/dt, linestyle='none', marker='.', linewidth=0.1, ms=1, color='green', 
          label='Alice, smoothed 30 bins = ' + repr(30*dt) + ' sec = 40 m [green]' )
 
 host.plot(t, count_rate_target_300/dt, linewidth=0.1, ms=0.1, color='blue', 
@@ -564,8 +569,10 @@ host.plot(t, count_rate_target_30000/dt, linewidth=0.2, ms=0.1, color='yellow',
          label='Alice, smoothed 30000 bins = ' + repr(30000 * dt) + 
          ' sec = 40 km [yellow]' )
 
-host.set_ylim((2800,4000))
+#host.set_ylim((2800,4000))
+host.set_ylim((2500,4200))
 plt.xlim(hbt.mm(t))
+plt.xlim((1750,1850))
 par.set_xlim(hbt.mm(radius_bary))
 plt.title(sequence, fontsize=fs)
 plt.ylabel('Counts/sec', fontsize=fs) # Fontsize is ignored here, probably because of the twin-axis thing...
@@ -576,14 +583,78 @@ plt.legend()
 plt.show()
  
 #==============================================================================
+# Zoom in on one area of interest in OC2
+#==============================================================================
+
+if (sequence == 'O_RING_OC2'):
+    plt.rcParams['figure.figsize'] = 20,12
+    
+    #fs = 25
+    # Jump through some hoops to place a second x-axis here: et vs. radius_pluto
+    
+    host = host_subplot(111, axes_class=AA.Axes) # Set up the host axis
+    par = host.twiny()                           # Set up the parasite axis
+    plt.subplots_adjust(bottom=0.2)              # Adjusts overall height of the whole plot in y direction (like figure.figsize)
+    offset = 50                                  # How far away from the main plot the parasite axis is. Don't know the units.
+    new_fixed_axis     = par.get_grid_helper().new_fixed_axis
+    par.axis["bottom"] = new_fixed_axis(loc="bottom", axes=par,
+                                        offset=(0,-offset))
+    par.axis["bottom"].toggle(all=True)          # Make sure the bottom axis is displayed
+    par.axis["top"].set_visible(False)           # Do not display the axis on *top* of the plot.
+    
+    p1, = host.plot(t, count_rate_target/dt, ms=0.2, linestyle='none', marker='+', color='orange', 
+             label = 'Alice, raw, ' + repr(dt) + ' sec = 1.5 m [orange]')
+
+    host.plot(t, count_rate_target_5/dt, linestyle='none', marker='+', linewidth=0.1, ms=5, color='black', 
+             label='Alice, smoothed 5 bins = ' + repr(5*dt) + ' sec = 8 m [black]' )
+    
+    host.plot(t, count_rate_target_30/dt, marker='.', linewidth=2, ms=1, color='green', 
+             label='Alice, smoothed 30 bins = ' + repr(30*dt) + ' sec = 40 m [green]' )
+    
+    host.plot(t, count_rate_target_300/dt, linewidth=2, ms=0.1, color='blue', 
+             label='Alice, smoothed 300 bins = ' + repr(300*dt) + ' sec = 0.4 km [blue]')
+    
+    host.plot(t, count_rate_target_3000/dt, linewidth=1, ms=0.1, color='red', 
+             label='Alice, smoothed 3000 bins = ' + repr(3000*dt) + ' sec = 4 km [red]')
+    
+#    host.plot(t, count_rate_target_30000/dt, linewidth=2, ms=0.1, color='yellow', 
+#             label='Alice, smoothed 30000 bins = ' + repr(30000 * dt) + 
+#             ' sec = 40 km [yellow]' )
+    
+    host.get_xaxis().get_major_formatter().set_useOffset(False)
+
+    plt.xlim(hbt.mm(t))
+    plt.xlim((1792,1798))
+    plt.ylim((1500,5000))
+    par.set_xlim(hbt.mm(radius_bary))
+    plt.title(sequence + ' zoom', fontsize=fs)
+    plt.ylabel('Counts/sec', fontsize=fs) # Fontsize is ignored here, probably because of the twin-axis thing...
+    plt.xlabel('Seconds since ' + utc_start, fontsize=fs)
+    par.set_xlabel('Distance from Pluto barycenter [km]', fontsize=fs)
+    
+    plt.legend()
+    plt.show()
+ 
+# Calculate some statistics for that blip at met0 + 1796 sec
+
+    std_5 = np.std(count_rate_target_5)/dt
+    std_30 = np.std(count_rate_target_30)/dt
+    
+    depth_5 = 3400-2000
+    depth_30 = 3400 - 2800
+    
+    print "At binning = 5, depth = " + repr(depth_5) + " = " + repr(depth_5 / std_5) + " sigma"
+    print "At binning = 30, depth = " + repr(depth_30) + " = " + repr(depth_30 / std_30) + " sigma"
+    
+#==============================================================================
 # Do a histogram of the count rate
 #==============================================================================
 
-bins = hbt.frange(0, int(np.max(count_rate))+1)
-(h,b) = np.histogram(count_rate_target,bins=bins)
+bins = hbt.frange(0, int(np.max(count_rate))+1)/dt
+(h,b) = np.histogram(count_rate_target/dt,bins=bins)
 plt.rcParams['figure.figsize'] = 5,5
-plt.plot(bins[0:-1]/dt,h, drawstyle='steps')
-plt.xlabel('67 Ori Count Rate')
+plt.plot(bins[0:-1],h, drawstyle='steps')
+plt.xlabel('67 Ori, Counts/sec')
 plt.ylabel('# of samples')
 plt.title(sequence)
 plt.xlim((0,7000))
@@ -598,22 +669,51 @@ plt.show()
 plt.rcParams['figure.figsize'] = 5,5
 w = np.where(count_rate < 4)[0]
 plt.plot(range(np.size(w)), w)
+plt.show()
 
 ## This is kind of an auto-correlation function. Maybe I should look at that too.
 ## But honestly it looks unlikely.
+#==============================================================================
+# Calculate the Fresnel limit
+#==============================================================================
+
+(st, lt) = cspice.spkezr('NEW_HORIZONS', et[0], 'IAU_PLUTO', 'LT+S', 'PLUTO')
+dist = cspice.vnorm(st[0:3]) * u.km # Distance in km
+alam = 100 * u.nm
+
+d_fresnel = np.sqrt(dist * alam/2).decompose()
+print "Fresnel scale = " + repr(d_fresnel)
+
+#==============================================================================
+# Make a binned plot right at the fresnel limit
+#==============================================================================
+
+plt.rcParams['figure.figsize'] = 25,5
+plt.plot(count_rate_target_5/dt,linestyle='none', ms=0.5, marker='.')
+plt.title(sequence + ', binning = 5 = Fresnel limit, min = ' + hbt.trunc(np.min(count_rate_target_5),2))
+plt.xlabel('Seconds')
+plt.ylabel('Counts/sec')
+plt.show()
 
 #==============================================================================
 # Do some autocorrelation
 #==============================================================================
 
+plt.rcParams['figure.figsize'] = 5,5
+
 offsets = np.array(hbt.frange(-100,100),dtype=int)
+count_rate_target_2 = hbt.smooth_boxcar(count_rate_target,2)
+count_rate_target_3 = hbt.smooth_boxcar(count_rate_target,3)
+count_rate_target_10 = hbt.smooth_boxcar(count_rate_target,10)
+
 corr_full = np.zeros(np.size(offsets))
 for i in range(np.size(offsets)):
-    corr_full[i] = np.correlate(count_rate_target_30, np.roll(count_rate_target,offsets[i]))
+    corr_full[i] = np.correlate(count_rate_target_30, np.roll(count_rate_target_30,offsets[i]))
 
 corr = corr_full[100:]    
 
-plt.plot(hbt.ln01(corr))
+plt.plot(hbt.ln01(corr),drawstyle='steps')
 plt.xlabel('Offset [bins]')
 plt.ylabel('ln(Correlation)')
+plt.title(sequence + ", Binning = 30")
 plt.show()
