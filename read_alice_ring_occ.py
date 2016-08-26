@@ -62,6 +62,7 @@ from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
 #import numericalunits as nu
 from astropy import units as u
+from astropy.coordinates import SkyCoord
 
 # HBT imports
 import hbt
@@ -171,41 +172,6 @@ file_list = glob.glob(dir_images + '/*fit')
 
 dt = int((met[1] - met[0])*1000)/1000.          # Interval between consecutive samples
 
-#file_list = file_list[0:10]
-#met_all = []  # A long array with a list of all of the timestamps
-#count_rate_all = []
-#duration_all = []
-#
-#for file in file_list:
-#    data = hbt.read_alice(file)
-##    print "."
-#    startmet = data['header_spect']['STARTMET']
-#    spcutcal = data['header_spect']['SPCUTCAL']	# Mid-obs time
-#
-#    visitnam = data['header_spect']['VISITNAM']
-#    sapname   = data['header_spect']['SAPNAME']
-#
-#    dt       = data['header_count_rate']['SAMPLINT']
-#    count_rate_i = data['count_rate']              # Extract count rate from file
-#
-#    met_i = startmet + dt * hbt.frange(0, np.shape(count_rate_i)[0]-1)   # Create the MET by interpolation
-#    duration_i = dt * len(count_rate_i)    
-#
-#    
-#    print "Read " + os.path.basename(file) + ", MET " + repr(startmet) + ' = ' + hbt.met2utc(startmet) + \
-#      ', N = ' + repr(len(count_rate_i)) + ' samples' + \
-#      ', duration = ' + hbt.trunc(duration_i,3) + ' sec'
-##       print "  " + visitnam + " " + spcutcal
-#
-#    met_all.append(met_i)
-#    count_rate_all.append(count_rate_i)
-#    duration_all.append(duration_i)
-#
-#count_rate  = np.array([item for sublist in count_rate_all for item in sublist])  # Flatten the count rate (from 2D, to 1D)
-#count_rate  = np.array(count_rate, dtype=float)					  # Convert to float. Otherwise get wraparound.
-#met         = np.array([item for sublist in met_all for item in sublist])         # Flatten the MET array  (from 2D, to 1D)
-#duration    = np.array(duration_all)
-
 count_rate_target_fake = np.random.poisson(np.mean(count_rate_target), np.size(count_rate))
 count_rate_fake        = np.random.poisson(np.mean(count_rate), np.size(count_rate))
 
@@ -227,10 +193,13 @@ num_dt   = np.size(et)
 
 # NB: For FSS, I got the FSS-Sun angle directly from Gabe -- I didn't get it from SPICE.
 
-# Get vector to star. 67 Ori = HR 2159 = HD 41753, a V=4.2 B3V. RA=91.89, Dec=14.77.
+# Get vector to star. 67 Ori = HR 2159 = HD 41753, a V=4.2 B3V. RA~91.89, Dec~14.77.
+    
+pos_star_str = "06 07 34.326 +14 46 06.51"  # Vizier coords in FK5 = J2K
 
-ra_star  = 91.89 * hbt.d2r
-dec_star = 14.77 * hbt.d2r
+pos_star = SkyCoord(pos_star_str, unit=(u.hourangle, u.deg))
+ra_star  = pos_star.ra.rad
+dec_star = pos_star.dec.rad
 
 ra       = np.zeros(num_dt)
 dec      = np.zeros(num_dt)
@@ -299,6 +268,55 @@ count_rate_target_fake_30000 = hbt.smooth_boxcar(count_rate_target_fake, 30000)
 sigma_s = np.mean(count_rate) * np.sqrt(np.mean(count_rate * binning)) / (np.mean(count_rate * binning))
 
 #==============================================================================
+# Do some geometry calculations: Get the projected radii from Pluto.
+#==============================================================================
+
+# Define a plane centered on Pluto. This is in Pluto coords (not J2K).
+# The orientation of IAU_PLUTO will change from start to end of observation, and this will give us a 
+# different answer in the end vs. start.
+         
+#et_start = np.min(et)
+#et_end   = np.max(et) + duration[-1]
+
+plane_plu = cspice.nvp2pl([0,0,1], [0,0,0])    # nvp2pl: Normal Vec + Point to Plane
+
+# Get vector from Pluto to star, in IAU_PLUTO. This will define the *vector* portion of the ray.
+
+vec_plu_star = cspice.radrec(1., ra_star, dec_star) # Vector from Pluto to star, in J2K
+
+# Set the values of ET for which we look up the projected radius. We could do every ET, but that's pretty slow, and the 
+# behavior is essentially linear. So, we do the opposite extreme, which is just the starting and ending values.
+
+et_vals = hbt.mm(et)
+
+radius_pluto = np.zeros(np.size(et_vals))
+radius_bary  = np.zeros(np.size(et_vals)) # Distance from the barycenter
+lon          = np.zeros(np.size(et_vals))
+lat          = np.zeros(np.size(et_vals))
+
+for i,et_i in enumerate(et_vals):
+
+# Define a ray from NH, toward the star.
+# Ray starts at NH position and points toward star (*not* boresight). It should be in IAU_PLUTO coordxmas.
+
+# Get vector from Pluto to S/C, in IAU_PLUTO. This will define the *point* (the ray is a point plus a vector)
+
+    (st_plu_sc_plu_i, lt_i) = cspice.spkezr('NEW_HORIZONS', et_i, 'IAU_PLUTO', 'LT+S', 'PLUTO BARYCENTER') # Need to change this to barycenter
+    pt_plu_sc_plu_i = st_plu_sc_plu_i[0:3]
+
+    mx_i = cspice.pxform('J2000', 'IAU_PLUTO', et_i)
+    vec_plu_star_plu_i = cspice.mxvg(mx_i, vec_plu_star)
+
+# Now find the intersection. A ray is *not* a datatype. Instead, we just pass a point and a vector, and that defines the ray.
+# Point = vector from Pluto to NH in Pluto coords.
+# Vector = vector from Pluto star in Pluto coords
+
+    (npts, pt_intersect_plu_i) = cspice.inrypl(pt_plu_sc_plu_i, vec_plu_star_plu_i, plane_plu) # intersect ray and plane. Jup coords.
+
+    (radius_bary[i], lon[i], lat[i]) = cspice.reclat(pt_intersect_plu_i)  # Convert to lon/lat and distance from Pluto
+
+    
+#==============================================================================
 # Make a time-series plot of Counts vs. Time, for Target, Off-Target, Fake Data, etc.
 #==============================================================================
 
@@ -318,15 +336,27 @@ if (sequence == 'O_RING_OC2'):
 binning = 30000
 
 do_fake = False
-        
-plt.plot(t, 1/dt * count_rate_target_30000, linewidth=0.5, ms=0.1, label='Alice, 67 Ori only')
-plt.plot(t, 1/dt * count_rate_30000 - offset_total, marker = '.', linewidth=0.5, ms=0.1, label='Alice, Total [+offset]')
-plt.plot(t, 1/dt * count_rate_30000 - count_rate_target_30000/dt + offset_diff, linewidth=0.5, ms=0.1, label='Alice, Total - 67 Ori [+offset]')
-#plt.plot(t, 1/dt * count_rate_target_fake_30000 - offset_fake, linewidth=0.5, ms=0.1, label='Fake Poisson data [+offset]')
 
+# Jump through some hoops to place a second x-axis here: et vs. radius_pluto
+
+host = host_subplot(111, axes_class=AA.Axes) # Set up the host axis
+par = host.twiny()                           # Set up the parasite axis
+plt.subplots_adjust(bottom=0.2)              # Adjusts overall height of the whole plot in y direction (like figure.figsize)
+offset = 50                                  # How far away from the main plot the parasite axis is. Don't know the units.
+new_fixed_axis     = par.get_grid_helper().new_fixed_axis
+par.axis["bottom"] = new_fixed_axis(loc="bottom", axes=par,
+                                        offset=(0,-offset))
+par.axis["bottom"].toggle(all=True)          # Make sure the bottom axis is displayed
+par.axis["top"].set_visible(False)           # Do not display the axis on *top* of the plot.
+        
+p1, = host.plot(t, 1/dt * count_rate_target_30000, linewidth=0.5, ms=0.1, label='Alice, 67 Ori only')
+host.plot(t, 1/dt * count_rate_30000 - offset_total, marker = '.', linewidth=0.5, ms=0.1, label='Alice, Total [+offset]')
+host.plot(t, 1/dt * count_rate_30000 - count_rate_target_30000/dt + offset_diff, linewidth=0.5, ms=0.1, label='Alice, Total - 67 Ori [+offset]')
+#plt.plot(t, 1/dt * count_rate_target_fake_30000 - offset_fake, linewidth=0.5, ms=0.1, label='Fake Poisson data [+offset]')
 
 plt.title(sequence + ', dt = ' + repr(dt) + ' sec, smoothed x ' + repr(binning) + ' = ' + repr(dt * binning) + ' sec', \
                      fontsize=fs)
+host.get_xaxis().get_major_formatter().set_useOffset(False)
 
 #plt.errorbar(200, np.mean(count_rate_target_3000) + 5 * sigma_s, xerr=binning*dt/2, yerr=None, label='Binning Width', linewidth=2) 
 			# X 'error bar' -- show the bin width
@@ -335,7 +365,10 @@ plt.title(sequence + ', dt = ' + repr(dt) + ' sec, smoothed x ' + repr(binning) 
 plt.legend()
 plt.ylabel('Counts/sec (smoothed)', fontsize=fs)
 plt.xlabel('Time since ' + utc_start + ' [sec]', fontsize=fs)
-plt.xlim((t[binning], t[-binning])) # Remove transients at edges
+
+plt.xlim((t[binning], t[-binning])) # X limits for main plot. Remove transients at edges. 
+par.set_xlim(radius_bary)               # X limits for parasite plot. *** This is slightly off, since I am ignoring edges above
+par.set_xlabel('Distance from Pluto barycenter [km]', fontsize=fs)
 
 if (sequence == 'O_RING_OC3'):
   plt.ylim((np.mean(count_rate_target_3000/dt) -13*sigma_s/dt, np.mean(count_rate_target_3000/dt) +11*sigma_s/dt))
@@ -438,56 +471,6 @@ plt.ylabel('Dec bin', fontsize=fs)
 plt.colorbar()
 plt.show()
 
-#==============================================================================
-# Now do some geometry calculations: Get the Pluto radii for this particular sequence.
-#==============================================================================
-
-# Overall picture
-
-# Define a plane centered on Pluto. This is in Pluto coords (not J2K).
-# The orientation of IAU_PLUTO will change from start to end of observation, and this will give us a 
-# different answer in the end vs. start.
-         
-#et_start = np.min(et)
-#et_end   = np.max(et) + duration[-1]
-
-plane_plu = cspice.nvp2pl([0,0,1], [0,0,0])    # nvp2pl: Normal Vec + Point to Plane
-
-# Get vector from Pluto to star, in IAU_PLUTO. This will define the *vector* portion of the ray.
-
-vec_plu_star = cspice.radrec(1., ra_star, dec_star) # Vector from Pluto to star, in J2K
-
-# Set the values of ET for which we look up the projected radius. We could do every ET, but that's pretty slow, and the 
-# behavior is essentially linear. So, we do the opposite extreme, which is just the starting and ending values.
-
-et_vals = hbt.mm(et)
-
-radius_pluto = np.zeros(np.size(et_vals))
-radius_bary  = np.zeros(np.size(et_vals)) # Distance from the barycenter
-lon          = np.zeros(np.size(et_vals))
-lat          = np.zeros(np.size(et_vals))
-
-for i,et_i in enumerate(et_vals):
-
-# Define a ray from NH, toward the star.
-# Ray starts at NH position and points toward star (*not* boresight). It should be in IAU_PLUTO coordxmas.
-
-# Get vector from Pluto to S/C, in IAU_PLUTO. This will define the *point* (the ray is a point plus a vector)
-
-    (st_plu_sc_plu_i, lt_i) = cspice.spkezr('NEW_HORIZONS', et_i, 'IAU_PLUTO', 'LT+S', 'PLUTO BARYCENTER') # Need to change this to barycenter
-    pt_plu_sc_plu_i = st_plu_sc_plu_i[0:3]
-
-    mx_i = cspice.pxform('J2000', 'IAU_PLUTO', et_i)
-    vec_plu_star_plu_i = cspice.mxvg(mx_i, vec_plu_star)
-
-# Now find the intersection. A ray is *not* a datatype. Instead, we just pass a point and a vector, and that defines the ray.
-# Point = vector from Pluto to NH in Pluto coords.
-# Vector = vector from Pluto star in Pluto coords
-
-    (npts, pt_intersect_plu_i) = cspice.inrypl(pt_plu_sc_plu_i, vec_plu_star_plu_i, plane_plu) # intersect ray and plane. Jup coords.
-
-    (radius_bary[i], lon[i], lat[i]) = cspice.reclat(pt_intersect_plu_i)  # Convert to lon/lat and distance from Pluto
-
 ####################
 # Now do some testing to read in the housekeeping data. Randy says that the same data from the main FITS header should be
 # available here, but in 'analog' form rather than 'digital.'
@@ -572,7 +555,7 @@ host.plot(t, count_rate_target_30000/dt, linewidth=0.2, ms=0.1, color='yellow',
 #host.set_ylim((2800,4000))
 host.set_ylim((2500,4200))
 plt.xlim(hbt.mm(t))
-plt.xlim((1750,1850))
+#plt.xlim((1750,1850))
 par.set_xlim(hbt.mm(radius_bary))
 plt.title(sequence, fontsize=fs)
 plt.ylabel('Counts/sec', fontsize=fs) # Fontsize is ignored here, probably because of the twin-axis thing...
@@ -626,7 +609,7 @@ if (sequence == 'O_RING_OC2'):
     plt.xlim(hbt.mm(t))
     plt.xlim((1792,1798))
     plt.ylim((1500,5000))
-    par.set_xlim(hbt.mm(radius_bary))
+#    par.set_xlim(hbt.mm(radius_bary)) # Not correct for the zoomed plot!
     plt.title(sequence + ' zoom', fontsize=fs)
     plt.ylabel('Counts/sec', fontsize=fs) # Fontsize is ignored here, probably because of the twin-axis thing...
     plt.xlabel('Seconds since ' + utc_start, fontsize=fs)
