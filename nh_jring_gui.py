@@ -8,7 +8,7 @@ Created on Mon Feb 29 14:55:00 2016
 
 # -*- coding: utf-8 -*-
 """
-# Program reads in NH J-ring data and navigates and extracts it.
+# Program display a GUI of NJ J-ring data to navigate and extract it.
 
 # Possible features to be added:
 #  o Output images as PNG
@@ -936,7 +936,7 @@ class App:
         
         if (method == 'Previous'):
             file_prev = self.t_group['Filename'][self.index_image-1]
-            print "file =      " + filename
+#            print "file =      " + filename
             print "file_prev = " + file_prev
             image_bg = hbt.read_lorri(file_prev, frac_clip = 1.0, bg_method = 'None', autozoom=True)
             image_fg = self.image_raw
@@ -1014,6 +1014,11 @@ class App:
 
 # Parse a string like "6/112-6/129", or "129", or "6/114", or "124-129" or "6/123 - 129"
 # As of 8-July-2016, this is the one I will generally use for most purposes.
+# 'String' does this:
+#   o Subtract the bg image made by combining the named frames
+#   o Subtract a 5th order polynomial
+#   o Filter out the extreme highs and lows
+#   o Display it.    
 
             str = self.entry_bg.get()
             str2 = str.replace('-', ' ').replace('/', ' ')

@@ -118,13 +118,46 @@ bins_azimuth = hbt.frange(-180,180,num_bins_azimuth+1)
 
 is_ring_all = ( np.array(radius > r_ring_inner_rj) & np.array(radius < r_ring_outer_rj))
 
+#==============================================================================
+# Create our final 'raw data' set: radius_all, azimuth_all, dn_all
+#==============================================================================
+
 radius_all  = planes['Radius_eq'][is_ring_all]
-azimuth_all = planes['Longitude_eq'][is_ring_all]
+azimuth_all = planes['Longitude_eq'][is_ring_all]  # Make a list of all of the azimuth points for all pixels
 dn_all      = image_roll[is_ring_all]
 
-# Unwrap and fix the azimuth angles.
+# Now take these raw data, and rearrange them so that we can take the longest continuous segment
+# We do this by appending the timeseries to itself, looking for the largest gap (of no az data), 
+# and then the data will start immediately after that.
 
-azimuth_all[azimuth_all < 0] += 2 * math.pi
+# _2 indicates a double-length array (ie, with [azimuth, azimuth + 2pi])
+# _s indicates sorted
+# _d indicates delta
+
+azimuth_all_2 = np.concatenate((azimuth_all, azimuth_all + 2*math.pi))
+dn_all_2      = np.concatenate((dn_all, dn_all))
+radius_all_2  = np.concatenate((radius_all, radius_all))
+
+azimuth_all_2_s = np.sort(azimuth_all_2, kind = 'heapsort')
+azimuth_all_2_s_d = azimuth_all_2_s - np.roll(azimuth_all_2_s, 1)
+index_max_2_s_d = hbt.wheremax(azimuth_all_2_s_d)  # Search for the index of the largest gap.
+                                                   # Just after this starts the data
+                                              
+azimuth_seg_start = azimuth_all_2_s[index_max_2_s_d] # Azimuth value at the segment start
+azimuth_seg_end   = azimuth_seg_start + 2 * math.pi  # Azimuth value at the segment end
+
+indices_2_good = (azimuth_all_2 >= azimuth_seg_start) & (azimuth_all_2 < azimuth_seg_end)
+azimuth_all_good = azimuth_all_2[indices_2_good]
+radius_all_good  = radius_all_2[indices_2_good]
+dn_all_good      = dn_all_2[indices_2_good]
+
+azimuth_all = azimuth_all_good
+radius_all  = radius_all_good
+dn_all      = dn_all_good
+
+plt.plot(azimuth_all_good,marker='.', linestyle='none')
+
+quit
 
 # For diagnostic purposes, draw a line at 1.75 Rj and 3.6 radians = -153 deg
 
@@ -144,11 +177,20 @@ if (DO_DIAGNOSTIC):
 grid_azimuth_1d = hbt.frange(0, 4. * math.pi, num_bins_azimuth)
 
 # Create output array
+# First we try using griddata() on the whole 2D array. 
 
-grid_lin_2d = np.zeros((num_bins_radius, num_bins_azimuth))
+num_bins_azimuth = 1000
+
+az_arr  = np.linspace(np.min(azimuth_all),  np.max(azimuth_all),  num_bins_azimuth)
+rad_arr = np.linspace(np.min(radius_all), np.max(radius_all), num_bins_radius)
+
+dn_grid = griddata((radius_all, azimuth_all), dn_all, 
+                   (rad_arr[None,:], az_arr[:,None]), method='cubic')
 
 # We should be able to use a single call to griddata() to grid the entire dataset. But it gives
 # screwy results, obviously wrong. So instead, I am doing it line-by-line (in radial bins).
+
+grid_lin_2d = np.zeros((num_bins_radius, num_bins_azimuth))
 
 for i in range(num_bins_radius-1):
     
@@ -165,6 +207,10 @@ for i in range(num_bins_radius-1):
 
 grid_lin_2d[np.isnan(grid_lin_2d)] = 0
 
+# Figure out the proper xlimits
+
+grid_lin_2d_extend = np.concatenate((grid_lin_2d, grid_lin_2d), axis=1)  # Stuff two copies together, in radial direction
+
 # Clamp the result
 
 grid_lin_2d = hbt.remove_brightest(grid_lin_2d, 0.97, symmetric=True)
@@ -178,13 +224,19 @@ bin_az_max = np.where(profile_azimuth > 0)[0][-1]
 az_min = grid_azimuth_1d[bin_az_min]
 az_max = grid_azimuth_1d[bin_az_max]
 
-#plt.plot(grid_azimuth_1d, profile_azimuth)
-#plt.xlim(az_min, az_max)
-#plt.plot(bins_radius, profile_radius)
-#plt.show()
-
 # And make a plot of the unwrapped ring!
 # Set the aspect ratio manually -- we do not really need square pixels here.
+
+plt.imshow(grid_lin_2d, aspect=10)
+plt.show()
+
+plt.plot(grid_azimuth_1d, profile_azimuth, label='Azimuthal')
+plt.xlim(az_min, az_max)
+plt.plot(bins_radius, profile_radius, label='Radial')
+plt.legend()
+plt.show()
+
+
 
 fs = 15
 
