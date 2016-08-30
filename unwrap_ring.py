@@ -144,7 +144,7 @@ index_max_2_s_d = hbt.wheremax(azimuth_all_2_s_d)  # Search for the index of the
                                                    # Just after this starts the data
                                               
 azimuth_seg_start = azimuth_all_2_s[index_max_2_s_d] # Azimuth value at the segment start
-azimuth_seg_end   = azimuth_seg_start + 2 * math.pi  # Azimuth value at the segment end
+azimuth_seg_end   = azimuth_seg_start + 2 * math.pi  # Azimuth value at the segment end XXX No that's not right!
 
 indices_2_good = (azimuth_all_2 >= azimuth_seg_start) & (azimuth_all_2 < azimuth_seg_end)
 azimuth_all_good = azimuth_all_2[indices_2_good]
@@ -157,44 +157,29 @@ dn_all      = dn_all_good
 
 plt.plot(azimuth_all_good,marker='.', linestyle='none')
 
-quit
-
-# For diagnostic purposes, draw a line at 1.75 Rj and 3.6 radians = -153 deg
-
-DO_DIAGNOSTIC = False
-
-if (DO_DIAGNOSTIC):
-    dr = 0.003
-    r_mid = 1.78
-    daz = 0.5
-    az_mid = 3.6 * hbt.r2d - 360
-    
-    is_ring_mid =  ( np.array(radius > 1.78-dr) & np.array(radius < 1.78+dr))
-    image_roll[is_ring_mid] = np.max(image_roll)
-    is_ring_az_mid =  ( np.array(azimuth > az_mid-daz) & np.array(azimuth < az_mid+daz))
-    image_roll[is_ring_az_mid] = np.max(image_roll)
+#quit
 
 grid_azimuth_1d = hbt.frange(0, 4. * math.pi, num_bins_azimuth)
 
 # Create output array
 # First we try using griddata() on the whole 2D array. 
 
-num_bins_azimuth = 1000
+#num_bins_azimuth = 1000
 
-az_arr  = np.linspace(np.min(azimuth_all),  np.max(azimuth_all),  num_bins_azimuth)
-rad_arr = np.linspace(np.min(radius_all), np.max(radius_all), num_bins_radius)
-
-dn_grid = griddata((radius_all, azimuth_all), dn_all, 
-                   (rad_arr[None,:], az_arr[:,None]), method='cubic')
+#az_arr  = np.linspace(np.min(azimuth_all),  np.max(azimuth_all),  num_bins_azimuth)
+#rad_arr = np.linspace(np.min(radius_all), np.max(radius_all), num_bins_radius)
+#
+#dn_grid = griddata((radius_all, azimuth_all), dn_all, 
+#                   (rad_arr[None,:], az_arr[:,None]), method='cubic')
 
 # We should be able to use a single call to griddata() to grid the entire dataset. But it gives
 # screwy results, obviously wrong. So instead, I am doing it line-by-line (in radial bins).
 
 grid_lin_2d = np.zeros((num_bins_radius, num_bins_azimuth))
 
-for i in range(num_bins_radius-1):
+for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer
     
-    is_ring_i = np.array(radius > bins_radius[i]) & np.array(radius < bins_radius[i+1])
+    is_ring_i = np.array(radius > bins_radius[i]) & np.array(radius < bins_radius[i+1]) # Select only bins with right radius
     dn_i = image_roll[is_ring_i]
     radius_i = planes['Radius_eq'][is_ring_i]
     azimuth_i = planes['Longitude_eq'][is_ring_i]
@@ -227,7 +212,8 @@ az_max = grid_azimuth_1d[bin_az_max]
 # And make a plot of the unwrapped ring!
 # Set the aspect ratio manually -- we do not really need square pixels here.
 
-plt.imshow(grid_lin_2d, aspect=10)
+plt.imshow(grid_lin_2d, aspect=00.1)
+plt.xlim((azimuth_seg_start, azimuth_seg_end))
 plt.show()
 
 plt.plot(grid_azimuth_1d, profile_azimuth, label='Azimuthal')
