@@ -559,7 +559,7 @@ class App:
 
         grid_azimuth_1d = hbt.frange(0, 4. * math.pi, num_bins_azimuth)
 
-        # We should be able to use a single call to griddata() to grid the entire dataset. But it gives
+        # We should be able to use a single call to p() to grid the entire dataset. But it gives
         # screwy results, obviously wrong. So instead, I am doing it line-by-line (in radial bins).
         # The speed is not that much different.
         
