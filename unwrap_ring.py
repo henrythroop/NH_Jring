@@ -39,8 +39,8 @@ lun.close()
 groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
 
 index_group = 8
-index_image = 10 # Which frame from the group do we extract?
-index_image_stray = [49, 50, 51, 52, 53]
+index_image = 0 # Which frame from the group do we extract?
+index_images_stray = hbt.frange(0,48)
 
 index_group = 7
 index_image = 42 # Which frame from the group do we extract?
@@ -109,13 +109,32 @@ plt.rc('image', cmap='Greys_r')               # Default color table for imshow
 # Make a plot with the ring and boundary shown
 #==============================================================================
 
+plt.rcParams['figure.figsize'] = 15,15
+
 fs = 15
-plt.imshow( ( np.array(radius > r_ring_inner) & np.array(radius < r_ring_outer)) + 
-              20* hbt.remove_brightest(image_roll,0.99,symmetric=True) / np.max(image_roll))
+scaling = 5  # How much to mulitply two image by to superimpose them
+image_mask = ( np.array(radius > r_ring_inner) & np.array(radius < r_ring_outer))
+image_ring_filtered = hbt.remove_brightest(image_roll,0.99,symmetric=True) / np.max(image_roll)
+
+#plt.imshow( image_mask + scaling*image_ring_filtered)
+#plt.title(f_short, fontsize=fs)              
+#plt.show()
+
+plt.subplot(1,3,1)
+plt.imshow(                      image_ring_filtered)
+
+plt.subplot(1,3,2)
+plt.imshow( image_mask + 0      *image_ring_filtered)
 plt.title(f_short, fontsize=fs)              
-plt.show()
+
+plt.subplot(1,3,3)
+plt.imshow( image_mask + scaling*image_ring_filtered)
 
 plt.show()
+
+#==============================================================================
+# Examine backplane to figure out azimuthal limits of the ring image
+#==============================================================================
 
 # Extract and plot radial profile
 
@@ -124,10 +143,6 @@ bins_radius = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)
 # Select the ring points -- that is, everything inside the mask
 
 is_ring_all = ( np.array(radius > r_ring_inner) & np.array(radius < r_ring_outer))
-
-#==============================================================================
-# Examine backplane to figure out azimuthal limits of the ring image
-#==============================================================================
 
 radius_all  = planes['Radius_eq'][is_ring_all]     # Make a list of all of the radius values
 azimuth_all = planes['Longitude_eq'][is_ring_all]  # Make a list of all of the azimuth points for all pixels
@@ -223,45 +238,56 @@ for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer
 # Extract radial and azimuthal profiles
 #==============================================================================
 
-profile_azimuth = np.nansum(grid_lin_2d, 0)
-profile_radius  = np.nansum(grid_lin_2d, 1)
+profile_azimuth = np.nansum(dn_grid, 0)
+profile_radius  = np.nansum(dn_grid, 1)
+
+profile_azimuth_2 = np.nansum(dn_grid_2, 0)
+profile_radius_2  = np.nansum(dn_grid_2, 1)
 
 #==============================================================================
 #  Plot the remapped 2D images
 #==============================================================================
 
-# Method #1
+plt.rcParams['figure.figsize'] = 15,15
 
-extent = [azimuth_seg_start, azimuth_seg_end,np.min(radius_all),np.max(radius_all)]
-plt.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20)
+extent = [azimuth_seg_start, azimuth_seg_end, np.min(radius_all),np.max(radius_all)]
+
+# Method #1 -- using griddata() over the whole array monolithically
+
+plt.subplot(1,2,1)
+plt.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower')
+plt.title('griddata [2d]')
 plt.xlabel('Azimuth [radians]')
 plt.ylabel('Radius [km]')
-plt.show()
 
-# Method #2
+# Method #2 -- using griddata() over one line at a time
 
-plt.imshow(hbt.remove_brightest(dn_grid_2, 0.95, symmetric=True), aspect=aspect, vmin=-10, vmax=20, extent=extent)
+plt.subplot(1,2,2)
+plt.imshow(hbt.remove_brightest(dn_grid_2, 0.95, symmetric=True), aspect=aspect, vmin=-10, vmax=20, extent=extent, origin='lower')
+plt.title('griddata [line-by-line]')
 plt.xlabel('Azimuth [radians]')
 plt.ylabel('Radius [km]')
+
 plt.show()
 
 #==============================================================================
 # Plot the radial and azimuthal profiles
 #==============================================================================
 
-plt.rcParams['figure.figsize'] = 10,10
+plt.rcParams['figure.figsize'] = 15,6  # <- this is in dx, dy... which is opposite from array order!
 
-plt.plot(bins_azimuth, profile_azimuth)
+plt.subplot(1,2,1)
+plt.plot(bins_azimuth, profile_azimuth, label = '1D')
+plt.plot(bins_azimuth, profile_azimuth_2+400, label='2D')
+plt.title('Azimuthal Profile')
 plt.xlabel('Azimuth [radians]')
-plt.show()
+plt.legend()
 
-plt.plot(bins_radius, profile_radius)
+plt.subplot(1,2,2)
+plt.plot(bins_radius, profile_radius, label = '1D')
+plt.plot(bins_radius, profile_radius_2 + 800, label='2D')
 plt.xlabel('Radius [km]')
+plt.title('Radial Profile')
 plt.xlim(hbt.mm(bins_radius))
+plt.legend()
 plt.show()
-
-bin_az_min = np.where(profile_azimuth > 0)[0][0]
-bin_az_max = np.where(profile_azimuth > 0)[0][-1]
-
-az_min = bins_azimuth[bin_az_min]
-az_max = bins_azimuth[bin_az_max]
