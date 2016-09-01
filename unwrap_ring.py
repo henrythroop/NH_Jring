@@ -100,9 +100,6 @@ azimuth = planes['Longitude_eq'] # Azimuth in radians
 r_ring_inner = 1.7 * rj
 r_ring_outer = 1.81 * rj
 
-#r_ring_inner_rj = r_ring_inner / rj
-#r_ring_outer_rj = r_ring_outer / rj
-#
 plt.rc('image', cmap='Greys_r')               # Default color table for imshow
 
 #==============================================================================
@@ -115,10 +112,6 @@ fs = 15
 scaling = 5  # How much to mulitply two image by to superimpose them
 image_mask = ( np.array(radius > r_ring_inner) & np.array(radius < r_ring_outer))
 image_ring_filtered = hbt.remove_brightest(image_roll,0.99,symmetric=True) / np.max(image_roll)
-
-#plt.imshow( image_mask + scaling*image_ring_filtered)
-#plt.title(f_short, fontsize=fs)              
-#plt.show()
 
 plt.subplot(1,3,1)
 plt.imshow(                      image_ring_filtered)
@@ -136,9 +129,6 @@ plt.show()
 # Examine backplane to figure out azimuthal limits of the ring image
 #==============================================================================
 
-# Extract and plot radial profile
-
-bins_radius = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)
     
 # Select the ring points -- that is, everything inside the mask
 
@@ -186,8 +176,6 @@ azimuth_all = azimuth_all_good
 radius_all  = radius_all_good
 dn_all      = dn_all_good
 
-plt.plot(azimuth_all_good,marker='.', linestyle='none')
-
 #stop
 
 #==============================================================================
@@ -219,6 +207,7 @@ dn_grid = griddata((f*azimuth_all, radius_all), dn_all,
 
 dn_grid_2 = np.zeros((num_bins_radius, num_bins_azimuth))  # Row, column
 bins_azimuth    = hbt.frange(azimuth_seg_start, azimuth_seg_end, num_bins_azimuth)
+bins_radius     = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)
 
 for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer
     

@@ -256,7 +256,7 @@ class App:
         self.bins_radius        = np.zeros((1))
         self.bins_azimuth       = np.zeros((1))
         
-        self.image_raw          = np.zeros((1)) # The current image, with *no* processing done. This prevents re-reading from disk.
+        self.image_raw          = np.zeros((1)) # The current image, with *no* processing done. Prevents re-reading from disk.
         self.image_processed    = np.zeros((1)) # Current image, after all processing is done (bg, scaling, etc)
         self.image_bg_raw       = np.zeros((1)) # The 'raw' background image. No processing done to it. 
                                                 # Assume bg is single image; revisit as needed.
@@ -447,19 +447,16 @@ class App:
 
 # Set up Plot 4 : Debugging / Misc window
      
-        self.fig4 = Figure(figsize = (4,4))
+        self.fig4 = Figure(figsize = (7,3))
         junk = self.fig4.set_facecolor(self.bgcolor)
 
         self.ax4 = self.fig4.add_subplot(1,1,1, 
                                     xlabel = 'X', ylabel = 'Y', 
-                                    label = 'Image',
-                                    xlim = (0,1023),
-                                    ylim = (1023,0)) # Return the axes
+                                    label = 'Image') # Return the axes
  
         self.canvas4 = FigureCanvasTkAgg(self.fig4,master=master)
         self.canvas4.show()
-        plot4 = self.ax4.imshow(hbt.read_lorri('')) # Put up an empty frame, if file = ''
-        self.fig4.colorbar(plot4)
+        plot4 = self.ax4.plot([1,2], [3,5]) # Put up an empty frame, if file = ''
         
 # Put objects into appropriate grid positions
 
@@ -526,100 +523,200 @@ class App:
 ##########
 
     def unwrap_ring(self):
-    
-        num_bins_azimuth = 10000 # Might make this a user parameter later
+
+        rj = 71492 # km
+        r_ring_inner = 1.7 * rj
+        r_ring_outer = 1.81 * rj
+
+        num_bins_azimuth = 1000 
         num_bins_radius  = 400
         
-        image_processed = self.image_processed
-        
-        dx_total =  -(self.t_group['dx_offset'][self.index_image] + self.t_group['dx_opnav'][self.index_image])
-        dy_total =  -(self.t_group['dy_offset'][self.index_image] + self.t_group['dy_opnav'][self.index_image])
-        
-        image_roll = np.roll(np.roll(image_processed, dx_total, axis=1), dy_total, axis=0)
-            
-        grid_lin_2d = np.zeros((num_bins_radius, num_bins_azimuth))
-    
-        rj = 71492  # Jovian radius, in km
-    
-        r_ring_inner_rj = 1.7
-        r_ring_outer_rj = 1.81
-    
-    # Now check if the backplane is loaded already. Load it iff it is not loaded
+        # Read the current variables and backplane, and makes a plot / imshow.
+
+        ####################
+ 
+# Check if the backplane is loaded already. Load it iff it is not loaded
     
         if (self.file_backplane_shortname != self.t_group['Shortname'][self.index_image]):
             self.load_backplane()
+
+# Create the rolled image
+
+        dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
+        dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
+        
+        self.image_roll = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
+            
+#==============================================================================
+# Examine backplane to figure out azimuthal limits of the ring image
+#==============================================================================
+
+        # Read in values from the backplane
+
+        radius  = self.planes['Radius_eq']    # Radius in km
+        azimuth = self.planes['Longitude_eq'] # Azimuth in radians
+        
+        bins_radius = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)
+            
+        # Select the ring points -- that is, everything inside the mask
+        
+        is_ring_all = ( np.array(radius > r_ring_inner) & np.array(radius < r_ring_outer))
+        
+        radius_all  = self.planes['Radius_eq'][is_ring_all]     # Make a list of all of the radius values
+        azimuth_all = self.planes['Longitude_eq'][is_ring_all]  # Make a list of all of the azimuth points for all pixels
+        dn_all      = self.image_roll[is_ring_all]              # DN values, from the rolled image
+        
+        # Now take these raw data, and rearrange them so that we can take the longest continuous segment
+        # We do this by appending the timeseries to itself, looking for the largest gap (of no az data), 
+        # and then the data will start immediately after that.
+        
+        # _2 indicates a double-length array (ie, with [azimuth, azimuth + 2pi])
+        # _s indicates sorted
+        # _d indicates delta
+        
+        azimuth_all_3 = np.concatenate((azimuth_all, azimuth_all + 2*math.pi, azimuth_all + 4*math.pi))
+        dn_all_3      = np.concatenate((dn_all, dn_all, dn_all))
+        radius_all_3  = np.concatenate((radius_all, radius_all, radius_all))
+        
+        azimuth_all_3_s = np.sort(azimuth_all_3, kind = 'heapsort')
+        azimuth_all_3_s_d = azimuth_all_3_s - np.roll(azimuth_all_3_s, 1)
+        
+        # Look for the indices where the largest gaps (in azimuth) start
+        
+        index_seg_start_3_s = (np.where(azimuth_all_3_s_d > 0.999* np.max(azimuth_all_3_s_d)))[0][0]
+        index_seg_end_3_s = (np.where(azimuth_all_3_s_d > 0.999* np.max(azimuth_all_3_s_d)))[0][1]-1
+        
+        # Get proper azimithal limits. We want them to be a single clump of monotonic points.
+        # Initial point is in [0, 2pi) and values increase from there.
+                                                           
+        azimuth_seg_start = azimuth_all_3_s[index_seg_start_3_s] # Azimuth value at the segment start
+        azimuth_seg_end   = azimuth_all_3_s[index_seg_end_3_s]   # Azimuth value at the segment end
+        
+        indices_3_good = (azimuth_all_3 >= azimuth_seg_start) & (azimuth_all_3 < azimuth_seg_end)
+        
+        azimuth_all_good = azimuth_all_3[indices_3_good]
+        radius_all_good  = radius_all_3[indices_3_good]
+        dn_all_good      = dn_all_3[indices_3_good]
+        
+        # Extract arrays with the proper pixel values, and proper azimuthal values
+        
+        azimuth_all = azimuth_all_good
+        radius_all  = radius_all_good
+        dn_all      = dn_all_good        
                 
-        radius  = self.planes['Radius_eq'] / rj   # Radius stored as km, but do the calc in R_J
-        azimuth = self.planes['Longitude_eq'] * hbt.r2d # Azimuth is stored as radians, but do the calc in degrees
-    
-    # Extract and plot radial profile
-    
-        bins_radius = hbt.frange(r_ring_inner_rj, r_ring_outer_rj, num_bins_radius)
-        bins_azimuth = hbt.frange(-180,180,num_bins_azimuth+1)
+#==============================================================================
+#  Now regrid the data from xy position, to an unrolled map in (azimuth, radius)
+#==============================================================================
 
-        grid_azimuth_1d = hbt.frange(0, 4. * math.pi, num_bins_azimuth)
+# Method #2: Construct the gridded image line-by-line
 
-        # We should be able to use a single call to p() to grid the entire dataset. But it gives
-        # screwy results, obviously wrong. So instead, I am doing it line-by-line (in radial bins).
-        # The speed is not that much different.
+        dn_grid = np.zeros((num_bins_radius, num_bins_azimuth))  # Row, column
+        bins_azimuth    = hbt.frange(azimuth_seg_start, azimuth_seg_end, num_bins_azimuth)
+        bins_radius     = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)        
         
+        for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer
+            
+            # Select only bins with right radius and azimuth
+            is_ring_i = np.array(radius_all > bins_radius[i]) & np.array(radius_all < bins_radius[i+1]) & \
+                        np.array(azimuth_all > azimuth_seg_start) & np.array(azimuth_all < azimuth_seg_end) 
+            
+            if np.sum(is_ring_i) > 0:
+                dn_i = dn_all[is_ring_i]  # Get the DN values from the image (adjusted by navigation position error)
+                radius_i = radius_all[is_ring_i]
+                azimuth_i = azimuth_all[is_ring_i]
+                grid_lin_i   = griddata(azimuth_i, dn_i, bins_azimuth, method='linear')
+                
+                dn_grid[i,:] = grid_lin_i
+        
+#==============================================================================
+# Extract radial and azimuthal profiles. Method #1: From the remapped images
+#==============================================================================
+
+        profile_azimuth = np.nanmean(dn_grid, 0)
+        profile_radius  = np.nanmean(dn_grid, 1)       
+        
+        plt.rcParams['figure.figsize'] = 16,10
+
+#==============================================================================
+# Extract radial and azimuthal profiles. Method #2: From the original images
+#==============================================================================
+
+        # This method should be a bit better, since there is no remapping necessary.
+        # Also, each pixel is exactly one pixel, so all photons have the original weight
+        
+        profile_azimuth_2 = np.zeros(num_bins_azimuth)
+        profile_radius_2  = np.zeros(num_bins_radius)
+        
+        for i in range(num_bins_azimuth-1):
+            is_az_bin = (np.array([azimuth_all > bins_azimuth[i]]) & np.array([azimuth_all < bins_azimuth[i+1]]))
+            is_az_bin = is_az_bin[0,:]
+            profile_azimuth_2[i] = np.nanmean(dn_all[is_az_bin]) # Have to do mean, not sum
+
         for i in range(num_bins_radius-1):
+            is_rad_bin = np.array([radius_all > bins_radius[i]]) & np.array([radius_all < bins_radius[i+1]])
+            is_rad_bin = is_rad_bin[0,:] 
+            profile_radius_2[i] = np.nanmean(dn_all[is_rad_bin])
             
-            is_ring_i = np.array(radius > bins_radius[i]) & np.array(radius < bins_radius[i+1])
-            dn_i = image_roll[is_ring_i]
-            radius_i = self.planes['Radius_eq'][is_ring_i]
-            azimuth_i = self.planes['Longitude_eq'][is_ring_i]
-            azimuth_i[azimuth_i < 0] += 2*math.pi
-            grid_lin_i   = griddata(azimuth_i, dn_i, grid_azimuth_1d, method='linear')
-            
-            grid_lin_2d[i,:] = grid_lin_i
+        plt.rcParams['figure.figsize'] = 16,1
+                
+#==============================================================================
+#  Plot the remapped 2D images
+#==============================================================================
 
-        # Remove the NaN's
-        
-        grid_lin_2d[np.isnan(grid_lin_2d)] = 0
-        
-        profile_azimuth = np.sum(grid_lin_2d, 0)
-        profile_radius  = np.sum(grid_lin_2d, 1)
-        
-        bin_az_min = np.where(profile_azimuth > 0)[0][0]
-        bin_az_max = np.where(profile_azimuth > 0)[0][-1]
-        
-        az_min = grid_azimuth_1d[bin_az_min]
-        az_max = grid_azimuth_1d[bin_az_max]
-        
-        #plt.plot(grid_azimuth_1d, profile_azimuth)
-        #plt.xlim(az_min, az_max)
-        #plt.plot(bins_radius, profile_radius)
-        #plt.show()
-        
-        # And make a plot of the unwrapped ring!
-        # Set the aspect ratio manually -- we do not really need square pixels here.
-        
-        fs = 15
-        
-        plt.rcParams['figure.figsize'] = 16, 10
+        extent = [azimuth_seg_start, azimuth_seg_end, np.min(radius_all),np.max(radius_all)]
 
-#        self.ax3.imshow(grid_lin_2d, aspect='auto')
-        print "imshow(grid_lin2d)"
-        
-        self.ax3.imshow(grid_lin_2d, 
-                   extent = [np.min(grid_azimuth_1d), np.max(grid_azimuth_1d), 
-                             r_ring_outer_rj, r_ring_inner_rj], aspect='auto')
-        
-        self.ax3.set_xlim([az_min, az_max])
-        self.ax3.set_xlabel('Azimuth [radians]', fontsize=fs)
-        self.ax3.set_ylabel('Radius [$R_J$]', fontsize=fs)
+        f = (np.max(radius_all) - np.min(radius_all)) / (np.max(azimuth_all) - np.min(azimuth_all))
+        aspect = 0.3/f
+
+#        fs = 10
+
+#        plt.subplot(1,2,1)
+        self.ax3.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower') # aspect='auto'a
+
+        self.ax3.set_xlim([azimuth_seg_start, azimuth_seg_end])
+        self.ax3.set_xlabel('Azimuth [radians]')
+        self.ax3.set_ylabel('Radius [$R_J$]')
         self.canvas3.show()
+            
+#==============================================================================
+# Plot the radial and azimuthal profiles
+#==============================================================================
 
-        print "az_min = " + repr(az_min)
-        print "az_max = " + repr(az_max)
-
+#        plt.rcParams['figure.figsize'] = 15,6  # <- this is in dx, dy... which is opposite from array order!
         
-#        self.canvas3.show()
-#        self.canvas3 = FigureCanvasTkAgg(self.fig3,master=master)
-#        self.ax3.imshow(hbt.read_lorri(''))
-#        self.canvas3.show()  
-#        
+#        se.subplot(1,2,1)
+        dy = 1
+        
+        self.ax2.plot(bins_azimuth, profile_azimuth, label = 'Regrid')
+        self.ax2.plot(bins_azimuth, profile_azimuth_2 + dy, label='Raw')
+        self.ax2.set_title('Azimuthal Profile')
+        self.ax2.set_xlabel('Azimuth [radians]')
+        self.ax2.set_xlim([azimuth_seg_start, azimuth_seg_end])
+        self.ax2.legend(loc = 'upper left')
+
+        self.ax2.plot(self.bins_radius, self.profile_radius)
+        
+#        self.ax2.set_xlim([0,100])  # This is an array and not a tuple. Beats me, like so many things with mpl.
+
+        plt.rcParams['figure.figsize'] = 16,10
+
+        self.canvas2.show()
+
+        dy = 1
+        self.ax4.plot(bins_radius/1000, profile_radius, label = 'Regrid')
+        self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
+        self.ax4.set_title('Radial Profile')
+        self.ax4.set_xlabel('Radius [1000 km]')
+        self.ax4.set_ylim(list(hbt.mm(np.concatenate((profile_radius, profile_radius_2 + dy)))))
+        self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
+        self.ax4.legend(loc='upper left')
+
+        self.ax4.plot(self.bins_radius, self.profile_radius)
+        
+#        self.ax2.set_xlim([0,100])  # This is an array and not a tuple. Beats me, like so many things with mpl.
+
+        self.canvas4.show()
+        
                        
 ##########
 # Navigate the image and plot it
@@ -1485,16 +1582,12 @@ the internal state which is already correct. This does *not* refresh the image i
         self.ax3.plot(bins_azimuth_2, profile_azimuth_2)
         fs = 20
 
-#        self.ax3.set_xlim([az_start-10, az_end+10])  # This is an array and not a tuple. Beats me, like so many things with mpl.
+#        self.ax3.set_xlim([az_start-10, az_end+10])  # This is array not a tuple. Beats me, like so many things with mpl.
 #        self.ax3.set_ylim([-5, 5])           # Hard-code this.... not sure what is best.
         self.canvas3.show()
         
         plot4 = self.ax4.imshow(azimuth)
-#        plt.title('Lon_eq [deg]', fontsize=fs)
-#        plt.xlim((0,1000))
-#        plt.ylim((0,1000))
-    
-#        self.fig4.colorbar(plot4)  # Need to get this to updated itself. Not sure how.
+
         self.canvas4.show()
             
         return 0
