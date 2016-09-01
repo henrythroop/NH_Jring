@@ -407,7 +407,7 @@ class App:
 # http://matplotlib.org/api/figure_api.html
 # http://matplotlib.org/api/pyplot_api.html#matplotlib.pyplot.plot
      
-        self.fig1 = Figure(figsize = (7,7))
+        self.fig1 = Figure(figsize = (7,7))    # <- this is in dx, dy... which is opposite from array order!
         junk = self.fig1.set_facecolor(self.bgcolor)
 
         self.ax1 = self.fig1.add_subplot(1,1,1, 
@@ -518,11 +518,11 @@ class App:
         self.process_image()
         self.plot_image()
 
-##########
+#==============================================================================
 # Unwrap xy ring image into lon, radius
-##########
+#==============================================================================
 
-    def unwrap_ring(self):
+    def extract_profiles(self):
 
         rj = 71492 # km
         r_ring_inner = 1.7 * rj
@@ -539,6 +539,10 @@ class App:
     
         if (self.file_backplane_shortname != self.t_group['Shortname'][self.index_image]):
             self.load_backplane()
+
+        if (self.t_group['is_navigated'][self.index_image] == False):
+            print "Image not navigated -- returning"
+            return
 
 # Create the rolled image
 
@@ -682,10 +686,11 @@ class App:
 # Plot the radial and azimuthal profiles
 #==============================================================================
 
-#        plt.rcParams['figure.figsize'] = 15,6  # <- this is in dx, dy... which is opposite from array order!
-        
-#        se.subplot(1,2,1)
-        dy = 1
+# Plot radial profile
+
+        self.ax2.clear()  # Clear lines from the current plot. 
+
+        dy = 2            # Vertical offset between curves
         
         self.ax2.plot(bins_azimuth, profile_azimuth, label = 'Regrid')
         self.ax2.plot(bins_azimuth, profile_azimuth_2 + dy, label='Raw')
@@ -695,14 +700,16 @@ class App:
         self.ax2.legend(loc = 'upper left')
 
         self.ax2.plot(self.bins_radius, self.profile_radius)
-        
-#        self.ax2.set_xlim([0,100])  # This is an array and not a tuple. Beats me, like so many things with mpl.
-
-        plt.rcParams['figure.figsize'] = 16,10
-
         self.canvas2.show()
+        
+# Plot azimuthal profile
 
         dy = 1
+        
+        self.ax4.clear()  # Clear lines from the current plot.
+        
+        plt.rcParams['figure.figsize'] = 16,10
+       
         self.ax4.plot(bins_radius/1000, profile_radius, label = 'Regrid')
         self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
         self.ax4.set_title('Radial Profile')
@@ -713,8 +720,6 @@ class App:
 
         self.ax4.plot(self.bins_radius, self.profile_radius)
         
-#        self.ax2.set_xlim([0,100])  # This is an array and not a tuple. Beats me, like so many things with mpl.
-
         self.canvas4.show()
         
                        
@@ -874,46 +879,6 @@ class App:
         # Now that we have navigated it, replot the image!
                
         return 0
-
-### THIS STUFF BELOW HERE IS NOT USED -- KEPT FOR HISTORICAL PURPOSES ONLY?? ###
-        
-
-######## TEST WCS OFFSETTING ##########
-
-# Now convert the dx / dy offset (from opnav) into an RA/Dec offset.
-# Put the new correct center position into WCS, so plots from now on will be correct.
-
-        do_offset_wcs = False
-        
-        if (do_offset_wcs):
-            m = w.wcs.piximg_matrix
-            w.wcs.crval[0] -= (dy_opnav * (m[0,0] + m[1,0])) # RA. I am sort of guessing about these params, but looks good.
-            w.wcs.crval[1] -= (dx_opnav * (m[1,1] + m[0,1])) # Dec
-    
-            ax1 = figs.add_subplot(1,2,2, projection=w) # nrows, ncols, plotnum. Returns an 'axis'
-            fig1 = plt.imshow(np.log(image_polyfit))
-            # Get the x and y pixel positions from WCS. The final argument ('0') refers to row vs. column order
-            x_stars,        y_stars        = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)       
-            
-            plt.plot(points_phot[:,0], points_phot[:,1], marker='o', ls='None', fillstyle='none', color='red', 
-                              markersize=12)
-    
-            x_stars,        y_stars        = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)      
-            x_stars_abcorr, y_stars_abcorr = w.wcs_world2pix(radec_stars_abcorr[:,0]*r2d, radec_stars_abcorr[:,1]*r2d, 0)
-            x_ring_abcorr, y_ring_abcorr = w.wcs_world2pix(radec_ring_abcorr[:,0]*r2d, radec_ring_abcorr[:,1]*r2d, 0)
-    
-    
-            plt.plot(x_stars, y_stars, marker='o', ls='None', color='lightgreen', mfc = 'None', mec = 'red', \
-                              ms=12, mew=2, label='Cat')
-            plt.plot(x_stars_abcorr, y_stars_abcorr, marker='o', ls='None', mfc = 'None', mec = 'green', \
-                              ms=12, mew=2, label = 'Cat, abcorr')
-            plt.plot(x_ring_abcorr, y_ring_abcorr, marker='o', ls='-', color='blue', mfc = 'None', mec = 'blue', 
-                              ms=12, mew=2, 
-                     label = 'Ring, LT+S')
-                    
-            plt.xlim((0,1000))
-            plt.ylim((0,1000))
-            plt.title('WCS, center = ' + repr(w.wcs.crval))
 
 
 ##########
@@ -1267,7 +1232,6 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def refresh_gui(self):
          
-        
 # Load and display the proper header
 
         filename = self.t_group['Filename'][self.index_image]
@@ -1335,10 +1299,8 @@ the internal state which is already correct. This does *not* refresh the image i
         self.process_image()
         self.plot_image()
 
-#        self.extract_profiles()	
+        self.extract_profiles()	
         
-        self.unwrap_ring()
-
 ##########
 # Plot image - button handler
 ##########
@@ -1486,11 +1448,13 @@ the internal state which is already correct. This does *not* refresh the image i
             self.canvas1.draw()
 
     
-##########
-# Extract ring profiles (both radial and azimuthal), and plot them
-##########
 
-    def extract_profiles(self):
+#==============================================================================
+# Extract ring profiles (both radial and azimuthal), and plot them
+# THIS IS THE OLD VERSION.
+#==============================================================================
+
+    def extract_profiles_OLD(self):
         
 	  # First check if image is navigated
 								
