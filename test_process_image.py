@@ -42,10 +42,10 @@ groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
 #    groupname = 'Jupiter ring - search for embedded moons'
 #    groupnum = np.where(groupname == groups)[0][0]
 
-index_image = 0
-index_group = 7
-method = 'String'
-argument = '33'
+index_image = 0  # Raw image, number
+index_group = 7  # Raw image, group
+method = 'String'   # Next, Previous, String, etc.
+argument = '8-15'  # 33, or 8/23, or 10-20, etc.
     
 groupmask = (t['Desc'] == groups[index_group])
 t_group = t[groupmask]	
