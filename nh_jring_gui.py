@@ -1105,7 +1105,7 @@ class App:
                 stray = hbt.nh_get_straylight_median(int(vars[0]), hbt.frange(vars[1], vars[3])) # "6/122 - 6/129"
 
             image_proc = hbt.remove_sfit(self.image_raw, 5)
-            (stray_norm,coeffs) = hbt.normalize_images(stray, image_proc)
+            (stray_norm,coeffs) = hbt.normalize_images(stray, image_proc) # Normalize the images to each other ()
             image_sub = image_proc - stray_norm
             
             image = image_sub
@@ -1142,7 +1142,7 @@ class App:
             
             plt.subplot(1,3,3)
             plt.imshow(image)
-            plt.title('Result')
+            plt.title('Result, med=' + np.)
             
             plt.show()
             
