@@ -1138,9 +1138,10 @@ the internal state which is already correct. This does *not* refresh the image i
         return 0
 
 
-##########
+
+#==============================================================================
 # Extract profiles - button handler
-##########
+#==============================================================================
 
     def handle_extract_profiles(self):
         """
@@ -1154,10 +1155,22 @@ the internal state which is already correct. This does *not* refresh the image i
         self.plot_image()
 
         self.extract_profiles()	
+
+#==============================================================================
+# Apply image processing to image. Stray light, polynomial subtraction, etc.
+#==============================================================================
+
+    def process_image(self):
         
-##########
+        print "process_image()"
+        
+        method = self.var_option_bg.get()
+        argument = self.entry_bg.get()
+        self.image_processed = hbt.nh_jring_process_image(self.image_raw, method, argument, self.index_group, self.index_image)
+
+#==============================================================================
 # Plot image - button handler
-##########
+#==============================================================================
 
     def handle_plot_image(self):
         """
@@ -1172,9 +1185,9 @@ the internal state which is already correct. This does *not* refresh the image i
         if (self.do_autoextract):
             self.extract_profiles()								
         
-##########
+#==============================================================================
 # Plot image
-##########
+#==============================================================================
 
     def plot_image(self):
         """
