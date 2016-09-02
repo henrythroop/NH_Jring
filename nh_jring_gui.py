@@ -524,12 +524,12 @@ class App:
 
     def extract_profiles(self):
 
-        rj = 71492 # km
+        rj = cspice.bodvrd('JUPITER', 'RADII')[0] # 71492 km
         r_ring_inner = 1.7 * rj
         r_ring_outer = 1.81 * rj
 
-        num_bins_azimuth = 1000 
-        num_bins_radius  = 400
+        num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
+        num_bins_radius  = 300
         
         # Read the current variables and backplane, and makes a plot / imshow.
 
@@ -650,19 +650,18 @@ class App:
         
         profile_azimuth_2 = np.zeros(num_bins_azimuth)
         profile_radius_2  = np.zeros(num_bins_radius)
-        
+
         for i in range(num_bins_azimuth-1):
             is_az_bin = (np.array([azimuth_all > bins_azimuth[i]]) & np.array([azimuth_all < bins_azimuth[i+1]]))
             is_az_bin = is_az_bin[0,:]
             profile_azimuth_2[i] = np.nanmean(dn_all[is_az_bin]) # Have to do mean, not sum
-
+        
         for i in range(num_bins_radius-1):
             is_rad_bin = np.array([radius_all > bins_radius[i]]) & np.array([radius_all < bins_radius[i+1]])
             is_rad_bin = is_rad_bin[0,:] 
             profile_radius_2[i] = np.nanmean(dn_all[is_rad_bin])
-            
-        plt.rcParams['figure.figsize'] = 16,1
-                
+
+                    
 #==============================================================================
 #  Plot the remapped 2D images
 #==============================================================================
@@ -989,10 +988,6 @@ class App:
         method = self.var_option_bg.get()
 
 #        print "process_image()"
-								
-#        print "  OptionMenu: method = " + method
-        
-#        image = np.zeros((1023, 1023))
         
         frac, poly = 0, 0
         
@@ -1037,7 +1032,8 @@ class App:
                 power = float(vars[0])
                 frac  = 0
                 image = self.image_raw
-                image = image - hbt.sfit(image, power)
+                image_bg = hbt.sfit(image, power)
+                image = image - image_bg
                 
             if (np.size(vars) == 2): # Two variables: interpret as group num and file num
                 (grp, num) = vars
@@ -1114,6 +1110,8 @@ class App:
             
             image = image_sub
             
+            image_bg = stray_norm
+            
         if (method == 'None'):
             image = self.image_raw
 
@@ -1122,13 +1120,36 @@ class App:
 
         image =  hbt.remove_brightest( image, 0.97, symmetric=True)   # Remove positive stars
         
-        # Save the image where we can use it later for extraction. 
+        # Save the image where we can ustse it later for extraction. 
 
         self.image_processed = image
 
-##########
+# For analysis, and perhaps eventual integration into the GUI: plot the image,
+# and the background that I remove. Plot to Python console, not the GUI.
+        
+        DO_DIAGNOSTIC = True
+        
+        if (DO_DIAGNOSTIC):
+            plt.rcParams['figure.figsize'] = 12,6
+
+            plt.subplot(1,3,1)
+            plt.imshow(hbt.remove_brightest(hbt.remove_sfit(self.image_raw,5), 0.95, symmetric=True))
+            plt.title('Original')
+            
+            plt.subplot(1,3,2)
+            plt.imshow(hbt.remove_brightest(image_bg, 0.95, symmetric=True))
+            plt.title('Background')
+            
+            plt.subplot(1,3,3)
+            plt.imshow(image)
+            plt.title('Result')
+            
+            plt.show()
+            
+
+#==============================================================================
 # Change Group
-##########
+#==============================================================================
 
     def select_group(self, event):
 
