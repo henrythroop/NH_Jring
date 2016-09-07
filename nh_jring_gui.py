@@ -61,7 +61,6 @@ import wcsaxes
 import time
 from scipy.interpolate import griddata
 
-
 import imreg_dft as ird
 import re # Regexp
 import pickle # For load/save
@@ -1175,6 +1174,9 @@ the internal state which is already correct. This does *not* refresh the image i
         
         method = self.var_option_bg.get()
         argument = self.entry_bg.get()
+
+
+
         self.image_processed = hbt.nh_jring_process_image(self.image_raw, method, argument, self.index_group, self.index_image)
 
 #==============================================================================
