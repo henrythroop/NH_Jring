@@ -271,6 +271,8 @@ class App:
         radii                   = cspice.bodvrd('JUPITER', 'RADII')
         self.rj                 = radii[0]  # Jupiter radius, polar, in km. Usually 71492.
         
+        self.stretch_percent    = 90            # Image scaling value to use. 90 means plot from 5th to 95th %ile.
+        
 # Now define and startup the widgets
 
 # Create a container
@@ -428,7 +430,7 @@ class App:
         self.ax2 = self.fig2.add_subplot(1,1,1, 
                                     xlabel = 'Radius or Azimuth', ylabel = 'Intensity', 
                                     label = 'Plot') # Return the axes
- 
+
         self.canvas2 = FigureCanvasTkAgg(self.fig2,master=master)
         self.canvas2.show()  
 
@@ -671,9 +673,10 @@ class App:
         f = (np.max(radius_all) - np.min(radius_all)) / (np.max(azimuth_all) - np.min(azimuth_all))
         aspect = 0.3/f
 
-#        fs = 10
+#        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
 
-#        plt.subplot(1,2,1)
+        # For now, we are scaling this vertically by hand. Might have to revisit that.
+        
         self.ax3.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower') # aspect='auto'a
 
         self.ax3.set_xlim([azimuth_seg_start, azimuth_seg_end])
@@ -685,26 +688,34 @@ class App:
 # Plot the radial and azimuthal profiles
 #==============================================================================
 
-# Plot radial profile
+# Plot azimuthal profile
 
         self.ax2.clear()  # Clear lines from the current plot. 
 
         dy = 2            # Vertical offset between curves
         
+                          # Set the y limit to go from minimum, to a bit more than 90th %ile
+                          # The idea here is to clip off flux from a moon, if it is there.
+                          
+        ylim = [np.amin(0.9 * profile_azimuth), dy + 1.5 * np.percentile(profile_azimuth, 97)]
+                
         self.ax2.plot(bins_azimuth, profile_azimuth, label = 'Regrid')
         self.ax2.plot(bins_azimuth, profile_azimuth_2 + dy, label='Raw')
         self.ax2.set_title('Azimuthal Profile')
         self.ax2.set_xlabel('Azimuth [radians]')
         self.ax2.set_xlim([azimuth_seg_start, azimuth_seg_end])
+        self.ax2.set_ylim(ylim)
         self.ax2.legend(loc = 'upper left')
 
         self.ax2.plot(self.bins_radius, self.profile_radius)
         self.canvas2.show()
         
-# Plot azimuthal profile
+# Plot radial profile
 
         dy = 1
-        
+
+        ylim = [np.amin(0.9 * profile_radius), dy + 1.5 * np.percentile(profile_radius, 90)]
+
         self.ax4.clear()  # Clear lines from the current plot.
         
         plt.rcParams['figure.figsize'] = 16,10
@@ -713,7 +724,7 @@ class App:
         self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
         self.ax4.set_title('Radial Profile')
         self.ax4.set_xlabel('Radius [1000 km]')
-        self.ax4.set_ylim(list(hbt.mm(np.concatenate((profile_radius, profile_radius_2 + dy)))))
+        self.ax4.set_ylim(ylim)
         self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
         self.ax4.legend(loc='upper left')
 
@@ -1137,8 +1148,6 @@ the internal state which is already correct. This does *not* refresh the image i
         
         return 0
 
-
-
 #==============================================================================
 # Extract profiles - button handler
 #==============================================================================
@@ -1211,9 +1220,11 @@ the internal state which is already correct. This does *not* refresh the image i
         # Render the main LORRI frame
         # *** In order to get things to plot in main plot window, 
         # use self.ax1.<command>, not plt.<command>
-        # ax1 is an instance of Axes, and contains most other methods (legend, imshow, plot, etc)
+        # ax1 is an instance of Axes, and I can call it with most other methods (legend(), imshow(), plot(), etc)
+
+        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
                              
-        self.ax1.imshow(self.image_processed)
+        self.ax1.imshow(stretch(self.image_processed))
             
         # Disable the tickmarks from plotting
 

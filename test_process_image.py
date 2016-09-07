@@ -16,6 +16,11 @@ from   matplotlib.figure import Figure
 import numpy as np
 import astropy.modeling
 import pickle # For load/save
+from mpl_toolkits.mplot3d import Axes3D
+import astropy.visualization
+from matplotlib import cm
+
+
 
 # HBT imports
 
@@ -28,6 +33,8 @@ import hbt
 
 # This routine uses the same pickle save file as nh_jring_gui.
 # The nh_jring_process_image() also uses this.
+
+plt.set_cmap('Greys_r')
 
 file_pickle = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
     
@@ -56,5 +63,43 @@ image = hbt.read_lorri(file)
 
 image_proc = hbt.nh_jring_process_image(image, method, argument, index_group, index_image)
 
+#stop
 
+image_stray = hbt.nh_get_straylight_median(index_group, hbt.frange(8,15))
 
+nx = np.shape(image)[0]
+ny = np.shape(image)[1]
+
+#image_stray = '/Users/throop/data/NH_Jring/out/straylight_median_g7_n8..15_sfit5,5.pkl'
+
+xvals = range(nx)
+yvals = range(ny)
+(x,y) = np.meshgrid(xvals,yvals)
+
+stretch = astropy.visualization.PercentileInterval(90)  # PI(90) scales array to 5th .. 95th %ile. 
+
+image_s5 = hbt.remove_sfit(image,5)
+
+plt.rcParams['figure.figsize'] = 5,5
+
+#plt.subplot(2,2,1)
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+surf = ax.plot_surface(x, y, stretch(image_stray), rstride=10, cstride=10, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=False)
+plt.show()
+
+#plt.subplot(2,2,2)
+plt.imshow(stretch(image_stray))
+plt.show()
+
+#plt.subplot(2,2,3)
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+surf = ax.plot_surface(x, y, stretch(image_s5), rstride=10, cstride=10, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=False)
+plt.show()
+
+#plt.subplot(2,2,4)
+plt.imshow(stretch(image))
+plt.show()
