@@ -57,3 +57,40 @@ import ttk
 import tkMessageBox
 from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
+
+###
+
+dir  = '/Users/throop/Data/NH_MVIC_Ring/' 
+files = ['mvic_d305_sum_mos_v1.fits', 'ringdep_mos_v1.fits']
+
+#==============================================================================
+# Look at the first file (small one)
+#==============================================================================
+
+file = dir + files[0]
+
+plt.rcParams['figure.figsize'] = 6,56
+hdulist = fits.open(file)
+im = hdulist['PRIMARY'].data
+
+plt.set_cmap('Greys_r')
+stretch = astropy.visualization.PercentileInterval(99)
+plt.imshow(stretch(im))
+plt.imshow(im)
+
+header = hdulist['PRIMARY'].header
+
+#==============================================================================
+# Look at the second file (larger)
+#==============================================================================
+
+file = dir + files[1]
+
+plt.rcParams['figure.figsize'] = 16,156
+hdulist = fits.open(file)
+im = hdulist['PRIMARY'].data
+
+plt.set_cmap('Greys_r')
+stretch = astropy.visualization.PercentileInterval(99.8)
+plt.imshow(stretch(im))
+plt.show()
