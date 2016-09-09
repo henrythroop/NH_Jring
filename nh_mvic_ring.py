@@ -91,18 +91,18 @@ ra_stars  = table_stars_m['RAJ2000']*hbt.d2r # Convert to radians
 dec_stars = table_stars_m['DEJ2000']*hbt.d2r # Convert to radians
 
 radec_stars        = np.transpose(np.array((ra_stars,dec_stars)))
-x_stars,        y_stars          = w.wcs_world2pix(radec_stars[:,0]*hbt.r2d,   radec_stars[:,1]*hbt.r2d, 0)        
-points_stars        = np.transpose((y_stars, x_stars))
+x_stars, y_stars   = w.wcs_world2pix(radec_stars[:,0]*hbt.r2d,   radec_stars[:,1]*hbt.r2d, 0)        
+points_stars        = np.transpose((y_stars, x_stars))  # 
 
-shape = (5000,700)
-diam_kernel=20
+shape = (5000,2250)
+diam_kernel=5
 
-image_1 = hbt.image_from_list_points(points_stars, shape, diam_kernel)
-image_2 = hbt.image_from_list_points(points_phot,  shape, diam_kernel)
+image_1 = hbt.image_from_list_points(points_stars, shape, diam_kernel) # star catalog image: working
+image_2 = hbt.image_from_list_points(points_phot,  shape, diam_kernel) # photometry: cut off
         
-points_phot = find_stars(im) # Weirdly, find_stars does not return magnitudes -- only positions
+points_phot = hbt.find_stars(im) # Weirdly, find_stars does not return magnitudes -- only positions
             
-(dy_opnav, dx_opnav) = calc_offset_points(points_phot, points_stars, np.shape(im), plot=False)
+(dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(im), plot=False)
 
 #==============================================================================
 # Look at D305 image. Fix it if necessary
