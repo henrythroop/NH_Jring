@@ -88,17 +88,17 @@ import hbt
 ##########
         
 def find_stars(im):
-    "Locate stars in an array, using DAOphot. Returns N x 2 array with xy positions. No magnitudes."
+    """Locate stars in an array, using DAOphot. Returns N x 2 array with xy positions (ie, column, row). No magnitudes.
+    Each star has position [row, column] = [y, x]."""
          
     mean, median, std = sigma_clipped_stats(im, sigma=3.0, iters=5)
     sources = daofind(im - median, fwhm=3.0, threshold=5.*std)
     x_phot = sources['xcentroid']
     y_phot = sources['ycentroid']
         
-    points_phot = np.transpose((x_phot, y_phot)) # Create an array N x 2
+    points_phot = np.transpose((y_phot, x_phot)) # Create an array N x 2
 
     return points_phot
-
 
 
 ##########
@@ -110,7 +110,8 @@ def calc_offset_points(points_1, points_2, shape, plot=False):
     "of star positions, and and xy list of model postns."
     "Returned offset is integer pixels as tuple (dy, dx)."
     
-    diam_kernel = 5 # If this is 11, that is too big, and we gt the wrong answer. Very sensitive.
+    diam_kernel = 2 # Set the value of the fake stellar image to plot
+                    # 5 is best for LORRI. If this is 11, that is too big, and we gt the wrong answer. Very sensitive.
 
     image_1 = hbt.image_from_list_points(points_1, shape, diam_kernel)
     image_2 = hbt.image_from_list_points(points_2, shape, diam_kernel)
@@ -692,7 +693,7 @@ class App:
         self.ax2.clear()  # Clear lines from the current plot. 
 
         dy = 2            # Vertical offset between curves
-        
+        r
                           # Set the y limit to go from minimum, to a bit more than 90th %ile
                           # The idea here is to clip off flux from a moon, if it is there.
                           
@@ -765,9 +766,7 @@ class App:
 
         print 'ET[i] =  ' + repr(et)
         print 'UTC[i] = ' + repr(t['UTC'][index_image])
-        print 'crval[i] = ' + repr(w.wcs.crval)
-#        print 'RA[i] =  ' + repr(t['RAJ2000'][index_image] * d2r) + ' rad'
-#        print 'Dec[i] = ' + repr(t['DEJ2000'][index_image] * d2r) + ' rad'
+        print 'crval[i] = ' + repr(w.wcs.crval)              # crval is a two-element array of [RA, Dec], in degrees
         
         center  = w.wcs.crval  # degrees
         DO_GSC      = True
