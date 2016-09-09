@@ -82,73 +82,6 @@ import hbt
 # First we define any general-purpose functions, which are not part of the class/module.
 # We can move these to a different file at some point.
 
-
-##########
-# Find stars in an image
-##########
-        
-def find_stars(im):
-    """Locate stars in an array, using DAOphot. Returns N x 2 array with xy positions (ie, column, row). No magnitudes.
-    Each star has position [row, column] = [y, x]."""
-         
-    mean, median, std = sigma_clipped_stats(im, sigma=3.0, iters=5)
-    sources = daofind(im - median, fwhm=3.0, threshold=5.*std)
-    x_phot = sources['xcentroid']
-    y_phot = sources['ycentroid']
-        
-    points_phot = np.transpose((y_phot, x_phot)) # Create an array N x 2
-
-    return points_phot
-
-
-##########
-# Calc offset between two sets of points
-##########
-
-def calc_offset_points(points_1, points_2, shape, plot=False):
-    "Calculate the offset between a pair of ordered points -- e.g., an xy list"
-    "of star positions, and and xy list of model postns."
-    "Returned offset is integer pixels as tuple (dy, dx)."
-    
-    diam_kernel = 2 # Set the value of the fake stellar image to plot
-                    # 5 is best for LORRI. If this is 11, that is too big, and we gt the wrong answer. Very sensitive.
-
-    image_1 = hbt.image_from_list_points(points_1, shape, diam_kernel)
-    image_2 = hbt.image_from_list_points(points_2, shape, diam_kernel)
- 
-    t0,t1 = ird.translation(image_1, image_2) # Return shift, with t0 = (dy, dx). t1 is a flag or quality or something.
-    (dy,dx) = t0
-    
-    if (plot):
-
-        xrange = (0, shape[0]) # Set xlim (aka xrange) s.t. 
-        yrange = (shape[1], 0)
-
-        figs = plt.figure()
-        ax1 = figs.add_subplot(1,2,1) # nrows, ncols, plotnum. Returns an 'axis'
-        ax1.set_aspect('equal') # Need to explicitly set aspect ratio here, otherwise in a multi-plot, it will be rectangular
-
-#        fig1 = plt.imshow(np.log(image_1))
-        plt.plot(points_1[:,0], points_1[:,1], marker='o', color='lightgreen', markersize=4, ls='None', label = 'Photometric')
-        plt.plot(points_2[:,0], points_2[:,1], marker='o', color='red', markersize=4, ls='None', label = 'Cat')
-        plt.legend()
-       
-        plt.xlim(xrange)    # Need to set this explicitly so that points out of image range are clipped
-        plt.ylim(yrange)
-        plt.title('Raw')
-        
-        ax2 = figs.add_subplot(1,2,2) # nrows, ncols, plotnum. Returns an 'axis'
-        plt.plot(points_1[:,0], points_1[:,1], marker='o', color='lightgreen', markersize=9, ls='None')
-        plt.plot(points_2[:,0] + t0[1], points_2[:,1] + t0[0], marker='o', color='red', markersize=4, ls='None')
-        ax2.set_aspect('equal')
-
-        plt.xlim(xrange)    # Need to set this explicitly so that points out of image range are clipped
-        plt.ylim(yrange)
-        plt.title('Shifted, dx=' + repr(dx) + ', dy = ' + repr(dy))
-        
-        plt.show()
-        
-    return t0
         
 class App:
 
@@ -846,7 +779,7 @@ class App:
 
 # Use DAOphot to search the image for stars. It works really well.
 
-        points_phot = find_stars(image_polyfit)
+        points_phot = hbt.find_stars(image_polyfit)
         
 # Now look up the shift between the photometry and the star catalog. 
 # Do this by making a pair of fake images, and then looking up image registration on them.
@@ -854,7 +787,7 @@ class App:
 #
 # For this, I can use either abcorr stars or normal stars -- whatever I am going to compute the offset from.        
 
-        (dy_opnav, dx_opnav) = calc_offset_points(points_phot, points_stars, np.shape(image_raw), plot=False)
+        (dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(image_raw), plot=False)
 
 # Save the newly computed values to variables that we can access externally
 # For the star locations, we can't put an array into an element of an astropy table.
