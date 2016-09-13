@@ -63,7 +63,8 @@ from   matplotlib.figure import Figure
 
 import hbt
 
-dir  = '/Users/throop/Data/NH_MVIC_Ring' 
+dir     = '/Users/throop/Data/NH_MVIC_Ring' 
+dir_out = dir + '/out'
 
 file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
 
@@ -261,6 +262,7 @@ im_clean2[is_outlier] = np.median(im_clean)
 #==============================================================================
 
 nbins_radius = 100
+#nbins_radius = 1000
 
 bins_radius = hbt.frange(np.amin(radius), np.amax(radius), nbins_radius) # Set up radial bins, in km
 
@@ -279,7 +281,7 @@ flux_median_clean_arr = np.zeros(nbins_radius)
 for i in range(nbins_radius-1):
     is_good = np.array(radius > bins_radius[i]) \
             & np.array(radius < bins_radius[i+1]) \
-            & (dist_body_pix['Pluto'] > 100) \
+            & (dist_body_pix['Pluto']  > 100) \
             & (dist_body_pix['Charon'] > 100) \
             & (im != 0)  # Mask out the zero pixels (e.g., between MVIC mosaic frames)
                          # Also need to mask out area near Pluto and near Charon
@@ -303,9 +305,10 @@ d_pluto_body = {}
 mask_orbit = {}
 
 if (sequence == 'D305'):
-  d_radius = 4000  # Halfwidth to plot, of orbit, in km
-if (sequence == 'A_RINGDEP01'):
-    radius = 100
+    d_radius = 4000  # Halfwidth to plot, of orbit, in km
+  
+if (sequence == 'A_RINGDEP_01'):
+    d_radius = 100
     
 # Look up the distance using SPICE
 
@@ -318,30 +321,65 @@ for name_body_i in name_body:
   mask_orbit[name_body_i] = \
     np.array(radius > (d_pluto_body[name_body_i] - d_radius)) & \
     np.array(radius < (d_pluto_body[name_body_i] + d_radius))
+
+mask_orbit['Hydra x 10'] = \
+    np.array(radius > (r_h*10 - d_radius)) & np.array(radius < (r_h*10 + d_radius))
+
+mask_orbit['Hydra x 20'] = \
+    np.array(radius > (r_h*20 - d_radius)) & np.array(radius < (r_h*20 + d_radius))
+
+mask_orbit['Hydra x 40'] = \
+    np.array(radius > (r_h*40 - d_radius)) & np.array(radius < (r_h*40 + d_radius))
+
+mask_orbit['Hydra x 60'] = \
+    np.array(radius > (r_h*60 - d_radius)) & np.array(radius < (r_h*60 + d_radius))
+    
+mask_orbit['Hydra x 80'] = \
+    np.array(radius > (r_h*80 - d_radius)) & np.array(radius < (r_h*80 + d_radius))    
     
 #==============================================================================
 # Make plots of radial profile
 #==============================================================================
 
-# First plot: Mean
 
-hbt.figsize((10,10))
+hbt.figsize((10,5))
 
-if (nbins_radius == 100):
+if (nbins_radius == 100) & (sequence == 'D305'):
+    offset = 0.03
+    ylim = (-0.05, 0.05)
+    
+if (nbins_radius == 100) & (sequence == 'A_RINGDEP_01'):
     offset = 0.02
     ylim = (-0.1, 0.1)
 
-if (nbins_radius == 1000):
+if (nbins_radius == 1000) & (sequence == 'D305'):
+    offset = 0.1
+    ylim = ((-0.1, 0.2))
+    
+if (nbins_radius == 1000) & (sequence == 'A_RINGDEP_01'):
     offset = 0.2
     ylim = ((-0.3, 0.3))
+
+# Plot the radial profile: mean and median
+
+plt.plot(bins_radius / 1000, flux_mean_clean_arr, label='Mean')
+plt.plot(bins_radius / 1000, flux_median_clean_arr + offset, label='Median + offset')
+
+# Plot lines for satellite orbits
+
+if (sequence == 'A_RINGDEP_01'):
+    for name_body_i in name_body[1:]: # Loop over moons, excluding Pluto
+      plt.vlines(d_pluto_body[name_body_i]/1000, -1,1, linestyle='--')
+      plt.text(  d_pluto_body[name_body_i]/1000, ylim[1]*0.8, ' ' + name_body_i[0])
+
+if (sequence == 'D305'):
+    r_h = d_pluto_body['Hydra']  # Hydra orbital radius
     
-plt.subplot(2,1,1)
-#plt.plot(bins_radius / 1000, flux_mean_arr, label='Mean')
-plt.plot(bins_radius / 1000, flux_mean_clean_arr, label='Mean, clean')
-plt.plot(bins_radius / 1000, flux_median_clean_arr + offset, label='Median, clean + offset')
-
+    for rh_i in [20, 40, 60, 80]:
+      plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
+      plt.text((rh_i + 2) * r_h/1000, ylim[0]*0.9, ' ' + repr(rh_i) + ' RH')
+  
 plt.ylim(ylim)
-
 plt.title(sequence + ', nbins = ' + repr(nbins_radius) + \
                      ', $\delta r$ = ' + hbt.trunc(dradius,0) + ' km')
 
@@ -349,46 +387,19 @@ plt.xlabel('Orbital Distance [1000 km]')
 plt.ylabel('DN')
 plt.legend(loc = 'bottom center')
 
-# Plot lines for satellite orbits
-for name_body_i in name_body:
-  plt.vlines(d_pluto_body[name_body_i]/1000, 0,1, linestyle='--')
-  plt.text(  d_pluto_body[name_body_i]/1000, 0.8, ' ' + name_body_i[0])
-    
-# Second plot: Median
+file_out = dir_out + '/profile_radial_n' + repr(nbins_radius) + '_' + sequence + '.png'
+plt.savefig(file_out)
+print 'Wrote: ' + file_out
 
-plt.subplot(2,1,2)
-plt.plot(bins_radius / 1000, flux_median_arr, label='Median + offset')
-plt.plot(bins_radius / 1000, flux_median_clean_arr, label='Median Clean + offset')
-plt.ylim((-0.1, 0.1))
-
-plt.title(sequence + ', nbins = ' + repr(nbins_radius) + \
-                     ', $\delta r$ = ' + hbt.trunc(dradius,0) + ' km')
-
-# Plot lines for satellite orbits
-if (sequence == 'A_RINGDEP01'):
-    for name_body_i in name_body:
-      plt.vlines(d_pluto_body[name_body_i]/1000, 0,1, linestyle='--')
-      plt.text(  d_pluto_body[name_body_i]/1000, 0.8, ' ' + name_body_i[0])
-
-if (sequence == 'D305'):
-    rh = d_pluto_body['Hydra']  # hydra radii
-    
-    for rh_i in [10, 20, 30, 40, 50]:
-      plt.vlines(rh_i * r_h, 0,1, linestyle='--')
-      plt.text((rh_i + 2) * r_h, 0.08, ' ' + repr(rh_i) + ' $R_H$')
-  
-plt.legend()
 plt.show()
-
-#Make a masking array with orbit of Charon shown
-
 
 
 #==============================================================================
 # Make an image showing the satellite orbits, and labled with satellite names
 #==============================================================================
+
 if (sequence == 'A_RINGDEP_01'):    
-hbt.figsize((15,15))
+    hbt.figsize((20,20))
 
 # Make a composite image showing data, superimposed with orbits
 
@@ -396,11 +407,13 @@ hbt.figsize((15,15))
     
     plt.subplot(1,2,1)
     
+    DO_LABEL_BODIES = False
+    
     im_composite = im.copy()
     
     mask_composite = ((mask_orbit['Charon'])   & (dist_body_pix['Charon'] > 100)) + \
                      ((mask_orbit['Styx'])     & (dist_body_pix['Styx'] > 100)) + \
-                     ((mask_orbit['Hydra']) & (dist_body_pix['Hydra'] > 100)) + \
+                     ((mask_orbit['Hydra'])    & (dist_body_pix['Hydra'] > 100)) + \
                      ((mask_orbit['Kerberos']) & (dist_body_pix['Kerberos'] > 100)) + \
                      ((mask_orbit['Nix'])      & (dist_body_pix['Nix'] > 100))
                      
@@ -412,8 +425,13 @@ hbt.figsize((15,15))
         y_pix, x_pix    = pos_body_pix[name_body_i]
         plt.plot(x_pix, y_pix, marker = 'o', linestyle='none', markerfacecolor='none',
                  markeredgecolor='red', markeredgewidth=2, markersize=30)
-        plt.text(x_pix + offset_x, y_pix + offset_y, name_body_i[0], color='white', weight='bold', fontsize=15)
-        
+        if (DO_LABEL_BODIES):
+            plt.text(x_pix + offset_x, y_pix + offset_y, name_body_i[0], color='white', \
+                     weight='bold', fontsize=15)
+
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
     plt.xlim((0,np.shape(im)[1]))
     plt.ylim((0,np.shape(im)[0]))
     plt.title(sequence)
@@ -421,35 +439,96 @@ hbt.figsize((15,15))
     # Plot second subplot: Un-annotated
     
     plt.subplot(1,2,2)
-    plt.imshow(stretch(im))
+    plt.imshow(stretch(im_clean2))
+
     plt.xlim((0,np.shape(im)[1]))
     plt.ylim((0,np.shape(im)[0]))
+
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+
     for name_body_i in name_body:
         y_pix, x_pix    = pos_body_pix[name_body_i]
         plt.plot(x_pix, y_pix, marker = 'o', linestyle='none', markerfacecolor='none',
                  markeredgecolor='red', markeredgewidth=2, markersize=30)
     plt.title(sequence)
-    plt.show()
 
 #####
     
 if (sequence == 'D305'):
-    hbt.figsize((50,50))
+    
+    hbt.figsize((7,20))
     im_composite = im.copy()
     
-    mask_composite = (mask_orbit['Charon']) + (mask_orbit['Hydra'])
-
-#                     (mask_orbit['Styx'])      
-#                     (mask_orbit['Kerberos'])  
-#                     (mask_orbit['Nix'])     
+    mask_composite = mask_orbit['Charon']     + mask_orbit['Hydra']        + mask_orbit['Hydra x 20'] + \
+                     mask_orbit['Hydra x 40'] + mask_orbit['Hydra x 60'] + mask_orbit['Hydra x 80']
                      
-    im_composite[mask_composite] = 10
-    plt.imshow(stretch(im_composite))
+    im_composite[mask_composite] = 3
 
-    for name_body_i in ['Pluto', 'Hydra']:
+    plt.subplot(1,2,1)
+    plt.imshow(stretch(im_composite))
+    
+    plt.xlim((0,np.shape(im)[1]))
+    plt.ylim((0,np.shape(im)[0]))
+    
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
+
+    for name_body_i in ['Charon', 'Hydra']:
+        
         y_pix, x_pix    = pos_body_pix[name_body_i]
 
-        plt.text(x_pix + offset_x, y_pix + offset_y, name_body_i[0], weight='bold', color='red', fontsize=12)
+        if (DO_LABEL_BODIES):
+            plt.text(x_pix + 40, y_pix + 40, name_body_i[0], weight='bold', color='red', fontsize=12)
+
+    plt.subplot(1,2,2)
+
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
+    plt.imshow(stretch(im_clean2))
+
+plt.tight_layout()
+    
+file_out = dir_out + '/image_orbits_' + sequence + '.png'
+plt.savefig(file_out)
+print 'Wrote: ' + file_out
+
+plt.show()
+
+#==============================================================================
+# Make a plot showing the effect of threshholding / cleaning the image
+#==============================================================================
+
+plt.set_cmap('Greys_r')
+
+hbt.figsize((18,60))
+plt.subplot(1,2,1)
+plt.imshow(stretch(im))
+plt.title(sequence)
+plt.gca().get_xaxis().set_visible(False)
+plt.gca().get_yaxis().set_visible(False)
+
+#plt.subplot(1,3,2)
+#plt.imshow(stretch(im_clean))
+#plt.title('Radius')
+#plt.gca().get_xaxis().set_visible(False)
+#plt.gca().get_yaxis().set_visible(False)
+
+plt.subplot(1,2,2)
+plt.imshow(stretch(im_clean2))
+plt.title(sequence + ', Cleaned')
+plt.gca().get_xaxis().set_visible(False)
+plt.gca().get_yaxis().set_visible(False)
+
+file_out = dir_out + '/image_threshhold_' + sequence + '.png'
+plt.savefig(file_out)
+print 'Wrote: ' + file_out
+
+plt.savefig
+plt.show()
+
         
 #==============================================================================
 # XXX OLD CODE: Navigate the image using star catalog
