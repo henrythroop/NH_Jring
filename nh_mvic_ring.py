@@ -80,9 +80,10 @@ cspice.furnsh(file_tm) # Start up SPICE
 
 #file = dir + '/mvic_d305_sum_mos_v1.fits'
 
-sequence        = 'D305'
+#sequence        = 'D305'
 #sequence        = 'A_RINGDEP_01'  # Departure imaging, closest MVIC image of the whole system
-
+sequence        = 'D202'
+ 
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
 
@@ -99,7 +100,13 @@ if (sequence == 'A_RINGDEP_01'):
   file_wcs = dir + '/ringdep_mos_v1-new-image.fits'
   utc = '2015 Jul 15 18:50:00'  # Set the time.
   stretch = astropy.visualization.PercentileInterval(99.6)
- 
+
+if (sequence == 'D202'):
+  file_wcs = dir + '/mvic_d202_mos_v1.fits'
+  utc = '2015::202 00:00:00'  # Set the time.
+  stretch = astropy.visualization.PercentileInterval(99.6)
+  
+  
 file_fixed  = file_wcs.replace('.fits', '_fixed.fits')       # File with fixed FITS ET info
 file_planes = file_fixed.replace('.fits', '_planes.pkl')# File for backplanes
 #==============================================================================
@@ -315,12 +322,15 @@ if (sequence == 'A_RINGDEP_01'):
 for name_body_i in name_body:
   (vec_body,junk) = cspice.spkezr(name_body_i, et, 'IAU_PLUTO', 'LT', 'Pluto')
   d_pluto_body[name_body_i] = cspice.vnorm(vec_body[0:3])
-
+   
 # Generate a pixel mask showing the orbit of each body
 
   mask_orbit[name_body_i] = \
     np.array(radius > (d_pluto_body[name_body_i] - d_radius)) & \
     np.array(radius < (d_pluto_body[name_body_i] + d_radius))
+
+    
+r_h = d_pluto_body['Hydra']  # Hydra orbital radius
 
 mask_orbit['Hydra x 10'] = \
     np.array(radius > (r_h*10 - d_radius)) & np.array(radius < (r_h*10 + d_radius))
@@ -373,7 +383,6 @@ if (sequence == 'A_RINGDEP_01'):
       plt.text(  d_pluto_body[name_body_i]/1000, ylim[1]*0.8, ' ' + name_body_i[0])
 
 if (sequence == 'D305'):
-    r_h = d_pluto_body['Hydra']  # Hydra orbital radius
     
     for rh_i in [20, 40, 60, 80]:
       plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
@@ -398,6 +407,8 @@ plt.show()
 # Make an image showing the satellite orbits, and labled with satellite names
 #==============================================================================
 
+DO_LABEL_BODIES = False
+
 if (sequence == 'A_RINGDEP_01'):    
     hbt.figsize((20,20))
 
@@ -407,7 +418,6 @@ if (sequence == 'A_RINGDEP_01'):
     
     plt.subplot(1,2,1)
     
-    DO_LABEL_BODIES = False
     
     im_composite = im.copy()
     
