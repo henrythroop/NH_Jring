@@ -80,9 +80,9 @@ cspice.furnsh(file_tm) # Start up SPICE
 
 #file = dir + '/mvic_d305_sum_mos_v1.fits'
 
-#sequence        = 'D305'
+sequence        = 'D305'
 #sequence        = 'A_RINGDEP_01'  # Departure imaging, closest MVIC image of the whole system
-sequence        = 'D202'
+#sequence        = 'D202'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
@@ -91,24 +91,28 @@ DO_ANALYZE      = True
 # Initialize parameters for each of the possible MVIC mosaics we can analyze
 #==============================================================================
 
+# *_wcs.fits file are created by astrometry.net. Their default name is new-image.fits .
+# *_header.fits indicates that I have added ET and any other necessary header info into the file. 
+# *_pl.fits indicates that I have added backplanes.
+
 if (sequence == 'D305'):
-  file_wcs    = dir + '/mvic_d305_sum_mos_v1-new-image.fits' # Load the navigated image, with WCS  
+  file_wcs    = dir + '/mvic_d305_sum_mos_v1_wcs.fits' # Load the navigated image, with WCS  
   utc = '2015::305 00:00:00'  # Set the time 
   stretch = astropy.visualization.PercentileInterval(99)
   
 if (sequence == 'A_RINGDEP_01'):
-  file_wcs = dir + '/ringdep_mos_v1-new-image.fits'
+  file_wcs = dir + '/ringdep_mos_v1_wcs.fits'
   utc = '2015 Jul 15 18:50:00'  # Set the time.
   stretch = astropy.visualization.PercentileInterval(99.6)
 
 if (sequence == 'D202'):
-  file_wcs = dir + '/mvic_d202_mos_v1.fits'
+  file_wcs = dir + '/mvic_d202_mos_v1_wcs.fits'
   utc = '2015::202 00:00:00'  # Set the time.
   stretch = astropy.visualization.PercentileInterval(99.6)
   
-  
-file_fixed  = file_wcs.replace('.fits', '_fixed.fits')       # File with fixed FITS ET info
-file_planes = file_fixed.replace('.fits', '_planes.pkl')# File for backplanes
+file_header    = file_wcs.replace('.fits', '_header.fits')       # File with fixed FITS ET info
+file_header_pl = file_header.replace('.fits', '_pl.fits')     # File for backplanes
+
 #==============================================================================
 # Repair / edit the FITS files if needed
 #==============================================================================
@@ -118,38 +122,61 @@ if (DO_FIX_FITS):
 # Add a missing header field and write out
     
     et = cspice.utc2et(utc)
-    hdulist = fits.open(file_raw)
+    hdulist = fits.open(file_wcs)
     im = hdulist['PRIMARY'].data    
     hdulist['PRIMARY'].header['SPCSCET'] =     (et, "[s past J2000] Spacecraft mid-obs time, TDB")  
     
-    hdulist.writeto(file_fixed, clobber=True)
-    print "Wrote new FITS file with fixed header: " + file_fixed
+    hdulist.writeto(file_header, clobber=True)
+    print "Wrote new FITS file with fixed header: " + file_header
 
 # Create the backplanes and write out
 
-    planes = hbt.create_backplane(file_fixed, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
+    planes = hbt.create_backplane(file_header, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
     
-    lun = open(file_planes, 'wb')
-    pickle.dump(planes, lun)
-    lun.close()
+#    lun = open(file_planes, 'wb')
+#    pickle.dump(planes, lun)
+#    lun.close()
     
+#    hdulist[']
     print "Wrote backplane file: " + file_planes    
+
+# Create backplaned FITS file.
+
+#    hdu1 = fits.PrimaryHDU()
+#    hdu2 = fits.ImageHDU()
+#    new_hdul = fits.HDUList([hdu1, hdu2])
+#    new_hdul.writeto('test.fits', clobber=True)
+
+    type_out = 'float32'  # Write backplane in single precision, to save space.
+    hdu_out = fits.HDUList()
+    hdu_out.append(hdulist['PRIMARY'])
+    hdu_out.append(fits.ImageHDU(planes['RA'].astype(type_out), name = 'RA'))
+    hdu_out.append(fits.ImageHDU(planes['Dec'].astype(type_out), name = 'Dec'))
+    hdu_out.append(fits.ImageHDU(planes['Phase'].astype(type_out), name = 'Phase'))
+    hdu_out.append(fits.ImageHDU(planes['Longitude_eq'].astype(type_out), name = 'Longitude_eq'))
+    hdu_out.append(fits.ImageHDU(planes['Radius_eq'].astype(type_out), name = 'Radius_eq'))
     
+    hdu_out.writeto(file_header_pl, clobber=True)
+    print "Wrote file: " + file_header_pl   
+
 #==============================================================================
 # Load the image + backplane
 #==============================================================================
     
-file = file_fixed
+file = file_header_pl
 hbt.figsize((6,28))
 
 hdulist = fits.open(file)
 im = hdulist['PRIMARY'].data
     
-lun = open(file_planes, 'rb')
-planes = pickle.load(lun)
-lun.close()
+#lun = open(file_planes, 'rb')
+#planes = pickle.load(lun)
+#lun.close()
 
-radius = planes['Radius_eq']
+#radius = planes['Radius_eq']
+
+radius    = hdulist['Radius_eq'].data
+longitude = hdulist['Longitude_eq'].data
 
 et = hdulist['PRIMARY'].header['SPCSCET'] # Get the ET from the file
 utc = cspice.et2utc(et, 'C', 0)
@@ -169,12 +196,12 @@ plt.title(sequence)
 plt.gca().get_xaxis().set_visible(False)
 
 plt.subplot(1,3,2)
-plt.imshow(planes['Radius_eq'], cmap='plasma')
+plt.imshow(radius, cmap='plasma')
 plt.title('Radius')
 plt.gca().get_xaxis().set_visible(False)
 
 plt.subplot(1,3,3)
-plt.imshow(planes['Longitude_eq'], cmap='plasma')
+plt.imshow(longitude, cmap='plasma')
 plt.title('Longit')
 plt.gca().get_xaxis().set_visible(False)
 
@@ -195,7 +222,7 @@ plt.show()
 # Make a labled plot with Pluto, Charon, Nix, Hydra, etc.
 #==============================================================================
 
-hbt.figsize((12,112))
+hbt.figsize((5,12))
 plt.imshow(stretch(im))
 
 offset_x, offset_y = 100,100  # Offset PCNHSK labels by this many pixels
@@ -268,8 +295,8 @@ im_clean2[is_outlier] = np.median(im_clean)
 # Measure the radial profile, from Pluto
 #==============================================================================
 
-nbins_radius = 100
-#nbins_radius = 1000
+#nbins_radius = 100
+nbins_radius = 1000
 
 bins_radius = hbt.frange(np.amin(radius), np.amax(radius), nbins_radius) # Set up radial bins, in km
 
@@ -316,6 +343,9 @@ if (sequence == 'D305'):
   
 if (sequence == 'A_RINGDEP_01'):
     d_radius = 100
+  
+if (sequence == 'D202'):
+    d_radius = 500
     
 # Look up the distance using SPICE
 
@@ -332,6 +362,9 @@ for name_body_i in name_body:
     
 r_h = d_pluto_body['Hydra']  # Hydra orbital radius
 
+mask_orbit['Hydra x 4'] = \
+    np.array(radius > (r_h*4 - d_radius)) & np.array(radius < (r_h*4 + d_radius))
+    
 mask_orbit['Hydra x 10'] = \
     np.array(radius > (r_h*10 - d_radius)) & np.array(radius < (r_h*10 + d_radius))
 
@@ -351,7 +384,6 @@ mask_orbit['Hydra x 80'] = \
 # Make plots of radial profile
 #==============================================================================
 
-
 hbt.figsize((10,5))
 
 if (nbins_radius == 100) & (sequence == 'D305'):
@@ -370,6 +402,14 @@ if (nbins_radius == 1000) & (sequence == 'A_RINGDEP_01'):
     offset = 0.2
     ylim = ((-0.3, 0.3))
 
+if (nbins_radius == 1000) & (sequence == 'D202'):
+    offset = 0.2
+    ylim = ((-0.3, 0.3))    
+    
+if (nbins_radius == 100) & (sequence == 'D202'):
+    offset = 0.03
+    ylim = ((-0.05, 0.05))  
+    
 # Plot the radial profile: mean and median
 
 plt.plot(bins_radius / 1000, flux_mean_clean_arr, label='Mean')
@@ -409,15 +449,14 @@ plt.show()
 
 DO_LABEL_BODIES = False
 
+##### A_RINGDEP_01 Sequence #####
+
 if (sequence == 'A_RINGDEP_01'):    
     hbt.figsize((20,20))
 
 # Make a composite image showing data, superimposed with orbits
-
-# Plot first subplot : Annotated
     
     plt.subplot(1,2,1)
-    
     
     im_composite = im.copy()
     
@@ -463,7 +502,7 @@ if (sequence == 'A_RINGDEP_01'):
                  markeredgecolor='red', markeredgewidth=2, markersize=30)
     plt.title(sequence)
 
-#####
+##### D305 Sequence #####
     
 if (sequence == 'D305'):
     
@@ -488,6 +527,49 @@ if (sequence == 'D305'):
     for name_body_i in ['Charon', 'Hydra']:
         
         y_pix, x_pix    = pos_body_pix[name_body_i]
+
+        if (DO_LABEL_BODIES):
+            plt.text(x_pix + 40, y_pix + 40, name_body_i[0], weight='bold', color='red', fontsize=12)
+
+    plt.subplot(1,2,2)
+
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
+    plt.imshow(stretch(im_clean2))
+
+##### D202 Sequence #####
+    
+if (sequence == 'D202'):
+    
+    hbt.figsize((7,20))
+    im_composite = im.copy()
+    
+    mask_composite = mask_orbit['Charon']     + mask_orbit['Hydra']        + mask_orbit['Hydra x 4']
+
+
+    mask_composite = ((mask_orbit['Charon'])   & (dist_body_pix['Charon'] > 50)) + \
+                     ((mask_orbit['Hydra'])    & (dist_body_pix['Hydra'] > 50)) + \
+                     ((mask_orbit['Hydra x 4']))
+
+    im_composite[mask_composite] = 3
+
+    plt.subplot(1,2,1)
+    plt.imshow(stretch(im_composite))
+    
+    plt.xlim((0,np.shape(im)[1]))
+    plt.ylim((0,np.shape(im)[0]))
+    
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
+
+    for name_body_i in ['Pluto', 'Charon', 'Hydra']:
+        
+        y_pix, x_pix    = pos_body_pix[name_body_i]
+
+        plt.plot(x_pix, y_pix, marker = 'o', linestyle='none', markerfacecolor='none',
+                 markeredgecolor='red', markeredgewidth=2, markersize=25)
 
         if (DO_LABEL_BODIES):
             plt.text(x_pix + 40, y_pix + 40, name_body_i[0], weight='bold', color='red', fontsize=12)
@@ -574,3 +656,24 @@ plt.show()
 #points_phot = hbt.find_stars(im) # Weirdly, find_stars does not return magnitudes -- only positions
 #            
 #(dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(im), plot=False)
+
+
+stop
+
+# Read in one of the original, non-mosaiced images to figure out DN vs. I/F, etc.
+
+stretch = astropy.visualization.PercentileInterval(90)
+
+file_l2 = dir + '/mpf_0299292106_0x548_sci_2.fit'  # Level-2 from SOC
+hdu_l2 = fits.open(file_l2)
+im_l2  = hdu_l2['PRIMARY'].data
+
+file_l1 = dir + '/mpf_0299292106_0x548_eng_2.fit'  # Level-1 from SOC
+hdu_l1 = fits.open(file_l1)
+im_l1  = hdu_l1['PRIMARY'].data
+
+file_tod = dir + '/mpf_0299292106_02_v2.fits' # Tod gave me this. I don't know what it is.
+hdu_tod = fits.open(file_tod) # )ython will not read this. "Keyword NAXIS3 not found."
+im_tod = hdu_tod['PRIMARY'].data
+     
+im_l2 = hdu_l2['PRIMARY'].data  # 2 x 128 x 5024
