@@ -98,14 +98,7 @@ nbins_radius = 100
 #PSOLAR  = '2.5541E+14'         /(DN/s)/(erg/cm^2/s/Ang), Solar spectrum. Use for unresolved
 #RSOLAR  = '100190.64'          /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
 
-exptime      = 10        # All MVIC Framing ring mosaics are 10 sec/exposure
-rsolar       = 100190.64 # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
-pixfov       = 19.8065   # Plate scale in microrad/pix    
-pix_sr       = (pixfov*(1e-6))**2
 
-
-
-      = 1700 / (math.pi * 40.**2) * 1e7  # erg/cm2/sec at Pluto, roughly
 
 #==============================================================================
 # Initialize parameters for each of the possible MVIC mosaics we can analyze
@@ -203,6 +196,12 @@ utc = cspice.et2utc(et, 'C', 0)
 
 w = WCS(file)
 
+# Calculate the sub-observer latitude (ie, ring tilt angle)
+
+(vec, lt) = cspice.spkezr('New Horizons', et, 'IAU_PLUTO', 'LT', 'Pluto')
+vec = vec[0:3]
+(junk, lon_obs, lat_obs) = cspice.reclat(vec) # Get latitude, in radians
+
 #==============================================================================
 # Make a plot of the image + backplanes
 #==============================================================================
@@ -227,17 +226,6 @@ plt.gca().get_xaxis().set_visible(False)
 
 plt.show()
 
-#==============================================================================
-# Make a plot of radial profile
-#==============================================================================
-    
-#hbt.figsize((5,4))
-#plt.plot(bins_radius / 1000, flux_arr)
-#plt.xlabel('Distance from Pluto [1000 km]')
-#if (sequence == 'A_RINGDEP_01'):
-#    plt.ylim((-0.1,0.1))
-#plt.show()
-    
 #==============================================================================
 # Make a labled plot with Pluto, Charon, Nix, Hydra, etc.
 #==============================================================================
@@ -265,18 +253,6 @@ plt.title(sequence)
 plt.xlim((0,np.shape(im)[1]))
 plt.ylim((0,np.shape(im)[0]))
 plt.show()
-
-#plt.imshow(dist_pluto_pix)
-#plt.xlim((0,np.shape(im)[1]))
-#plt.ylim((0,np.shape(im)[0]))
-#plt.title('Distance from Pluto')
-#plt.show()
-#
-#plt.imshow(dist_charon_pix)
-#plt.xlim((0,np.shape(im)[1]))
-#plt.ylim((0,np.shape(im)[0]))
-#plt.title('Distance from Charon')
-#plt.show()
 
 #==============================================================================
 # Create new backplane set, with pixel distances from each body
@@ -315,20 +291,19 @@ im_clean2[is_outlier] = np.median(im_clean)
 # Measure the radial profile, from Pluto
 #==============================================================================
 
-
 bins_radius = hbt.frange(np.amin(radius), np.amax(radius), nbins_radius) # Set up radial bins, in km
 
 dradius = bins_radius[1] - bins_radius[0]
 
 bin_number_2d = np.copy(im)*0
 
-flux_mean_arr   = np.zeros(nbins_radius)
-flux_median_arr = np.zeros(nbins_radius)
-flux_std_arr    = np.zeros(nbins_radius)
+dn_mean_arr   = np.zeros(nbins_radius)
+dn_median_arr = np.zeros(nbins_radius)
+dn_std_arr    = np.zeros(nbins_radius)
 npix_arr        = np.zeros(nbins_radius)
 
-flux_mean_clean_arr   = np.zeros(nbins_radius)
-flux_median_clean_arr = np.zeros(nbins_radius)
+dn_mean_clean_arr   = np.zeros(nbins_radius)
+dn_median_clean_arr = np.zeros(nbins_radius)
 
 for i in range(nbins_radius-1):
     is_good = np.array(radius > bins_radius[i]) \
@@ -340,11 +315,11 @@ for i in range(nbins_radius-1):
             
     bin_number_2d[is_good] = i          # For each pixel in the array, assign a bin number
 
-    flux_mean_arr[i]         = np.mean(im[is_good])
-    flux_mean_clean_arr[i]   = np.mean(im_clean2[is_good])
-    flux_median_arr[i]       = np.median(im[is_good])
-    flux_median_clean_arr[i] = np.median(im_clean2[is_good])
-    flux_std_arr[i]          = np.std(im[is_good]) # stdev
+    dn_mean_arr[i]         = np.mean(im[is_good])
+    dn_mean_clean_arr[i]   = np.mean(im_clean2[is_good])
+    dn_median_arr[i]       = np.median(im[is_good])
+    dn_median_clean_arr[i] = np.median(im_clean2[is_good])
+    dn_std_arr[i]          = np.std(im[is_good]) # stdev
     
     npix_arr[i] = np.sum(is_good) # Count of number of pixels in this radial bin
 
@@ -430,8 +405,8 @@ if (nbins_radius == 100) & (sequence == 'D202'):
     
 # Plot the radial profile: mean and median
 
-plt.plot(bins_radius / 1000, flux_mean_clean_arr, label='Mean')
-plt.plot(bins_radius / 1000, flux_median_clean_arr + offset, label='Median + offset')
+plt.plot(bins_radius / 1000, dn_mean_clean_arr, label='Mean')
+plt.plot(bins_radius / 1000, dn_median_clean_arr + offset, label='Median + offset')
 
 # Plot lines for satellite orbits
 
@@ -461,42 +436,125 @@ print 'Wrote: ' + file_out
 plt.show()
 
 #==============================================================================
-# Make a plot of radial profile, in I/F units
+# Convert measurements from DN into I/F and optical depth
 #==============================================================================
 
-ring_dn = 0.03
+# Set up some conversion constants. These are mostly in the FITS header file.
+                         
+exptime      = 10        # All MVIC Framing ring mosaics are 10 sec/exposure
+rsolar       = 100190.64 # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
+                         # NB: This value is 0.0695 in the NH MVIC ICD @ 63. Is one an error??
+                         # NB: rsolar and psolar vary only by factor pixfov^2 [in sr]
+                         # LORRI RSOLAR is 2e5, suggesting that the MVIC number is basically right. 
+                # https://www.spaceops.swri.org/nh/wiki/index.php/LORRI#Conversion_from_DN_to_physical_units
+                
+pixfov       = 19.8065   # Plate scale in microrad/pix    
 
-f_solar_1au  = 1.7e3     # erg/cm2/sec/AA, at 1 AU, at 600 nm, from http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
-f_solar_pl   = f_solar / (4. * math.pi * (40.**2))
+rsolar       = 0.0695    # Value for RSOLAR in ICD @ 63.
+ 
+# Calculate MVIC pixel size, in sr
 
-flux_median_clean_arr[0] = ring_dn # Put here the rough DN level I can measure to in cell 0. 
-                                # Then we'll do all the math on that, and see what I/F this DN level converts to.
+sr_pix       = (pixfov*(1e-6))**2  # Angular size of each MVIC pixel, in sr
 
-i_cgs_sr = flux_median_clean_arr / exptime / rsolar # Convert into erg/cm2/s/Angstrom/sr
-i_cgs    = i_cgs_sr * pixfov  # Multiply by pixel size, to get erg/cm2/s/angstrom
-i_cgs_ang= i_cgs * bandwidth # erg/cm2/sec. This is final intensity
+# Set value for the DN of the ring. Since we didn't detect the ring, I'm not using the
+# DN array itself, but rather my own estimate of a DN upper limit.
 
-iof = i_cgs_ang / f_solar_au
+dn_ring      = 0.03      # What is our DN limit? This is the value that we read
+                         # off of the radial profile plots above
 
-print "I/F[DN = " + repr(accuracy_dn) + "] = " + repr(iof[0])
+# Look up the solar flux at 1 AU, using the solar spectrum at 
+#   http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
 
-# Concl: I/F = 1d-10. I don't believe this. It could be off by a large quantity. But it is a value.
+f_solar_1au_si     = 1.77                 # W/m2/nm. At 600 nm. 
+f_solar_1au_cgs    = f_solar_1au_si * 100 # Convert from W/m2/nm to erg/sec/cm2/Angstrom
 
-plt.plot(bins_radius/1000, i_cgs)
-plt.title(sequence)
-plt.ylabel('I [cgs] [erg/cm2/s/Angstrom/sr]')
-plt.xlabel('Orbital Distance [1000 km]')
+f_solar_1au        = f_solar_1au_cgs
+
+# Calculate the solar flux at 40 AU. [NB: Actual distance is 33.8 AU]
+
+f_solar_40au       = f_solar_1au / (33.8**2)  # Yes, use 1/r^2, not 1/(4pi r^2)
+
+# Use constants (from Level-2 files) to convert from DN, to intensity at detector.
+
+# This is the equation in ICD @ 62.
+                         
+i_ring_per_sr    = dn_ring / exptime / rsolar # Convert into erg/cm2/s/sr/Angstrom.
+
+# Because the ring is spatially extended, it fills the pixel, so we mult by pixel size
+# to get the full irradiance on the pixel.
+
+i_ring           = i_ring_per_sr * sr_pix     # Convert into erg/cm2/s/Angstrom
+
+# Calculate "I/F". This is not simple the ratio of I over F, because F in the eq is not actually Flux.
+# "pi F is the incident solar flux density" -- ie, "F = solar flux density / pi"
+# SC93 @ 125
+
+iof_ring = i_ring / (f_solar_40au / math.pi)
+
+# Now get optical depth, using equation I/F = tau omega P / (4 mu)
+
+omega_0 = 0.3        # Single scattering albedo. Rough guess.
+p11     = 0.7      # Phase function (normalized). This is a guess for forward-scattering.
+
+tau_ring = iof_ring * 4 * np.cos(lat_obs) / omega_0 / p11
+
+print "Ring upper limit: DN = {}, I/F = {}, tau = {}.".format(dn_ring, iof_ring, tau_ring)
+
+# Concl: DN = 0.3 --> I/F = 4e-10 -> tau = 1e-8. This is possible, I guess. But it seems
+# really low. I doubt we are actually that sensitive. And if we went this deep in 10 sec, then
+# any PAN Framing obs on the body (with I/F ~ 1) would saturate in a millisecond.
+
+###################
+
+# For reference, compare with an MVIC Framing image of Pluto, and try to get that to work
+# Exptime = 0.5 sec
+# DN typical = 1000
+
+file = dir + '/mpf_0299175045_0x548_sci_1.fit'
+hdu_mf = fits.open(file)
+header = hdu_mf['PRIMARY'].header
+exptime = header['EXPTIME']
+rpluto  = header['RPLUTO']
+ppluto  = header['PPLUTO']
+im_mf = hdu_mf['PRIMARY'].data
+im_mfe = (np.transpose(im_mf[0,:,2700:2800]))  # Extract of mvic framing image
+
+plt.imshow(stretch(im_mfe))
 plt.show()
 
-# Now to get F, we need to divide by the solar flux
-# Why is this per steradian? Becuase the ring is assumed to be resolved. 
-# It's like "watts per square degree" -- a sky brightness.
+# Convert from DN to I/F, using same math as above
 
-# Solar flux F
+dn_pluto = np.median(im_mfe)
+i_pluto_per_sr = dn_pluto / exptime / rsolar
+i_pluto = i_pluto_per_sr * sr_pix
+iof_pluto = i_pluto / (f_solar_40au / math.pi)
 
-# How to convert to an I/F?
+iof_pluto_known = 0.5
+
+print "Pluto surface: DN = {}, I/F = {}.".format(dn_pluto, iof_pluto)
+
+# Concl: I/F for Pluto should be ~0.5 But I am instead getting I/F ~ 2000x lower than that.
+# So, this means that I should multiply my rings I/F and tau numbers by 2000, to get the right value.
+
+fudge = iof_pluto_known / iof_pluto
+
+print "Using fudge = {}: Ring upper limit: DN = {}, I/F = {}, tau = {}.".\
+  format(fudge, dn_ring, fudge*iof_ring, fudge*tau_ring)
 
 stop
+
+#==============================================================================
+# Do some unit conversion in Python, just to check it.
+#==============================================================================
+
+from astropy import units as u
+
+si = u.watt / (u.meter)**2 / u.nm
+cgs = u.erg / u.second/(u.cm)**2/u.angstrom
+
+f = 1.7*si.to(cgs)
+
+# Concl: Yes, I am doing the unit conversion properly. My solar flux at 40 AU must be correct.
 
 #==============================================================================
 # Make an image showing the satellite orbits, and labled with satellite names
