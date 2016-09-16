@@ -71,7 +71,7 @@ file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
 cspice.furnsh(file_tm) # Start up SPICE
 
 #==============================================================================
-# Look at D305 image. Fix it if necessary
+# Initialize constants
 #==============================================================================
 
 # '-new-image' is added by astrometry.net
@@ -86,6 +86,26 @@ sequence        = 'D305'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
+
+nbins_radius = 100
+#nbins_radius = 1000
+
+#PIXSIZE =              13.0000 /Pixel size in microns                           
+#READNOI =              30.0000 /Readnoise in Electrons                          
+#GAIN    =              58.6000 /Gain in Electrons/DN                            
+#PIXFOV  =              19.8065 /Plate scale in microrad/pix    
+
+#PSOLAR  = '2.5541E+14'         /(DN/s)/(erg/cm^2/s/Ang), Solar spectrum. Use for unresolved
+#RSOLAR  = '100190.64'          /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
+
+exptime      = 10        # All MVIC Framing ring mosaics are 10 sec/exposure
+rsolar       = 100190.64 # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
+pixfov       = 19.8065   # Plate scale in microrad/pix    
+pix_sr       = (pixfov*(1e-6))**2
+
+
+
+      = 1700 / (math.pi * 40.**2) * 1e7  # erg/cm2/sec at Pluto, roughly
 
 #==============================================================================
 # Initialize parameters for each of the possible MVIC mosaics we can analyze
@@ -295,8 +315,6 @@ im_clean2[is_outlier] = np.median(im_clean)
 # Measure the radial profile, from Pluto
 #==============================================================================
 
-#nbins_radius = 100
-nbins_radius = 1000
 
 bins_radius = hbt.frange(np.amin(radius), np.amax(radius), nbins_radius) # Set up radial bins, in km
 
@@ -442,6 +460,43 @@ print 'Wrote: ' + file_out
 
 plt.show()
 
+#==============================================================================
+# Make a plot of radial profile, in I/F units
+#==============================================================================
+
+ring_dn = 0.03
+
+f_solar_1au  = 1.7e3     # erg/cm2/sec/AA, at 1 AU, at 600 nm, from http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
+f_solar_pl   = f_solar / (4. * math.pi * (40.**2))
+
+flux_median_clean_arr[0] = ring_dn # Put here the rough DN level I can measure to in cell 0. 
+                                # Then we'll do all the math on that, and see what I/F this DN level converts to.
+
+i_cgs_sr = flux_median_clean_arr / exptime / rsolar # Convert into erg/cm2/s/Angstrom/sr
+i_cgs    = i_cgs_sr * pixfov  # Multiply by pixel size, to get erg/cm2/s/angstrom
+i_cgs_ang= i_cgs * bandwidth # erg/cm2/sec. This is final intensity
+
+iof = i_cgs_ang / f_solar_au
+
+print "I/F[DN = " + repr(accuracy_dn) + "] = " + repr(iof[0])
+
+# Concl: I/F = 1d-10. I don't believe this. It could be off by a large quantity. But it is a value.
+
+plt.plot(bins_radius/1000, i_cgs)
+plt.title(sequence)
+plt.ylabel('I [cgs] [erg/cm2/s/Angstrom/sr]')
+plt.xlabel('Orbital Distance [1000 km]')
+plt.show()
+
+# Now to get F, we need to divide by the solar flux
+# Why is this per steradian? Becuase the ring is assumed to be resolved. 
+# It's like "watts per square degree" -- a sky brightness.
+
+# Solar flux F
+
+# How to convert to an I/F?
+
+stop
 
 #==============================================================================
 # Make an image showing the satellite orbits, and labled with satellite names
@@ -677,3 +732,23 @@ hdu_tod = fits.open(file_tod) # )ython will not read this. "Keyword NAXIS3 not f
 im_tod = hdu_tod['PRIMARY'].data
      
 im_l2 = hdu_l2['PRIMARY'].data  # 2 x 128 x 5024
+
+# Extract some subframes to examine
+
+im_l1_sub = im_l1[1,5:100,405:500] # Level-1. Range = 100 .. 200 mostly. Integers (ie, DN)
+im_l2_sub = im_l2[1,5:100,405:500] # Level-2. Same units as l1, just scaled a bit differently. Floats (ie, calibrated DN)
+rsolar    = 100190.64              # Conversion factor, DN -> cgs
+ 
+exptime = 10
+
+i_cgs = im_l2_sub / exptime / rsolar # Convert into erg/cm2/s/Angstrom/sr
+
+# Comments at end of Level2 file 
+#PIXSIZE =              13.0000 /Pixel size in microns                           
+#READNOI =              30.0000 /Readnoise in Electrons                          
+#GAIN    =              58.6000 /Gain in Electrons/DN                            
+#PIXFOV  =              19.8065 /Plate scale in microrad/pix    
+
+#PSOLAR  = '2.5541E+14'         /(DN/s)/(erg/cm^2/s/Ang), Solar spectrum. Use for unresolved
+#RSOLAR  = '100190.64'          /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
+             
