@@ -80,15 +80,15 @@ cspice.furnsh(file_tm) # Start up SPICE
 
 #file = dir + '/mvic_d305_sum_mos_v1.fits'
 
-sequence        = 'D305'
+#sequence        = 'D305'
 #sequence        = 'A_RINGDEP_01'  # Departure imaging, closest MVIC image of the whole system
-#sequence        = 'D202'
+sequence        = 'D202'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
 
-nbins_radius = 100
-#nbins_radius = 1000
+#nbins_radius = 100
+nbins_radius = 1000
 
 #PIXSIZE =              13.0000 /Pixel size in microns                           
 #READNOI =              30.0000 /Readnoise in Electrons                          
@@ -97,7 +97,6 @@ nbins_radius = 100
 
 #PSOLAR  = '2.5541E+14'         /(DN/s)/(erg/cm^2/s/Ang), Solar spectrum. Use for unresolved
 #RSOLAR  = '100190.64'          /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
-
 
 
 #==============================================================================
@@ -416,11 +415,16 @@ if (sequence == 'A_RINGDEP_01'):
       plt.text(  d_pluto_body[name_body_i]/1000, ylim[1]*0.8, ' ' + name_body_i[0])
 
 if (sequence == 'D305'):
-    
     for rh_i in [20, 40, 60, 80]:
       plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
       plt.text((rh_i + 2) * r_h/1000, ylim[0]*0.9, ' ' + repr(rh_i) + ' RH')
-  
+
+if (sequence == 'D202'):
+    for rh_i in [1, 2, 4]:
+      plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim[1]*0.9, ' ' + repr(rh_i) + ' RH')
+#      plt.xlim((0,500))
+      
 plt.ylim(ylim)
 plt.title(sequence + ', nbins = ' + repr(nbins_radius) + \
                      ', $\delta r$ = ' + hbt.trunc(dradius,0) + ' km')
@@ -450,7 +454,7 @@ rsolar       = 100190.64 # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for r
                 
 pixfov       = 19.8065   # Plate scale in microrad/pix    
 
-rsolar       = 0.0695    # Value for RSOLAR in ICD @ 63.
+#rsolar       = 0.0695    # Value for RSOLAR in ICD @ 63.
  
 # Calculate MVIC pixel size, in sr
 
@@ -463,10 +467,12 @@ dn_ring      = 0.03      # What is our DN limit? This is the value that we read
                          # off of the radial profile plots above
 
 # Look up the solar flux at 1 AU, using the solar spectrum at 
-#   http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
+#    http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
+# or http://www.pas.rochester.edu/~emamajek/AST453/AST453_stellarprops.pdf
 
 f_solar_1au_si     = 1.77                 # W/m2/nm. At 600 nm. 
 f_solar_1au_cgs    = f_solar_1au_si * 100 # Convert from W/m2/nm to erg/sec/cm2/Angstrom
+                                          # Unit conv. is correct -- see python code below.
 
 f_solar_1au        = f_solar_1au_cgs
 
@@ -482,9 +488,15 @@ i_ring_per_sr    = dn_ring / exptime / rsolar # Convert into erg/cm2/s/sr/Angstr
 
 # Because the ring is spatially extended, it fills the pixel, so we mult by pixel size
 # to get the full irradiance on the pixel.
+# *** But, somehow, this is not working. I get the right answer only if I ignore this 'per sr' factor.
+
+DO_OVERRIDE = True  # If true, ignore the missing factor of 'per sr' that seems to be in the conversion
 
 i_ring           = i_ring_per_sr * sr_pix     # Convert into erg/cm2/s/Angstrom
 
+if (DO_OVERRIDE):
+    i_ring = i_ring_per_sr
+    
 # Calculate "I/F". This is not simple the ratio of I over F, because F in the eq is not actually Flux.
 # "pi F is the incident solar flux density" -- ie, "F = solar flux density / pi"
 # SC93 @ 125
@@ -498,7 +510,7 @@ p11     = 0.7      # Phase function (normalized). This is a guess for forward-sc
 
 tau_ring = iof_ring * 4 * np.cos(lat_obs) / omega_0 / p11
 
-print "Ring upper limit: DN = {}, I/F = {}, tau = {}.".format(dn_ring, iof_ring, tau_ring)
+print "Ring upper limit: DN = {:.3g}, I/F = {:.2g}, tau = {:.2g}.".format(dn_ring, iof_ring, tau_ring)
 
 # Concl: DN = 0.3 --> I/F = 4e-10 -> tau = 1e-8. This is possible, I guess. But it seems
 # really low. I doubt we are actually that sensitive. And if we went this deep in 10 sec, then
@@ -513,9 +525,14 @@ print "Ring upper limit: DN = {}, I/F = {}, tau = {}.".format(dn_ring, iof_ring,
 file = dir + '/mpf_0299175045_0x548_sci_1.fit'
 hdu_mf = fits.open(file)
 header = hdu_mf['PRIMARY'].header
-exptime = header['EXPTIME']
-rpluto  = header['RPLUTO']
-ppluto  = header['PPLUTO']
+exptime = float(header['EXPTIME'])
+rpluto  = float(header['RPLUTO']) # (DN/s)/(erg/cm^2/s/Ang/sr), Pluto spectrum  
+rsolar  = float(header['RSOLAR']) # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum 
+ppluto  = float(header['PPLUTO'])
+pixfov  = float(header['PIXFOV'])
+
+sr_pix = (pixfov*1e-6)**2
+
 im_mf = hdu_mf['PRIMARY'].data
 im_mfe = (np.transpose(im_mf[0,:,2700:2800]))  # Extract of mvic framing image
 
@@ -525,11 +542,14 @@ plt.show()
 # Convert from DN to I/F, using same math as above
 
 dn_pluto = np.median(im_mfe)
-i_pluto_per_sr = dn_pluto / exptime / rsolar
+i_pluto_per_sr = dn_pluto / exptime / rpluto
 i_pluto = i_pluto_per_sr * sr_pix
-iof_pluto = i_pluto / (f_solar_40au / math.pi)
+if (DO_OVERRIDE):
+    i_pluto = i_pluto_per_sr
 
-iof_pluto_known = 0.5
+iof_pluto = i_pluto / (f_solar_40au / math.pi) # Works if I put i_pluto_per_sr here
+
+iof_pluto_known = 0.6 # From fig. 1F of Nature paper: (I/F)_sp ~ 0.6
 
 print "Pluto surface: DN = {}, I/F = {}.".format(dn_pluto, iof_pluto)
 
@@ -538,7 +558,7 @@ print "Pluto surface: DN = {}, I/F = {}.".format(dn_pluto, iof_pluto)
 
 fudge = iof_pluto_known / iof_pluto
 
-print "Using fudge = {}: Ring upper limit: DN = {}, I/F = {}, tau = {}.".\
+print "Using fudge = {:.2f}: Ring upper limit: DN = {:.2g}, I/F = {:.2g}, tau = {:.2g}.".\
   format(fudge, dn_ring, fudge*iof_ring, fudge*tau_ring)
 
 stop
