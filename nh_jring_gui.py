@@ -46,22 +46,18 @@ from   scipy.optimize import curve_fit
 #from   pylab import *  # So I can change plot size.
                        # Pylab defines the 'plot' command
 import cspice
-import skimage
 from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
 from   astropy.wcs import WCS
 from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 #from   photutils import datasets
-from   astropy.stats import sigma_clipped_stats
 from   scipy.stats import mode
 from   scipy.stats import linregress
-from   photutils import daofind
 import wcsaxes
 import time
 from scipy.interpolate import griddata
 
-import imreg_dft as ird
 import re # Regexp
 import pickle # For load/save
 
@@ -626,7 +622,6 @@ class App:
         self.ax2.clear()  # Clear lines from the current plot. 
 
         dy = 2            # Vertical offset between curves
-        r
                           # Set the y limit to go from minimum, to a bit more than 90th %ile
                           # The idea here is to clip off flux from a moon, if it is there.
                           
