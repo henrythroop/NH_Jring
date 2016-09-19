@@ -87,8 +87,8 @@ sequence        = 'D202'
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
 
-#nbins_radius = 100
-nbins_radius = 1000
+nbins_radius = 100
+#nbins_radius = 1000
 
 #PIXSIZE =              13.0000 /Pixel size in microns                           
 #READNOI =              30.0000 /Readnoise in Electrons                          
@@ -506,7 +506,9 @@ iof_ring = i_ring / (f_solar_40au / math.pi)
 # Now get optical depth, using equation I/F = tau omega P / (4 mu)
 
 omega_0 = 0.3        # Single scattering albedo. Rough guess.
-p11     = 0.7      # Phase function (normalized). This is a guess for forward-scattering.
+p11     = 10         # Phase function (normalized). This is a guess for forward-scattering.
+                     # http://nit.colorado.edu/atoc5560/week8.pdf
+                     # Or better: fig 4.8 of Wendisch & Yang book (from Google Books)
 
 tau_ring = iof_ring * 4 * np.cos(lat_obs) / omega_0 / p11
 
