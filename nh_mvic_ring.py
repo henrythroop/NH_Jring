@@ -81,8 +81,8 @@ cspice.furnsh(file_tm) # Start up SPICE
 #file = dir + '/mvic_d305_sum_mos_v1.fits'
 
 #sequence        = 'D305'
-#sequence        = 'A_RINGDEP_01'  # Departure imaging, closest MVIC image of the whole system
-sequence        = 'D202'
+sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
+#sequence        = 'D202'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
@@ -112,7 +112,7 @@ if (sequence == 'D305'):
   utc = '2015::305 00:00:00'  # Set the time 
   stretch = astropy.visualization.PercentileInterval(99)
   
-if (sequence == 'A_RINGDEP_01'):
+if (sequence == 'O_RINGDEP_A_1'):
   file_wcs = dir + '/ringdep_mos_v1_wcs.fits'
   utc = '2015 Jul 15 18:50:00'  # Set the time.
   stretch = astropy.visualization.PercentileInterval(99.6)
@@ -122,7 +122,7 @@ if (sequence == 'D202'):
   utc = '2015::202 00:00:00'  # Set the time.
   stretch = astropy.visualization.PercentileInterval(99.6)
   
-file_header    = file_wcs.replace('.fits', '_header.fits')       # File with fixed FITS ET info
+file_header    = file_wcs.replace('.fits', '_header.fits')    # File with fixed FITS ET info
 file_header_pl = file_header.replace('.fits', '_pl.fits')     # File for backplanes
 
 #==============================================================================
@@ -131,36 +131,61 @@ file_header_pl = file_header.replace('.fits', '_pl.fits')     # File for backpla
     
 if (DO_FIX_FITS):
 
+    file_image_in = file_wcs
+   
+    file_header_out = file_header
+    
 # Add a missing header field and write out
-    
-    et = cspice.utc2et(utc)
-    hdulist = fits.open(file_wcs)
-    im = hdulist['PRIMARY'].data    
-    hdulist['PRIMARY'].header['SPCSCET'] =     (et, "[s past J2000] Spacecraft mid-obs time, TDB")  
-    
-    hdulist.writeto(file_header, clobber=True)
-    print "Wrote new FITS file with fixed header: " + file_header
 
-# Create the backplanes and write out
+    if (sequence == 'O_RINGDEP_A_1'):
+        file_header_in = dir + '/mpf_0299292106_0x548_sci_2.fit'
+    if (sequence == 'D202'):
+        file_header_in = dir + '/mpf_0299793106_0x539_sci_2.fit'
+    if (sequence == 'D211'):
+        file_header_in = dir + '/mpf_0300584506_0x539_sci_3.fit'
+    if (sequence == 'D305'):
+        file_header_in = dir + '/mpf_0308706706_0x539_sci_6.fit'
 
-    planes = hbt.create_backplane(file_header, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
+    print "Reading file: " + file_header_in
+    print "Reading file: " + file_image_in
     
-#    lun = open(file_planes, 'wb')
-#    pickle.dump(planes, lun)
-#    lun.close()
+    hdulist_header_in = fits.open(file_header_in)
+    hdulist_image_in  = fits.open(file_image_in) # Has Tod's image, and WCS data
+
+# Start with Tod's mosaics, which have the correct image and the correct WCS.
+# Append all of the regular NH FITS info to the end of that, from a raw SOC image.
     
-#    hdulist[']
-    print "Wrote backplane file: " + file_planes    
+    for card in hdulist_header_in['PRIMARY'].header.cards:
+        hdulist_image_in['PRIMARY'].header.append(card)
+
+# Now write out the image data (ie, Tod's mosaics)
+    try:
+        hdulist_image_in['PRIMARY'].header.remove('NAXIS3') # Remove a spurious keyword that Tod put there
+    except ValueError:
+        pass
+    
+    hdulist_image_in.writeto(file_header_out, clobber=True)
+    
+    print "Wrote new FITS file with fixed header: " + file_header_out
+
+    hdulist_header_in.close()
+    hdulist_image_in.close()
+    
+# Create the backplanes. 
+# Start by reading in the file we just created.
+
+    print "Generating backplanes..."
+    
+    planes = hbt.create_backplane(file_header_out, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
 
 # Create backplaned FITS file.
 
-#    hdu1 = fits.PrimaryHDU()
-#    hdu2 = fits.ImageHDU()
-#    new_hdul = fits.HDUList([hdu1, hdu2])
-#    new_hdul.writeto('test.fits', clobber=True)
+# Create a new FITS file, made of an existing file plus these new planes
+
+    hdulist = fits.open(file_header_out)  # Read in the file we've just created, which has full fixed header
 
     type_out = 'float32'  # Write backplane in single precision, to save space.
-    hdu_out = fits.HDUList()
+    hdu_out = fits.HDUList() # Create a brand new FITS file
     hdu_out.append(hdulist['PRIMARY'])
     hdu_out.append(fits.ImageHDU(planes['RA'].astype(type_out), name = 'RA'))
     hdu_out.append(fits.ImageHDU(planes['Dec'].astype(type_out), name = 'Dec'))
@@ -444,15 +469,18 @@ plt.show()
 #==============================================================================
 
 # Set up some conversion constants. These are mostly in the FITS header file.
-                         
-exptime      = 10        # All MVIC Framing ring mosaics are 10 sec/exposure
-rsolar       = 100190.64 # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
+
+exptime      = float(hdulist['PRIMARY'].header['EXPTIME']) # # All MVIC Framing ring mosaics are 10 sec/exposure
+                                        
+pixfov       = float(hdulist['PRIMARY'].header['PIXFOV'])# 19.8065   # Plate scale in microrad/pix    
+rsolar       = float(hdulist['PRIMARY'].header['RSOLAR']) # 100190.64. # (DN/s)/(erg/cm^2/s/Ang/sr)
+                         # RSOLAR is conversion for solar spectrum. Use for resolved sources.
+
                          # NB: This value is 0.0695 in the NH MVIC ICD @ 63. Is one an error??
                          # NB: rsolar and psolar vary only by factor pixfov^2 [in sr]
                          # LORRI RSOLAR is 2e5, suggesting that the MVIC number is basically right. 
-                # https://www.spaceops.swri.org/nh/wiki/index.php/LORRI#Conversion_from_DN_to_physical_units
-                
-pixfov       = 19.8065   # Plate scale in microrad/pix    
+                         # https://www.spaceops.swri.org/nh/wiki/index.php/LORRI#Conversion_from_DN_to_physical_units
+                         
 
 #rsolar       = 0.0695    # Value for RSOLAR in ICD @ 63.
  
@@ -466,7 +494,7 @@ sr_pix       = (pixfov*(1e-6))**2  # Angular size of each MVIC pixel, in sr
 dn_ring      = 0.03      # What is our DN limit? This is the value that we read
                          # off of the radial profile plots above
 
-# Look up the solar flux at 1 AU, using the solar spectrum at 
+# Look up the solar flux at 1 AU, using the solar spectral irradiance at 
 #    http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
 # or http://www.pas.rochester.edu/~emamajek/AST453/AST453_stellarprops.pdf
 
