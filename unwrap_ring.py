@@ -42,9 +42,9 @@ index_group = 8
 index_image = 0 # Which frame from the group do we extract?
 index_images_stray = hbt.frange(0,48)
 
-index_group = 7
-index_image = 42 # Which frame from the group do we extract?
-index_images_stray = hbt.frange(1,2)
+#index_group = 7
+#index_image = 42 # Which frame from the group do we extract?
+#index_images_stray = hbt.frange(1,2)
 
 #index_group = 5
 #index_image = 1
@@ -97,8 +97,8 @@ image_roll = np.roll(np.roll(image_processed, dx_total, axis=1), dy_total, axis=
 radius  = planes['Radius_eq']    # Radius in km
 azimuth = planes['Longitude_eq'] # Azimuth in radians
 
-r_ring_inner = 1.7 * rj
-r_ring_outer = 1.81 * rj
+r_ring_inner = 1.6 * rj
+r_ring_outer = 1.9 * rj
 
 plt.rc('image', cmap='Greys_r')               # Default color table for imshow
 
@@ -223,21 +223,67 @@ for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer
         
         dn_grid_2[i,:] = grid_lin_i
 
+# Set limits for where the extraction should happen
+
+# For the radial profile, we take only a portion of the unwrapped frame. 
+# e.g., the inner 30%. We exclude the region on the edges, since it is smeared, and has contamination.
+# We are not starved for photons. Take the best portion of the signal and use it.
+
+frac_profile_radial = 0.3  # Of the available azimuth range, what fraction should we use for extracting radial profile?
+
+# For azimuthal profile, focus on the main ring. Don't focus on the diffuse inner region.
+# It is harder to do that photometry, more artifacts, fainter, and probalby more spread out anyhow.
+
+limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) # Distances of [outer box, outer ring, inner ring, inner box] in km
+
+limits_profile_azimuth_bins = limits_profile_azimuth.astype(int).copy() * 0
+for i,r in enumerate(limits_profile_azimuth):
+    limits_profile_azimuth_bins[i] = int(hbt.wheremin(abs(bins_radius - r)))
+
+    limits_profile_radial_bins = int(np.shape(dn_grid)[1]) * np.array([0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2])
+
 #==============================================================================
-# Extract radial and azimuthal profiles
+# Extract radial and azimuthal profiles, using entire reprojected image
 #==============================================================================
 
-profile_azimuth = np.nansum(dn_grid, 0)
-profile_radius  = np.nansum(dn_grid, 1)
+profile_azimuth = np.nanmean(dn_grid, axis=0)
+profile_radius  = np.nanmean(dn_grid, axis=1)
 
-profile_azimuth_2 = np.nansum(dn_grid_2, 0)
-profile_radius_2  = np.nansum(dn_grid_2, 1)
+profile_azimuth_2 = np.nanmean(dn_grid_2, axis=0)
+profile_radius_2  = np.nanmean(dn_grid_2, axis=1)
 
 #==============================================================================
-#  Plot the remapped 2D images
+# Extract radial and azimuthal profiles, using subsections
 #==============================================================================
 
-plt.rcParams['figure.figsize'] = 15,15
+# I am using the *mean* here along each row and column. That means that the final value
+# in the profiles is 
+# Azimuthal
+
+#profile_azimuth_bg_inner = np.nansum(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],0)
+
+plt.rcParams['figure.figsize'] = 10,5
+
+profile_azimuth_bg_inner = np.nanmean(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],axis=0)
+profile_azimuth_core     = np.nanmean(dn_grid[limits_profile_azimuth_bins[2]:limits_profile_azimuth_bins[1],:],axis=0)
+profile_azimuth_bg_outer = np.nanmean(dn_grid[limits_profile_azimuth_bins[3]:limits_profile_azimuth_bins[2],:],axis=0)
+
+profile_azimuth_subtracted = profile_azimuth_core - (profile_azimuth_bg_inner + profile_azimuth_bg_outer)/2
+profile_radius_central   = np.nanmean(dn_grid[:,limits_profile_radial_bins[0]:limits_profile_radial_bins[1]],1)
+
+plt.plot(bins_azimuth, profile_azimuth_bg_inner, label='Background: Rows {} .. {}.'.format(limits_profile_azimuth_bins[1], limits_profile_azimuth_bins[0]))
+plt.plot(bins_azimuth, profile_azimuth_core,     label='Core')
+plt.plot(bins_azimuth, profile_azimuth_bg_outer, label='Background: Rows {} .. {}.'.format(limits_profile_azimuth_bins[1], limits_profile_azimuth_bins[0]))
+plt.plot(bins_azimuth, profile_azimuth_subtracted + 4, color='black', label = 'Subtracted')
+plt.legend()
+plt.show()
+
+
+#==============================================================================
+#  Plot the remapped 2D images, with extraction boxes
+#==============================================================================
+
+plt.rcParams['figure.figsize'] = 10,5
 
 extent = [azimuth_seg_start, azimuth_seg_end, np.min(radius_all),np.max(radius_all)]
 
@@ -249,6 +295,16 @@ plt.title('griddata [2d]')
 plt.xlabel('Azimuth [radians]')
 plt.ylabel('Radius [km]')
 
+plt.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
+plt.hlines(limits_profile_azimuth[1], -10, 10, color='purple')
+plt.hlines(limits_profile_azimuth[2], -10, 10, color='purple')
+plt.hlines(limits_profile_azimuth[3], -10, 10, color='purple')
+plt.xlim(hbt.mm(bins_azimuth))
+
+plt.vlines(bins_azimuth[limits_profile_radial_bins[0]],-1e10, 1e10)
+plt.vlines(bins_azimuth[limits_profile_radial_bins[1]],-1e10, 1e10)
+plt.ylim(hbt.mm(bins_radius))
+
 # Method #2 -- using griddata() over one line at a time
 
 plt.subplot(1,2,2)
@@ -256,6 +312,16 @@ plt.imshow(hbt.remove_brightest(dn_grid_2, 0.95, symmetric=True), aspect=aspect,
 plt.title('griddata [line-by-line]')
 plt.xlabel('Azimuth [radians]')
 plt.ylabel('Radius [km]')
+
+plt.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
+plt.hlines(limits_profile_azimuth[1], -10, 10, color='purple')
+plt.hlines(limits_profile_azimuth[2], -10, 10, color='purple')
+plt.hlines(limits_profile_azimuth[3], -10, 10, color='purple')
+plt.xlim(hbt.mm(bins_azimuth))
+
+plt.vlines(bins_azimuth[limits_profile_radial_bins[0]],-1e10, 1e10)
+plt.vlines(bins_azimuth[limits_profile_radial_bins[1]],-1e10, 1e10)
+plt.ylim(hbt.mm(bins_radius))
 
 plt.show()
 
@@ -267,16 +333,28 @@ plt.rcParams['figure.figsize'] = 15,6  # <- this is in dx, dy... which is opposi
 
 plt.subplot(1,2,1)
 plt.plot(bins_azimuth, profile_azimuth, label = '1D')
-plt.plot(bins_azimuth, profile_azimuth_2+400, label='2D')
+plt.plot(bins_azimuth, profile_azimuth_2+4, label='2D')
+plt.plot(bins_azimuth, profile_azimuth_subtracted, color='yellow', label='bg-sub')
+plt.plot(bins_azimuth, hbt.smooth_boxcar(profile_azimuth_subtracted,30), label='bg-sub smooth', color='purple')
+
 plt.title('Azimuthal Profile')
 plt.xlabel('Azimuth [radians]')
 plt.legend()
 
 plt.subplot(1,2,2)
 plt.plot(bins_radius, profile_radius, label = '1D')
-plt.plot(bins_radius, profile_radius_2 + 800, label='2D')
+plt.plot(bins_radius, profile_radius_2 + 1, label='2D')
+plt.plot(bins_radius, profile_radius_central + 2, label='Small box')
 plt.xlabel('Radius [km]')
 plt.title('Radial Profile')
 plt.xlim(hbt.mm(bins_radius))
 plt.legend()
 plt.show()
+
+#==============================================================================
+# Now measure the I/F, EW, etc. from the radial profile
+#==============================================================================
+
+# First convert DN to I/F
+
+# Then integrate over I/F dr to get EW

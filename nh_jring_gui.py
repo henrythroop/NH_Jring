@@ -456,8 +456,8 @@ class App:
     def extract_profiles(self):
 
         rj = cspice.bodvrd('JUPITER', 'RADII')[0] # 71492 km
-        r_ring_inner = 1.7 * rj
-        r_ring_outer = 1.81 * rj
+        r_ring_inner = 1.6 * rj   # Follow same limits as in Throop 2004 J-ring paper fig. 7
+        r_ring_outer = 1.9 * rj
 
         num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
         num_bins_radius  = 300
@@ -638,7 +638,21 @@ class App:
         self.ax2.plot(self.bins_radius, self.profile_radius)
         self.canvas2.show()
         
-# Plot radial profile
+## Plot radial profile
+#
+#ax2 = ax1.twiny()
+#
+#ax1.plot(x, y1, 'g-')
+## ax2.plot(x, y2, 'b-')
+#
+#ax1.set_ylabel('Y1 data', color='g')
+#ax1.set_xlabel('X data')
+#ax1.set_xlim((0,10))
+#
+#ax2.set_xlabel('x2 data', color='b')  # Top
+#ax2.set_xlim((1,40))
+#
+#plt.show()
 
         dy = 1
 
@@ -650,14 +664,17 @@ class App:
        
         self.ax4.plot(bins_radius/1000, profile_radius, label = 'Regrid')
         self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
-        self.ax4.set_title('Radial Profile')
-        self.ax4.set_xlabel('Radius [1000 km]')
+#        self.ax4.set_title('Radial Profile')
+        self.ax4.set_xlabel('Radial Profile      Radius [1000 km]')
         self.ax4.set_ylim(ylim)
         self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
         self.ax4.legend(loc='upper left')
 
         self.ax4.plot(self.bins_radius, self.profile_radius)
-        
+        ax41 = self.ax4.twiny()
+#        ax41.set_ylabel('Radius [RJ]')
+        ax41.set_xlim(list(hbt.mm(bins_radius/1000/71.4)))
+
         self.canvas4.show()
         
                        
@@ -1253,115 +1270,6 @@ the internal state which is already correct. This does *not* refresh the image i
             self.legend = self.ax1.legend()  # Draw legend. Might be irrel since remove() might keep it; not sure.
 
             self.canvas1.draw()
-
-    
-
-#==============================================================================
-# Extract ring profiles (both radial and azimuthal), and plot them
-# THIS IS THE OLD VERSION.
-#==============================================================================
-
-    def extract_profiles_OLD(self):
-        
-	  # First check if image is navigated
-								
-        if (self.t_group['is_navigated'][self.index_image] == False):
-  
-            print "Not navigated -- skipping profile"
-            return 0
-
-        # Now check if the backplane is loaded already. Load it iff it is not loaded
-
-        if (self.file_backplane_shortname != self.t_group['Shortname'][self.index_image]):
-            self.load_backplane()
-												
-        dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
-        dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
-        
-        image_roll = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
-        
-        radius = self.planes['Radius_eq'] / self.rj   # Radius stored as km, but do the calc in R_J
-        azimuth = self.planes['Longitude_eq'] * hbt.r2d # Azimuth is stored as radians, but do the calc in degrees
-        
-        print "radius[100,100] = " + repr(radius[100,100])
-
-        num_bins_azimuth = 360 # Might make this a user parameter later
-        num_bins_radius  = 360
-
-        plt.rc('image', cmap='jet')               # Default color table for imshow
-
-        self.ax4.imshow( ( np.array(radius > 1.7) & np.array(radius < 1.8)) + 1* image_roll / np.max(image_roll))
-        self.canvas4.show()
-        
-        # Extract and plot radial profile
-
-        self.bins_radius = hbt.frange(1.7, 1.85, num_bins_radius)
-        self.profile_radius = np.zeros(num_bins_radius)
-        
-        for i in range(num_bins_radius-1):
-            
-            is_good = np.array(radius > self.bins_radius[i])                  & np.array(radius < self.bins_radius[i+1])
-                      
-            self.profile_radius[i] = np.mean(image_roll[is_good])
-        
-        self.ax2.plot(self.bins_radius, self.profile_radius)
-        fs = 20
-#        self.ax2.set_xlim([0,100])  # This is an array and not a tuple. Beats me, like so many things with mpl.
-
-        self.canvas2.show()
-
-        # Extract and plot azimuthal profile
-        
-        # Create the azimuthal bins. 
-        self.bins_azimuth = hbt.frange(-180,180,num_bins_azimuth+1)
-        self.profile_azimuth = np.zeros(num_bins_azimuth+1)
-                
-        print
-        for i in range(num_bins_azimuth-1):
-            
-            is_good = np.array(radius > 1.5)                  & np.array(radius < 2.2) & \
-                      np.array(azimuth > self.bins_azimuth[i]) & np.array(azimuth < self.bins_azimuth[i+1])
-                      
-            self.profile_azimuth[i] = np.mean(image_roll[is_good])
-#            print "{:<3}. {:<7} {:<7}".format(i, self.bins_azimuth[i], self.profile_azimuth[i])
-
-        # Now we do some crazy logic to unwrap the azimuth, so that start will be in -180 .. 180, and end after that.
-        # First, copy the azimuth and intensity, so we have two full loops in the array (720 deg)
-
-        profile_azimuth_2      = np.concatenate((self.profile_azimuth[:-2], self.profile_azimuth[:-2]))
-        bins_azimuth_2         = np.concatenate((self.bins_azimuth[:-2], self.bins_azimuth[:-2]+360))     
-        
-        # Now, search this for the first pattern of [nan, non-nan]. That will be the start of the valid data.
-        
-        i = np.array(range(np.size(profile_azimuth_2)-1)) # Just an index. Chop off last entry so we can use i+1
-        
-        is_start = np.isnan(profile_azimuth_2[i]) & np.logical_not(np.isnan(profile_azimuth_2[i+1]))
-        bin_start = i[is_start][0]+1 # get first match
-        
-        # And then look for the end pattern: [non-nan, nan], starting *after* bin_start
-        
-        is_end = np.logical_not(np.isnan(profile_azimuth_2[i])) & np.isnan(profile_azimuth_2[i+1]) & np.array(i > bin_start)
-        bin_end = i[is_end][0]
-
-        # Now we have the proper indices for the start and end.
- 
-        az_start = bins_azimuth_2[bin_start]
-        az_end   = bins_azimuth_2[bin_end]
-        
-        print "az = " + repr(bins_azimuth_2[bin_start]) + ' .. ' + repr(bins_azimuth_2[bin_end])
-        
-        self.ax3.plot(bins_azimuth_2, profile_azimuth_2)
-        fs = 20
-
-#        self.ax3.set_xlim([az_start-10, az_end+10])  # This is array not a tuple. Beats me, like so many things with mpl.
-#        self.ax3.set_ylim([-5, 5])           # Hard-code this.... not sure what is best.
-        self.canvas3.show()
-        
-        plot4 = self.ax4.imshow(azimuth)
-
-        self.canvas4.show()
-            
-        return 0
 
 ##########
 # Load backplane
