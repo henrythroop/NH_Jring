@@ -471,7 +471,8 @@ print "DN = {}; I/F = {:.2g} .".format(dn_ring, iof_ring)
 
 ew_edge = [120000,130000]
 
-ew_inner = 122000
+ew_edge_bin = hbt.y2bin(ew_edge,bins_radius)
+ew_inner_bin = 
 ew_o
 ew 
 stop
