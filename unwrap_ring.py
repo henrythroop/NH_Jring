@@ -14,6 +14,7 @@ Created on Mon Jun 27 09:01:30 2016
 
 import hbt
 import pickle
+from   astropy.io import fits
 import matplotlib.pyplot as plt
 import numpy as np
 import os.path
@@ -21,6 +22,62 @@ import astropy
 from scipy.interpolate import griddata
 import math
 
+
+#==============================================================================
+# Function for DN to I/F conversion
+#==============================================================================
+    
+def dn2iof(dn, exptime, pixfov, rsolar):
+    
+# Convert DN to I/F. 
+# This is not a general routine -- it's specific to LORRI @ Jupiter.
+
+    # Calculate LORRI pixel size, in sr
+
+    sr_pix       = (pixfov*(1e-6))**2  # Angular size of each MVIC pixel, in sr
+
+    # Look up the solar flux at 1 AU, using the solar spectral irradiance at 
+    #    http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
+    # or http://www.pas.rochester.edu/~emamajek/AST453/AST453_stellarprops.pdf
+
+    f_solar_1au_si     = 1.77                 # W/m2/nm. At 600 nm. 
+    f_solar_1au_cgs    = f_solar_1au_si * 100 # Convert from W/m2/nm to erg/sec/cm2/Angstrom
+
+    f_solar_1au        = f_solar_1au_cgs
+
+    # Calculate the solar flux at Pluto's distance. [Actual distance is 33.8 AU]
+
+    f_solar_jup       = f_solar_1au / (5**2)  # Use 1/r^2, not 1/(4pi r^2)
+
+    # Use constants (from Level-2 files) to convert from DN, to intensity at detector.
+
+    # This is the equation in ICD @ 62.
+
+    i_per_sr    = dn / exptime / rsolar # Convert into erg/cm2/s/sr/Angstrom.
+
+    # Because the ring is spatially extended, it fills the pixel, so we mult by pixel size
+    # to get the full irradiance on the pixel.
+    # *** But, somehow, this is not working. I get the right answer only if I ignore this 'per sr' factor.
+
+    DO_OVERRIDE = True  # If true, ignore the missing factor of 'per sr' that seems to be in the conversion
+
+    i           = i_per_sr * sr_pix     # Convert into erg/cm2/s/Angstrom
+
+    if (DO_OVERRIDE):
+        i = i_per_sr
+
+    # Calculate "I/F". This is not simply the ratio of I over F, because F in the eq is not actually Flux.
+    # "pi F is the incident solar flux density" -- ie, "F = solar flux density / pi"
+    # SC93 @ 125
+
+    iof = i / (f_solar_jup / math.pi)
+    
+    return iof
+
+#==============================================================================
+# Define input quantities and constants
+#==============================================================================
+    
 file_pickle = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
 dir_images =         '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
 dir_backplanes =     '/Users/throop/data/NH_Jring/out/'
@@ -63,6 +120,12 @@ f_short = t_group['Shortname'][index_image]
 file_backplane = dir_backplanes + t_group['Shortname'][index_image].replace('.fit', '_planes.pkl')
 
 # Load backplane, which is required for navigation
+# ** For the MVIC observations of the Pluto rings, I put the backplanes into the FITS files,
+# which had been created by Tod.
+# But for Jupiter, since we have hundreds of images, I am not going to modify them. Safer to 
+# analyze the virgin FITS files from the SOC, and use unrelated backplane files. 
+# Also, since the Jupiter FITS file have all the SOC header info in them, there is really less
+# need to mess with them than with Tod's 
 				
 if (os.path.isfile(file_backplane)):
     print 'load_backplane: loading ' + file_backplane 
@@ -73,9 +136,11 @@ if (os.path.isfile(file_backplane)):
     
 # Load image
 # Then do basic image processing on it to remove stray light, etc.
-# To remove stray light, we first remove low-frq terms using an sfit. Then we remove hi-frq terms with the stray light image.
+# To remove stray light, we first remove low-frq terms using an sfit. 
+# Then we remove hi-frq terms with the stray light image.
 # This is my standard cookbook routine
-# One change though: I should make my image clamping (remove_brightest) only apply to the plotted image -- not the internal one
+# One change though: I should make my image clamping (remove_brightest) 
+# only apply to the plotted image -- not the internal one
     
 image = hbt.read_lorri(t_group['Filename'][index_image])
 image_processed = hbt.remove_brightest(image, 0.97, symmetric=True)
@@ -84,6 +149,13 @@ image_processed = hbt.remove_brightest(image_processed, 0.97, symmetric=True)
 image_processed -= image_stray 
 
 plt.imshow(image_processed)
+
+# Load some fields from the FITS image header
+
+hdulist = fits.open(t_group['Filename'][index_image])
+exptime = hdulist['PRIMARY'].header['EXPTIME']
+rsolar  = hdulist['PRIMARY'].header['RSOLAR']
+pixfov = 0.3 * hbt.d2r * 1e6 / 1024  # This keyword is missing. "Plate scale in microrad/pix "
 												
 dx_total =  -(t_group['dx_offset'][index_image] + t_group['dx_opnav'][index_image])
 dy_total =  -(t_group['dy_offset'][index_image] + t_group['dy_opnav'][index_image])
@@ -129,7 +201,6 @@ plt.show()
 # Examine backplane to figure out azimuthal limits of the ring image
 #==============================================================================
 
-    
 # Select the ring points -- that is, everything inside the mask
 
 is_ring_all = ( np.array(radius > r_ring_inner) & np.array(radius < r_ring_outer))
@@ -182,7 +253,6 @@ dn_all      = dn_all_good
 #  Now regrid the data from xy position, to an unrolled map in (azimuth, radius)
 #==============================================================================
 
-
 # Method #1: Construct the gridded image all at once 
 
 az_arr  = np.linspace(azimuth_seg_start, azimuth_seg_end,     num_bins_azimuth)
@@ -229,18 +299,21 @@ for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer
 # e.g., the inner 30%. We exclude the region on the edges, since it is smeared, and has contamination.
 # We are not starved for photons. Take the best portion of the signal and use it.
 
-frac_profile_radial = 0.3  # Of the available azimuth range, what fraction should we use for extracting radial profile?
+frac_profile_radial = 0.3  # Of the available azimuth range, what fraction do we use for extracting radial profile?
 
 # For azimuthal profile, focus on the main ring. Don't focus on the diffuse inner region.
 # It is harder to do that photometry, more artifacts, fainter, and probalby more spread out anyhow.
 
-limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) # Distances of [outer box, outer ring, inner ring, inner box] in km
+# Define distances of [outer box, outer ring, inner ring, inner box] in km
+
+limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) 
 
 limits_profile_azimuth_bins = limits_profile_azimuth.astype(int).copy() * 0
 for i,r in enumerate(limits_profile_azimuth):
     limits_profile_azimuth_bins[i] = int(hbt.wheremin(abs(bins_radius - r)))
 
-    limits_profile_radial_bins = int(np.shape(dn_grid)[1]) * np.array([0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2])
+    limits_profile_radial_bins = int(np.shape(dn_grid)[1]) * \
+      np.array([0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2])
 
 #==============================================================================
 # Extract radial and azimuthal profiles, using entire reprojected image
@@ -271,13 +344,14 @@ profile_azimuth_bg_outer = np.nanmean(dn_grid[limits_profile_azimuth_bins[3]:lim
 profile_azimuth_subtracted = profile_azimuth_core - (profile_azimuth_bg_inner + profile_azimuth_bg_outer)/2
 profile_radius_central   = np.nanmean(dn_grid[:,limits_profile_radial_bins[0]:limits_profile_radial_bins[1]],1)
 
-plt.plot(bins_azimuth, profile_azimuth_bg_inner, label='Background: Rows {} .. {}.'.format(limits_profile_azimuth_bins[1], limits_profile_azimuth_bins[0]))
+plt.plot(bins_azimuth, profile_azimuth_bg_inner, label=\
+  'Background: Rows {} .. {}.'.format(limits_profile_azimuth_bins[1], limits_profile_azimuth_bins[0]))
 plt.plot(bins_azimuth, profile_azimuth_core,     label='Core')
-plt.plot(bins_azimuth, profile_azimuth_bg_outer, label='Background: Rows {} .. {}.'.format(limits_profile_azimuth_bins[1], limits_profile_azimuth_bins[0]))
+plt.plot(bins_azimuth, profile_azimuth_bg_outer, label=\
+  'Background: Rows {} .. {}.'.format(limits_profile_azimuth_bins[1], limits_profile_azimuth_bins[0]))
 plt.plot(bins_azimuth, profile_azimuth_subtracted + 4, color='black', label = 'Subtracted')
 plt.legend()
 plt.show()
-
 
 #==============================================================================
 #  Plot the remapped 2D images, with extraction boxes
@@ -308,7 +382,8 @@ plt.ylim(hbt.mm(bins_radius))
 # Method #2 -- using griddata() over one line at a time
 
 plt.subplot(1,2,2)
-plt.imshow(hbt.remove_brightest(dn_grid_2, 0.95, symmetric=True), aspect=aspect, vmin=-10, vmax=20, extent=extent, origin='lower')
+plt.imshow(hbt.remove_brightest(dn_grid_2, 0.95, symmetric=True), aspect=aspect, vmin=-10, vmax=20, \
+           extent=extent, origin='lower')
 plt.title('griddata [line-by-line]')
 plt.xlabel('Azimuth [radians]')
 plt.ylabel('Radius [km]')
@@ -329,7 +404,7 @@ plt.show()
 # Plot the radial and azimuthal profiles
 #==============================================================================
 
-plt.rcParams['figure.figsize'] = 15,6  # <- this is in dx, dy... which is opposite from array order!
+plt.rcParams['figure.figsize'] = 15,5  # <- this is in dx, dy... which is opposite from array order!
 
 plt.subplot(1,2,1)
 plt.plot(bins_azimuth, profile_azimuth, label = '1D')
@@ -351,6 +426,33 @@ plt.xlim(hbt.mm(bins_radius))
 plt.legend()
 plt.show()
 
+#
+plt.rcParams['figure.figsize'] = 15,5  # <- this is in dx, dy... which is opposite from array order!
+
+scalefac = 1e6
+profile_azimuth_subtracted_iof = dn2iof(profile_azimuth_subtracted, exptime, pixfov, rsolar)
+profile_radius_central_iof     = dn2iof(profile_radius_central,  exptime, pixfov, rsolar)
+
+plt.subplot(1,2,1)
+plt.plot(bins_azimuth, scalefac * profile_azimuth_subtracted_iof, color='yellow', label='bg-sub')
+plt.plot(bins_azimuth, scalefac * hbt.smooth_boxcar(profile_azimuth_subtracted_iof,30), \
+         label='bg-sub smooth', color='purple')
+
+plt.title('Azimuthal Profile')
+plt.xlabel('Azimuth [radians]')
+plt.ylabel('I/F * {:.0e}'.format(scalefac))
+plt.legend()
+
+plt.subplot(1,2,2)
+plt.plot(bins_radius, scalefac * profile_radius_central_iof, label='Small box')
+plt.xlabel('Radius [km]')
+plt.title('Radial Profile')
+plt.ylabel('I/F * {:.0e}'.format(scalefac))
+plt.xlim(hbt.mm(bins_radius))
+plt.legend()
+plt.show()
+
+
 #==============================================================================
 # Now measure the I/F, EW, etc. from the radial profile
 #==============================================================================
@@ -358,3 +460,21 @@ plt.show()
 # First convert DN to I/F
 
 # Then integrate over I/F dr to get EW
+
+dn_ring = 100
+
+iof_ring = dn2iof(dn_ring, exptime, pixfov, rsolar)
+
+print "DN = {}; I/F = {:.2g} .".format(dn_ring, iof_ring)
+
+# Calc ew
+
+ew_edge = [120000,130000]
+
+ew_inner = 122000
+ew_o
+ew 
+stop
+
+
+

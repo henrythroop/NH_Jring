@@ -232,7 +232,7 @@ vec = vec[0:3]
 
 plt.set_cmap('Greys_r')
 
-hbt.figsize((20,40))
+hbt.figsize((20,40)) # This gets ignored sometimes here. I'm not sure why??
 plt.subplot(1,3,1)
 plt.imshow(stretch(im))
 plt.title(sequence)
@@ -358,7 +358,7 @@ mask_orbit = {}
 if (sequence == 'D305'):
     d_radius = 4000  # Halfwidth to plot, of orbit, in km
   
-if (sequence == 'A_RINGDEP_01'):
+if (sequence == 'O_RINGDEP_A_1'):
     d_radius = 100
   
 if (sequence == 'D202'):
@@ -407,7 +407,7 @@ if (nbins_radius == 100) & (sequence == 'D305'):
     offset = 0.03
     ylim = (-0.05, 0.05)
     
-if (nbins_radius == 100) & (sequence == 'A_RINGDEP_01'):
+if (nbins_radius == 100) & (sequence == 'O_RINGDEP_A_1'):
     offset = 0.02
     ylim = (-0.1, 0.1)
 
@@ -415,7 +415,7 @@ if (nbins_radius == 1000) & (sequence == 'D305'):
     offset = 0.1
     ylim = ((-0.1, 0.2))
     
-if (nbins_radius == 1000) & (sequence == 'A_RINGDEP_01'):
+if (nbins_radius == 1000) & (sequence == 'O_RINGDEP_A_1'):
     offset = 0.2
     ylim = ((-0.3, 0.3))
 
@@ -456,7 +456,7 @@ plt.title(sequence + ', nbins = ' + repr(nbins_radius) + \
 
 plt.xlabel('Orbital Distance [1000 km]')
 plt.ylabel('DN')
-plt.legend(loc = 'bottom center')
+plt.legend(loc = 'best') # also 'lower center'
 
 file_out = dir_out + '/profile_radial_n' + repr(nbins_radius) + '_' + sequence + '.png'
 plt.savefig(file_out)
