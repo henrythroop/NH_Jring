@@ -21,7 +21,7 @@ import os.path
 import astropy
 from scipy.interpolate import griddata
 import math
-
+import cspice
 
 #==============================================================================
 # Function for DN to I/F conversion
@@ -78,10 +78,15 @@ def dn2iof(dn, exptime, pixfov, rsolar):
 # Define input quantities and constants
 #==============================================================================
     
-file_pickle = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
-dir_images =         '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
-dir_backplanes =     '/Users/throop/data/NH_Jring/out/'
-rj = 71492 # km
+file_pickle       = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
+file_tm           = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
+dir_images        = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
+dir_backplanes    = '/Users/throop/data/NH_Jring/out/'
+
+rj                = 71492           # Jupiter radius, km
+
+abcorr            = 'LT+S'
+frame             = 'J2000'
 
 # Define the size of the output array
 
@@ -156,6 +161,7 @@ hdulist = fits.open(t_group['Filename'][index_image])
 exptime = hdulist['PRIMARY'].header['EXPTIME']
 rsolar  = hdulist['PRIMARY'].header['RSOLAR']
 pixfov = 0.3 * hbt.d2r * 1e6 / 1024  # This keyword is missing. "Plate scale in microrad/pix "
+et      = hdulist['PRIMARY'].header['SPCSCET']
 												
 dx_total =  -(t_group['dx_offset'][index_image] + t_group['dx_opnav'][index_image])
 dy_total =  -(t_group['dy_offset'][index_image] + t_group['dy_opnav'][index_image])
@@ -168,11 +174,27 @@ image_roll = np.roll(np.roll(image_processed, dx_total, axis=1), dy_total, axis=
 
 radius  = planes['Radius_eq']    # Radius in km
 azimuth = planes['Longitude_eq'] # Azimuth in radians
+phase   = planes['Phase']        # Phase angle 
 
 r_ring_inner = 1.6 * rj
 r_ring_outer = 1.9 * rj
 
 plt.rc('image', cmap='Greys_r')               # Default color table for imshow
+
+#==============================================================================
+# Start up SPICE and extract some geometrical quantities
+#==============================================================================
+
+cspice.furnsh(file_tm)
+utc     = cspice.et2utc(et, 'C', 0)
+
+# Look up the ring tilt angle (ie, observer latitude)
+
+(vec, lt)        = cspice.spkezr('New Horizons', et, 'IAU_JUPITER', abcorr, 'Jupiter')
+(junk, lon, lat) = cspice.reclat(vec[0:3])
+elev             = np.abs(lat)          # Elevation angle (aka 'B')  
+emis             = math.pi/2 - elev     # Emission angle (ie, angle down from normal) 
+mu               = abs(math.cos(emis))  # mu. See definitions of all these Throop 2004 @ 63 
 
 #==============================================================================
 # Make a plot with the ring and boundary shown
@@ -341,8 +363,18 @@ profile_azimuth_bg_inner = np.nanmean(dn_grid[limits_profile_azimuth_bins[1]:lim
 profile_azimuth_core     = np.nanmean(dn_grid[limits_profile_azimuth_bins[2]:limits_profile_azimuth_bins[1],:],axis=0)
 profile_azimuth_bg_outer = np.nanmean(dn_grid[limits_profile_azimuth_bins[3]:limits_profile_azimuth_bins[2],:],axis=0)
 
+# Get profile in DN
 profile_azimuth_subtracted = profile_azimuth_core - (profile_azimuth_bg_inner + profile_azimuth_bg_outer)/2
 profile_radius_central   = np.nanmean(dn_grid[:,limits_profile_radial_bins[0]:limits_profile_radial_bins[1]],1)
+
+# Convert profile to I/F
+
+profile_azimuth_subtracted_iof = dn2iof(profile_azimuth_subtracted, exptime, pixfov, rsolar)
+profile_radius_central_iof     = dn2iof(profile_radius_central,  exptime, pixfov, rsolar)
+
+# Convert profile to normalized I/F (ie, seen from above)
+
+profile_radius_central_iof_norm = profile_radius_central_iof * mu
 
 plt.plot(bins_azimuth, profile_azimuth_bg_inner, label=\
   'Background: Rows {} .. {}.'.format(limits_profile_azimuth_bins[1], limits_profile_azimuth_bins[0]))
@@ -430,8 +462,6 @@ plt.show()
 plt.rcParams['figure.figsize'] = 15,5  # <- this is in dx, dy... which is opposite from array order!
 
 scalefac = 1e6
-profile_azimuth_subtracted_iof = dn2iof(profile_azimuth_subtracted, exptime, pixfov, rsolar)
-profile_radius_central_iof     = dn2iof(profile_radius_central,  exptime, pixfov, rsolar)
 
 plt.subplot(1,2,1)
 plt.plot(bins_azimuth, scalefac * profile_azimuth_subtracted_iof, color='yellow', label='bg-sub')
@@ -461,20 +491,44 @@ plt.show()
 
 # Then integrate over I/F dr to get EW
 
-dn_ring = 100
+# Set up an array with the bin width, in km
 
-iof_ring = dn2iof(dn_ring, exptime, pixfov, rsolar)
+# List of all of the quantities I want to get:
+# DN as function of radius
+# I/F as function of radius
+# Normal I/F
+# Radially averaged normal I/F
+# tau omega0 P ('taupp')
 
-print "DN = {}; I/F = {:.2g} .".format(dn_ring, iof_ring)
+# EW = \int( (I/F)_norm dr)   [Throop 2004 @ 70]
+# Radial Ave EW = EW / Dr.  Dr = 6500 km  [Throop 2004 @ 70]
+# (I/F)_norm = (I/F) * mu [ie, corrected for ring opening angle] -- [Throop 2004 @ 2]
 
 # Calc ew
 
-ew_edge = [120000,130000]
+width_ring = 6500 # in km. This is a constant to normalize by -- not the same as actual boundaries.
 
-ew_edge_bin = hbt.y2bin(ew_edge,bins_radius)
-ew_inner_bin = 
-ew_o
-ew 
+ew_edge     = [120000,130000]  # Integrate over this range. This is wider than the official ring width.
+ew_edge_bin = hbt.x2bin(ew_edge,bins_radius)
+    
+dr = np.roll(bins_radius,-1) - bins_radius # Bin width, in km
+dr[-1] = 0
+
+iof_norm = profile_radius_central_iof_norm  # Just a shorter alias
+ew_norm  = np.sum((iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) # Normalized EW (ie, from top)
+ew_mean  = ew_norm / 6500                                           # Mean normalized EW
+
+taupp    = iof_norm * 4 * mu  # Radially averaged tau_omega0_P
+
+plt.plot(bins_radius, iof_norm) # Compare to Throop 2004 @ 65
+plt.title('Phase = {:.2f}'.format(np.mean(phase) * hbt.r2d))
+
+print "Ring mean EW = {}".format()
+#print "DN = {}; I/F = {:.2g} .".format(dn_ring, iof_ring)
+
+
+ew = np.sum((iof_ring * dr)[ew_edge_bin[0] : ew_edge_bin[1]])
+
 stop
 
 

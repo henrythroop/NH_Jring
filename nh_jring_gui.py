@@ -192,7 +192,7 @@ class App:
         
         self.file_backplane_shortname = ''      # Shortname for the currently loaded backplane.
 								
-        self.do_autoextract     = 0             # Flag to extract radial profile when possible. Flag is 1/0, 
+        self.do_autoextract     = 1             # Flag to extract radial profile when possible. Flag is 1/0, 
                                                 # not True/False, as per ttk.
         
         self.legend             = False         # Store pointer to plot legend here, so it can be deleted
@@ -490,16 +490,32 @@ class App:
 
         radius  = self.planes['Radius_eq']    # Radius in km
         azimuth = self.planes['Longitude_eq'] # Azimuth in radians
+        phase   = self.planes['Phase']        # Phase angle, radians
+
+        # Compute additional quantities we need
+
+        (vec, lt) = cspice.spkezr('New Horizons', self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
+        (junk, lon, lat) = cspice.reclat(vec[0:3])
+        elev             = np.abs(lat)          # Elevation angle (aka 'B')  
+        emis             = math.pi/2 - elev     # Emission angle (ie, angle down from normal) 
+        mu               = abs(math.cos(emis))  # mu. See definitions of all these Throop 2004 @ 63 
+
+        width_ring = 6500 # in km. This is a constant to normalize by -- not the same as actual boundaries.
         
+        ew_edge     = [120000,130000]  # Integrate over this range. This is wider than the official ring width.
+
         bins_radius = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)
             
         # Select the ring points -- that is, everything inside the mask
         
         is_ring_all = ( np.array(radius > r_ring_inner) & np.array(radius < r_ring_outer))
         
-        radius_all  = self.planes['Radius_eq'][is_ring_all]     # Make a list of all of the radius values
-        azimuth_all = self.planes['Longitude_eq'][is_ring_all]  # Make a list of all of the azimuth points for all pixels
+        radius_all  = radius[is_ring_all]     # Make a list of all of the radius values
+        azimuth_all = azimuth[is_ring_all]  # Make a list of all of the azimuth points for all pixels
+        phase_all   = phase[is_ring_all]
         dn_all      = self.image_roll[is_ring_all]              # DN values, from the rolled image
+        
+        phase_mean  = np.mean(phase_all)     # Get the mean phase angle across the ring.
         
         # Now take these raw data, and rearrange them so that we can take the longest continuous segment
         # We do this by appending the timeseries to itself, looking for the largest gap (of no az data), 
@@ -567,8 +583,8 @@ class App:
 # Extract radial and azimuthal profiles. Method #1: From the remapped images
 #==============================================================================
 
-        profile_azimuth = np.nanmean(dn_grid, 0)
-        profile_radius  = np.nanmean(dn_grid, 1)       
+        profile_azimuth_1 = np.nanmean(dn_grid, 0)
+        profile_radius_1  = np.nanmean(dn_grid, 1)       
         
         plt.rcParams['figure.figsize'] = 16,10
 
@@ -592,7 +608,46 @@ class App:
             is_rad_bin = is_rad_bin[0,:] 
             profile_radius_2[i] = np.nanmean(dn_all[is_rad_bin])
 
-                    
+
+# Choose one of these two methods
+        
+        profile_radius = profile_radius_1
+        profile_azimuth = profile_azimuth_1
+        
+#==============================================================================
+# Converted extracted values from DN, into photometric quantities
+#==============================================================================
+
+#        rsolar_i = t_group['RSolar'][self.index_image]
+
+        rsolar = 266400.  #   RSOLAR  =  266400.000000 / Conv to radiance for solar source. From LORRI FITS file.
+
+        pixfov = 0.3 * hbt.d2r * 1e6 / 1024  # This keyword is missing. "Plate scale in microrad/pix "
+
+# Convert into I/F
+         
+        profile_radius_iof = self.dn2iof(profile_radius, self.t_group['Exptime'][self.index_image],\
+                                     pixfov, rsolar )
+
+        profile_radius_iof_norm = profile_radius_iof * mu
+
+        ew_edge_bin = hbt.x2bin(ew_edge,bins_radius)
+            
+        dr = np.roll(bins_radius,-1) - bins_radius # Bin width, in km
+        dr[-1] = 0
+        
+#        ioprofile_radius_iof_norm  # Just a shorter alias
+        ew_norm  = np.sum((profile_radius_iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) # Normalized EW (ie, from top)
+        ew_mean  = ew_norm / width_ring                                           # Mean normalized EW
+        
+        taupp    = profile_radius_iof_norm * 4 * mu  # Radially averaged tau_omega0_P
+
+# Plot it. First just to screen. 
+        plt.plot(bins_radius / 1000, taupp)
+        plt.xlabel('Radius [1000 km]')
+        plt.ylabel('$\tau \varpi_0 \P(\alpha)$')
+        plt.show()
+         
 #==============================================================================
 #  Plot the remapped 2D images
 #==============================================================================
@@ -627,7 +682,7 @@ class App:
                           
         ylim = [np.amin(0.9 * profile_azimuth), dy + 1.5 * np.percentile(profile_azimuth, 97)]
                 
-        self.ax2.plot(bins_azimuth, profile_azimuth, label = 'Regrid')
+        self.ax2.plot(bins_azimuth, profile_azimuth_1, label = 'Regrid')
         self.ax2.plot(bins_azimuth, profile_azimuth_2 + dy, label='Raw')
         self.ax2.set_title('Azimuthal Profile')
         self.ax2.set_xlabel('Azimuth [radians]')
@@ -638,22 +693,6 @@ class App:
         self.ax2.plot(self.bins_radius, self.profile_radius)
         self.canvas2.show()
         
-## Plot radial profile
-#
-#ax2 = ax1.twiny()
-#
-#ax1.plot(x, y1, 'g-')
-## ax2.plot(x, y2, 'b-')
-#
-#ax1.set_ylabel('Y1 data', color='g')
-#ax1.set_xlabel('X data')
-#ax1.set_xlim((0,10))
-#
-#ax2.set_xlabel('x2 data', color='b')  # Top
-#ax2.set_xlim((1,40))
-#
-#plt.show()
-
         dy = 1
 
         ylim = [np.amin(0.9 * profile_radius), dy + 1.5 * np.percentile(profile_radius, 90)]
@@ -661,20 +700,41 @@ class App:
         self.ax4.clear()  # Clear lines from the current plot.
         
         plt.rcParams['figure.figsize'] = 16,10
-       
-        self.ax4.plot(bins_radius/1000, profile_radius, label = 'Regrid')
-        self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
-#        self.ax4.set_title('Radial Profile')
-        self.ax4.set_xlabel('Radial Profile      Radius [1000 km]')
-        self.ax4.set_ylim(ylim)
-        self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
-        self.ax4.legend(loc='upper left')
 
-        self.ax4.plot(self.bins_radius, self.profile_radius)
-        ax41 = self.ax4.twiny()
-#        ax41.set_ylabel('Radius [RJ]')
-        ax41.set_xlim(list(hbt.mm(bins_radius/1000/71.4)))
+        DO_PLOT_IOF = True # Do we plot I/F, or DN
+        
+        if (DO_PLOT_IOF == False):
+            self.ax4.plot(bins_radius/1000, profile_radius_1, label = 'Regrid')
+            self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
+            self.ax4.set_xlabel('Radial Profile      Radius [1000 km]')
+            self.ax4.set_ylim(ylim)
+            self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
+            self.ax4.legend(loc='upper left')
+    
+            self.ax4.plot(self.bins_radius, self.profile_radius)
+            ax41 = self.ax4.twiny()
+            ax41.set_xlim(list(hbt.mm(bins_radius/1000/71.4)))
 
+        if (DO_PLOT_IOF == True):     
+#            ylim = [np.amin(0.9 * taupp), 1.5 * np.percentile(taupp, 96)]
+            ylim = hbt.mm(taupp)
+            
+            self.ax4.plot(bins_radius / 1000, taupp, label = 'Method 1')
+            self.ax4.set_xlabel('Radius [1000 km]')
+            self.ax4.set_ylabel('$\tau \varpi_0 P(\alpha)$')
+             
+
+#            self.ax4.plot(bins_radius/1000, profile_radius_1, label = 'Regrid')
+#            self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
+            self.ax4.set_xlabel('Radial Profile      Radius [1000 km]')
+            self.ax4.set_ylim(ylim)
+            self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
+            self.ax4.legend(loc='upper left')
+    
+            self.ax4.plot(self.bins_radius, self.profile_radius)
+            ax41 = self.ax4.twiny()
+            ax41.set_xlim(list(hbt.mm(bins_radius/1000/71.4)))
+            
         self.canvas4.show()
         
                        
@@ -916,9 +976,11 @@ class App:
             self.extract_profiles()        
 
 
-##########
+
+#==============================================================================
 # Load new image from disk
-##########
+#==============================================================================
+
     """
     Load current image from disk
     """
@@ -1449,6 +1511,60 @@ the internal state which is already correct. This does *not* refresh the image i
         self.plot_objects()       
         
         return 0
+
+
+#==============================================================================
+# Convert from DN to I/F
+#==============================================================================
+        
+    def dn2iof(self, dn, exptime, pixfov, rsolar):
+        
+    # Convert DN to I/F. 
+    # This is not a general routine -- it's specific to LORRI 1x1 @ Jupiter.
+    
+        # Calculate LORRI pixel size, in sr
+
+        pixfov = 0.3 * hbt.d2r * 1e6 / 1024  # This keyword is missing. "Plate scale in microrad/pix "
+
+        sr_pix       = (pixfov*(1e-6))**2  # Angular size of each MVIC pixel, in sr
+    
+        # Look up the solar flux at 1 AU, using the solar spectral irradiance at 
+        #    http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
+        # or http://www.pas.rochester.edu/~emamajek/AST453/AST453_stellarprops.pdf
+    
+        f_solar_1au_si     = 1.77                 # W/m2/nm. At 600 nm. 
+        f_solar_1au_cgs    = f_solar_1au_si * 100 # Convert from W/m2/nm to erg/sec/cm2/Angstrom
+    
+        f_solar_1au        = f_solar_1au_cgs
+    
+        # Calculate the solar flux at Pluto's distance. [Actual distance is 33.8 AU]
+    
+        f_solar_jup       = f_solar_1au / (5**2)  # Use 1/r^2, not 1/(4pi r^2)
+    
+        # Use constants (from Level-2 files) to convert from DN, to intensity at detector.
+    
+        # This is the equation in ICD @ 62.
+    
+        i_per_sr    = dn / exptime / rsolar # Convert into erg/cm2/s/sr/Angstrom.
+    
+        # Because the ring is spatially extended, it fills the pixel, so we mult by pixel size
+        # to get the full irradiance on the pixel.
+        # *** But, somehow, this is not working. I get the right answer only if I ignore this 'per sr' factor.
+    
+        DO_OVERRIDE = True  # If true, ignore the missing factor of 'per sr' that seems to be in the conversion
+    
+        i           = i_per_sr * sr_pix     # Convert into erg/cm2/s/Angstrom
+    
+        if (DO_OVERRIDE):
+            i = i_per_sr
+    
+        # Calculate "I/F". This is not simply the ratio of I over F, because F in the eq is not actually Flux.
+        # "pi F is the incident solar flux density" -- ie, "F = solar flux density / pi"
+        # SC93 @ 125
+    
+        iof = i / (f_solar_jup / math.pi)
+        
+        return iof
         
 ###########
 # Now start the main app
