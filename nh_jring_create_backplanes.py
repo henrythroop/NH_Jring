@@ -17,13 +17,19 @@ import cspice
 import wcsaxes
 import hbt
 from   astropy.wcs import WCS
+import pickle # For load/save
 
 import pdb
 import glob
-import math  
+import math
 
 #from create_backplane import create_backplane
 
+# Start up SPICE
+
+file_tm = '/Users/throop/gv/dev/gv_kernels_new_horizons.txt'  # SPICE metakernel
+cspice.furnsh(file_tm)
+        
 # Get the full list of files
 
 dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
@@ -45,9 +51,13 @@ for file in files:
     file_out = file_out.replace('.fit', '_planes.pkl')
     print "Generating backplane for " + file_short
 
-    plane = create_backplane(file)
+    plane = hbt.create_backplane(file)
 
     print "RA, Dec mean = " + repr(np.mean(plane['RA']) * hbt.r2d) + ', ' + repr(np.mean(plane['Dec']) * hbt.r2d)
+    
+    print "Ang_Metis mean = " + repr(np.mean(plane['Ang_Metis']) * hbt.r2d) + ' deg'
+#    print "Ang_Adrastea mean = " + repr(np.mean(plane['Ang_Adrastea']) * hbt.r2d) + ' deg'
+#    print "Ang_Thebe mean = " + repr(np.mean(plane['Ang_Thebe']) * hbt.r2d) + ' deg'
     
     # Write one variable to a file        
 
