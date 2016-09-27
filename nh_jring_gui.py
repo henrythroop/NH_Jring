@@ -477,25 +477,33 @@ class App:
             print "Image not navigated -- returning"
             return
 
+# Create the satellite mask for the current image and pointing. It has already been rolled properly.
+
+        mask_satellites = self.get_mask_satellites()
+            
 # Create the rolled image
 
         dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
         dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
 
-        print "dx_total = {}, dy_total = {}".format(dx_total, dy_total)
+#        print "dx_total = {}, dy_total = {}".format(dx_total, dy_total)
         
-        self.image_roll = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
+        image_processed_mask = self.image_processed.copy()
+        image_processed_mask[mask_satellites] = np.nan
 
-# Get the satellite mask and roll it properly
-
-        mask = self.get_mask_satellites()
-        self.mask_roll = np.roll(np.roll(mask, dx_total, axis=1), dy_total, axis=0)            
-        self.mask_roll_neg = np.roll(np.roll(mask, -dx_total, axis=1), -dy_total, axis=0)            
+        self.image_roll      = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
+        self.image_roll_mask = np.roll(np.roll(image_processed_mask, dx_total, axis=1), dy_total, axis=0)
+        
+## Get the satellite mask and roll it properly
+#
+#        mask = self.get_mask_satellites()
+#        self.mask_roll = np.roll(np.roll(mask, dx_total, axis=1), dy_total, axis=0)            
+#        self.mask_roll_neg = np.roll(np.roll(mask, -dx_total, axis=1), -dy_total, axis=0)            
 
 # Mask the image
 
-        self.image_roll_mask = self.image_roll.copy()
-        self.image_roll_mask[self.mask_roll] = np.nan # should be nan
+#        self.image_roll_mask = self.image_roll.copy()
+#        self.image_roll_mask[mask_satellites] = np.nan # should be nan
 
 #        plt.subplot(2,3,1)
 #        plt.imshow(stretch(self.image_roll))
@@ -508,10 +516,10 @@ class App:
 ##        plt.show()
 #        
 #        plt.subplot(2,3,3)
-#        plt.imshow(mask)
-#        plt.title('mask')
-##        plt.show()
-#        
+#        plt.imshow(mask_satellites)
+#        plt.title('mask_satellites')
+#        plt.show()
+        
 #        plt.subplot(2,3,4)
 #        plt.imshow(self.mask_roll)
 #        plt.title('mask_roll')
@@ -519,7 +527,7 @@ class App:
 #        plt.subplot(2,3,5)
 #        plt.imshow(self.mask_roll_neg)
 #        plt.title('mask_roll_neg')
-#
+
 #        plt.show()
         
 #==============================================================================
@@ -781,7 +789,7 @@ class App:
 #            self.ax4.plot(bins_radius/1000, profile_radius_1, label = 'Regrid')
 #            self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
             self.ax4.set_xlabel('Radial Profile      Radius [1000 km]')
-            self.ax4.set_ylim(ylim)
+#            self.ax4.set_ylim(ylim)
             self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
             self.ax4.legend(loc='upper left')
     
@@ -1263,45 +1271,6 @@ the internal state which is already correct. This does *not* refresh the image i
             self.extract_profiles()								
 
 #==============================================================================
-# Generate a satellite mask
-#==============================================================================
-
-    def get_mask_satellites(self):
-
-        # Return a mask which is True near a satellite, and False otherwise
-
-        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
-        
-        pixfov = 0.3 * hbt.d2r * 1e6 / 1024  # LORRI 1x1 pixel size, in urad
-        
-        r_mask_pix = 100  # Mask pixels if they are this far from a satellite
-                
-        r_mask_rad = r_mask_pix * pixfov / 1e6
-        
-        mask = np.zeros(np.shape(self.image_processed)).astype(int)
-
-        keys = ['Ang_Thebe', 'Ang_Metis', 'Ang_Amalthea', 'Ang_Adreastea']
-        print self.planes.keys()
-        for key in keys: 
-            if key in self.planes.keys():
-                print "Body found near image: " + key.replace('Ang_', '')
-                mask = mask + (self.planes[key] < r_mask_rad)
-        
-        mask = (mask > 0)
-
-# Roll the satellite mask into position
-        
-#        dx = int(t['dx_opnav'] + self.slider_offset_dx.get())
-#        dy = int(t['dy_opnav'] + self.slider_offset_dy.get())
-#
-#        mask_roll = np.roll(np.roll(mask, dy, axis=0), dx, axis=1)
-#         
-#        plt.imshow(mask)
-#        plt.show()
-        
-        return mask
-
-#==============================================================================
 # Plot image
 #==============================================================================
 
@@ -1338,9 +1307,6 @@ the internal state which is already correct. This does *not* refresh the image i
                
         self.ax1.imshow(stretch(self.image_processed))
         
-        plt.imshow(stretch(self.image_processed * (mask == False)))
-        plt.show()
-                     
         # Disable the tickmarks from plotting
 
         self.ax1.get_xaxis().set_visible(False)
@@ -1357,9 +1323,7 @@ the internal state which is already correct. This does *not* refresh the image i
         
         self.fig1.tight_layout() # Remove all the extra whitespace -- nice!
         self.canvas1.draw()
-        
-        print "finished drawing canvas"
-        
+                
         if (self.t_group['is_navigated'][self.index_image]):
             self.plot_objects()									
 
@@ -1375,13 +1339,11 @@ the internal state which is already correct. This does *not* refresh the image i
            Plot rings and stars, etc, if we have them.
       """
         
-#        print 'plot_objects()'
-
         # If we have them, draw the stars on top
 
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
                                             # We can reference table['col'][n] or table[n]['col'] - either OK
-        w = WCS(t['Filename'][self.index_image])                  # Look up the WCS coordinates for this frame
+        w = WCS(t['Filename'])                  # Look up the WCS coordinates for this frame
          
         filename = self.t_group['Filename'][self.index_image]
         filename = str(filename)
@@ -1397,14 +1359,20 @@ the internal state which is already correct. This does *not* refresh the image i
             lines = self.ax1.get_lines()
             for line in lines:
                 line.remove()		# Not vectorized -- have to do it one-by-one											
+
+# Get ring position
 												
             x_pos_ring1 = eval('np.' + t['x_pos_ring1']) # Convert from string (which can go in table) to array
             y_pos_ring1 = eval('np.' + t['y_pos_ring1'])
             x_pos_ring2 = eval('np.' + t['x_pos_ring2'])
             y_pos_ring2 = eval('np.' + t['y_pos_ring2'])           
+
+# Get the user offset position
             
             dx = t['dx_opnav'] + self.slider_offset_dx.get()
             dy = t['dy_opnav'] + self.slider_offset_dy.get()
+
+# Plot the stars -- catalog, and DAO
 
             self.ax1.plot(eval('np.' + t['x_pos_star_cat']) + t['dx_opnav'], 
                      eval('np.' + t['y_pos_star_cat']) + t['dy_opnav'], 
@@ -1427,15 +1395,10 @@ the internal state which is already correct. This does *not* refresh the image i
             x_bodies,  y_bodies   = hbt.get_pos_bodies(t['ET'], name_bodies, units='pixels', wcs=w)
             ra_bodies, dec_bodies = hbt.get_pos_bodies(t['ET'], name_bodies, units='radec', wcs=w)
 
-            # Plot satellite positions
+            # Plot satellites
               
-            self.ax1.plot(x_bodies, y_bodies, marker = '+', color='white', markersize=20, linestyle='none')
             self.ax1.plot(x_bodies+dx, y_bodies+dy, marker = '+', color='red', markersize=20, linestyle='none')
-#            self.ax1.plot(x_bodies-dx, y_bodies-dy, marker = '+', color='green', markersize=20, linestyle='none')
             
-            print "x_bodies + dx = {} + {} [pixels]".format(x_bodies, dx)
-            print "ra_bodies  = {} [pixels]".format(ra_bodies)
-           
             # Plot the ring
                 
             DO_PLOT_RING_INNER = False
@@ -1459,11 +1422,40 @@ the internal state which is already correct. This does *not* refresh the image i
 
             self.canvas1.draw()
 
+#==============================================================================
+# Generate a satellite mask
+#==============================================================================
+
+# Set to True in positions where there is a satellite.
+# The image is 'properly navigated' -- that is, reflects all of the user's navigation settings, 
+# and lines up with the read-in image, with no rolling required.
+
+    def get_mask_satellites(self):
+        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
+                                            # We can reference table['col'][n] or table[n]['col'] - either OK
+        w = WCS(t['Filename'])  
+        
+        r_pix_mask = 20
+        
+        name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])        
+        x_bodies,  y_bodies   = hbt.get_pos_bodies(t['ET'], name_bodies, units='pixels', wcs=w)
+
+        dx = t['dx_opnav'] + self.slider_offset_dx.get()
+        dy = t['dy_opnav'] + self.slider_offset_dy.get()
+
+        mask = 0 * self.image_processed
+        for i,body in enumerate(name_bodies):
+            (x_arr, y_arr) = np.meshgrid(range(np.shape(mask)[0]), range(np.shape(mask)[1]))
+            d = np.sqrt((x_arr - (x_bodies[i] + dx))**2 + (y_arr - (y_bodies[i] + dy))**2)
+            mask = mask + (d < r_pix_mask)
+        
+        return mask > 0  # Return boolean array: True if satellite within r_pix_mask pixels
+        
 ##########
 # Load backplane
 ##########
 # Returns True if loaded successfully; False if not
-
+        
     def load_backplane(self):
 
         dir_backplanes = '/Users/throop/data/NH_Jring/out/'
