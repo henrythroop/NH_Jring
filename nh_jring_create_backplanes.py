@@ -44,18 +44,18 @@ DO_TEST = False
 if DO_TEST:
     files = files[0:3]
     
-for file in files:
+for i,file in enumerate(files):
 
     file_short = file.split('/')[-1]
     file_out = dir_out + file_short    
     file_out = file_out.replace('.fit', '_planes.pkl')
-    print "Generating backplane for " + file_short
+    print "{}/{}: Generating backplane for {}".format(i, np.size(files), file_short)
 
     plane = hbt.create_backplane(file)
 
-    print "RA, Dec mean = " + repr(np.mean(plane['RA']) * hbt.r2d) + ', ' + repr(np.mean(plane['Dec']) * hbt.r2d)
+#    print "RA, Dec mean = " + repr(np.mean(plane['RA']) * hbt.r2d) + ', ' + repr(np.mean(plane['Dec']) * hbt.r2d)
     
-    print "Ang_Metis mean = " + repr(np.mean(plane['Ang_Metis']) * hbt.r2d) + ' deg'
+#    print "Ang_Metis meaan = " + repr(np.mean(plane['Ang_Metis']) * hbt.r2d) + ' deg'
 #    print "Ang_Adrastea mean = " + repr(np.mean(plane['Ang_Adrastea']) * hbt.r2d) + ' deg'
 #    print "Ang_Thebe mean = " + repr(np.mean(plane['Ang_Thebe']) * hbt.r2d) + ' deg'
     
