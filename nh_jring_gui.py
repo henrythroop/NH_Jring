@@ -242,7 +242,8 @@ class App:
         self.button_quit =     ttk.Button(master, text = 'Quit',     command = self.quit)
         self.button_load =     ttk.Button(master, text = 'Load',     command = self.load)
         self.button_save =     ttk.Button(master, text = 'Save',     command = self.save_file)
-
+        self.button_export =   ttk.Button(master, text = 'Export Analysis', command = self.export_analysis)
+        
         self.var_checkbutton_extract = Tkinter.IntVar()
         self.var_checkbutton_extract.set(self.do_autoextract)        # Values are in fact 1,0  not  True,False. Ugh. 
         self.checkbutton_extract = ttk.Checkbutton(master, text = 'Auto-Extract', command = self.handle_checkbutton, 
@@ -414,6 +415,8 @@ class App:
         self.option_bg.              grid(row=6,  column=13, sticky='we')
         self.entry_bg.               grid(row=6,  column=14)
 
+        self.label_status_io.        grid(row=7,   column=11) 
+
         self.button_navigate.        grid(row=8,  column=11)
         self.button_plot.            grid(row=8,  column=13)
         self.button_extract.         grid(row=8, column=14)
@@ -424,8 +427,8 @@ class App:
 
         self.button_load.            grid(row=10,  column=11)
         self.button_save.            grid(row=10,  column=13)
-        self.label_status_io.        grid(row=10,  column=14) 
-
+        self.button_export.          grid(row=10,  column=14)
+        
         self.button_quit.            grid(row=11,  column=11)
         self.button_ds9.             grid(row=11,  column=13)
         self.button_copy.            grid(row=11,  column=14)
@@ -497,17 +500,6 @@ class App:
 
         self.image_roll      = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
         self.image_roll_mask = np.roll(np.roll(image_processed_mask, dx_total, axis=1), dy_total, axis=0)
-
-        plt.subplot(2,2,1)
-        stretch = astropy.visualization.PercentileInterval(10)  # PI(90) scales array to 5th .. 95th %ile. 
-        plt.imshow(stretch(self.image_roll_mask))
-        plt.title('self.image_roll_mask')
-        
-        plt.subplot(2,2,2)
-        plt.imshow(mask_satellites)
-        plt.title('mask_satellites')
-        
-        plt.show()
                 
 #==============================================================================
 # Examine backplane to figure out azimuthal limits of the ring image
@@ -624,15 +616,16 @@ class App:
 
         (vec, lt)        = cspice.spkezr('New Horizons', self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
         (junk, lon, lat) = cspice.reclat(vec[0:3])
-        elev             = np.abs(lat)          # Elevation angle (aka 'B')  
-        emis             = math.pi/2 - elev     # Emission angle (ie, angle down from normal) 
-        mu               = abs(math.cos(emis))  # mu. See definitions of all these Throop 2004 @ 63 
+        ang_elev         = np.abs(lat)          # Elevation angle (aka 'B')  
+        ang_emis         = math.pi/2 - ang_elev     # Emission angle (ie, angle down from normal) 
+        mu               = abs(math.cos(ang_emis))  # mu. See definitions of all these Throop 2004 @ 63 
 
         width_ring  = 6500 # in km. This is a constant to normalize by -- not the same as actual boundaries.
         
         ew_edge     = [120000, 130000]  # Integrate over this range. This is wider than the official ring width.
 
         self.unwrap_ring_image()
+        self.ang_elev   = ang_elev
         
         # Load the unwrapped image. ** I should rename the local vars to be same as the self.vars! Only historical.
         
@@ -668,6 +661,9 @@ class App:
         limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) 
         
         limits_profile_azimuth_bins = limits_profile_azimuth.astype(int).copy() * 0
+
+        # XXX I think ths should be rewritten with hbt.x2bin()
+        
         for i,r in enumerate(limits_profile_azimuth):
             limits_profile_azimuth_bins[i] = int(hbt.wheremin(abs(bins_radius - r)))
         
@@ -692,7 +688,7 @@ class App:
         profile_azimuth_bg_outer = np.nanmean(dn_grid[limits_profile_azimuth_bins[3]:limits_profile_azimuth_bins[2],:],axis=0)
 
         # Get profile in DN
-        profile_azimuth_subtracted = profile_azimuth_core - (profile_azimuth_bg_inner + profile_azimuth_bg_outer)/2
+        profile_azimuth_central  = profile_azimuth_core - (profile_azimuth_bg_inner + profile_azimuth_bg_outer)/2
         profile_radius_central   = np.nanmean(dn_grid[:,limits_profile_radial_bins[0]:limits_profile_radial_bins[1]],1)        
         
 #==============================================================================
@@ -733,9 +729,6 @@ class App:
 #  Plot the remapped 2D images
 #==============================================================================
 
-
-
-
         extent = [bins_azimuth[0], bins_azimuth[-1], bins_radius[0], bins_radius[-1]]
 
         f = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
@@ -764,9 +757,6 @@ class App:
         self.ax3.set_xlabel('Azimuth [radians]')
         self.ax3.set_ylabel('Radius [$R_J$]')
         
-        
-        
-        
         self.canvas3.show()
             
 #==============================================================================
@@ -783,7 +773,7 @@ class App:
                           
                 
         self.ax2.plot(bins_azimuth, profile_azimuth_full, label = 'Full')
-        self.ax2.plot(bins_azimuth, profile_azimuth_subtracted, label = 'Central - bg')
+        self.ax2.plot(bins_azimuth, profile_azimuth_central, label = 'Central - bg')
         
 #        self.ax2.plot(bins_azimuth, profile_azimuth_2 + dy, label='Raw')
         self.ax2.set_title('Azimuthal Profile')
@@ -841,6 +831,14 @@ class App:
             ax41.set_xlim(list(hbt.mm(bins_radius/1000/71.4)))
             
         self.canvas4.show()
+        
+        # Save the profiles where we can access them later
+        
+        self.profile_radius_full   = profile_radius_full
+        self.profile_radius_central = profile_radius_central
+        
+        self.profile_azimuth_full   = profile_azimuth_full
+        self.profile_azimuth_central = profile_azimuth_central
         
                        
 ##########
@@ -1027,9 +1025,6 @@ class App:
         self.t_group['bg_method'][self.index_image] = self.var_option_bg.get()
         self.t_group['bg_argument'][self.index_image] = self.entry_bg.get()
         
-        print "saved bg_method = " + self.var_option_bg.get()
-        print "saved bg_argument = " + self.entry_bg.get()
-        
 # Copy the entire current 'group' back to the main table
 
         self.t[self.groupmask] = self.t_group
@@ -1183,8 +1178,6 @@ class App:
 # Set the Label widget value with a useful string
 # Note that this is sometimes just not printed at all.  This is usually caused by a non-closed Tk window.
 # To fix, quit IPython console from within spyder. Then restart.
-
-        print "refresh_statusbar()"
 								
         num_in_group = np.size(self.t_group)
         num_groups = np.size(self.groups)
@@ -1257,8 +1250,6 @@ the internal state which is already correct. This does *not* refresh the image i
         self.var_option_bg.set(self.t_group['bg_method'][self.index_image])
         self.entry_bg.delete(0, 'end') # Clear existing value
         self.entry_bg.insert(0, self.t_group['bg_argument'][self.index_image]) # Set the value (e.g., order = "4")
-
-        print "set bg_method = " + self.t_group['bg_method'][self.index_image]
         
 # Set the statusbar
 
@@ -1323,9 +1314,8 @@ the internal state which is already correct. This does *not* refresh the image i
         This is an internal routine, which does not process.	
         This plots the image itself, *and* the objects, if navigated.								
         """
-
         
-        print "plot_image()"
+#        print "plot_image()"
         
         # Clear the image
 
@@ -1644,6 +1634,37 @@ the internal state which is already correct. This does *not* refresh the image i
 #        time.sleep(1)
         self.var_label_status_io.set('')  # This one works
 
+##########
+# Export results disk
+##########
+
+    def export_analysis(self, verbose=True):
+
+        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
+
+        dir_export = '/Users/throop/data/NH_Jring/out/'
+        file_export = dir_export + t['Shortname'].replace('.fit', '_export.pkl')
+        
+        image    = self.image_unwrapped
+        radius   = self.radius_unwrapped
+        azimuth  = self.azimuth_unwrapped
+        
+        profile_radius_dn  = self.profile_radius_central
+        profile_azimuth_dn = self.profile_azimuth_central
+        
+        ang_elev = self.ang_elev
+        
+        ang_phase = np.mean(self.planes['Phase'])
+        
+        et = t['ET']
+        
+        vals = (image, et, radius, azimuth, profile_radius_dn, profile_azimuth_dn, ang_elev, ang_phase)
+        
+        lun = open(file_export, 'wb')
+        pickle.dump(vals, lun)
+        lun.close()
+        
+        print "Wrote results: {}".format(file_export)
         
 ##########
 # (p)revious image
