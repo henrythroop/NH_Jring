@@ -26,7 +26,7 @@ import cspice
 #==============================================================================
 # Function for DN to I/F conversion
 #==============================================================================
-    
+it    
 def dn2iof(dn, exptime, pixfov, rsolar):
     
 # Convert DN to I/F. 

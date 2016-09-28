@@ -197,8 +197,6 @@ class App:
         
         self.file_backplane_shortname = ''      # Shortname for the currently loaded backplane.
 								
-
-        
         self.legend             = False         # Store pointer to plot legend here, so it can be deleted
 								
         radii                   = cspice.bodvrd('JUPITER', 'RADII')
@@ -445,7 +443,7 @@ class App:
         
 # Finally, now that GUI is arranged, load the first image, and its backplane.
 
-#        self.save_gui()  # Small bug: for the first image, t[] is set, but not the gui, so plot is not made properly.
+#        self.save_gui()  # Small bug: for the first image, t[] is set, but not gui, so plot is not made properly.
                 
         self.refresh_gui()
         self.load_image()
@@ -515,12 +513,11 @@ class App:
 # Examine backplane to figure out azimuthal limits of the ring image
 #==============================================================================
 
-        # Read in values from the backplane
+        # Read in values from the backplane. Note that self. just keeps the backplanes of the *current* image.
 
         radius  = self.planes['Radius_eq']    # Radius in km
         azimuth = self.planes['Longitude_eq'] # Azimuth in radians
         phase   = self.planes['Phase']        # Phase angle, radians
-
 
         bins_radius = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)
             
@@ -608,12 +605,14 @@ class App:
                 dn_grid[i,:] = grid_lin_i
 
 # Save the variables, and return
+
+# We do *not* plot the unwrapped image for now
         
         self.image_unwrapped = dn_grid
         self.radius_unwrapped = bins_radius
         self.azimuth_unwrapped = bins_azimuth
         
-        return dn_grid, bins_radius, bins_azimuth
+        return
 
 #==============================================================================
 # Extract ring profiles from the data image
@@ -633,46 +632,68 @@ class App:
         
         ew_edge     = [120000, 130000]  # Integrate over this range. This is wider than the official ring width.
 
-
-        (dn_grid, bins_radius, bins_azimuth) = self.unwrap_ring_image()
+        self.unwrap_ring_image()
+        
+        # Load the unwrapped image. ** I should rename the local vars to be same as the self.vars! Only historical.
+        
+        dn_grid = self.image_unwrapped
+        bins_radius = self.radius_unwrapped
+        bins_azimuth = self.azimuth_unwrapped
         
 #==============================================================================
-# Extract radial and azimuthal profiles. Method #1: From the remapped images
+# Extract radial and azimuthal profiles. Method #1: From the full remapped images.
 #==============================================================================
 
-        profile_azimuth_1 = np.nanmean(dn_grid, 0)
-        profile_radius_1  = np.nanmean(dn_grid, 1)       
+        profile_azimuth_full = np.nanmean(dn_grid, 0)
+        profile_radius_full  = np.nanmean(dn_grid, 1)       
         
         plt.rcParams['figure.figsize'] = 16,10
 
-#==============================================================================
-# Extract radial and azimuthal profiles, without remapping
-#==============================================================================
+# Method 2: from a limited region of the remapped images
 
-## Method #2: From the original images
 # 
-#        # This method should be a bit better, since there is no remapping necessary.
-#        # Also, each pixel is exactly one pixel, so all photons have the original weight
-#        
-#        profile_azimuth_2 = np.zeros(num_bins_azimuth)
-#        profile_radius_2  = np.zeros(num_bins_radius)
-#
-#        for i in range(num_bins_azimuth-1):
-#            is_az_bin = (np.array([azimuth_all > bins_azimuth[i]]) & np.array([azimuth_all < bins_azimuth[i+1]]))
-#            is_az_bin = is_az_bin[0,:]
-#            profile_azimuth_2[i] = np.nanmean(dn_all[is_az_bin]) # Have to do mean, not sum
-#        
-#        for i in range(num_bins_radius-1):
-#            is_rad_bin = np.array([radius_all > bins_radius[i]]) & np.array([radius_all < bins_radius[i+1]])
-#            is_rad_bin = is_rad_bin[0,:] 
-#            profile_radius_2[i] = np.nanmean(dn_all[is_rad_bin])
-
-#==============================================================================
-# Choose one of these two methods of radial profiles
-#==============================================================================
+        # Set limits for where the extraction should happen
         
-        profile_radius  = profile_radius_1
-        profile_azimuth = profile_azimuth_1
+        # For the radial profile, we take only a portion of the unwrapped frame. 
+        # e.g., the inner 30%. We exclude the region on the edges, since it is smeared, and has contamination.
+        # We are not starved for photons. Take the best portion of the signal and use it.
+        
+        frac_profile_radial = 0.3  # Of the available azimuth range, what fraction do we use for extracting radial profile?
+        
+        # For azimuthal profile, focus on the main ring. Don't focus on the diffuse inner region.
+        # It is harder to do that photometry, more artifacts, fainter, and probalby more spread out anyhow.
+        
+        # Define distances of [outer box, outer ring, inner ring, inner box] in km
+        
+        limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) 
+        
+        limits_profile_azimuth_bins = limits_profile_azimuth.astype(int).copy() * 0
+        for i,r in enumerate(limits_profile_azimuth):
+            limits_profile_azimuth_bins[i] = int(hbt.wheremin(abs(bins_radius - r)))
+        
+            limits_profile_radial_bins = int(np.shape(dn_grid)[1]) * \
+              np.array([0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2])
+
+
+        #==============================================================================
+        # Extract radial and azimuthal profiles, using subsections
+        #==============================================================================
+        
+        # I am using the *mean* here along each row and column. That means that the final value
+        # in the profiles is 
+        # Azimuthal
+        
+        #profile_azimuth_bg_inner = np.nansum(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],0)
+        
+        plt.rcParams['figure.figsize'] = 10,5
+        
+        profile_azimuth_bg_inner = np.nanmean(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],axis=0)
+        profile_azimuth_core     = np.nanmean(dn_grid[limits_profile_azimuth_bins[2]:limits_profile_azimuth_bins[1],:],axis=0)
+        profile_azimuth_bg_outer = np.nanmean(dn_grid[limits_profile_azimuth_bins[3]:limits_profile_azimuth_bins[2],:],axis=0)
+
+        # Get profile in DN
+        profile_azimuth_subtracted = profile_azimuth_core - (profile_azimuth_bg_inner + profile_azimuth_bg_outer)/2
+        profile_radius_central   = np.nanmean(dn_grid[:,limits_profile_radial_bins[0]:limits_profile_radial_bins[1]],1)        
         
 #==============================================================================
 # Converted extracted values from DN, into photometric quantities
@@ -686,10 +707,10 @@ class App:
 
 # Convert into I/F
          
-        profile_radius_iof = self.dn2iof(profile_radius, self.t_group['Exptime'][self.index_image],\
+        profile_radius_full_iof = self.dn2iof(profile_radius_full, self.t_group['Exptime'][self.index_image],\
                                      pixfov, rsolar )
 
-        profile_radius_iof_norm = profile_radius_iof * mu
+        profile_radius_full_iof_norm = profile_radius_full_iof * mu
 
         ew_edge_bin = hbt.x2bin(ew_edge,bins_radius)
             
@@ -697,10 +718,10 @@ class App:
         dr[-1] = 0
         
 #        ioprofile_radius_iof_norm  # Just a shorter alias
-        ew_norm  = np.sum((profile_radius_iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) # Normalized EW (ie, from top)
+        ew_norm  = np.sum((profile_radius_full_iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) # Normalized EW (ie, from top)
         ew_mean  = ew_norm / width_ring                                           # Mean normalized EW
         
-        taupp    = profile_radius_iof_norm * 4 * mu  # Radially averaged tau_omega0_P
+        taupp    = profile_radius_full_iof_norm * 4 * mu  # Radially averaged tau_omega0_P
 
 ## Plot it. First just to screen. 
 #        plt.plot([3,4,7])
@@ -712,6 +733,9 @@ class App:
 #  Plot the remapped 2D images
 #==============================================================================
 
+
+
+
         extent = [bins_azimuth[0], bins_azimuth[-1], bins_radius[0], bins_radius[-1]]
 
         f = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
@@ -720,12 +744,29 @@ class App:
 #        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
 
         # For now, we are scaling this vertically by hand. Might have to revisit that.
-        
+
+        self.ax3.clear()        
         self.ax3.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower') # aspect='auto'a
 
+
+        self.ax3.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
+        self.ax3.hlines(limits_profile_azimuth[1], -10, 10, color='purple')
+        self.ax3.hlines(limits_profile_azimuth[2], -10, 10, color='purple')
+        self.ax3.hlines(limits_profile_azimuth[3], -10, 10, color='purple')
+#        self.ax3.set_xlim(hbt.mm(bins_azimuth))
+        
+        self.ax3.vlines(bins_azimuth[limits_profile_radial_bins[0]],-1e10, 1e10)
+        self.ax3.vlines(bins_azimuth[limits_profile_radial_bins[1]],-1e10, 1e10)
+
+        self.ax3.set_ylim([bins_radius[0], bins_radius[-1]])
         self.ax3.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
+        
         self.ax3.set_xlabel('Azimuth [radians]')
         self.ax3.set_ylabel('Radius [$R_J$]')
+        
+        
+        
+        
         self.canvas3.show()
             
 #==============================================================================
@@ -740,44 +781,48 @@ class App:
                           # Set the y limit to go from minimum, to a bit more than 90th %ile
                           # The idea here is to clip off flux from a moon, if it is there.
                           
-        ylim = [np.amin(0.9 * profile_azimuth), dy + 1.5 * np.percentile(profile_azimuth, 97)]
                 
-        self.ax2.plot(bins_azimuth, profile_azimuth_1, label = 'Regrid')
+        self.ax2.plot(bins_azimuth, profile_azimuth_full, label = 'Full')
+        self.ax2.plot(bins_azimuth, profile_azimuth_subtracted, label = 'Central - bg')
+        
 #        self.ax2.plot(bins_azimuth, profile_azimuth_2 + dy, label='Raw')
         self.ax2.set_title('Azimuthal Profile')
         self.ax2.set_xlabel('Azimuth [radians]')
         self.ax2.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
-        self.ax2.set_ylim(ylim)
         self.ax2.legend(loc = 'upper left')
 
-        self.ax2.plot(self.bins_radius, self.profile_radius)
+        self.ax2.plot(bins_radius, profile_radius_full)
+        self.ax2.plot(bins_radius, profile_radius_central)
+        
         self.canvas2.show()
         
         dy = 1
 
-        ylim = [np.amin(0.9 * profile_radius), dy + 1.5 * np.percentile(profile_radius, 90)]
+#        ylim = [np.amin(0.9 * profile_radius), dy + 1.5 * np.percentile(profile_radius, 90)]
 
         self.ax4.clear()  # Clear lines from the current plot.
         
         plt.rcParams['figure.figsize'] = 16,10
 
-        DO_PLOT_IOF = True # Do we plot I/F, or DN
+        DO_PLOT_IOF = False # Do we plot I/F, or DN
+
+# Plot radial profile
         
         if (DO_PLOT_IOF == False):
-            self.ax4.plot(bins_radius/1000, profile_radius_1, label = 'Regrid')
-#            self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
-            self.ax4.set_xlabel('Radial Profile      Radius [1000 km]')
-            self.ax4.set_ylim(ylim)
+
+            self.ax4.plot(bins_radius/1000, profile_radius_full, label = 'Full')
+            self.ax4.plot(bins_radius/1000, profile_radius_central, label = 'Central')
+            
+            self.ax4.set_xlabel(r'Radial Profile      Radius [1000 km]    phase = {:.1f} deg'.format(hbt.r2d * np.mean(self.planes['Phase'])))
             self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
             self.ax4.legend(loc='upper left')
-    
-            self.ax4.plot(self.bins_radius, self.profile_radius)
+            
+            # Plot a second axis, in RJ    
+            
             ax41 = self.ax4.twiny()
             ax41.set_xlim(list(hbt.mm(bins_radius/1000/71.4)))
 
         if (DO_PLOT_IOF == True):     
-#            ylim = [np.amin(0.9 * taupp), 1.5 * np.percentile(taupp, 96)]
-            ylim = hbt.mm(taupp)
             
             self.ax4.plot(bins_radius / 1000, taupp, label = 'Method 1')
             self.ax4.set_xlabel('Radius [1000 km]')
@@ -1426,6 +1471,8 @@ the internal state which is already correct. This does *not* refresh the image i
 
 # The image is 'properly navigated' -- that is, reflects WCS pointing, plus any of 
 # the user's navigation settings, and lines up with the read-in image, with no rolling required.
+
+# *** We should also mask out stars, such as seen in 8/41.
 
     def get_mask_satellites(self):
         """
