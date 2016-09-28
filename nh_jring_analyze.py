@@ -66,7 +66,7 @@ ew        = np.zeros((numfiles))
 profile_radius_dn = np.zeros((numfiles, 300))
 profile_azimuth_dn = np.zeros((numfiles, 300))
 
-dist_inner = 127000
+dist_inner = 128000
 dist_outer = 130000
 
 for i,file in enumerate(files_input):
@@ -84,11 +84,39 @@ for i,file in enumerate(files_input):
     ew[i] = np.sum(profile_radius_dn[i,bin_inner:bin_outer])
 
     print "File {}: bin {} .. {}: EW = {:.3f}".format(i, bin_inner, bin_outer, ew[i])
-    
+
+plt.vlines(dist_inner, -10, 30)
+plt.vlines(dist_outer, -10, 30)
+
 plt.show()
 
+hbt.figsize((5,5))
 plt.plot(ang_phase*hbt.r2d, ew)
 plt.xlabel('Angle [deg]') 
 plt.ylabel('EW [DN * km]')
 plt.show()
-   
+
+
+
+# Now cross-correlate these signals
+
+shift = np.zeros((numfiles)).astype(int)
+profile_radius_dn_roll = profile_radius_dn.copy()
+
+correl = np.zeros((numfiles, 41)) 
+for i in range(numfiles):
+    for j,dx in enumerate(hbt.frange(-20, 20).astype(int)):
+        correl[i,j] = np.correlate(profile_radius_dn[0,:], np.roll(profile_radius_dn[i,:],dx))
+
+    shift[i] = (hbt.wheremax(correl[i,:]))
+    profile_radius_dn_roll[i,:] = np.roll(profile_radius_dn[i,:],shift[i])
+
+hbt.figsize((20,20))
+
+for i in range(numfiles):    
+    plt.plot(radius, profile_radius_dn_roll[i,:])
+plt.show()
+
+hbt.figsize((5,5)) 
+plt.plot(radius, np.sum(profile_radius_dn_roll,axis=0))
+    
