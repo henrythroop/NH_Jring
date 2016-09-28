@@ -103,12 +103,17 @@ class App:
         self.figsize_1 = (7,7) # Setting this larger and larger still leaves whitespace...
         self.figsize_2 = (7,3)
         self.figsize_3 = (7,4)
-        
-        option_bg_default = 'Grp Num Frac Pow'
-        entry_bg_default  = '4' # Default polynomial order XXX need to set a longer string length here!
-        index_group_default = 8 # Jupiter ring phase curve
-        index_image_default = 20 # Image number within the group
 
+# Set various default values
+        
+        option_bg_default   = 'String'
+        entry_bg_default    = '0-10' # Default polynomial order XXX need to set a longer string length here!
+        index_group_default = 8 # Jupiter ring phase curve
+        index_image_default = 27 # Image number within the group
+
+        self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
+                                                # Flag is 1/0, not True/False, as per ttk.
+                                                
 # Do some general code initialization
 
         hbt.set_plot_defaults()
@@ -192,8 +197,7 @@ class App:
         
         self.file_backplane_shortname = ''      # Shortname for the currently loaded backplane.
 								
-        self.do_autoextract     = 1             # Flag to extract radial profile when possible. Flag is 1/0, 
-                                                # not True/False, as per ttk.
+
         
         self.legend             = False         # Store pointer to plot legend here, so it can be deleted
 								
@@ -261,8 +265,7 @@ class App:
 #        self.option_bg.config(width=25)
         self.entry_bg=          ttk.Entry(master, width=12)
         self.entry_bg.insert(0, entry_bg_default) # Set the value (e.g., order = "4")
-
-                
+              
 # Create the Entry boxes (ie, single-line text)
 # Note that for .insert(num, text), 'num' is in format line.character. Line starts at 1; char starts at 0.
 # For both .text and .entry .
@@ -449,11 +452,14 @@ class App:
         self.process_image()
         self.plot_image()
 
+        if (self.do_autoextract == 1):
+            self.extract_profiles()
+            
 #==============================================================================
-# Unwrap xy ring image into lon, radius
+# Unwrap ring image in ra + dec to new image in lon + radius.
 #==============================================================================
 
-    def extract_profiles(self):
+    def unwrap_ring_image(self):
 
         rj = cspice.bodvrd('JUPITER', 'RADII')[0] # 71492 km
         r_ring_inner = 1.6 * rj   # Follow same limits as in Throop 2004 J-ring paper fig. 7
@@ -493,43 +499,18 @@ class App:
 
         self.image_roll      = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
         self.image_roll_mask = np.roll(np.roll(image_processed_mask, dx_total, axis=1), dy_total, axis=0)
+
+        plt.subplot(2,2,1)
+        stretch = astropy.visualization.PercentileInterval(10)  # PI(90) scales array to 5th .. 95th %ile. 
+        plt.imshow(stretch(self.image_roll_mask))
+        plt.title('self.image_roll_mask')
         
-## Get the satellite mask and roll it properly
-#
-#        mask = self.get_mask_satellites()
-#        self.mask_roll = np.roll(np.roll(mask, dx_total, axis=1), dy_total, axis=0)            
-#        self.mask_roll_neg = np.roll(np.roll(mask, -dx_total, axis=1), -dy_total, axis=0)            
-
-# Mask the image
-
-#        self.image_roll_mask = self.image_roll.copy()
-#        self.image_roll_mask[mask_satellites] = np.nan # should be nan
-
-#        plt.subplot(2,3,1)
-#        plt.imshow(stretch(self.image_roll))
-#        plt.title('image_roll')
-##        plt.show()
-#        
-#        plt.subplot(2,3,2)
-#        plt.imshow(stretch(self.image_roll_mask))
-#        plt.title('image_roll_mask')
-##        plt.show()
-#        
-#        plt.subplot(2,3,3)
-#        plt.imshow(mask_satellites)
-#        plt.title('mask_satellites')
-#        plt.show()
+        plt.subplot(2,2,2)
+        plt.imshow(mask_satellites)
+        plt.title('mask_satellites')
         
-#        plt.subplot(2,3,4)
-#        plt.imshow(self.mask_roll)
-#        plt.title('mask_roll')
-#
-#        plt.subplot(2,3,5)
-#        plt.imshow(self.mask_roll_neg)
-#        plt.title('mask_roll_neg')
-
-#        plt.show()
-        
+        plt.show()
+                
 #==============================================================================
 # Examine backplane to figure out azimuthal limits of the ring image
 #==============================================================================
@@ -540,17 +521,6 @@ class App:
         azimuth = self.planes['Longitude_eq'] # Azimuth in radians
         phase   = self.planes['Phase']        # Phase angle, radians
 
-        # Compute additional quantities we need
-
-        (vec, lt) = cspice.spkezr('New Horizons', self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
-        (junk, lon, lat) = cspice.reclat(vec[0:3])
-        elev             = np.abs(lat)          # Elevation angle (aka 'B')  
-        emis             = math.pi/2 - elev     # Emission angle (ie, angle down from normal) 
-        mu               = abs(math.cos(emis))  # mu. See definitions of all these Throop 2004 @ 63 
-
-        width_ring = 6500 # in km. This is a constant to normalize by -- not the same as actual boundaries.
-        
-        ew_edge     = [120000,130000]  # Integrate over this range. This is wider than the official ring width.
 
         bins_radius = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)
             
@@ -572,8 +542,6 @@ class App:
             dn_all = self.image_roll_mask[is_ring_all]
         else:
             dn_all = self.image_roll[is_ring_all]          # DN values, from the rolled image
-
-#        dn_all      = self.image_roll[is_ring_all]              
         
         phase_mean  = np.mean(phase_all)     # Get the mean phase angle across the ring.
         
@@ -615,15 +583,13 @@ class App:
         radius_all  = radius_all_good
         dn_all      = dn_all_good
         
-
-                
 #==============================================================================
 #  Now regrid the data from xy position, to an unrolled map in (azimuth, radius)
 #==============================================================================
 
 # Method #1: Construct the gridded image line-by-line
 
-        dn_grid = np.zeros((num_bins_radius, num_bins_azimuth))  # Row, column
+        dn_grid         = np.zeros((num_bins_radius, num_bins_azimuth))  # Row, column
         bins_azimuth    = hbt.frange(azimuth_seg_start, azimuth_seg_end, num_bins_azimuth)
         bins_radius     = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)        
         
@@ -634,12 +600,41 @@ class App:
                         np.array(azimuth_all > azimuth_seg_start) & np.array(azimuth_all < azimuth_seg_end) 
             
             if np.sum(is_ring_i) > 0:
-                dn_i = dn_all[is_ring_i]  # Get the DN values from the image (adjusted by navigation position error)
-                radius_i = radius_all[is_ring_i]
-                azimuth_i = azimuth_all[is_ring_i]
+                dn_i         = dn_all[is_ring_i]  # Get the DN values from the image (adjusted by navigation position error)
+                radius_i     = radius_all[is_ring_i]
+                azimuth_i    = azimuth_all[is_ring_i]
                 grid_lin_i   = griddata(azimuth_i, dn_i, bins_azimuth, method='linear')
                 
                 dn_grid[i,:] = grid_lin_i
+
+# Save the variables, and return
+        
+        self.image_unwrapped = dn_grid
+        self.radius_unwrapped = bins_radius
+        self.azimuth_unwrapped = bins_azimuth
+        
+        return dn_grid, bins_radius, bins_azimuth
+
+#==============================================================================
+# Extract ring profiles from the data image
+#==============================================================================
+        
+    def extract_profiles(self):
+
+        # Compute additional quantities we need
+
+        (vec, lt)        = cspice.spkezr('New Horizons', self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
+        (junk, lon, lat) = cspice.reclat(vec[0:3])
+        elev             = np.abs(lat)          # Elevation angle (aka 'B')  
+        emis             = math.pi/2 - elev     # Emission angle (ie, angle down from normal) 
+        mu               = abs(math.cos(emis))  # mu. See definitions of all these Throop 2004 @ 63 
+
+        width_ring  = 6500 # in km. This is a constant to normalize by -- not the same as actual boundaries.
+        
+        ew_edge     = [120000, 130000]  # Integrate over this range. This is wider than the official ring width.
+
+
+        (dn_grid, bins_radius, bins_azimuth) = self.unwrap_ring_image()
         
 #==============================================================================
 # Extract radial and azimuthal profiles. Method #1: From the remapped images
@@ -651,29 +646,32 @@ class App:
         plt.rcParams['figure.figsize'] = 16,10
 
 #==============================================================================
-# Extract radial and azimuthal profiles. Method #2: From the original images
+# Extract radial and azimuthal profiles, without remapping
 #==============================================================================
 
-        # This method should be a bit better, since there is no remapping necessary.
-        # Also, each pixel is exactly one pixel, so all photons have the original weight
-        
-        profile_azimuth_2 = np.zeros(num_bins_azimuth)
-        profile_radius_2  = np.zeros(num_bins_radius)
+## Method #2: From the original images
+# 
+#        # This method should be a bit better, since there is no remapping necessary.
+#        # Also, each pixel is exactly one pixel, so all photons have the original weight
+#        
+#        profile_azimuth_2 = np.zeros(num_bins_azimuth)
+#        profile_radius_2  = np.zeros(num_bins_radius)
+#
+#        for i in range(num_bins_azimuth-1):
+#            is_az_bin = (np.array([azimuth_all > bins_azimuth[i]]) & np.array([azimuth_all < bins_azimuth[i+1]]))
+#            is_az_bin = is_az_bin[0,:]
+#            profile_azimuth_2[i] = np.nanmean(dn_all[is_az_bin]) # Have to do mean, not sum
+#        
+#        for i in range(num_bins_radius-1):
+#            is_rad_bin = np.array([radius_all > bins_radius[i]]) & np.array([radius_all < bins_radius[i+1]])
+#            is_rad_bin = is_rad_bin[0,:] 
+#            profile_radius_2[i] = np.nanmean(dn_all[is_rad_bin])
 
-        for i in range(num_bins_azimuth-1):
-            is_az_bin = (np.array([azimuth_all > bins_azimuth[i]]) & np.array([azimuth_all < bins_azimuth[i+1]]))
-            is_az_bin = is_az_bin[0,:]
-            profile_azimuth_2[i] = np.nanmean(dn_all[is_az_bin]) # Have to do mean, not sum
+#==============================================================================
+# Choose one of these two methods of radial profiles
+#==============================================================================
         
-        for i in range(num_bins_radius-1):
-            is_rad_bin = np.array([radius_all > bins_radius[i]]) & np.array([radius_all < bins_radius[i+1]])
-            is_rad_bin = is_rad_bin[0,:] 
-            profile_radius_2[i] = np.nanmean(dn_all[is_rad_bin])
-
-
-# Choose one of these two methods
-        
-        profile_radius = profile_radius_1
+        profile_radius  = profile_radius_1
         profile_azimuth = profile_azimuth_1
         
 #==============================================================================
@@ -704,19 +702,19 @@ class App:
         
         taupp    = profile_radius_iof_norm * 4 * mu  # Radially averaged tau_omega0_P
 
-# Plot it. First just to screen. 
-        plt.plot(bins_radius / 1000, taupp)
-        plt.xlabel('Radius [1000 km]')
-        plt.ylabel('$\tau \varpi_0 \P(\alpha)$')
-        plt.show()
+## Plot it. First just to screen. 
+#        plt.plot([3,4,7])
+#        plt.xlabel('Radius [1000 km]', fontsize=20)
+#        plt.ylabel(r'$\tau \, \varpi_0 \, P$', fontsize=20)
+#        plt.show()
          
 #==============================================================================
 #  Plot the remapped 2D images
 #==============================================================================
 
-        extent = [azimuth_seg_start, azimuth_seg_end, np.min(radius_all),np.max(radius_all)]
+        extent = [bins_azimuth[0], bins_azimuth[-1], bins_radius[0], bins_radius[-1]]
 
-        f = (np.max(radius_all) - np.min(radius_all)) / (np.max(azimuth_all) - np.min(azimuth_all))
+        f = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
         aspect = 0.3/f
 
 #        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
@@ -725,7 +723,7 @@ class App:
         
         self.ax3.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower') # aspect='auto'a
 
-        self.ax3.set_xlim([azimuth_seg_start, azimuth_seg_end])
+        self.ax3.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
         self.ax3.set_xlabel('Azimuth [radians]')
         self.ax3.set_ylabel('Radius [$R_J$]')
         self.canvas3.show()
@@ -745,10 +743,10 @@ class App:
         ylim = [np.amin(0.9 * profile_azimuth), dy + 1.5 * np.percentile(profile_azimuth, 97)]
                 
         self.ax2.plot(bins_azimuth, profile_azimuth_1, label = 'Regrid')
-        self.ax2.plot(bins_azimuth, profile_azimuth_2 + dy, label='Raw')
+#        self.ax2.plot(bins_azimuth, profile_azimuth_2 + dy, label='Raw')
         self.ax2.set_title('Azimuthal Profile')
         self.ax2.set_xlabel('Azimuth [radians]')
-        self.ax2.set_xlim([azimuth_seg_start, azimuth_seg_end])
+        self.ax2.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
         self.ax2.set_ylim(ylim)
         self.ax2.legend(loc = 'upper left')
 
@@ -767,7 +765,7 @@ class App:
         
         if (DO_PLOT_IOF == False):
             self.ax4.plot(bins_radius/1000, profile_radius_1, label = 'Regrid')
-            self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
+#            self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
             self.ax4.set_xlabel('Radial Profile      Radius [1000 km]')
             self.ax4.set_ylim(ylim)
             self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
@@ -783,7 +781,7 @@ class App:
             
             self.ax4.plot(bins_radius / 1000, taupp, label = 'Method 1')
             self.ax4.set_xlabel('Radius [1000 km]')
-            self.ax4.set_ylabel('$\tau \varpi_0 P(\alpha)$')
+            self.ax4.set_ylabel(r'$\tau \varpi_0 P(\alpha)$')
              
 
 #            self.ax4.plot(bins_radius/1000, profile_radius_1, label = 'Regrid')
@@ -967,7 +965,7 @@ class App:
  
     def save_gui(self):
 
-        print "save_gui()"
+#        print "save_gui()"
         
 # Save the current values
          
@@ -1426,17 +1424,20 @@ the internal state which is already correct. This does *not* refresh the image i
 # Generate a satellite mask
 #==============================================================================
 
-# Set to True in positions where there is a satellite.
-# The image is 'properly navigated' -- that is, reflects all of the user's navigation settings, 
-# and lines up with the read-in image, with no rolling required.
+# The image is 'properly navigated' -- that is, reflects WCS pointing, plus any of 
+# the user's navigation settings, and lines up with the read-in image, with no rolling required.
 
     def get_mask_satellites(self):
+        """
+        Returns a boolean image, set to True at pixels within r_pix_mask of a satellite.
+        """
+    
+        r_pix_mask = 30                     # Exclude pixels this distance from the satellite center.
+
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
                                             # We can reference table['col'][n] or table[n]['col'] - either OK
         w = WCS(t['Filename'])  
-        
-        r_pix_mask = 20
-        
+                
         name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])        
         x_bodies,  y_bodies   = hbt.get_pos_bodies(t['ET'], name_bodies, units='pixels', wcs=w)
 
@@ -1447,7 +1448,12 @@ the internal state which is already correct. This does *not* refresh the image i
         for i,body in enumerate(name_bodies):
             (x_arr, y_arr) = np.meshgrid(range(np.shape(mask)[0]), range(np.shape(mask)[1]))
             d = np.sqrt((x_arr - (x_bodies[i] + dx))**2 + (y_arr - (y_bodies[i] + dy))**2)
-            mask = mask + (d < r_pix_mask)
+            mask_i = (d < r_pix_mask)
+            
+            if np.sum(mask_i) > 0:
+                print "Satellite {} masked.".format(body)
+            
+            mask = mask + mask_i
         
         return mask > 0  # Return boolean array: True if satellite within r_pix_mask pixels
         
