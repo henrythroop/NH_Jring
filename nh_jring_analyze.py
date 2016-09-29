@@ -53,20 +53,22 @@ import pickle # For load/save
 
 import hbt
 
-hbt.figsize((20,20))
+hbt.figsize((12,8))
 
 dir_input = '/Users/throop/data/NH_Jring/out/'
 files_input = glob.glob(dir_input + '*_export.pkl')
     
-numfiles = np.size(files_input)
-ang_phase = np.zeros((numfiles))
-ang_elev  = np.zeros((numfiles))
-ew        = np.zeros((numfiles))
-
-profile_radius_dn = np.zeros((numfiles, 300))
+numfiles           = np.size(files_input)
+ang_phase          = np.zeros((numfiles))
+ang_elev           = np.zeros((numfiles))
+ew                 = np.zeros((numfiles))
+profile_radius_dn  = np.zeros((numfiles, 300))
 profile_azimuth_dn = np.zeros((numfiles, 300))
+et                 = np.zeros((numfiles))
+index_image        = np.zeros((numfiles))
+index_group        = np.zeros((numfiles))
 
-dist_inner = 128000
+dist_inner = 125000
 dist_outer = 130000
 
 for i,file in enumerate(files_input):
@@ -74,7 +76,9 @@ for i,file in enumerate(files_input):
     vals = pickle.load(lun)
     lun.close
 
-    (image, radius, azimuth, profile_radius_dn[i,:], profile_azimuth_dn[i,:], ang_elev[i], ang_phase[i]) = vals
+    (image, et[i], radius, azimuth, profile_radius_dn[i,:], profile_azimuth_dn[i,:], \
+       ang_elev[i], ang_phase[i], 
+       index_image[i], index_group[i]) = vals
 
     plt.plot(radius, profile_radius_dn[i,:] + i*3)
     
@@ -111,7 +115,7 @@ for i in range(numfiles):
     shift[i] = (hbt.wheremax(correl[i,:]))
     profile_radius_dn_roll[i,:] = np.roll(profile_radius_dn[i,:],shift[i])
 
-hbt.figsize((20,20))
+hbt.figsize((12,8))
 
 for i in range(numfiles):    
     plt.plot(radius, profile_radius_dn_roll[i,:])

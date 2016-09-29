@@ -109,7 +109,7 @@ class App:
         option_bg_default   = 'String'
         entry_bg_default    = '0-10' # Default polynomial order XXX need to set a longer string length here!
         index_group_default = 8 # Jupiter ring phase curve
-        index_image_default = 27 # Image number within the group
+        index_image_default = 41 # Image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -487,6 +487,7 @@ class App:
 # Create the satellite mask for the current image and pointing. It has already been rolled properly.
 
         mask_satellites = self.get_mask_satellites()
+        mask_stars      = self.get_mask_stars()
             
 # Create the rolled image
 
@@ -494,9 +495,12 @@ class App:
         dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
 
 #        print "dx_total = {}, dy_total = {}".format(dx_total, dy_total)
-        
+
+# Remove the masked pixels        
+
         image_processed_mask = self.image_processed.copy()
         image_processed_mask[mask_satellites] = np.nan
+        image_processed_mask[mask_stars]      = np.nan 
 
         self.image_roll      = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
         self.image_roll_mask = np.roll(np.roll(image_processed_mask, dx_total, axis=1), dy_total, axis=0)
@@ -1312,11 +1316,9 @@ the internal state which is already correct. This does *not* refresh the image i
         """
         Plot the image. It has already been loaded and processed.
         This is an internal routine, which does not process.	
-        This plots the image itself, *and* the objects, if navigated.								
+        This plots the image itself, *and* the objects, if navigated.							
         """
-        
-#        print "plot_image()"
-        
+                
         # Clear the image
 
         self.ax1.clear()
@@ -1335,9 +1337,7 @@ the internal state which is already correct. This does *not* refresh the image i
         stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
 
 # Get the satellite position mask, and roll it into position
-        
-        mask = self.get_mask_satellites()
-               
+                       
         self.ax1.imshow(stretch(self.image_processed))
         
         # Disable the tickmarks from plotting
@@ -1455,6 +1455,46 @@ the internal state which is already correct. This does *not* refresh the image i
 
             self.canvas1.draw()
 
+
+#==============================================================================
+# Generate a mask of all the stars in field
+#==============================================================================
+            
+    def get_mask_stars(self):
+        """
+        Returns a boolean image, set to True at pixels within r_pix_mask of a satellite.
+        """
+
+        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
+                                            # We can reference table['col'][n] or table[n]['col'] - either OK
+                                            
+        r_pix_mask = 15                     # Exclude pixels this distance from the satellite center.
+
+        x_star = eval('np.' + t['x_pos_star_cat']) + t['dx_opnav']
+        y_star = eval('np.' + t['y_pos_star_cat']) + t['dy_opnav']
+ 
+        mask = 0 * self.image_processed
+
+        
+        for x_i, y_i in zip(x_star, y_star):
+
+            (x_arr, y_arr) = np.meshgrid(range(np.shape(mask)[0]), range(np.shape(mask)[1]))
+
+            d = np.sqrt((x_arr - (x_i))**2 + (y_arr - (y_i))**2)
+
+            mask_i = (d < r_pix_mask)
+        
+            mask = mask + mask_i
+            
+        plt.imshow(mask > 0)
+        plt.title('Stellar Mask')
+        plt.show()
+
+        print "Masked {} stars.".format(np.size(x_star))
+        
+        return mask > 0
+        
+            
 #==============================================================================
 # Generate a satellite mask
 #==============================================================================
@@ -1656,9 +1696,13 @@ the internal state which is already correct. This does *not* refresh the image i
         
         ang_phase = np.mean(self.planes['Phase'])
         
+        index_image = self.index_image
+        index_group = self.index_group
+        
         et = t['ET']
         
-        vals = (image, et, radius, azimuth, profile_radius_dn, profile_azimuth_dn, ang_elev, ang_phase)
+        vals = (image, et, radius, azimuth, profile_radius_dn, profile_azimuth_dn, \
+                ang_elev, ang_phase, index_image, index_group)
         
         lun = open(file_export, 'wb')
         pickle.dump(vals, lun)
