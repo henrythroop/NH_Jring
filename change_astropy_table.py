@@ -37,6 +37,31 @@ t.replace_column('bg_argument', col)
 col = t['Comment'].astype('S100')    # expand comment column from str13 to str100
 t.replace_column('Comment', col)
 
+stop
+
+
+groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
+        
+# Set initial location to first file in first group
+
+index_group = 7
+index_image  = 36
+
+groupmask = (t['Desc'] == groups[index_group])
+
+t_group = t[groupmask]
+tg = t_group[index_image]  # Grab this, read-only, since we use it a lot.
+
+# Now fix the tables. We want to go thru all of the x_pos_star_cat, and if there is no closing ), then turn off
+# the is_navigated flag, and delete the x_pos_star_cat entry, or make it longer.
+
+t = t_group # We use this a lot, so make it shorter
+
+    
+####
+
+# Now write the file back out
+
 file_save = file_save.replace('.pkl', '.tmp.pkl')
 
 lun = open(file_save, 'wb')
