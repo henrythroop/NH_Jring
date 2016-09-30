@@ -6,6 +6,10 @@ Created on Mon Jun 13 15:21:46 2016
 """
 
 import hbt
+import os
+import pickle
+import astropy
+import cspice
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
@@ -19,17 +23,21 @@ import numpy as np
 # HBT 14-Jun-2016
 ##########
 
-# Possible additions: Phase angle. 
+# Possible additions: Phase angle [DONE]
 #                     Distance from Jupiter. 
 #                     Time before/after C/A
 
-filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
+filename_save = 'nh_jring_read_params_5711.pkl' # Filename to save parameters in
 #filename_save = 'nh_jring_read_params_100.pkl' # Filename to save parameters in
+
+file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
 
 dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 
 file_out_pdf   = 'nh_jring_inventory.pdf'   # PDF output file which is created
 file_out_txt   = file_out_pdf.replace('pdf', 'txt')
+
+cspice.furnsh(file_tm) # Commented out for testing while SPICE was recopying kernel pool.
 
 # Check if there is a pickle save file found. If it is there, go ahead and read it.
 
@@ -44,6 +52,7 @@ if os.path.exists(filename_save):
     lun.close()
 #            t = self.t
 
+
 # Find and process all of the FITS header info for all of the image files
 # 't' is our main data table, and has all the info for all the files.
 
@@ -55,7 +64,7 @@ num_files = np.size(t)
 
 print 'Read ' + repr(num_files) + ' files.'
 
-# Now shorten the list arbitrarily, just for testing purposes
+# XXX Now shorten the list arbitrarily, just for testing purposes
 
 #t = t[100:112] # XXX shorten it! 100 does not get to 4x4 territory
     
@@ -85,7 +94,8 @@ i_page    = 1  # Current page number, within this group
 i_file = 0  # Index of this file, within the group
 i_group = 0 # Index of this group, within the list of groups
 
-lines_out = [''] # This array is the output text file. It will be written monolithically at the end. Less chance of leaving open.
+lines_out = [''] # This array is the output text file. It will be written monolithically at the end. 
+                 # Less chance of leaving open.
 
 plt.rc('image', cmap='Greys_r')  # Use a non-inverted colormap: White = stars and ring, etc.
 
@@ -94,7 +104,7 @@ plt.rc('image', cmap='Greys_r')  # Use a non-inverted colormap: White = stars an
 
 pp = PdfPages(file_out_pdf)
 
-fs = 8 # Font size
+fs = 2.7 # Font size for the PDF
 
 # Now loop over every image
 
@@ -139,11 +149,14 @@ for i_group,group in enumerate(groups):
       
       file_trunc = file['Shortname'].replace('lor_', '').replace('_0x630_sci', '').replace('_0x633_sci', '')
       
+      utc_trunc = cspice.et2utc(cspice.utc2et(file['UTC']),'C', 0)
+      
       # Print a line of the table, to the screen and the file
       
-      line =  "{:>3}/{:<3}: {:>3}, {:>3},  {},   {},   {},  {:6.3f},{:>12s},   {:<9}".format(int(i), int(num_files), int(i_group), 
-                                                     int(i_file), file_trunc, file['Format'], file['UTC'], 
-                                                     file['Exptime'], (dt_str), file['Target'])
+      line =  "{:>3}/{:<3}: {:>3}, {:>3},  {},   {},   {},  {:6.3f},{:>12s},   {:.1f} deg, {:<9}".format(int(i), 
+                                                     int(num_files), int(i_group), 
+                                                     int(i_file), file_trunc, file['Format'], utc_trunc, 
+                                                     file['Exptime'], (dt_str), file['Phase']*hbt.r2d, file['Target'])
       print line
       lines_out.append(line)
       
@@ -155,7 +168,7 @@ for i_group,group in enumerate(groups):
       # Plot the image to the PDF
 
       p = plt.subplot(num_rows, num_cols,i_on_page) # Image 1       
-      plt.imshow(arr)
+      plt.imshow(arr, interpolation='none')
 #      plt.tight_layout()              # Reduces whitespace, but in this case pushes captions off the edge of page!
       a = plt.gca()                    # Get the axes
       a.get_xaxis().set_visible(False) # Do not plot the axes
@@ -168,7 +181,8 @@ for i_group,group in enumerate(groups):
       # Generate the text to put next to each image on the PDF
       
       label1 = "{}/{}: {}, {}, {} s; {}".format(int(i), int(num_files), file_trunc, file['Format'], file['Exptime'], dt_str)
-      label2 = "{}, Group {}, File {}".format(file['UTC'], int(i_group), int(i_file)) 
+      label2 = r'{}, {:.1f}$^\circ$, Group {}, File {}'.format(utc_trunc,  file['Phase']*hbt.r2d, int(i_group), int(i_file)) 
+      
       plt.text(0, -90*scalefac, label1, fontsize = fs)
       plt.text(0, -30*scalefac, label2, fontsize = fs)
       
@@ -200,7 +214,8 @@ for i_group,group in enumerate(groups):
           col    = 1
 #          print
     if (i_on_page != 1):      
-        fig = plt.gcf()    # If we have finished the loop for the current group, start a new page. (NB this will double-paginate for N=12 files.)
+        fig = plt.gcf()    # If we have finished the loop for the current group, start a new page. 
+                           # (NB this will double-paginate for N=12 files.)
         pp.savefig(fig)
         fig.clf()
     
@@ -279,3 +294,5 @@ plt.ylabel('Exptime [s]')
     
 # arr = hbt.read_lorri(dir_images + '/lor_0035122328_0x633_sci_1.fit')
 # arr = hbt.read_lorri(dir_images + '/lor_0035282790_0x633_sci_1.fit')
+
+stop

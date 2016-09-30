@@ -108,10 +108,10 @@ class App:
         
         option_bg_default   = 'String'
         entry_bg_default    = '0-10' # Default polynomial order XXX need to set a longer string length here!
-        index_group_default = 8 # Jupiter ring phase curve
-        index_image_default = 41 # Image number within the group
+        index_group_default = 7 # Jupiter ring phase curve
+        index_image_default = 36 # Image number within the group
 
-        self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
+        self.do_autoextract     = 0             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
                                                 
 # Do some general code initialization
@@ -151,10 +151,10 @@ class App:
             t['bg_argument'] = entry_bg_default # A number (if 'Polynomial'). A range (if 'Median')
             t['Comment']  = 'Empty comment'  # Blank -- I'm not sure how to init its length if needed
             t['is_navigated'] = False  # Flag
-            t['x_pos_star_cat']   = np.array(t['Format'],dtype='S10000')   # 1 x n array, pixels, with abcorr
-            t['y_pos_star_cat']   = np.array(t['Format'],dtype='S10000')   # 1 x n array, pixels, with abcorr            
-            t['x_pos_star_image'] = np.array(t['Format'],dtype='S10000') # 1 x n array, pixels, with abcorr
-            t['y_pos_star_image'] = np.array(t['Format'],dtype='S10000') # 1 x n array, pixels, with abcorr
+            t['x_pos_star_cat']   = np.array(t['Format'],dtype='S20000')   # 1 x n array, pixels, with abcorr
+            t['y_pos_star_cat']   = np.array(t['Format'],dtype='S20000')   # 1 x n array, pixels, with abcorr            
+            t['x_pos_star_image'] = np.array(t['Format'],dtype='S20000') # 1 x n array, pixels, with abcorr
+            t['y_pos_star_image'] = np.array(t['Format'],dtype='S20000') # 1 x n array, pixels, with abcorr
             t['x_pos_ring1']      = np.array(t['Format'],dtype='S10000')  # 5000 char is not long enough!
             t['y_pos_ring1']      = np.array(t['Format'],dtype='S10000')
             t['x_pos_ring2']      = np.array(t['Format'],dtype='S10000')
@@ -488,19 +488,19 @@ class App:
 
         mask_satellites = self.get_mask_satellites()
         mask_stars      = self.get_mask_stars()
-            
-# Create the rolled image
 
-        dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
-        dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
-
-#        print "dx_total = {}, dy_total = {}".format(dx_total, dy_total)
-
-# Remove the masked pixels        
+# Create the masked pixels maps
 
         image_processed_mask = self.image_processed.copy()
         image_processed_mask[mask_satellites] = np.nan
         image_processed_mask[mask_stars]      = np.nan 
+            
+# Calculate the amount by which to roll image
+
+        dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
+        dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
+
+# Roll the image
 
         self.image_roll      = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
         self.image_roll_mask = np.roll(np.roll(image_processed_mask, dx_total, axis=1), dy_total, axis=0)
@@ -633,9 +633,14 @@ class App:
         
         # Load the unwrapped image. ** I should rename the local vars to be same as the self.vars! Only historical.
         
-        dn_grid = self.image_unwrapped
-        bins_radius = self.radius_unwrapped
-        bins_azimuth = self.azimuth_unwrapped
+        dn_grid       = self.image_unwrapped
+        bins_radius   = self.radius_unwrapped
+        bins_azimuth  = self.azimuth_unwrapped
+        
+        # Remove cosmic rays, stars, or anything else that might be left in the unwrapped image.
+        # We have already done this, but maybe the unwrapping creates sharp edges -- so do it again.
+        
+        dn_grid       = hbt.decosmic(dn_grid)
         
 #==============================================================================
 # Extract radial and azimuthal profiles. Method #1: From the full remapped images.
@@ -648,7 +653,6 @@ class App:
 
 # Method 2: from a limited region of the remapped images
 
-# 
         # Set limits for where the extraction should happen
         
         # For the radial profile, we take only a portion of the unwrapped frame. 
@@ -736,7 +740,7 @@ class App:
         extent = [bins_azimuth[0], bins_azimuth[-1], bins_radius[0], bins_radius[-1]]
 
         f = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
-        aspect = 0.3/f
+        aspect = 0.5/f # Set the aspect ratio
 
 #        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
 
@@ -1288,9 +1292,14 @@ the internal state which is already correct. This does *not* refresh the image i
         
         method = self.var_option_bg.get()
         argument = self.entry_bg.get()
+        
+        self.image_processed = hbt.nh_jring_process_image(self.image_raw, \
+                                                          method, argument, self.index_group, self.index_image)
 
-        self.image_processed = hbt.nh_jring_process_image(self.image_raw, method, argument, self.index_group, self.index_image)
-
+        # Remove cosmic rays
+        
+        self.image_processed = hbt.decosmic(self.image_processed)
+        
 #==============================================================================
 # Plot image - button handler
 #==============================================================================
@@ -1407,6 +1416,15 @@ the internal state which is already correct. This does *not* refresh the image i
 
 # Plot the stars -- catalog, and DAO
 
+            print "dx_opnav:"
+            print t['dx_opnav']
+            
+            print "x_pos_star_cat:"
+            xp = t['x_pos_star_cat']
+            print "size = " + repr(np.size(xp))
+            
+            print xp
+            
             self.ax1.plot(eval('np.' + t['x_pos_star_cat']) + t['dx_opnav'], 
                      eval('np.' + t['y_pos_star_cat']) + t['dy_opnav'], 
                      marker='o', ls='None', 
@@ -1486,11 +1504,11 @@ the internal state which is already correct. This does *not* refresh the image i
         
             mask = mask + mask_i
             
-        plt.imshow(mask > 0)
-        plt.title('Stellar Mask')
-        plt.show()
+#        plt.imshow(mask > 0)
+#        plt.title('Stellar Mask')
+#        plt.show()
 
-        print "Masked {} stars.".format(np.size(x_star))
+#        print "Masked {} stars.".format(np.size(x_star))
         
         return mask > 0
         
@@ -1590,7 +1608,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def select_bg(self, event):
         
-        print "bg method = " + self.var_option_bg.get()
+#        print "bg method = " + self.var_option_bg.get()
 
         # Grab the GUI settings for the background, and save them into proper variables.
 

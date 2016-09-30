@@ -57,52 +57,38 @@ hbt.figsize((12,8))
 
 dir_input = '/Users/throop/data/NH_Jring/out/'
 files_input = glob.glob(dir_input + '*_export.pkl')
+
+num_radius         = 300
+num_azimuth        = 300
     
 numfiles           = np.size(files_input)
 ang_phase          = np.zeros((numfiles))
 ang_elev           = np.zeros((numfiles))
 ew                 = np.zeros((numfiles))
-profile_radius_dn  = np.zeros((numfiles, 300))
-profile_azimuth_dn = np.zeros((numfiles, 300))
+profile_radius_dn  = np.zeros((numfiles, num_radius))
+profile_azimuth_dn = np.zeros((numfiles, num_azimuth))
 et                 = np.zeros((numfiles))
 index_image        = np.zeros((numfiles))
 index_group        = np.zeros((numfiles))
 
-dist_inner = 125000
-dist_outer = 130000
+image              = np.zeros((numfiles, num_radius, num_azimuth))
+
+dist_inner = 128000
+dist_outer = 132000
+
+# Read in all the files
 
 for i,file in enumerate(files_input):
     lun = open(file, 'rb')
     vals = pickle.load(lun)
     lun.close
 
-    (image, et[i], radius, azimuth, profile_radius_dn[i,:], profile_azimuth_dn[i,:], \
+    (image[i,:,:], et[i], radius, azimuth, profile_radius_dn[i,:], profile_azimuth_dn[i,:], \
        ang_elev[i], ang_phase[i], 
        index_image[i], index_group[i]) = vals
 
-    plt.plot(radius, profile_radius_dn[i,:] + i*3)
     
-    bin_inner = hbt.x2bin(dist_inner, radius)
-    bin_outer = hbt.x2bin(dist_outer, radius)
-    
-    ew[i] = np.sum(profile_radius_dn[i,bin_inner:bin_outer])
-
-    print "File {}: bin {} .. {}: EW = {:.3f}".format(i, bin_inner, bin_outer, ew[i])
-
-plt.vlines(dist_inner, -10, 30)
-plt.vlines(dist_outer, -10, 30)
-
-plt.show()
-
-hbt.figsize((5,5))
-plt.plot(ang_phase*hbt.r2d, ew)
-plt.xlabel('Angle [deg]') 
-plt.ylabel('EW [DN * km]')
-plt.show()
-
-
-
-# Now cross-correlate these signals
+# Cross-correlate these signals and shift them radially in order to align them using radial profiles
 
 shift = np.zeros((numfiles)).astype(int)
 profile_radius_dn_roll = profile_radius_dn.copy()
@@ -115,12 +101,54 @@ for i in range(numfiles):
     shift[i] = (hbt.wheremax(correl[i,:]))
     profile_radius_dn_roll[i,:] = np.roll(profile_radius_dn[i,:],shift[i])
 
+# Shift each image vertically
+
+bin_inner_vnorm = hbt.x2bin(131000, radius)
+bin_outer_vnorm = hbt.x2bin(133000, radius)
+
+for i in range(numfiles):
+    profile_radius_dn_roll[i,:] -= np.mean(profile_radius_dn_roll[i,bin_inner_vnorm:bin_outer_vnorm])
+    
+# Make a plot of all the radial profiles, now aligned both vertically and horizontally
+
+dy = 3
+
 hbt.figsize((12,8))
 
 for i in range(numfiles):    
-    plt.plot(radius, profile_radius_dn_roll[i,:])
+    plt.plot(radius, profile_radius_dn_roll[i,:] + i * dy)
+
+    plt.vlines(dist_inner, -10, 30)
+plt.vlines(dist_outer, -10, 30)
 plt.show()
 
-hbt.figsize((5,5)) 
-plt.plot(radius, np.sum(profile_radius_dn_roll,axis=0))
+# Calculate EW
+
+bin_inner = hbt.x2bin(129000, radius)
+bin_outer = hbt.x2bin(131000, radius)
     
+for i in range(numfiles):
+    ew[i] = np.sum(profile_radius_dn_roll[i,bin_inner:bin_outer])
+    
+# Make a plot of EW vs. phase
+
+hbt.figsize((5,5))
+plt.plot(ang_phase*hbt.r2d, ew, marker = 'o', linestyle='none')
+plt.xlabel('Phase Angle [deg]') 
+plt.ylabel('EW [DN * km]')
+plt.show()
+
+
+
+# Make a plot of all of the images, ganged
+
+stretch = astropy.visualization.PercentileInterval(1)  # PI(90) scales array to 5th .. 95th %ile. 
+
+hbt.figsize((12,8))
+
+hbt.figsize((5,2*numfiles))      # x, y
+for i in range(numfiles):
+    plt.subplot(numfiles,1,i+1)  # y, x, n
+    plt.imshow(image[i,:,:], aspect=0.3, vmin=-10,vmax=20)
+plt.show()    
+
