@@ -92,7 +92,7 @@ class App:
 
 # Set some default values
 
-        self.filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
+        self.filename_save = 'nh_jring_read_params_571.tmp.pkl' # Filename to save parameters in
 
         dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 
@@ -214,9 +214,9 @@ class App:
 
 # Create the sliders, for navigation offset
         
-        self.slider_offset_dx  = ttk.Scale(master, from_=-350, to=350, orient=Tkinter.HORIZONTAL, 
+        self.slider_offset_dx  = ttk.Scale(master, from_=-450, to=450, orient=Tkinter.HORIZONTAL, 
                                    command=self.set_offset) # Slider dx offset
-        self.slider_offset_dy  = ttk.Scale(master, from_=-350, to=350, orient=Tkinter.VERTICAL, 
+        self.slider_offset_dy  = ttk.Scale(master, from_=-450, to=450, orient=Tkinter.VERTICAL, 
                                    command=self.set_offset) # Slider dy offset
 
 # Define labels
@@ -978,9 +978,7 @@ class App:
 
 #        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars) # For test purposes, ignore the abcorr
 #        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars)
-        
-        print 'x_pos_star_image: length = ' + repr(len(repr(points_phot[:,0]).replace(' ', '')))
-        
+                
         self.t_group['x_pos_star_image'][self.index_image] = repr(points_phot[:,0]).replace(' ', '') # Shorten if possible!
         self.t_group['y_pos_star_image'][self.index_image] = repr(points_phot[:,1]).replace(' ', '')
         self.t_group['is_navigated'][self.index_image] = True             # Set the flag saying we have navigated image
@@ -996,9 +994,9 @@ class App:
 #        self.t_group['dec_bodies'][self.index_image] = repr(dec_bodies)
 #        self.t_group['name_bodies'][self.index_image] = repr(name_bodies)
 
-        print "Opnav computed: {dx,dy}_opnav = " + repr(dx_opnav) + ', ' + repr(dy_opnav)
-
-        print 'ra_stars      : ' + repr(ra_stars*r2d) + ' deg'
+#        print "Opnav computed: {dx,dy}_opnav = " + repr(dx_opnav) + ', ' + repr(dy_opnav)
+#
+#        print 'ra_stars      : ' + repr(ra_stars*r2d) + ' deg'
                
         # Now that we have navigated it, replot the image!
                
@@ -1415,16 +1413,7 @@ the internal state which is already correct. This does *not* refresh the image i
             dy = t['dy_opnav'] + self.slider_offset_dy.get()
 
 # Plot the stars -- catalog, and DAO
-
-            print "dx_opnav:"
-            print t['dx_opnav']
-            
-            print "x_pos_star_cat:"
-            xp = t['x_pos_star_cat']
-            print "size = " + repr(np.size(xp))
-            
-            print xp
-            
+                        
             self.ax1.plot(eval('np.' + t['x_pos_star_cat']) + t['dx_opnav'], 
                      eval('np.' + t['y_pos_star_cat']) + t['dy_opnav'], 
                      marker='o', ls='None', 
