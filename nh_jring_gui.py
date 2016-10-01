@@ -61,6 +61,8 @@ from scipy.interpolate import griddata
 import re # Regexp
 import pickle # For load/save
 
+import cProfile # For profiling
+
 # Imports for Tk
 
 import Tkinter
@@ -92,7 +94,7 @@ class App:
 
 # Set some default values
 
-        self.filename_save = 'nh_jring_read_params_571.tmp.pkl' # Filename to save parameters in
+        self.filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
 
         dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 
@@ -1482,10 +1484,9 @@ the internal state which is already correct. This does *not* refresh the image i
  
         mask = 0 * self.image_processed
 
+        (x_arr, y_arr) = np.meshgrid(range(np.shape(mask)[0]), range(np.shape(mask)[1]))
         
         for x_i, y_i in zip(x_star, y_star):
-
-            (x_arr, y_arr) = np.meshgrid(range(np.shape(mask)[0]), range(np.shape(mask)[1]))
 
             d = np.sqrt((x_arr - (x_i))**2 + (y_arr - (y_i))**2)
 
@@ -1830,8 +1831,20 @@ root.configure(background='#ECECEC')                # ECECEC is the 'default' ba
 
 os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
 
+# Start a profiler, if requested
+DO_PROFILE = True
+
+if DO_PROFILE:
     
-root.mainloop()  # This will call the __init__ function
+    file_out_profile = 'profile.bin'
+    
+    cProfile.run('root.mainloop()', filename=file_out_profile)  # This will call the __init__ function
+    
+    print "Profiling with cProfile, output to " + file_out_profile
+    
+else:
+    root.mainloop()
+    
 
 
     
