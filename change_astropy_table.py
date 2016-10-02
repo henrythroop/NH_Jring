@@ -30,6 +30,8 @@ lun.close()
 # and strings were getting chopped. So, these commands replace them with larger columns -
 # same type, but longer strings.
 
+stop
+
 col = t['x_pos_star_image'].astype('S20000')
 t.replace_column('x_pos_star_image', col)
 
@@ -42,10 +44,10 @@ t.replace_column('bg_argument', col)
 col = t['Comment'].astype('S100')    # expand comment column from str13 to str100
 t.replace_column('Comment', col)
 
-col = t['x_pos_star_cat'].astype('S10000')
+col = t['x_pos_star_cat'].astype('S20000')
 t.replace_column('x_pos_star_cat', col)
 
-col = t['y_pos_star_cat'].astype('S10000')
+col = t['y_pos_star_cat'].astype('S20000')
 t.replace_column('y_pos_star_cat', col)
 
 stop
@@ -67,6 +69,11 @@ tg = t_group[index_image]  # Grab this, read-only, since we use it a lot.
 # turn off the is_navigated flag, and delete the x_pos_star_cat entry, or make it longer.
 
 #t = t_group # We use this a lot, so make it shorter
+
+for i in range(np.size(t)):
+    if '62028' in t['Filename'][i]:
+        print "Matched t[{}] = {}".format(i, t['Filename'][i])
+        
 for i in range(np.size(t)):
     field = t['x_pos_star_cat'][i]
     if ('(' in field) and (')' not in field):

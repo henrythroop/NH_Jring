@@ -94,7 +94,7 @@ class App:
 
 # Set some default values
 
-        self.filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
+        self.filename_save = 'nh_jring_read_params_571.tmp.pkl' # Filename to save parameters in
 
         dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 
@@ -110,8 +110,8 @@ class App:
         
         option_bg_default   = 'String'
         entry_bg_default    = '0-10' # Default polynomial order XXX need to set a longer string length here!
-        index_group_default = 7 # Jupiter ring phase curve
-        index_image_default = 36 # Image number within the group
+        index_group_default = 5 # Jupiter ring phase curve
+        index_image_default = 6 # Image number within the group
 
         self.do_autoextract     = 0             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -157,10 +157,10 @@ class App:
             t['y_pos_star_cat']   = np.array(t['Format'],dtype='S20000')   # 1 x n array, pixels, with abcorr            
             t['x_pos_star_image'] = np.array(t['Format'],dtype='S20000') # 1 x n array, pixels, with abcorr
             t['y_pos_star_image'] = np.array(t['Format'],dtype='S20000') # 1 x n array, pixels, with abcorr
-            t['x_pos_ring1']      = np.array(t['Format'],dtype='S10000')  # 5000 char is not long enough!
-            t['y_pos_ring1']      = np.array(t['Format'],dtype='S10000')
-            t['x_pos_ring2']      = np.array(t['Format'],dtype='S10000')
-            t['y_pos_ring2']      = np.array(t['Format'],dtype='S10000')
+            t['x_pos_ring1']      = np.array(t['Format'],dtype='S20000')  # 5000 char is not long enough!
+            t['y_pos_ring1']      = np.array(t['Format'],dtype='S20000')    # 10,000 char is not long enough!
+            t['x_pos_ring2']      = np.array(t['Format'],dtype='S20000')
+            t['y_pos_ring2']      = np.array(t['Format'],dtype='S20000')
                       
             self.t = t
         
@@ -887,18 +887,38 @@ class App:
         print 'crval[i] = ' + repr(w.wcs.crval)              # crval is a two-element array of [RA, Dec], in degrees
         
         center  = w.wcs.crval  # degrees
-        DO_GSC      = True
+        DO_GSC1     = False    # Stopped working 2-Oct-2016
+        DO_GSC2     = True
         DO_USNOA2   = False
         
-        if (DO_GSC):
-            name_cat = 'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
+        if (DO_GSC1):
+            name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
             stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
             ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
             dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
             table_stars = Table(stars.array.data)
+
+        if (DO_GSC2):
+            name_cat = u'Guide Star Catalog v2 1'
+            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+            ra_stars  = np.array(stars.array['ra'])*d2r # Convert to radians
+            dec_stars = np.array(stars.array['dec'])*d2r # Convert to radians
+
+            mag       = np.array(stars.array['Mag'])
             
+            # Now sort by magnitude, and keep the 100 brightest
+
+            num_stars_max = 100            
+            order = np.argsort(mag)
+            order = np.array(order)[0:num_stars_max]
+
+            ra_stars = ra_stars[order]
+            dec_stars = dec_stars[order]
+  
+            table_stars = Table(stars.array.data)
+
         if (DO_USNOA2):        
-            name_cat = 'The USNO-A2.0 Catalogue (Monet+ 1998) 1' # Works but gives stars down to v=17; I want to v=13 
+            name_cat = u'The USNO-A2.0 Catalogue (Monet+ 1998) 1' # Works but gives stars down to v=17; I want to v=13 
             stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
             table_stars = Table(stars.array.data)
             mask = table_stars['Bmag'] < 13
@@ -975,20 +995,24 @@ class App:
         self.t_group['dx_opnav'][self.index_image] = dx_opnav
         self.t_group['dy_opnav'][self.index_image] = dy_opnav
         
-        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars_abcorr)
-        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars_abcorr)
-
+        self.t_group['x_pos_star_cat'][self.index_image] = hbt.reprfix(x_stars_abcorr)
+        self.t_group['y_pos_star_cat'][self.index_image] = hbt.reprfix(y_stars_abcorr)
+        
+        print "x_pos_star_cat:"
+        print self.t_group['x_pos_star_cat'][self.index_image]
+        print "END"
+        
 #        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars) # For test purposes, ignore the abcorr
 #        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars)
                 
-        self.t_group['x_pos_star_image'][self.index_image] = repr(points_phot[:,0]).replace(' ', '') # Shorten if possible!
-        self.t_group['y_pos_star_image'][self.index_image] = repr(points_phot[:,1]).replace(' ', '')
+        self.t_group['x_pos_star_image'][self.index_image] = hbt.reprfix(points_phot[:,0]).replace(' ', '') # Shorten if possible!
+        self.t_group['y_pos_star_image'][self.index_image] = hbt.reprfix(points_phot[:,1]).replace(' ', '')
         self.t_group['is_navigated'][self.index_image] = True             # Set the flag saying we have navigated image
 
-        self.t_group['x_pos_ring1'][self.index_image] = repr(x_ring1_abcorr)
-        self.t_group['y_pos_ring1'][self.index_image] = repr(y_ring1_abcorr)
-        self.t_group['x_pos_ring2'][self.index_image] = repr(x_ring2_abcorr)
-        self.t_group['y_pos_ring2'][self.index_image] = repr(y_ring2_abcorr)
+        self.t_group['x_pos_ring1'][self.index_image] = hbt.reprfix(x_ring1_abcorr)
+        self.t_group['y_pos_ring1'][self.index_image] = hbt.reprfix(y_ring1_abcorr)
+        self.t_group['x_pos_ring2'][self.index_image] = hbt.reprfix(x_ring2_abcorr)
+        self.t_group['y_pos_ring2'][self.index_image] = hbt.reprfix(y_ring2_abcorr)
         
 #        self.t_group['x_pos_bodies'][self.index_image] = repr(x_pos_bodies)
 #        self.t_group['y_pos_bodies'][self.index_image] = repr(y_pos_bodies)
@@ -1415,6 +1439,10 @@ the internal state which is already correct. This does *not* refresh the image i
             dy = t['dy_opnav'] + self.slider_offset_dy.get()
 
 # Plot the stars -- catalog, and DAO
+
+            print "x_pos_star_cat:"
+            print t['x_pos_star_cat']
+            print "END"
                         
             self.ax1.plot(eval('np.' + t['x_pos_star_cat']) + t['dx_opnav'], 
                      eval('np.' + t['y_pos_star_cat']) + t['dy_opnav'], 
@@ -1832,7 +1860,8 @@ root.configure(background='#ECECEC')                # ECECEC is the 'default' ba
 os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
 
 # Start a profiler, if requested
-DO_PROFILE = True
+
+DO_PROFILE = False
 
 if DO_PROFILE:
     
