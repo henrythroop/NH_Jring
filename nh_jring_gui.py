@@ -113,7 +113,7 @@ class App:
         index_group_default = 5 # Jupiter ring phase curve
         index_image_default = 6 # Image number within the group
 
-        self.do_autoextract     = 0             # Flag to extract radial profile when moving to new image. 
+        self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
                                                 
 # Do some general code initialization
@@ -609,8 +609,33 @@ class App:
         self.image_unwrapped = dn_grid
         self.radius_unwrapped = bins_radius
         self.azimuth_unwrapped = bins_azimuth
-        
+
         return
+        
+########################3
+
+## Method #2: Construct the gridded image all at once 
+#
+#        az_arr  = np.linspace(azimuth_seg_start, azimuth_seg_end,     num_bins_azimuth)
+#        rad_arr = np.linspace(np.min(radius_all), np.max(radius_all), num_bins_radius)
+#
+## In order for griddata to work, d_radius and d_azimuth values should be basically equal.
+## In Jupiter data, they are not at all. Easy soln: tweak azimuth values by multiplying
+## by a constant to make them large.
+##
+#        f = (np.max(radius_all) - np.min(radius_all)) / (np.max(azimuth_all) - np.min(azimuth_all))
+#        aspect = 1/f
+#
+## NB: griddata() returns an array in opposite row,column order than I would naively think.
+## I want results in order (radius, azimuth) = (y, x)
+#
+#        dn_grid2 = griddata((f*azimuth_all, radius_all), dn_all, 
+#                           (f*az_arr[None,:], rad_arr[:,None]), method='linear')
+#        
+#        plt.imshow(dn_grid2)
+#        plt.title('dn_grid, method 2')
+#        plt.show()
+#        
 
 #==============================================================================
 # Extract ring profiles from the data image
@@ -662,13 +687,16 @@ class App:
         # We are not starved for photons. Take the best portion of the signal and use it.
         
         frac_profile_radial = 0.3  # Of the available azimuth range, what fraction do we use for extracting radial profile?
-        
+                                   # Azimuthal limits, used for radial profile
+                                   
         # For azimuthal profile, focus on the main ring. Don't focus on the diffuse inner region.
         # It is harder to do that photometry, more artifacts, fainter, and probalby more spread out anyhow.
         
         # Define distances of [outer box, outer ring, inner ring, inner box] in km
+        # These four radii define the position of the inner and outer regions to subtract as bg, 
+        # and the inner region to use for the signal.
         
-        limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) 
+        limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) # Radial limits, used for az profile
         
         limits_profile_azimuth_bins = limits_profile_azimuth.astype(int).copy() * 0
 
@@ -677,10 +705,22 @@ class App:
         for i,r in enumerate(limits_profile_azimuth):
             limits_profile_azimuth_bins[i] = int(hbt.wheremin(abs(bins_radius - r)))
         
-            limits_profile_radial_bins = int(np.shape(dn_grid)[1]) * \
-              np.array([0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2])
+        limits_profile_radial_bins = int(np.shape(dn_grid)[1]) * \
+            np.array([0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2])
 
-
+        limits_profile_radial_bins = limits_profile_radial_bins.astype(int)     
+              
+#        lprb = hbt.x2bin(np.array((0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2)), bins_radius)
+#        lpab = hbt.x2bin(limits_profile_azimuth, bins_azimuth)
+#        
+#        print "limits_profile_radial_bins:"
+#        print limits_profile_radial_bins
+#        print lprb
+#        
+#        print "limits_profile_azimuth_bins:"
+#        print limits_profile_azimuth_bins
+#        print lpab
+        
         #==============================================================================
         # Extract radial and azimuthal profiles, using subsections
         #==============================================================================
@@ -900,7 +940,13 @@ class App:
 
         if (DO_GSC2):
             name_cat = u'Guide Star Catalog v2 1'
-            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+#            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+            from astropy.utils import data
+            
+            with data.conf.set_temp('remote_timeout', 30): # This is the very strange syntax to set a timeout delay.
+                                                           # The default is 3 seconds, and that times out often.
+                stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+
             ra_stars  = np.array(stars.array['ra'])*d2r # Convert to radians
             dec_stars = np.array(stars.array['dec'])*d2r # Convert to radians
 
@@ -999,10 +1045,6 @@ class App:
         
         self.t_group['x_pos_star_cat'][self.index_image] = hbt.reprfix(x_stars_abcorr)
         self.t_group['y_pos_star_cat'][self.index_image] = hbt.reprfix(y_stars_abcorr)
-        
-        print "x_pos_star_cat:"
-        print self.t_group['x_pos_star_cat'][self.index_image]
-        print "END"
         
 #        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars) # For test purposes, ignore the abcorr
 #        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars)
@@ -1442,10 +1484,6 @@ the internal state which is already correct. This does *not* refresh the image i
 
 # Plot the stars -- catalog, and DAO
 
-            print "x_pos_star_cat:"
-            print t['x_pos_star_cat']
-            print "END"
-                        
             self.ax1.plot(eval('np.' + t['x_pos_star_cat']) + t['dx_opnav'], 
                      eval('np.' + t['y_pos_star_cat']) + t['dy_opnav'], 
                      marker='o', ls='None', 
@@ -1504,6 +1542,10 @@ the internal state which is already correct. This does *not* refresh the image i
         Returns a boolean image, set to True at pixels within r_pix_mask of a satellite.
         """
 
+        # XXX This routine needs to be rewritten. It is a bottleneck. I think it can 
+        # be done by calling np.roll() on a boolean mask of one star, rather than taking
+        # sqrt of every pixel.
+        
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
                                             # We can reference table['col'][n] or table[n]['col'] - either OK
                                             
@@ -1696,7 +1738,6 @@ the internal state which is already correct. This does *not* refresh the image i
         # First save the current GUI settings to local variables in case they've not beeen saved yet.
   
         self.save_gui()
-        print "Set saving..."
 
         # Put up a message for the user. A dialog is too intrusive.
 
@@ -1704,11 +1745,15 @@ the internal state which is already correct. This does *not* refresh the image i
     
         # Write one variable to a file    
     
+        print "writing to {}".format(self.filename_save)
+        
         lun = open(self.filename_save, 'wb')
         t = self.t
         pickle.dump(t, lun)
         lun.close()
-                       
+        
+        print "finished"
+               
 #        time.sleep(1)
         self.var_label_status_io.set('')  # This one works
 
