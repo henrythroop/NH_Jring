@@ -68,45 +68,147 @@ ew                 = np.zeros((numfiles))
 profile_radius_dn  = np.zeros((numfiles, num_radius))
 profile_azimuth_dn = np.zeros((numfiles, num_azimuth))
 et                 = np.zeros((numfiles))
-index_image        = np.zeros((numfiles))
-index_group        = np.zeros((numfiles))
+index_image        = np.zeros((numfiles)).astype(int)
+index_group        = np.zeros((numfiles)).astype(int)
+azimuth            = np.zeros((numfiles, num_azimuth))
+radius             = np.zeros((numfiles, num_radius))
 
 image              = np.zeros((numfiles, num_radius, num_azimuth))
 
 dist_inner = 128000
 dist_outer = 132000
 
-# Read in all the files
-
+#==============================================================================
+# Read in all the files.
+# Extract and process the images, radial profiles, phase angle, et, etc.
+#==============================================================================
 for i,file in enumerate(files_input):
     lun = open(file, 'rb')
     vals = pickle.load(lun)
     lun.close
 
-    (image[i,:,:], et[i], radius, azimuth, profile_radius_dn[i,:], profile_azimuth_dn[i,:], \
+    (image[i,:,:], et[i], radius[i,:], azimuth[i,:], profile_radius_dn[i,:], profile_azimuth_dn[i,:], \
        ang_elev[i], ang_phase[i], 
        index_image[i], index_group[i]) = vals
 
-    
+#==============================================================================
+# Do some one-off radial extractions, for cases that need some customization
+#==============================================================================
+
+for i in range(numfiles):
+
+    if (index_group[i] in [7,7]):
+        hbt.figsize((5,5))
+        
+        # Set limits for where the extraction should happen
+        
+        # For the radial profile, we take only a portion of the unwrapped frame. 
+        # e.g., the inner 30%. We exclude the region on the edges, since it is smeared, and has contamination.
+        # We are not starved for photons. Take the best portion of the signal and use it.
+        
+        frac_profile_radial = np.array([0.35, 0.65])
+        
+        if (index_group[i] == 5):
+            frac_profile_radial = np.array([0.1, 0.4]) # What fractional region of azimuthal range do we use for radial profile
+            
+        if (index_group[i] == 7) and (index_image[i] == 37):
+            frac_profile_radial = np.array([0.05, 0.3])
+                           
+        # For azimuthal profile, focus on the main ring. Don't focus on the diffuse inner region.
+        # It is harder to do that photometry, more artifacts, fainter, and probalby more spread out anyhow.
+        
+        # Define distances of [outer box, outer ring, inner ring, inner box] in km
+        # These four radii define the position of the inner and outer regions to subtract as bg, 
+        # and the inner region to use for the signal.
+        
+        limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) # Radial limits, used for az profile
+        
+        limits_profile_azimuth_bins = limits_profile_azimuth.astype(int).copy() * 0
+
+        # XXX I think ths should be rewritten with hbt.x2bin()
+        
+        for j,r in enumerate(limits_profile_azimuth):
+            limits_profile_azimuth_bins[j] = int(hbt.wheremin(abs(radius[i,:] - r)))
+        
+        limits_profile_radial_bins = np.shape(image[i,:,:])[1] * frac_profile_radial
+
+        limits_profile_radial_bins = limits_profile_radial_bins.astype(int)            
+
+        #==============================================================================
+        # Extract radial and azimuthal profiles, using subsections
+        #==============================================================================
+        
+        # I am using the *mean* here along each row and column. 
+        
+        #profile_azimuth_bg_inner = np.nansum(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],0)
+                
+        profile_azimuth_bg_inner = np.nanmean(image[i,limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],axis=0)
+        profile_azimuth_core     = np.nanmean(image[i,limits_profile_azimuth_bins[2]:limits_profile_azimuth_bins[1],:],axis=0)
+        profile_azimuth_bg_outer = np.nanmean(image[i,limits_profile_azimuth_bins[3]:limits_profile_azimuth_bins[2],:],axis=0)
+
+        # Get profile in DN
+        profile_azimuth_central  = profile_azimuth_core - (profile_azimuth_bg_inner + profile_azimuth_bg_outer)/2
+        profile_radius_central   = np.nanmean(image[i,:,limits_profile_radial_bins[0]:limits_profile_radial_bins[1]],1)
+        
+        extent = [azimuth[i,0], azimuth[i,-1], radius[i,0], radius[i,-1]]
+
+        f = (np.max(radius[i,:]) - np.min(radius[i,:])) / (np.max(azimuth[i,:]) - np.min(azimuth[i,:]))
+        aspect = 0.5/f # Set the aspect ratio
+
+#        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
+
+        # For now, we are scaling this vertically by hand. Might have to revisit that.
+
+        plt.imshow(image[i,:,:], extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower') # aspect='auto'a
+        plt.title("{}/{}: {}".format(index_group[i], index_image[i], files_input[i].split('/')[-1]))
+        plt.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
+        plt.hlines(limits_profile_azimuth[1], -10, 10, color='purple')
+        plt.hlines(limits_profile_azimuth[2], -10, 10, color='purple')
+        plt.hlines(limits_profile_azimuth[3], -10, 10, color='purple')
+#        self.ax3.set_xlim(hbt.mm(bins_azimuth))
+        
+        plt.vlines(azimuth[i,limits_profile_radial_bins[0]],-1e10, 1e10)
+        plt.vlines(azimuth[i,limits_profile_radial_bins[1]],-1e10, 1e10)
+
+        plt.ylim((radius[i,0], radius[i,-1]))
+        plt.xlim((azimuth[i,0], azimuth[i,-1]))
+        
+        plt.xlabel('Azimuth [radians]')
+        plt.ylabel('Radius [$R_J$]')
+        
+        plt.show()
+        
+        plt.plot(radius[i,:], profile_radius_central)
+        plt.show()
+        
+        # And now export it to the main array
+        
+        profile_radius_dn[i,:] = profile_radius_central
+        profile_azimuth_dn[i,:] = profile_azimuth_central
+        
+#==============================================================================
 # Cross-correlate these signals and shift them radially in order to align them using radial profiles
+#==============================================================================
 
 shift = np.zeros((numfiles)).astype(int)
 profile_radius_dn_roll = profile_radius_dn.copy()
 
-correl = np.zeros((numfiles, 41)) 
+correl = np.zeros((numfiles, 81)) 
+
 for i in range(numfiles):
-    for j,dx in enumerate(hbt.frange(-20, 20).astype(int)):
+    for j,dx in enumerate(hbt.frange(-40, 40).astype(int)):
         correl[i,j] = np.correlate(profile_radius_dn[0,:], np.roll(profile_radius_dn[i,:],dx))
+        if np.isnan(correl[i,j]): # Some of the radial profiles have nans in them. For these, just skip the correlation 
+            correl[i,j] = 1
 
     shift[i] = (hbt.wheremax(correl[i,:]))
-    profile_radius_dn_roll[i,:] = np.roll(profile_radius_dn[i,:],shift[i])
+#    profile_radius_dn_roll[i,:] = np.roll(profile_radius_dn[i,:],shift[i])
 
 # Shift each image vertically
 
-bin_inner_vnorm = hbt.x2bin(131000, radius)
-bin_outer_vnorm = hbt.x2bin(133000, radius)
-
 for i in range(numfiles):
+    bin_inner_vnorm = hbt.x2bin(131000, radius[i,:])
+    bin_outer_vnorm = hbt.x2bin(133000, radius[i,:])
     profile_radius_dn_roll[i,:] -= np.mean(profile_radius_dn_roll[i,bin_inner_vnorm:bin_outer_vnorm])
     
 # Make a plot of all the radial profiles, now aligned both vertically and horizontally
@@ -116,18 +218,17 @@ dy = 3
 hbt.figsize((12,8))
 
 for i in range(numfiles):    
-    plt.plot(radius, profile_radius_dn_roll[i,:] + i * dy)
-
+    plt.plot(radius[i,:], profile_radius_dn_roll[i,:] + i * dy)
     plt.vlines(dist_inner, -10, 30)
+    
 plt.vlines(dist_outer, -10, 30)
 plt.show()
 
 # Calculate EW
 
-bin_inner = hbt.x2bin(129000, radius)
-bin_outer = hbt.x2bin(131000, radius)
-    
 for i in range(numfiles):
+    bin_inner = hbt.x2bin(129000, radius[i,:])
+    bin_outer = hbt.x2bin(131000, radius[i,:])
     ew[i] = np.sum(profile_radius_dn_roll[i,bin_inner:bin_outer])
     
 # Make a plot of EW vs. phase
@@ -142,13 +243,23 @@ plt.show()
 
 # Make a plot of all of the images, ganged
 
+plt.set_cmap('Greys_r')
 stretch = astropy.visualization.PercentileInterval(1)  # PI(90) scales array to 5th .. 95th %ile. 
 
-hbt.figsize((12,8))
+#hbt.figsize((1,20)) # Horizontal, vertical
 
-hbt.figsize((5,2*numfiles))      # x, y
+hbt.figsize((5,3*numfiles))      # x, y
 for i in range(numfiles):
+    
+    extent = [azimuth[i,0], azimuth[i,-1], radius[i,0], radius[i,-1]]
+    f = (np.max(radius[i,:]) - np.min(radius[i,:])) / (np.max(azimuth[i,:]) - np.min(azimuth[i,:]))
+    
+    aspect = 0.4/f # Set the aspect ratio
+    
     plt.subplot(numfiles,1,i+1)  # y, x, n
-    plt.imshow(image[i,:,:], aspect=0.3, vmin=-10,vmax=20)
+    plt.imshow(image[i,:,:], aspect=aspect, vmin=-10,vmax=20,extent=extent, origin='lower')
+    plt.title("i={}: {}/{}: {}".format(i, index_group[i], index_image[i], \
+                                       files_input[i].split('/')[-1].replace('_export.pkl', '')))
+    
 plt.show()    
 
