@@ -896,7 +896,7 @@ class App:
             stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
             ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
             dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
-            table_stars = Table(stars.array.data)
+#            table_stars = Table(stars.array.data)
 
         if (DO_GSC2):
             name_cat = u'Guide Star Catalog v2 1'
@@ -907,6 +907,8 @@ class App:
             mag       = np.array(stars.array['Mag'])
             
             # Now sort by magnitude, and keep the 100 brightest
+            # This is because this GSC catalog is huge -- typically 2000 stars in LORRI FOV.
+            # We need to reduce its size to fit in our fixed astropy table string length.
 
             num_stars_max = 100            
             order = np.argsort(mag)
@@ -915,7 +917,7 @@ class App:
             ra_stars = ra_stars[order]
             dec_stars = dec_stars[order]
   
-            table_stars = Table(stars.array.data)
+#            table_stars = Table(stars.array.data)
 
         if (DO_USNOA2):        
             name_cat = u'The USNO-A2.0 Catalogue (Monet+ 1998) 1' # Works but gives stars down to v=17; I want to v=13 
