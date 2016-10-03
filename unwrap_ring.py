@@ -26,7 +26,7 @@ import cspice
 #==============================================================================
 # Function for DN to I/F conversion
 #==============================================================================
-it    
+
 def dn2iof(dn, exptime, pixfov, rsolar):
     
 # Convert DN to I/F. 
@@ -100,9 +100,9 @@ t = pickle.load(lun)
 lun.close()
 groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
 
-index_group = 8
-index_image = 0 # Which frame from the group do we extract?
-index_images_stray = hbt.frange(0,48)
+index_group = 5
+index_image = 5 # Which frame from the group do we extract?
+index_images_stray = range(1)
 
 #index_group = 7
 #index_image = 42 # Which frame from the group do we extract?
@@ -337,6 +337,8 @@ for i,r in enumerate(limits_profile_azimuth):
     limits_profile_radial_bins = int(np.shape(dn_grid)[1]) * \
       np.array([0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2])
 
+limits_profile_radial_bins = limits_profile_radial_bins.astype(int)
+      
 #==============================================================================
 # Extract radial and azimuthal profiles, using entire reprojected image
 #==============================================================================
