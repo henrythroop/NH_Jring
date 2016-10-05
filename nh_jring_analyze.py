@@ -54,6 +54,7 @@ import pickle # For load/save
 import hbt
 
 hbt.figsize((12,8))
+plt.set_cmap('Greys_r')
 
 dir_input = '/Users/throop/data/NH_Jring/out/'
 files_input = glob.glob(dir_input + '*_export.pkl')
@@ -97,8 +98,8 @@ for i,file in enumerate(files_input):
 
 for i in range(numfiles):
 
-    if (index_group[i] in [7,7]):
-        hbt.figsize((5,5))
+    if (index_group[i] in [5,7]):
+        hbt.figsize((10,5))
         
         # Set limits for where the extraction should happen
         
@@ -110,9 +111,10 @@ for i in range(numfiles):
         
         if (index_group[i] == 5):
             frac_profile_radial = np.array([0.1, 0.4]) # What fractional region of azimuthal range do we use for radial profile
+#            frac_profile_radial = np.array([0.7, 0.95]) # What fractional region of azimuthal range do we use for radial profile
             
         if (index_group[i] == 7) and (index_image[i] == 37):
-            frac_profile_radial = np.array([0.05, 0.3])
+            frac_profile_radial = np.array([0.05, 0.25])
                            
         # For azimuthal profile, focus on the main ring. Don't focus on the diffuse inner region.
         # It is harder to do that photometry, more artifacts, fainter, and probalby more spread out anyhow.
@@ -121,7 +123,7 @@ for i in range(numfiles):
         # These four radii define the position of the inner and outer regions to subtract as bg, 
         # and the inner region to use for the signal.
         
-        limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) # Radial limits, used for az profile
+        limits_profile_azimuth = np.array([131e3,129.5e3,127e3,126e3]) # Radial limits, used for az profile
         
         limits_profile_azimuth_bins = limits_profile_azimuth.astype(int).copy() * 0
 
@@ -159,6 +161,9 @@ for i in range(numfiles):
 
         # For now, we are scaling this vertically by hand. Might have to revisit that.
 
+        # Make a 2 x 1 plot: image on LHS, profile on RHS
+        
+        plt.subplot(1,2,1)
         plt.imshow(image[i,:,:], extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower') # aspect='auto'a
         plt.title("{}/{}: {}".format(index_group[i], index_image[i], files_input[i].split('/')[-1]))
         plt.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
@@ -176,9 +181,9 @@ for i in range(numfiles):
         plt.xlabel('Azimuth [radians]')
         plt.ylabel('Radius [$R_J$]')
         
-        plt.show()
-        
+        plt.subplot(1,2,2) # Plot the radial profile on RHS
         plt.plot(radius[i,:], profile_radius_central)
+        plt.xlim((122000,133000))
         plt.show()
         
         # And now export it to the main array
@@ -190,19 +195,25 @@ for i in range(numfiles):
 # Cross-correlate these signals and shift them radially in order to align them using radial profiles
 #==============================================================================
 
+limit_shift = np.array([127000,130000])
+limit_shift_bin = hbt.x2bin(limit_shift, radius[0,:])
+
 shift = np.zeros((numfiles)).astype(int)
 profile_radius_dn_roll = profile_radius_dn.copy()
 
-correl = np.zeros((numfiles, 81)) 
+dx_max = 20  # look at all the posible shifts, from -dx_max to +dx_max, which is 2*dx_max+1 different integers
+
+correl = np.zeros((numfiles, dx_max*2 + 1)) 
 
 for i in range(numfiles):
-    for j,dx in enumerate(hbt.frange(-40, 40).astype(int)):
-        correl[i,j] = np.correlate(profile_radius_dn[0,:], np.roll(profile_radius_dn[i,:],dx))
+    for j,dx in enumerate(hbt.frange(-dx_max, dx_max).astype(int)):
+        correl[i,j] = np.correlate(profile_radius_dn[0,limit_shift_bin[0]:limit_shift_bin[1]], \
+                           np.roll(profile_radius_dn[i,limit_shift_bin[0]:limit_shift_bin[1]],dx))
         if np.isnan(correl[i,j]): # Some of the radial profiles have nans in them. For these, just skip the correlation 
             correl[i,j] = 1
 
-    shift[i] = (hbt.wheremax(correl[i,:]))
-#    profile_radius_dn_roll[i,:] = np.roll(profile_radius_dn[i,:],shift[i])
+    shift[i] = (hbt.wheremax(correl[i,:])) - dx_max
+    profile_radius_dn_roll[i,:] = np.roll(profile_radius_dn[i,:],shift[i])
 
 # Shift each image vertically
 
@@ -210,18 +221,27 @@ for i in range(numfiles):
     bin_inner_vnorm = hbt.x2bin(131000, radius[i,:])
     bin_outer_vnorm = hbt.x2bin(133000, radius[i,:])
     profile_radius_dn_roll[i,:] -= np.mean(profile_radius_dn_roll[i,bin_inner_vnorm:bin_outer_vnorm])
+
+
+# Fit and subtract a polynomial from each curve
     
 # Make a plot of all the radial profiles, now aligned both vertically and horizontally
 
 dy = 3
 
-hbt.figsize((12,8))
+hbt.figsize((4,8))
 
 for i in range(numfiles):    
     plt.plot(radius[i,:], profile_radius_dn_roll[i,:] + i * dy)
-    plt.vlines(dist_inner, -10, 30)
     
-plt.vlines(dist_outer, -10, 30)
+plt.xlim((125000, 130000))
+plt.show()
+
+
+for i in range(numfiles):    
+    plt.plot(radius[i,:], profile_radius_dn[i,:] + i * dy)
+    
+plt.xlim((125000, 130000))
 plt.show()
 
 # Calculate EW
@@ -241,14 +261,16 @@ plt.show()
 
 
 
-# Make a plot of all of the images, ganged
+# Make a plot of all of the images, individually, along with radial profiles
 
 plt.set_cmap('Greys_r')
 stretch = astropy.visualization.PercentileInterval(1)  # PI(90) scales array to 5th .. 95th %ile. 
 
 #hbt.figsize((1,20)) # Horizontal, vertical
 
-hbt.figsize((5,3*numfiles))      # x, y
+hbt.figsize((10,3*numfiles))      # x, y
+plt.show()
+
 for i in range(numfiles):
     
     extent = [azimuth[i,0], azimuth[i,-1], radius[i,0], radius[i,-1]]
@@ -256,10 +278,14 @@ for i in range(numfiles):
     
     aspect = 0.4/f # Set the aspect ratio
     
-    plt.subplot(numfiles,1,i+1)  # y, x, n
+    plt.subplot(numfiles,2,2*i+1)  # y, x, n
     plt.imshow(image[i,:,:], aspect=aspect, vmin=-10,vmax=20,extent=extent, origin='lower')
     plt.title("i={}: {}/{}: {}".format(i, index_group[i], index_image[i], \
                                        files_input[i].split('/')[-1].replace('_export.pkl', '')))
+
+    plt.subplot(numfiles,2,2*i+2)
+    plt.plot(radius[i,:], profile_radius_dn_roll[i,:])
+    plt.xlim((122000,130000))
     
 plt.show()    
 
