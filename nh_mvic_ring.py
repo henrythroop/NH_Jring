@@ -81,14 +81,15 @@ cspice.furnsh(file_tm) # Start up SPICE
 #file = dir + '/mvic_d305_sum_mos_v1.fits'
 
 #sequence        = 'D305'
-sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
+#sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
 #sequence        = 'D202'
+sequence        = 'D211'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
 
-nbins_radius = 100
-#nbins_radius = 1000
+#nbins_radius = 100
+nbins_radius = 1000
 
 #PIXSIZE =              13.0000 /Pixel size in microns                           
 #READNOI =              30.0000 /Readnoise in Electrons                          
@@ -121,6 +122,12 @@ if (sequence == 'D202'):
   file_wcs = dir + '/mvic_d202_mos_v1_wcs.fits'
   utc = '2015::202 00:00:00'  # Set the time.
   stretch = astropy.visualization.PercentileInterval(99.6)
+  
+if (sequence == 'D211'):
+  file_wcs = dir + '/mvic_d211_mos_v1_wcs.fits'
+  utc = '2015::211 00:00:00'  # Set the time.
+  stretch = astropy.visualization.PercentileInterval(99.6)
+  
   
 file_header    = file_wcs.replace('.fits', '_header.fits')    # File with fixed FITS ET info
 file_header_pl = file_header.replace('.fits', '_pl.fits')     # File for backplanes
@@ -363,6 +370,9 @@ if (sequence == 'O_RINGDEP_A_1'):
   
 if (sequence == 'D202'):
     d_radius = 500
+
+if (sequence == 'D211'):
+    d_radius = 1000
     
 # Look up the distance using SPICE
 
@@ -381,6 +391,9 @@ r_h = d_pluto_body['Hydra']  # Hydra orbital radius
 
 mask_orbit['Hydra x 4'] = \
     np.array(radius > (r_h*4 - d_radius)) & np.array(radius < (r_h*4 + d_radius))
+    
+mask_orbit['Hydra x 5'] = \
+    np.array(radius > (r_h*5 - d_radius)) & np.array(radius < (r_h*5 + d_radius))
     
 mask_orbit['Hydra x 10'] = \
     np.array(radius > (r_h*10 - d_radius)) & np.array(radius < (r_h*10 + d_radius))
@@ -403,29 +416,44 @@ mask_orbit['Hydra x 80'] = \
 
 hbt.figsize((10,5))
 
-if (nbins_radius == 100) & (sequence == 'D305'):
-    offset = 0.03
-    ylim = (-0.05, 0.05)
+
     
 if (nbins_radius == 100) & (sequence == 'O_RINGDEP_A_1'):
     offset = 0.02
     ylim = (-0.1, 0.1)
 
-if (nbins_radius == 1000) & (sequence == 'D305'):
-    offset = 0.1
-    ylim = ((-0.1, 0.2))
-    
+
 if (nbins_radius == 1000) & (sequence == 'O_RINGDEP_A_1'):
     offset = 0.2
     ylim = ((-0.3, 0.3))
 
+if (nbins_radius == 100) & (sequence == 'D202'):
+    offset = 0.03
+    ylim = ((-0.05, 0.05))  
+
+if (nbins_radius == 100) & (sequence == 'D202'):
+    offset = 0.2
+    ylim = ((-0.3, 0.3))    
+    
 if (nbins_radius == 1000) & (sequence == 'D202'):
     offset = 0.2
     ylim = ((-0.3, 0.3))    
     
-if (nbins_radius == 100) & (sequence == 'D202'):
+if (nbins_radius == 100) & (sequence == 'D211'):
     offset = 0.03
     ylim = ((-0.05, 0.05))  
+        
+if (nbins_radius == 1000) & (sequence == 'D211'):
+    offset = 0.06
+    ylim = ((-0.08, 0.08))  
+        
+if (nbins_radius == 100) & (sequence == 'D305'):
+    offset = 0.03
+    ylim = (-0.05, 0.05)
+
+if (nbins_radius == 1000) & (sequence == 'D305'):
+    offset = 0.1
+    ylim = ((-0.1, 0.2))
     
 # Plot the radial profile: mean and median
 
@@ -591,7 +619,7 @@ fudge = iof_pluto_known / iof_pluto
 print "Using fudge = {:.2f}: Ring upper limit: DN = {:.2g}, I/F = {:.2g}, tau = {:.2g}.".\
   format(fudge, dn_ring, fudge*iof_ring, fudge*tau_ring)
 
-stop
+#stop
 
 #==============================================================================
 # Do some unit conversion in Python, just to check it.
@@ -744,6 +772,50 @@ if (sequence == 'D202'):
     
     plt.imshow(stretch(im_clean2))
 
+##### D211 Sequence #####
+    
+if (sequence == 'D211'):
+    
+    DO_LABEL_BODIES = False
+    
+    hbt.figsize((7,20))
+    im_composite = im.copy()
+
+    mask_composite = ((mask_orbit['Hydra'])    & (dist_body_pix['Hydra'] > 50)) + \
+                     ((mask_orbit['Hydra x 10'])) + \
+                     ((mask_orbit['Hydra x 5']))
+
+    im_composite[mask_composite] = 3
+
+    plt.subplot(1,2,1)
+    plt.imshow(stretch(im_composite))
+    
+    plt.xlim((0,np.shape(im)[1]))
+    plt.ylim((0,np.shape(im)[0]))
+    
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
+
+    for name_body_i in ['Pluto', 'Hydra']:
+        
+        y_pix, x_pix    = pos_body_pix[name_body_i]
+
+        plt.plot(x_pix, y_pix, marker = 'o', linestyle='none', markerfacecolor='none',
+                 markeredgecolor='red', markeredgewidth=2, markersize=25)
+
+        if (DO_LABEL_BODIES):
+            plt.text(x_pix + 40, y_pix + 40, name_body_i[0], weight='bold', color='red', fontsize=12)
+
+    plt.subplot(1,2,2)
+
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    plt.title(sequence)
+    
+    plt.imshow(stretch(im_clean2))
+    
+    
 plt.tight_layout()
     
 file_out = dir_out + '/image_orbits_' + sequence + '.png'
