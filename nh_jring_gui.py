@@ -470,8 +470,6 @@ class App:
 
         num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
         num_bins_radius  = 300
-
-        stretch = astropy.visualization.PercentileInterval(10)  # PI(90) scales array to 5th .. 95th %ile. 
         
         # Read the current variables and backplane, and makes a plot / imshow.
         

@@ -98,7 +98,7 @@ for i,file in enumerate(files_input):
 
 for i in range(numfiles):
 
-    if (index_group[i] in [5,7]):
+    if (index_group[i] in [5,6,7]):
         hbt.figsize((10,5))
         
         # Set limits for where the extraction should happen
@@ -244,12 +244,35 @@ for i in range(numfiles):
 plt.xlim((125000, 130000))
 plt.show()
 
-# Calculate EW
 
-for i in range(numfiles):
-    bin_inner = hbt.x2bin(129000, radius[i,:])
-    bin_outer = hbt.x2bin(131000, radius[i,:])
-    ew[i] = np.sum(profile_radius_dn_roll[i,bin_inner:bin_outer])
+xlim = (126000,131000)
+xlim_bin = hbt.x2bin(xlim, radius[0,:])
+
+xlim_ew = (127700,129200)
+xlim_ew_bin = hbt.x2bin(xlim_ew, radius[0,xlim_bin[0]:xlim_bin[1]])
+
+
+for i in range(numfiles):    
+    arr = profile_radius_dn_roll[i,xlim_bin[0]:xlim_bin[1]]
+    try:
+        arr_fit = hbt.remove_polyfit(arr, degree=5)
+    except (ValueError):
+        arr_fit = 0 * arr
+        
+    plt.plot(radius[i,xlim_bin[0]:xlim_bin[1]], arr_fit + i * dy)
+
+    ew[i] = np.sum(arr_fit[xlim_ew_bin[0] : xlim_ew_bin[1]])
+    
+plt.xlim((125000, 130000))
+plt.show()
+
+
+## Calculate EW
+#
+#for i in range(numfiles):
+#    bin_inner = hbt.x2bin(129000, radius[i,:])
+#    bin_outer = hbt.x2bin(131000, radius[i,:])
+#    ew[i] = np.sum(profile_radius_dn_roll[i,bin_inner:bin_outer])
     
 # Make a plot of EW vs. phase
 
@@ -259,7 +282,16 @@ plt.xlabel('Phase Angle [deg]')
 plt.ylabel('EW [DN * km]')
 plt.show()
 
+# Same plot, but linear-log
 
+hbt.figsize((7,5))
+plt.plot(ang_phase*hbt.r2d, ew, marker = 'o', linestyle='none')
+plt.xlabel('Phase Angle [deg]') 
+plt.ylabel('EW [DN * km]')
+plt.yscale('log')
+plt.xlim((0,180))
+plt.ylim((1e-1,1e3))
+plt.show()
 
 # Make a plot of all of the images, individually, along with radial profiles
 
@@ -289,3 +321,20 @@ for i in range(numfiles):
     
 plt.show()    
 
+#==============================================================================
+# Plot a few individual profiles where we can see this three-humped ring structure
+#==============================================================================
+
+groupnum = np.array([5,8,8,8])
+imagenum = np.array([2,55,70,106])
+
+
+for i in range(4):
+    mask = (groupnum[i] == index_group) & (imagenum[i] == index_image)   # '&' works, but 'and' does not
+    if (np.sum(mask) > 0):
+        index = np.where(mask == True)[0][0]
+        plt.imshow(image[index], origin='lower')
+        plt.ylim((150,250))
+        plt.title("{}/{}".format(index_group[index], index_image[index]))
+        plt.show()
+        

@@ -267,7 +267,7 @@ for i_group,group in enumerate(groups):
     plt.xlabel('Days from Jupiter C/A')
     plt.ylabel('Phase Angle')
     plt.xlim((-5,4))
-    plt.ylim((20,180))
+    plt.ylim((00,180))
     
     
     plt.subplot(1,3,2)
