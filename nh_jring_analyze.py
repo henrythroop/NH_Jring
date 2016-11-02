@@ -325,16 +325,43 @@ plt.show()
 # Plot a few individual profiles where we can see this three-humped ring structure
 #==============================================================================
 
+hbt.figsize((5,3))
 groupnum = np.array([5,8,8,8])
 imagenum = np.array([2,55,70,106])
 
+j=0
 
-for i in range(4):
-    mask = (groupnum[i] == index_group) & (imagenum[i] == index_image)   # '&' works, but 'and' does not
-    if (np.sum(mask) > 0):
+for i in ((0,1,4,15,16,33)):
+#    mask = (groupnum[i] == index_group) & (imagenum[i] == index_image)   # '&' works, but 'and' does not
+#    if (np.sum(mask) > 0):
         index = np.where(mask == True)[0][0]
-        plt.imshow(image[index], origin='lower')
-        plt.ylim((150,250))
-        plt.title("{}/{}".format(index_group[index], index_image[index]))
-        plt.show()
+        plt.plot( radius[i,:], profile_radius_dn_roll[i,:] + j)
+        j+=1
+        
+#        plt.imshow(image[index], origin='lower')
+#        plt.ylim((150,250))
+#        plt.title("{}/{}".format(index_group[index], index_image[index]))
+
+plt.xlim((125000,130000))
+plt.show()
+r2d = hbt.r2d
+
+fs = 12
+
+hbt.figsize((10,6))
+plt.plot( radius[0,:], profile_radius_dn_roll[0,:] + j, label = repr(ang_phase[0]*r2d))
+#plt.plot( radius[0,:], profile_radius_dn_roll[3,:] + j)
+#plt.plot( radius[0,:], profile_radius_dn_roll[9,:] + j)
+plt.plot( radius[0,:], profile_radius_dn_roll[15,:] + j, label = repr(ang_phase[15]*r2d))
+plt.plot( radius[0,:], profile_radius_dn_roll[20,:] + j, label = repr(ang_phase[20]*r2d))
+plt.plot( radius[0,:], profile_radius_dn_roll[28,:] + j, label = repr(ang_phase[28]*r2d))
+plt.plot( radius[0,:], profile_radius_dn_roll[33,:] + j, label = repr(ang_phase[33]*r2d))
+plt.xlim((125000,130000))
+plt.ylabel('DN', fontsize=fs)
+plt.ylim((0,36))
+#plt.legend() # 5, 20 93, 140
+plt.xlabel('Orbital Distance [km]')
+
+plt.show()
+
         

@@ -110,8 +110,8 @@ class App:
         
         option_bg_default   = 'String'
         entry_bg_default    = '0-10' # Default polynomial order XXX need to set a longer string length here!
-        index_group_default = 5 # Jupiter ring phase curve
-        index_image_default = 6 # Image number within the group
+        index_group_default = 8 # Jupiter ring phase curve
+        index_image_default = 54 # Image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -780,9 +780,9 @@ class App:
         extent = [bins_azimuth[0], bins_azimuth[-1], bins_radius[0], bins_radius[-1]]
 
         f = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
-        aspect = 0.5/f # Set the aspect ratio
+        aspect = 0.5/f * 2 # Set the aspect ratio
 
-#        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
+#        stretch = astropy. ization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
 
         # For now, we are scaling this vertically by hand. Might have to revisit that.
 
@@ -790,16 +790,16 @@ class App:
         self.ax3.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower') # aspect='auto'a
 
 
-        self.ax3.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
-        self.ax3.hlines(limits_profile_azimuth[1], -10, 10, color='purple')
-        self.ax3.hlines(limits_profile_azimuth[2], -10, 10, color='purple')
-        self.ax3.hlines(limits_profile_azimuth[3], -10, 10, color='purple')
+#        self.ax3.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
+#        self.ax3.hlines(limits_profile_azimuth[1], -10, 10, color='purple')
+#        self.ax3.hlines(limits_profile_azimuth[2], -10, 10, color='purple')
+#        self.ax3.hlines(limits_profile_azimuth[3], -10, 10, color='purple')
 #        self.ax3.set_xlim(hbt.mm(bins_azimuth))
         
-        self.ax3.vlines(bins_azimuth[limits_profile_radial_bins[0]],-1e10, 1e10)
-        self.ax3.vlines(bins_azimuth[limits_profile_radial_bins[1]],-1e10, 1e10)
+#        self.ax3.vlines(bins_azimuth[limits_profile_radial_bins[0]],-1e10, 1e10)
+#        self.ax3.vlines(bins_azimuth[limits_profile_radial_bins[1]],-1e10, 1e10)
 
-        self.ax3.set_ylim([bins_radius[0], bins_radius[-1]])
+        self.ax3.set_ylim([124000, 134000])
         self.ax3.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
         
         self.ax3.set_xlabel('Azimuth [radians]')
@@ -848,11 +848,12 @@ class App:
         
         if (DO_PLOT_IOF == False):
 
-            self.ax4.plot(bins_radius/1000, profile_radius_full, label = 'Full')
+#            self.ax4.plot(bins_radius/1000, profile_radius_full, label = 'Full')
             self.ax4.plot(bins_radius/1000, profile_radius_central, label = 'Central')
             
             self.ax4.set_xlabel(r'Radial Profile      Radius [1000 km]    phase = {:.1f} deg'.format(hbt.r2d * np.mean(self.planes['Phase'])))
-            self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
+#            self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
+            self.ax4.set_xlim([120,130])
             self.ax4.legend(loc='upper left')
             
             # Plot a second axis, in RJ    
@@ -1435,6 +1436,9 @@ the internal state which is already correct. This does *not* refresh the image i
         if (self.t_group['is_navigated'][self.index_image]):
             self.plot_objects()									
 
+        
+        plt.imshow(stretch(self.image_processed))
+        plt.show()
         
         return 0
 
