@@ -45,8 +45,8 @@ import astropy.modeling
 from   scipy.optimize import curve_fit
 #from   pylab import *  # So I can change plot size.
                        # Pylab defines the 'plot' command
-import cspice
-from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
+import spiceypy as sp
+#from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
 from   astropy.wcs import WCS
 from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
@@ -65,9 +65,12 @@ import cProfile # For profiling
 
 # Imports for Tk
 
-import Tkinter
-import ttk
-import tkMessageBox
+#import Tkinter # change Tkinter -> tkinter for py 2 - 3?
+import tkinter
+from tkinter import ttk
+from tkinter import messagebox
+tkinter.messagebox
+#import tkMessageBox #for python2
 from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
 
@@ -126,12 +129,12 @@ class App:
 
 # Start up SPICE
 
-        cspice.furnsh(file_tm) # Commented out for testing while SPICE was recopying kernel pool.
+        sp.furnsh(file_tm) # Commented out for testing while SPICE was recopying kernel pool.
 
 # Check if there is a pickle save file found. If it is there, go ahead and read it.
 
         if os.path.exists(self.filename_save):
-            print "Loading file: " + self.filename_save
+            print("Loading file: " + self.filename_save)
             self.load(verbose=False) # This will load self.t
             t = self.t
 
@@ -201,7 +204,7 @@ class App:
 								
         self.legend             = False         # Store pointer to plot legend here, so it can be deleted
 								
-        radii                   = cspice.bodvrd('JUPITER', 'RADII')
+        radii                   = sp.bodvrd('JUPITER', 'RADII')
         self.rj                 = radii[0]  # Jupiter radius, polar, in km. Usually 71492.
         
         self.stretch_percent    = 90            # Image scaling value to use. 90 means plot from 5th to 95th %ile.
@@ -464,7 +467,7 @@ class App:
 
     def unwrap_ring_image(self):
 
-        rj = cspice.bodvrd('JUPITER', 'RADII')[0] # 71492 km
+        rj = sp.bodvrd('JUPITER', 'RADII')[0] # 71492 km
         r_ring_inner = 1.6 * rj   # Follow same limits as in Throop 2004 J-ring paper fig. 7
         r_ring_outer = 1.9 * rj
 
@@ -481,7 +484,7 @@ class App:
             self.load_backplane()
 
         if (self.t_group['is_navigated'][self.index_image] == False):
-            print "Image not navigated -- returning"
+            print("Image not navigated -- returning")
             return
 
 # Create the satellite mask for the current image and pointing. It has already been rolled properly.
@@ -643,8 +646,8 @@ class App:
 
         # Compute additional quantities we need
 
-        (vec, lt)        = cspice.spkezr('New Horizons', self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
-        (junk, lon, lat) = cspice.reclat(vec[0:3])
+        (vec, lt)        = sp.spkezr('New Horizons', self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
+        (junk, lon, lat) = sp.reclat(vec[0:3])
         ang_elev         = np.abs(lat)          # Elevation angle (aka 'B')  
         ang_emis         = math.pi/2 - ang_elev     # Emission angle (ie, angle down from normal) 
         mu               = abs(math.cos(ang_emis))  # mu. See definitions of all these Throop 2004 @ 63 
@@ -921,9 +924,9 @@ class App:
         w = WCS(t['Filename'][index_image])                  # Look up the WCS coordinates for this frame
         et = t['ET'][index_image]
 
-        print 'ET[i] =  ' + repr(et)
-        print 'UTC[i] = ' + repr(t['UTC'][index_image])
-        print 'crval[i] = ' + repr(w.wcs.crval)              # crval is a two-element array of [RA, Dec], in degrees
+        print('ET[i] =  ' + repr(et))
+        print('UTC[i] = ' + repr(t['UTC'][index_image]))
+        print('crval[i] = ' + repr(w.wcs.crval))              # crval is a two-element array of [RA, Dec], in degrees
         
         center  = w.wcs.crval  # degrees
         DO_GSC1     = False    # Stopped working 2-Oct-2016
@@ -991,7 +994,7 @@ class App:
         
         abcorr = 'LT+S'
         frame = 'J2000'
-        st,ltime = cspice.spkezr('New Horizons', et, frame, abcorr, 'Sun') # Get velocity of NH 
+        st,ltime = sp.spkezr('New Horizons', et, frame, abcorr, 'Sun') # Get velocity of NH 
         vel_sun_nh_j2k = st[3:6]
         
 # Correct stellar RA/Dec for stellar aberration
@@ -1063,9 +1066,9 @@ class App:
 #        self.t_group['dec_bodies'][self.index_image] = repr(dec_bodies)
 #        self.t_group['name_bodies'][self.index_image] = repr(name_bodies)
 
-#        print "Opnav computed: {dx,dy}_opnav = " + repr(dx_opnav) + ', ' + repr(dy_opnav)
+#        print("Opnav computed: {dx,dy}_opnav = " + repr(dx_opnav) + ', ' + repr(dy_opnav))
 #
-#        print 'ra_stars      : ' + repr(ra_stars*r2d) + ' deg'
+#        print('ra_stars      : ' + repr(ra_stars*r2d) + ' deg')
                
         # Now that we have navigated it, replot the image!
                
@@ -1083,7 +1086,7 @@ class App:
  
     def save_gui(self):
 
-#        print "save_gui()"
+#        print("save_gui()")
         
 # Save the current values
          
@@ -1115,7 +1118,7 @@ class App:
 
     def change_image(self, refresh=True):
    
-#        print "change_image"
+#        print("change_image")
 
         # Save current GUI settings into variables
         
@@ -1162,13 +1165,13 @@ class App:
     
     def load_image(self):
 
-#        print "load_image()"
+#        print("load_image()")
 
 # autozoom: if set, and we are loading a 4x4 image, then scale it up to a full 1x1.
 
         file = self.t_group[self.index_image]['Filename']                    
         self.image_raw = hbt.read_lorri(file, frac_clip = 1., bg_method = 'None', autozoom=True)
-        print "Loaded image: " + file    
+        print("Loaded image: " + file)
 
 # Load the backplane as well. We need it to flag satellite locations during the extraction.
         
@@ -1176,7 +1179,7 @@ class App:
         if DO_LOAD_BACKPLANE:
             self.load_backplane()
 
-#        print "Loaded backplane."             
+#        print("Loaded backplane.")
                                                 
 
 #==============================================================================
@@ -1185,7 +1188,7 @@ class App:
 
     def select_group(self, event):
 
-        print "select_group"
+        print("select_group")
 
         index = (self.lbox_groups.curselection())[0]
         name_group = self.groups[index]
@@ -1197,12 +1200,12 @@ class App:
         groupmask = self.t['Desc'] == name_group        
         t_group = self.t[groupmask]
         num_images_group = np.size(t_group)
-        print "Group #{} = {} of size {} hit!".format(index, name_group, self.num_images_group)								
+        print("Group #{} = {} of size {} hit!".format(index, name_group, self.num_images_group))
 
 # Now look up the new group name. Extract those elements.        
 								
 #        name = self.t_group['Shortname'][index]
-#        print "selected = " + repr(index) + ' ' + name
+#        print("selected = " + repr(index) + ' ' + name)
 
 
         files_short = t_group['Shortname']
@@ -1224,7 +1227,7 @@ class App:
 
         self.index_image_new = 0      # Set image number to zero
         self.index_group_new = index  # Set the new group number
-#        print " ** Calling change								
+#        print(" ** Calling change")
         self.change_image() 
                                                                                                                                                     
                                      
@@ -1235,11 +1238,11 @@ class App:
 
     def select_image(self, event):
 
-        print "select_image"
+        print("select_image")
         
         index = (self.lbox_files.curselection())[0]
         name = self.t_group['Shortname'][index]
-        print "selected = " + repr(index) + ' ' + name
+        print("selected = " + repr(index) + ' ' + name)
         self.index_image_new = index
         self.index_group_new = self.index_group  # Keep the same group
         self.change_image()
@@ -1355,7 +1358,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def process_image(self):
         
-#        print "process_image()"
+#        print("process_image()")
         
         method = self.var_option_bg.get()
         argument = self.entry_bg.get()
@@ -1460,7 +1463,7 @@ the internal state which is already correct. This does *not* refresh the image i
         filename = self.t_group['Filename'][self.index_image]
         filename = str(filename)
         
-#        print "is_navigated: " + repr(self.t_group['is_navigated'][self.index_image])                        
+#        print("is_navigated: " + repr(self.t_group['is_navigated'][self.index_image])  )                      
 								
         if (self.t_group['is_navigated'][self.index_image]):
 
@@ -1572,7 +1575,7 @@ the internal state which is already correct. This does *not* refresh the image i
 #        plt.title('Stellar Mask')
 #        plt.show()
 
-#        print "Masked {} stars.".format(np.size(x_star))
+#        print("Masked {} stars.".format(np.size(x_star)))
         
         return mask > 0
         
@@ -1610,7 +1613,7 @@ the internal state which is already correct. This does *not* refresh the image i
             mask_i = (d < r_pix_mask)
             
             if np.sum(mask_i) > 0:
-                print "Satellite {} masked.".format(body)
+                print("Satellite {} masked.".format(body))
             
             mask = mask + mask_i
         
@@ -1632,7 +1635,7 @@ the internal state which is already correct. This does *not* refresh the image i
         self.file_backplane_shortname = self.t_group['Shortname'][self.index_image]
 				
         if (os.path.isfile(file_backplane)):
-#            print 'load_backplane: loading ' + file_backplane 
+#            print('load_backplane: loading ' + file_backplane) 
             lun = open(file_backplane, 'rb')
             planes = pickle.load(lun)
             self.planes = planes # This will load self.t
@@ -1640,7 +1643,7 @@ the internal state which is already correct. This does *not* refresh the image i
             return True
 
         else:
-            print "Can't load backplane " + file_backplane
+            print("Can't load backplane " + file_backplane)
             return False
 
 ##########
@@ -1672,7 +1675,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def select_bg(self, event):
         
-#        print "bg method = " + self.var_option_bg.get()
+#        print("bg method = " + self.var_option_bg.get())
 
         # Grab the GUI settings for the background, and save them into proper variables.
 
@@ -1687,7 +1690,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
         str = self.t_group['Shortname'][self.index_image]
         hbt.write_to_clipboard(str)
-        print "{} copied to clipboard".format(str) 
+        print("{} copied to clipboard".format(str))
         
         return 0
         
@@ -1710,7 +1713,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def handle_checkbutton(self):
         
-        print "Button = " + repr(self.var_checkbutton_extract.get())
+        print("Button = " + repr(self.var_checkbutton_extract.get()))
         self.do_autoextract = self.var_checkbutton_extract.get() # Returns 1 or 0
         
 ##########
@@ -1747,14 +1750,14 @@ the internal state which is already correct. This does *not* refresh the image i
     
         # Write one variable to a file    
     
-        print "writing to {}".format(self.filename_save)
+        print("writing to {}".format(self.filename_save))
         
         lun = open(self.filename_save, 'wb')
         t = self.t
         pickle.dump(t, lun)
         lun.close()
         
-        print "finished"
+        print("finished")
                
 #        time.sleep(1)
         self.var_label_status_io.set('')  # This one works
@@ -1793,7 +1796,7 @@ the internal state which is already correct. This does *not* refresh the image i
         pickle.dump(vals, lun)
         lun.close()
         
-        print "Wrote results: {}".format(file_export)
+        print("Wrote results: {}".format(file_export))
         
 ##########
 # (p)revious image
@@ -1824,7 +1827,7 @@ the internal state which is already correct. This does *not* refresh the image i
         
 # Get the slider positions, for the dx and dy nav offset positions, and put them into a variable we can use
 
-#        print "set_offset()"
+#        print("set_offset()")
 								
         self.offset_dx = self.slider_offset_dx.get() # 
         self.offset_dy = self.slider_offset_dy.get() # 
@@ -1918,7 +1921,7 @@ if DO_PROFILE:
     
     cProfile.run('root.mainloop()', filename=file_out_profile)  # This will call the __init__ function
     
-    print "Profiling with cProfile, output to " + file_out_profile
+    print("Profiling with cProfile, output to " + file_out_profile)
     
 else:
     root.mainloop()
