@@ -133,7 +133,7 @@ class App:
 
 # Check if there is a pickle save file found. If it is there, go ahead and read it.
 
-        if os.path.exists(self.filename_save):
+        if os.path.exists(self.filename_save) and False:
             print("Loading file: " + self.filename_save)
             self.load(verbose=False) # This will load self.t
             t = self.t
@@ -204,7 +204,7 @@ class App:
 								
         self.legend             = False         # Store pointer to plot legend here, so it can be deleted
 								
-        radii                   = sp.bodvrd('JUPITER', 'RADII')
+        (dim, radii)            = sp.bodvrd('JUPITER', 'RADII', 3)
         self.rj                 = radii[0]  # Jupiter radius, polar, in km. Usually 71492.
         
         self.stretch_percent    = 90            # Image scaling value to use. 90 means plot from 5th to 95th %ile.
@@ -219,18 +219,18 @@ class App:
 
 # Create the sliders, for navigation offset
         
-        self.slider_offset_dx  = ttk.Scale(master, from_=-450, to=450, orient=Tkinter.HORIZONTAL, 
+        self.slider_offset_dx  = ttk.Scale(master, from_=-450, to=450, orient=tkinter.HORIZONTAL, 
                                    command=self.set_offset) # Slider dx offset
-        self.slider_offset_dy  = ttk.Scale(master, from_=-450, to=450, orient=Tkinter.VERTICAL, 
+        self.slider_offset_dy  = ttk.Scale(master, from_=-450, to=450, orient=tkinter.VERTICAL, 
                                    command=self.set_offset) # Slider dy offset
 
 # Define labels
 
-        self.var_label_info = Tkinter.StringVar()
+        self.var_label_info = tkinter.StringVar()
         self.var_label_info.set("init")
         self.label_info = ttk.Label(master, textvariable = self.var_label_info)
         
-        self.var_label_status_io = Tkinter.StringVar()
+        self.var_label_status_io = tkinter.StringVar()
         self.var_label_status_io.set('IO STATUS')
         self.label_status_io = ttk.Label(master, textvariable = self.var_label_status_io)       # For the 'save status' text
                    
@@ -249,7 +249,7 @@ class App:
         self.button_save =     ttk.Button(master, text = 'Save',     command = self.save_file)
         self.button_export =   ttk.Button(master, text = 'Export Analysis', command = self.export_analysis)
         
-        self.var_checkbutton_extract = Tkinter.IntVar()
+        self.var_checkbutton_extract = tkinter.IntVar()
         self.var_checkbutton_extract.set(self.do_autoextract)        # Values are in fact 1,0  not  True,False. Ugh. 
         self.checkbutton_extract = ttk.Checkbutton(master, text = 'Auto-Extract', command = self.handle_checkbutton, 
                                                    var = self.var_checkbutton_extract)
@@ -258,7 +258,7 @@ class App:
 # Create controls for the background subtraction
 # NB: Sometimes the current value for OptionMenu is left as blank. If this happens, need to restart ipython console.
       
-        self.var_option_bg = Tkinter.StringVar()
+        self.var_option_bg = tkinter.StringVar()
         self.var_option_bg.set("Polynomial Order:")
         
         self.label_bg =         ttk.Label(master, text='Background Method')
@@ -281,7 +281,7 @@ class App:
 # Since we are just displaying text, I'm not sure if this is the right widget to use
 # http://www.tkdocs.com/tutorial/text.html
         
-        self.text_header = Tkinter.Text(master, height=15)
+        self.text_header = tkinter.Text(master, height=15)
 
         self.text_header.insert(1.0,'HEADER goes here')
 
@@ -297,7 +297,7 @@ class App:
 # able to see value of current setting in both. 
 #   http://stackoverflow.com/questions/756662/using-multiple-listboxes-in-python-tkinter
 
-        self.lbox_groups = Tkinter.Listbox(master, height=5, selectmode = "browse",
+        self.lbox_groups = tkinter.Listbox(master, height=5, selectmode = "browse",
                                            width=25, exportselection=False)
                                            
         for ii,item in enumerate(self.groups.data):    # "groups.data" gives the name of the group
@@ -311,7 +311,7 @@ class App:
         files_short = self.t_group['Shortname']
         num_files = np.size(files_short)
 
-        self.lbox_files = Tkinter.Listbox(master, height=20, selectmode = "browse",
+        self.lbox_files = tkinter.Listbox(master, height=20, selectmode = "browse",
                                             width = 30, exportselection=False)
 
 # Populate the listbox for files
@@ -1896,7 +1896,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
 # Start up the widget
 
-root = Tkinter.Tk()
+root = tkinter.Tk()
 app  = App(root)
 
 # set the dimensions and position of the window

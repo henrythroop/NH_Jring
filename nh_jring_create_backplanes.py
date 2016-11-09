@@ -13,7 +13,7 @@ import math
 import astropy
 from   astropy.io import fits
 import numpy as np
-import cspice
+import spiceypy as sp
 import wcsaxes
 import hbt
 from   astropy.wcs import WCS
@@ -28,7 +28,7 @@ import math
 # Start up SPICE
 
 file_tm = '/Users/throop/gv/dev/gv_kernels_new_horizons.txt'  # SPICE metakernel
-cspice.furnsh(file_tm)
+sp.furnsh(file_tm)
         
 # Get the full list of files
 
@@ -49,7 +49,7 @@ for i,file in enumerate(files):
     file_short = file.split('/')[-1]
     file_out = dir_out + file_short    
     file_out = file_out.replace('.fit', '_planes.pkl')
-    print "{}/{}: Generating backplane for {}".format(i, np.size(files), file_short)
+    print("{}/{}: Generating backplane for {}".format(i, np.size(files), file_short))
 
     plane = hbt.create_backplane(file)
 
@@ -65,9 +65,5 @@ for i,file in enumerate(files):
     pickle.dump(plane, lun)
     lun.close()
 
-    print "Wrote: " + file_out
+    print("Wrote: " + file_out)
     print
-    
-    
-
-    
