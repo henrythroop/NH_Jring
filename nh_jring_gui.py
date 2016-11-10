@@ -97,8 +97,10 @@ class App:
 
 # Set some default values
 
-        self.filename_save = 'nh_jring_read_params_571.tmp.pkl' # Filename to save parameters in
+        self.filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters 
 
+        self.dir_out    = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
+        
         dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 
         file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
@@ -116,7 +118,7 @@ class App:
         index_group_default = 8 # Jupiter ring phase curve
         index_image_default = 54 # Image number within the group
 
-        self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
+        self.do_autoextract     = 0             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
                                                 
 # Do some general code initialization
@@ -133,7 +135,7 @@ class App:
 
 # Check if there is a pickle save file found. If it is there, go ahead and read it.
 
-        if os.path.exists(self.filename_save) and False:
+        if os.path.exists(self.dir_out + self.filename_save):
             print("Loading file: " + self.filename_save)
             self.load(verbose=False) # This will load self.t
             t = self.t
@@ -156,17 +158,26 @@ class App:
             t['bg_argument'] = entry_bg_default # A number (if 'Polynomial'). A range (if 'Median')
             t['Comment']  = 'Empty comment'  # Blank -- I'm not sure how to init its length if needed
             t['is_navigated'] = False  # Flag
-            t['x_pos_star_cat']   = np.array(t['Format'],dtype='S20000')   # 1 x n array, pixels, with abcorr
-            t['y_pos_star_cat']   = np.array(t['Format'],dtype='S20000')   # 1 x n array, pixels, with abcorr            
-            t['x_pos_star_image'] = np.array(t['Format'],dtype='S20000') # 1 x n array, pixels, with abcorr
-            t['y_pos_star_image'] = np.array(t['Format'],dtype='S20000') # 1 x n array, pixels, with abcorr
-            t['x_pos_ring1']      = np.array(t['Format'],dtype='S20000')  # 5000 char is not long enough!
-            t['y_pos_ring1']      = np.array(t['Format'],dtype='S20000')    # 10,000 char is not long enough!
-            t['x_pos_ring2']      = np.array(t['Format'],dtype='S20000')
-            t['y_pos_ring2']      = np.array(t['Format'],dtype='S20000')
+            t['x_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr
+            t['y_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr            
+            t['x_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
+            t['y_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
+            t['x_pos_ring1']      = np.array(t['Format'],dtype='U20000')  # 5000 char is not long enough!
+            t['y_pos_ring1']      = np.array(t['Format'],dtype='U20000')    # 10,000 char is not long enough!
+            t['x_pos_ring2']      = np.array(t['Format'],dtype='U20000')
+            t['y_pos_ring2']      = np.array(t['Format'],dtype='U20000')
                       
             self.t = t
-        
+            
+            # Since there was no pickle file read, go ahead and write it out. Some of the other routines
+            # rely on having this file available.
+
+            lun = open(self.dir_out + self.filename_save, 'wb')
+            t = self.t
+            pickle.dump(t, lun)
+            lun.close()
+            print("Wrote: " + self.dir_out + self.filename_save)
+            
         # Get a list of unique observation descriptions (i.e., 'groups')
         
         self.groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
@@ -210,10 +221,6 @@ class App:
         self.stretch_percent    = 90            # Image scaling value to use. 90 means plot from 5th to 95th %ile.
         
 # Now define and startup the widgets
-
-# Create a container
-
-#        frame = ttk.Frame(master, width=500)
                 
         self.path_settings = "/Users/throop/python/salt_interact_settings/"
 
@@ -266,7 +273,7 @@ class App:
                                     option_bg_default,  # First argument is the default
                                     "Polynomial", "Previous", "Next", "Median Range", "None", "Grp Num Frac Pow", \
                                      "String", command = self.select_bg)
-#        self.option_bg.config(width=25)
+
         self.entry_bg=          ttk.Entry(master, width=12)
         self.entry_bg.insert(0, entry_bg_default) # Set the value (e.g., order = "4")
               
@@ -467,7 +474,8 @@ class App:
 
     def unwrap_ring_image(self):
 
-        rj = sp.bodvrd('JUPITER', 'RADII')[0] # 71492 km
+        (numrad, rj_array) = sp.bodvrd('JUPITER', 'RADII', 3) # 71492 km
+        rj = rj_array[0]
         r_ring_inner = 1.6 * rj   # Follow same limits as in Throop 2004 J-ring paper fig. 7
         r_ring_outer = 1.9 * rj
 
@@ -656,12 +664,12 @@ class App:
         
         ew_edge     = [120000, 130000]  # Integrate over this range. This is wider than the official ring width.
 
-        self.unwrap_ring_image()
+        self.unwrap_ring_image()  # creates self.image_unwrapped, etc.
         self.ang_elev   = ang_elev
         
         # Load the unwrapped image. ** I should rename the local vars to be same as the self.vars! Only historical.
         
-        dn_grid       = self.image_unwrapped
+        dn_grid       = self.image_unwrapped # This is only set if this image was navigated, and could be extracted.
         bins_radius   = self.radius_unwrapped
         bins_azimuth  = self.azimuth_unwrapped
         
@@ -935,13 +943,16 @@ class App:
         
         if (DO_GSC1):
             name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
-            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+            radius_search = 0.15
+            stars = conesearch.conesearch(w.wcs.crval, radius_search, cache=False, catalog_db = name_cat)
             ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
             dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
 #            table_stars = Table(stars.array.data)
 
         if (DO_GSC2):
             name_cat = u'Guide Star Catalog v2 1'
+#            name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
+
 #            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
             from astropy.utils import data
             
@@ -953,6 +964,9 @@ class App:
             dec_stars = np.array(stars.array['dec'])*d2r # Convert to radians
 
             mag       = np.array(stars.array['Mag'])
+            
+            print("Stars downloaded: {}; mag = {} .. {}".format(np.size(mag), np.nanmin(mag), np.nanmax(mag)))
+            print("RA = {} .. {}".format(np.nanmin(ra_stars)*r2d, np.nanmax(ra_stars)*r2d))
             
             # Now sort by magnitude, and keep the 100 brightest
             # This is because this GSC catalog is huge -- typically 2000 stars in LORRI FOV.
@@ -1750,7 +1764,7 @@ the internal state which is already correct. This does *not* refresh the image i
     
         # Write one variable to a file    
     
-        print("writing to {}".format(self.filename_save))
+        print("Writing to {}".format(self.dir_out + self.filename_save))
         
         lun = open(self.filename_save, 'wb')
         t = self.t
