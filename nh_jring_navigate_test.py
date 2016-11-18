@@ -81,11 +81,11 @@ tkinter.messagebox
 #import tkMessageBox #for python2
 from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
+import warnings
 
 # HBT imports
 
 import hbt
-
 
 # First we define any general-purpose functions, which are not part of the class/module.
 # We can move these to a different file at some point.
@@ -100,7 +100,33 @@ hdulist  = fits.open(file)
 arr      = hdulist['PRIMARY'].data
 header   = hdulist['PRIMARY'].header
 
+def fxn():
+    warnings.warn("deprecated", DeprecationWarning)
 
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")    
+    w = WCS(file)                # Look up the WCS coordinates for this frame
+                                 # Otherwise it gives "FITSFixedWarning: 'unitfix': 'Changed units: 'DEG' -> 'deg'"
+    
+et = header['SPCSCET']
+utc = 
+           
+
+center  = w.wcs.crval  # degrees. # crval is a two-element array of [RA, Dec], in degrees
+DO_GSC1     = False    # Stopped working 2-Oct-2016
+DO_GSC2     = True
+DO_USNOA2   = False
+        
+
+# Stretch the image
+stretch_percent = 90
+stretch = astropy.visualization.PercentileInterval(stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
+
+# Display it for fun
+
+plt.imshow(stretch(arr))
+
+# Load
 def navigate(self):        
 
     t = self.t_group # We use this a lot, so make it shorter
