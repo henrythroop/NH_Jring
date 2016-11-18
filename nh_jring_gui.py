@@ -206,7 +206,8 @@ class App:
         self.bins_radius        = np.zeros((1))
         self.bins_azimuth       = np.zeros((1))
         
-        self.image_raw          = np.zeros((1)) # The current image, with *no* processing done. Prevents re-reading from disk.
+        self.image_raw          = np.zeros((1)) # The current image, with *no* processing done. 
+                                                # Prevents re-reading from disk.
         self.image_processed    = np.zeros((1)) # Current image, after all processing is done (bg, scaling, etc)
         self.image_bg_raw       = np.zeros((1)) # The 'raw' background image. No processing done to it. 
                                                 # Assume bg is single image; revisit as needed.
@@ -239,7 +240,7 @@ class App:
         
         self.var_label_status_io = tkinter.StringVar()
         self.var_label_status_io.set('IO STATUS')
-        self.label_status_io = ttk.Label(master, textvariable = self.var_label_status_io)       # For the 'save status' text
+        self.label_status_io = ttk.Label(master, textvariable = self.var_label_status_io) # For the 'save status' text
                    
 # Create the buttons
    
@@ -604,7 +605,7 @@ class App:
                         np.array(azimuth_all > azimuth_seg_start) & np.array(azimuth_all < azimuth_seg_end) 
             
             if np.sum(is_ring_i) > 0:
-                dn_i         = dn_all[is_ring_i]  # Get the DN values from the image (adjusted by navigation position error)
+                dn_i         = dn_all[is_ring_i]  # Get the DN values from the image (adjusted by nav pos error)
                 radius_i     = radius_all[is_ring_i]
                 azimuth_i    = azimuth_all[is_ring_i]
                 grid_lin_i   = griddata(azimuth_i, dn_i, bins_azimuth, method='linear')
@@ -654,7 +655,8 @@ class App:
 
         # Compute additional quantities we need
 
-        (vec, lt)        = sp.spkezr('New Horizons', self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
+        (vec, lt)        = sp.spkezr('New Horizons', 
+                            self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
         (junk, lon, lat) = sp.reclat(vec[0:3])
         ang_elev         = np.abs(lat)          # Elevation angle (aka 'B')  
         ang_emis         = math.pi/2 - ang_elev     # Emission angle (ie, angle down from normal) 
@@ -695,7 +697,8 @@ class App:
         # e.g., the inner 30%. We exclude the region on the edges, since it is smeared, and has contamination.
         # We are not starved for photons. Take the best portion of the signal and use it.
         
-        frac_profile_radial = 0.3  # Of the available azimuth range, what fraction do we use for extracting radial profile?
+        frac_profile_radial = 0.3  # Of the available azimuth range, what fraction 
+                                   # do we use for extracting radial profile?
                                    # Azimuthal limits, used for radial profile
                                    
         # For azimuthal profile, focus on the main ring. Don't focus on the diffuse inner region.
@@ -742,13 +745,16 @@ class App:
         
         plt.rcParams['figure.figsize'] = 10,5
         
-        profile_azimuth_bg_inner = np.nanmean(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],axis=0)
-        profile_azimuth_core     = np.nanmean(dn_grid[limits_profile_azimuth_bins[2]:limits_profile_azimuth_bins[1],:],axis=0)
-        profile_azimuth_bg_outer = np.nanmean(dn_grid[limits_profile_azimuth_bins[3]:limits_profile_azimuth_bins[2],:],axis=0)
+        profile_azimuth_bg_inner = np.nanmean(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],
+                                              axis=0)
+        profile_azimuth_core     = np.nanmean(dn_grid[limits_profile_azimuth_bins[2]:limits_profile_azimuth_bins[1],:],
+                                              axis=0)
+        profile_azimuth_bg_outer = np.nanmean(dn_grid[limits_profile_azimuth_bins[3]:limits_profile_azimuth_bins[2],:],
+                                              axis=0)
 
         # Get profile in DN
         profile_azimuth_central  = profile_azimuth_core - (profile_azimuth_bg_inner + profile_azimuth_bg_outer)/2
-        profile_radius_central   = np.nanmean(dn_grid[:,limits_profile_radial_bins[0]:limits_profile_radial_bins[1]],1)        
+        profile_radius_central   = np.nanmean(dn_grid[:,limits_profile_radial_bins[0]:limits_profile_radial_bins[1]],1)
         
 #==============================================================================
 # Converted extracted values from DN, into photometric quantities
@@ -773,7 +779,7 @@ class App:
         dr[-1] = 0
         
 #        ioprofile_radius_iof_norm  # Just a shorter alias
-        ew_norm  = np.sum((profile_radius_full_iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) # Normalized EW (ie, from top)
+        ew_norm  = np.sum((profile_radius_full_iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) # Normalized EW from top
         ew_mean  = ew_norm / width_ring                                           # Mean normalized EW
         
         taupp    = profile_radius_full_iof_norm * 4 * mu  # Radially averaged tau_omega0_P
@@ -862,7 +868,8 @@ class App:
 #            self.ax4.plot(bins_radius/1000, profile_radius_full, label = 'Full')
             self.ax4.plot(bins_radius/1000, profile_radius_central, label = 'Central')
             
-            self.ax4.set_xlabel(r'Radial Profile      Radius [1000 km]    phase = {:.1f} deg'.format(hbt.r2d * np.mean(self.planes['Phase'])))
+            self.ax4.set_xlabel(r'Radial Profile      Radius [1000 km]    phase = {:.1f} deg'
+                                .format(hbt.r2d * np.mean(self.planes['Phase'])))
 #            self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
             self.ax4.set_xlim([120,130])
             self.ax4.legend(loc='upper left')
@@ -1065,7 +1072,7 @@ class App:
 #        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars) # For test purposes, ignore the abcorr
 #        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars)
                 
-        self.t_group['x_pos_star_image'][self.index_image] = hbt.reprfix(points_phot[:,0]).replace(' ', '') # Shorten if possible!
+        self.t_group['x_pos_star_image'][self.index_image] = hbt.reprfix(points_phot[:,0]).replace(' ', '') # Shorten it
         self.t_group['y_pos_star_image'][self.index_image] = hbt.reprfix(points_phot[:,1]).replace(' ', '')
         self.t_group['is_navigated'][self.index_image] = True             # Set the flag saying we have navigated image
 
@@ -1242,9 +1249,8 @@ class App:
         self.index_image_new = 0      # Set image number to zero
         self.index_group_new = index  # Set the new group number
 #        print(" ** Calling change")
-        self.change_image() 
-                                                                                                                                                    
-                                     
+        self.change_image()
+
 ##########
 # Select new image, based on user click
 ##########
@@ -1427,7 +1433,7 @@ the internal state which is already correct. This does *not* refresh the image i
         # use self.ax1.<command>, not plt.<command>
         # ax1 is an instance of Axes, and I can call it with most other methods (legend(), imshow(), plot(), etc)
 
-        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
+        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales to 5th..95th %ile. 
 
 # Get the satellite position mask, and roll it into position
                        
@@ -1482,7 +1488,7 @@ the internal state which is already correct. This does *not* refresh the image i
         if (self.t_group['is_navigated'][self.index_image]):
 
             # Remove all of the current 'lines' (aka points) from the plot. This leaves the axis and the image
-            # preserved, but just removes the lines. Awesome. Using ax1.cla() will clear the entire 'axis', including image.
+            # preserved, but just removes the lines. Awesome. Using ax1.cla() will clear entire 'axis', including image.
             # Q: Does this remove legend? Not sure.
 		
             lines = self.ax1.get_lines()
@@ -1842,9 +1848,9 @@ the internal state which is already correct. This does *not* refresh the image i
 # Get the slider positions, for the dx and dy nav offset positions, and put them into a variable we can use
 
 #        print("set_offset()")
-								
-        self.offset_dx = self.slider_offset_dx.get() # 
-        self.offset_dy = self.slider_offset_dy.get() # 
+
+        self.offset_dx = self.slider_offset_dx.get() #
+        self.offset_dy = self.slider_offset_dy.get() #
         
         self.plot_objects()       
         
@@ -1917,7 +1923,7 @@ app  = App(root)
 
 
 root.geometry('%dx%d+%d+%d' % (1750, 900, 2, 2))
-root.configure(background='#ECECEC')                # ECECEC is the 'default' background for a lot of the ttk widgets, which
+root.configure(background='#ECECEC')                # ECECEC is the 'default' background for a lot of ttk widgets, which
                                                     # I figured out using photoshop. Not sure how to change that.
 
 #  window.attributes('-topmost', 1)
