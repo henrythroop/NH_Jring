@@ -336,12 +336,12 @@ met1       = np.array(fits_stopmet)
 exptime    = np.array(fits_exptime)
 rotation   = np.array(fits_spctnaz)
 rotation   = np.rint(rotation).astype(int)  # Turn rotation into integer. I only want this to be 0, 90, 180, 270... 
-files_short = np.zeros(num_obs, dtype = 'S30')
+files_short = np.zeros(num_obs, dtype = 'U30')
 
 dist_targ = np.sqrt(dx_targ**2 + dy_targ**2 + dz_targ**2)
 
 phase = np.zeros(num_obs)
-utc = np.zeros(num_obs, dtype = 'S30')
+utc = np.zeros(num_obs, dtype = 'U30')
 et = np.zeros(num_obs)
 subsclat = np.zeros(num_obs) # Sub-sc latitude
 subsclon = np.zeros(num_obs) # Sub-sc longitude
