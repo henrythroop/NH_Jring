@@ -1943,11 +1943,16 @@ if DO_PROFILE:
     
     print("Profiling with cProfile, output to " + file_out_profile)
     
-else:
-    root.mainloop()
+else:    
+
+    while True:
+        try:
+            root.mainloop()
+            break
+        except UnicodeDecodeError:  # Fix a TK + py3 bug, which causes Unicode errors on events. 
+                    # http://stackoverflow.com/questions/16995969/inertial-scrolling-in-mac-os-x-with-tkinter-and-python
+            pass
     
-
-
     
 
 
