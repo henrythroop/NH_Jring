@@ -90,75 +90,84 @@ import hbt
 # First we define any general-purpose functions, which are not part of the class/module.
 # We can move these to a different file at some point.
 
-#########
-# Navigate the image
-#########
+plt.set_cmap('Greys_r')
 
-dir_data = '/Users/throop/Dropbox/Data/NH_Jring/data/jupiter/level2/lor/all/'
-file     = dir_data + 'lor_0034765323_0x630_sci_1.fit'
+dir_data   = '/Users/throop/Dropbox/Data/NH_Jring/data/jupiter/level2/lor/all/'
+file       = dir_data + 'lor_0034765323_0x630_sci_1.fit'
+file_tm    = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
+dir_out    = '/Users/throop/Dropbox/Data/NH_Jring/out/'
+file_short = file.split('/')[-1]  
+
+d2r     = hbt.d2r
+r2d     = hbt.r2d
+
+# Load the image
+
 hdulist  = fits.open(file)
-arr      = hdulist['PRIMARY'].data
+image    = hdulist['PRIMARY'].data
 header   = hdulist['PRIMARY'].header
 
-def fxn():
-    warnings.warn("deprecated", DeprecationWarning)
+# Read the WCS coordinates
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")    
     w = WCS(file)                # Look up the WCS coordinates for this frame
                                  # Otherwise it gives "FITSFixedWarning: 'unitfix': 'Changed units: 'DEG' -> 'deg'"
-    
-et = header['SPCSCET']
-utc = 
+# Read the WCS parameters
            
-
 center  = w.wcs.crval  # degrees. # crval is a two-element array of [RA, Dec], in degrees
-DO_GSC1     = False    # Stopped working 2-Oct-2016
-DO_GSC2     = True
-DO_USNOA2   = False
-        
+
+# Initialize SPICE
+
+sp.furnsh(file_tm)
+et = header['SPCSCET']
+utc = sp.et2utc(et, 'C', 1)
 
 # Stretch the image
+
 stretch_percent = 90
 stretch = astropy.visualization.PercentileInterval(stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
 
-# Display it for fun
+# Display it
 
-plt.imshow(stretch(arr))
+plt.imshow(stretch(image))
 
-# Load
-def navigate(self):        
+# Load matching stars
 
-    t = self.t_group # We use this a lot, so make it shorter
-    d2r = hbt.d2r
-    r2d = hbt.r2d
-    
-    index_image = self.index_image       
-    
-# Now look up positions of stars in this field, from a star catalog
+DO_GSC1     = False    # Stopped working 2-Oct-2016
+DO_GSC2     = True
+DO_USNOA2   = False
 
-    w = WCS(t['Filename'][index_image])                  # Look up the WCS coordinates for this frame
-    et = t['ET'][index_image]
+#==============================================================================
+# def navigate(file, et):        
+#==============================================================================
 
-    print('ET[i] =  ' + repr(et))
-    print('UTC[i] = ' + repr(t['UTC'][index_image]))
-    print('crval[i] = ' + repr(w.wcs.crval))              # crval is a two-element array of [RA, Dec], in degrees
-    
-    center  = w.wcs.crval  # degrees
-    DO_GSC1     = False    # Stopped working 2-Oct-2016
-    DO_GSC2     = True
-    DO_USNOA2   = False
-    
-    if (DO_GSC1):
-        name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
-        radius_search = 0.15
-        stars = conesearch.conesearch(w.wcs.crval, radius_search, cache=False, catalog_db = name_cat)
-        ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
-        dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
+DO_GSC1     = False    # Stopped working 2-Oct-2016
+DO_GSC2     = True
+DO_USNOA2   = False
+
+if (DO_GSC1):
+    name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
+    radius_search = 0.15
+    stars = conesearch.conesearch(w.wcs.crval, radius_search, cache=False, catalog_db = name_cat)
+    ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
+    dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
 #            table_stars = Table(stars.array.data)
 
-    if (DO_GSC2):
-        name_cat = u'Guide Star Catalog v2 1'
+if (DO_GSC2):
+    name_cat = u'Guide Star Catalog v2 1'
+    file_pickle = dir_out + file_short.replace('.fit', '') + '.stars_gsc.pkl'
+
+    # If there is already a saved pickle file, then load from disk
+    
+    if os.path.isfile(file_pickle):
+        
+        print("Loading file: " + file_pickle)
+        lun = open(file_pickle, 'rb')
+        (ra_stars, dec_stars) = pickle.load(lun)
+        lun.close()
+            
+    else:     
 #            name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
 
 #            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
@@ -167,10 +176,10 @@ def navigate(self):
         with data.conf.set_temp('remote_timeout', 30): # This is the very strange syntax to set a timeout delay.
                                                        # The default is 3 seconds, and that times out often.
             stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
-
+    
         ra_stars  = np.array(stars.array['ra'])*d2r # Convert to radians
         dec_stars = np.array(stars.array['dec'])*d2r # Convert to radians
-
+    
         mag       = np.array(stars.array['Mag'])
         
         print("Stars downloaded: {}; mag = {} .. {}".format(np.size(mag), np.nanmin(mag), np.nanmax(mag)))
@@ -179,376 +188,231 @@ def navigate(self):
         # Now sort by magnitude, and keep the 100 brightest
         # This is because this GSC catalog is huge -- typically 2000 stars in LORRI FOV.
         # We need to reduce its size to fit in our fixed astropy table string length.
-
+    
         num_stars_max = 100            
         order = np.argsort(mag)
         order = np.array(order)[0:num_stars_max]
-
+    
         ra_stars = ra_stars[order]
         dec_stars = dec_stars[order]
-  
+
+        lun = open(file_pickle, 'wb')
+        pickle.dump((ra_stars, dec_stars), lun)
+        lun.close()
+        print("Wrote: " + file_pickle)
+        
 #            table_stars = Table(stars.array.data)
 
-    if (DO_USNOA2):        
-        name_cat = u'The USNO-A2.0 Catalogue (Monet+ 1998) 1' # Works but gives stars down to v=17; I want to v=13 
-        stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
-        table_stars = Table(stars.array.data)
-        mask = table_stars['Bmag'] < 13
-        table_stars_m = table_stars[mask]            
+if (DO_USNOA2):  
+    name_cat = u'The USNO-A2.0 Catalogue (Monet+ 1998) 1' # Works but gives stars down to v=17; I want to v=13 
+    stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+    table_stars = Table(stars.array.data)
+    mask = table_stars['Bmag'] < 13
+    table_stars_m = table_stars[mask]            
 
-        ra_stars  = table_stars_m['RAJ2000']*d2r # Convert to radians
-        dec_stars = table_stars_m['DEJ2000']*d2r # Convert to radians
-    
+    ra_stars  = table_stars_m['RAJ2000']*d2r # Convert to radians
+    dec_stars = table_stars_m['DEJ2000']*d2r # Convert to radians
+
 # Get an array of points along the ring
 
-    ra_ring1, dec_ring1 = hbt.get_pos_ring(et, name_body='Jupiter', radius=122000, units='radec', wcs=w)
-    ra_ring2, dec_ring2 = hbt.get_pos_ring(et, name_body='Jupiter', radius=129000, units='radec', wcs=w)
+ra_ring1, dec_ring1 = hbt.get_pos_ring(et, name_body='Jupiter', radius=122000, units='radec', wcs=w)
+ra_ring2, dec_ring2 = hbt.get_pos_ring(et, name_body='Jupiter', radius=129000, units='radec', wcs=w)
 
-                # Return as radians              
-    x_ring1, y_ring1    = w.wcs_world2pix(ra_ring1*r2d, dec_ring1*r2d, 0) # Convert to pixels
-    x_ring2, y_ring2    = w.wcs_world2pix(ra_ring2*r2d, dec_ring2*r2d, 0) # Convert to pixels
+# Return as radians
 
-# Get position of Jupiter, in pixels
+x_ring1, y_ring1    = w.wcs_world2pix(ra_ring1*r2d, dec_ring1*r2d, 0) # Convert to pixels
+x_ring2, y_ring2    = w.wcs_world2pix(ra_ring2*r2d, dec_ring2*r2d, 0) # Convert to pixels
 
-#        ra_io, dec_io = get_pos_body(et, name_body='Io', units = 'radec', wcs=w)
-    
+# Get position of Metis, in pixels
+
+(vec6,lt) = sp.spkezr('Metis', et, 'J2000', 'LT+S', 'New Horizons')
+(junk, ra_metis, dec_metis) = sp.recrad(vec6[0:3])
+
 # Look up velocity of NH, for stellar aberration
-    
-    abcorr = 'LT+S'
-    frame = 'J2000'
-    st,ltime = sp.spkezr('New Horizons', et, frame, abcorr, 'Sun') # Get velocity of NH 
-    vel_sun_nh_j2k = st[3:6]
-    
+
+abcorr = 'LT+S'
+frame = 'J2000'
+st,ltime = sp.spkezr('New Horizons', et, frame, abcorr, 'Sun') # Get velocity of NH 
+vel_sun_nh_j2k = st[3:6]
+
 # Correct stellar RA/Dec for stellar aberration
 
-    radec_stars        = np.transpose(np.array((ra_stars,dec_stars)))
-    radec_stars_abcorr = hbt.correct_stellab(radec_stars, vel_sun_nh_j2k) # Store as radians
+radec_stars        = np.transpose(np.array((ra_stars,dec_stars)))
+radec_stars_abcorr = hbt.correct_stellab(radec_stars, vel_sun_nh_j2k) # Store as radians
 
 # Convert ring RA/Dec for stellar aberration
 
-    radec_ring1        = np.transpose(np.array((ra_ring1,dec_ring1)))
-    radec_ring1_abcorr = hbt.correct_stellab(radec_ring1, vel_sun_nh_j2k) # radians
-    radec_ring2        = np.transpose(np.array((ra_ring2,dec_ring2)))
-    radec_ring2_abcorr = hbt.correct_stellab(radec_ring2, vel_sun_nh_j2k) # radians
-    
-# Convert RA/Dec values back into pixels
-    
-    x_stars,        y_stars          = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)        
-    x_stars_abcorr, y_stars_abcorr   = w.wcs_world2pix(radec_stars_abcorr[:,0]*r2d, radec_stars_abcorr[:,1]*r2d, 0)
-    x_ring1_abcorr, y_ring1_abcorr   = w.wcs_world2pix(radec_ring1_abcorr[:,0]*r2d, radec_ring1_abcorr[:,1]*r2d, 0)
-    x_ring2_abcorr, y_ring2_abcorr   = w.wcs_world2pix(radec_ring2_abcorr[:,0]*r2d, radec_ring2_abcorr[:,1]*r2d, 0)
+radec_ring1        = np.transpose(np.array((ra_ring1,dec_ring1)))
+radec_ring1_abcorr = hbt.correct_stellab(radec_ring1, vel_sun_nh_j2k) # radians
+radec_ring2        = np.transpose(np.array((ra_ring2,dec_ring2)))
+radec_ring2_abcorr = hbt.correct_stellab(radec_ring2, vel_sun_nh_j2k) # radians
 
-    points_stars        = np.transpose((x_stars, y_stars))
-    points_stars_abcorr = np.transpose((x_stars_abcorr, y_stars_abcorr))
+# Convert RA/Dec values back into pixels
+
+x_stars_cat,    y_stars_cat      = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)
+
+x_stars_abcorr, y_stars_abcorr   = w.wcs_world2pix(radec_stars_abcorr[:,0]*r2d, radec_stars_abcorr[:,1]*r2d, 0)
+x_ring1_abcorr, y_ring1_abcorr   = w.wcs_world2pix(radec_ring1_abcorr[:,0]*r2d, radec_ring1_abcorr[:,1]*r2d, 0)
+x_ring2_abcorr, y_ring2_abcorr   = w.wcs_world2pix(radec_ring2_abcorr[:,0]*r2d, radec_ring2_abcorr[:,1]*r2d, 0)
+
+points_stars        = np.transpose((x_stars_cat, y_stars_cat))
+points_stars_abcorr = np.transpose((x_stars_abcorr, y_stars_abcorr))
 
 # Read the image file from disk
 
-    image_polyfit = hbt.read_lorri(t['Filename'][index_image], frac_clip = 1.,  
-                                 bg_method = 'Polynomial', bg_argument = 4)
-    image_raw     = hbt.read_lorri(t['Filename'][index_image], frac_clip = 0.9, 
-                                 bg_method = 'None')
+image_polyfit = hbt.read_lorri(file, frac_clip = 1.,  
+                             bg_method = 'Polynomial', bg_argument = 4)
+image_raw     = hbt.read_lorri(file, frac_clip = 0.9, 
+                             bg_method = 'None')
 
 # Use DAOphot to search the image for stars. It works really well.
 
-    points_phot = hbt.find_stars(image_polyfit)
-    
+points_phot = hbt.find_stars(image_polyfit, num=50)
+
+y_stars_dao =(points_phot[:,0]) # XXX Strangely, I had to swap x and y from how it is in nh_jring_gui to get to work...
+x_stars_dao =(points_phot[:,1])
+
 # Now look up the shift between the photometry and the star catalog. 
 # Do this by making a pair of fake images, and then looking up image registration on them.
 # I call this 'opnav'. It is returned in order (y,x) because that is what imreg_dft uses, even though it is a bit weird.
 #
 # For this, I can use either abcorr stars or normal stars -- whatever I am going to compute the offset from.        
 
-    (dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(image_raw), plot=False)
+#points_phot = np.array(x_stars_cat, y_stars_cat)
 
-# Save the newly computed values to variables that we can access externally
-# For the star locations, we can't put an array into an element of an astropy table.
-# But we *can* put a string into astropy table! Do that: wrap with repr(), unwrap with eval('np.' + ).
-   
-    self.t_group['dx_opnav'][self.index_image] = dx_opnav
-    self.t_group['dy_opnav'][self.index_image] = dy_opnav
-    
-    self.t_group['x_pos_star_cat'][self.index_image] = hbt.reprfix(x_stars_abcorr)
-    self.t_group['y_pos_star_cat'][self.index_image] = hbt.reprfix(y_stars_abcorr)
-    
-#        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars) # For test purposes, ignore the abcorr
-#        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars)
-            
-    self.t_group['x_pos_star_image'][self.index_image] = hbt.reprfix(points_phot[:,0]).replace(' ', '') # Shorten it
-    self.t_group['y_pos_star_image'][self.index_image] = hbt.reprfix(points_phot[:,1]).replace(' ', '')
-    self.t_group['is_navigated'][self.index_image] = True             # Set the flag saying we have navigated image
+(dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(image_raw), do_plot=True)
 
-    self.t_group['x_pos_ring1'][self.index_image] = hbt.reprfix(x_ring1_abcorr)
-    self.t_group['y_pos_ring1'][self.index_image] = hbt.reprfix(y_ring1_abcorr)
-    self.t_group['x_pos_ring2'][self.index_image] = hbt.reprfix(x_ring2_abcorr)
-    self.t_group['y_pos_ring2'][self.index_image] = hbt.reprfix(y_ring2_abcorr)
-    
-#        self.t_group['x_pos_bodies'][self.index_image] = repr(x_pos_bodies)
-#        self.t_group['y_pos_bodies'][self.index_image] = repr(y_pos_bodies)
-#        self.t_group['ra_bodies'][self.index_image]  = repr(ra_bodies)
-#        self.t_group['dec_bodies'][self.index_image] = repr(dec_bodies)
-#        self.t_group['name_bodies'][self.index_image] = repr(name_bodies)
+points_dao = np.transpose(np.array([x_stars_dao, y_stars_dao]))
+points_cat = np.transpose(np.array([x_stars_cat, y_stars_cat]))
 
-#        print("Opnav computed: {dx,dy}_opnav = " + repr(dx_opnav) + ', ' + repr(dy_opnav))
-#
-#        print('ra_stars      : ' + repr(ra_stars*r2d) + ' deg')
-           
-    # Now that we have navigated it, replot the image!
-           
-    return 0
+dy = dy_opnav
+dx = dx_opnav
 
-    """
-    Load current image from disk
-    """
-    
-    def load_image(self):
+# Now make a plot!
 
-#        print("load_image()")
+hbt.figsize((10,10))
 
-# autozoom: if set, and we are loading a 4x4 image, then scale it up to a full 1x1.
+plt.imshow(stretch(image))
 
-        file = self.t_group[self.index_image]['Filename']                    
-        self.image_raw = hbt.read_lorri(file, frac_clip = 1., bg_method = 'None', autozoom=True)
-        print("Loaded image: " + file)
-
-# Load the backplane as well. We need it to flag satellite locations during the extraction.
-        
-        DO_LOAD_BACKPLANE = True
-        if DO_LOAD_BACKPLANE:
-            self.load_backplane()
-
-#        print("Loaded backplane.")
-                                                
-
-
-#==============================================================================
-# Apply image processing to image. Stray light, polynomial subtraction, etc.
-#==============================================================================
-
-    def process_image(self):
-        
-#        print("process_image()")
-        
-        method = self.var_option_bg.get()
-        argument = self.entry_bg.get()
-        
-        self.image_processed = hbt.nh_jring_process_image(self.image_raw, \
-                                                          method, argument, self.index_group, self.index_image)
-
-        # Remove cosmic rays
-        
-        self.image_processed = hbt.decosmic(self.image_processed)
-        
-#==============================================================================
-# Plot image
-#==============================================================================
-
-    def plot_image(self):
-        """
-        Plot the image. It has already been loaded and processed.
-        This is an internal routine, which does not process.	
-        This plots the image itself, *and* the objects, if navigated.							
-        """
-                
-        # Clear the image
-
-        self.ax1.clear()
-        
-        # Set the color map
-        
-        plt.rc('image', cmap='Greys_r')
-        
-# Plot the image itself.
-        
-        # Render the main LORRI frame
-        # *** In order to get things to plot in main plot window, 
-        # use self.ax1.<command>, not plt.<command>
-        # ax1 is an instance of Axes, and I can call it with most other methods (legend(), imshow(), plot(), etc)
-
-        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
-
-# Get the satellite position mask, and roll it into position
-                       
-        self.ax1.imshow(stretch(self.image_processed))
-        
-        # Disable the tickmarks from plotting
-
-        self.ax1.get_xaxis().set_visible(False)
-        self.ax1.get_yaxis().set_visible(False)
-
-        # Set image size (so off-edge stars are clipped, rather than plot resizing)
-
-        self.ax1.set_xlim([0,1023])  # This is an array and not a tuple. Beats me, like so many things with mpl.
-        self.ax1.set_ylim([1023,0])
-  
-#        self.ax1.Axes(fig, [0,0,1,1])
-        
-        # Draw the figure on the Tk canvas
-        
-        self.fig1.tight_layout() # Remove all the extra whitespace -- nice!
-        self.canvas1.draw()
-                
-        if (self.t_group['is_navigated'][self.index_image]):
-            self.plot_objects()									
-
-        
-        plt.imshow(stretch(self.image_processed))
-        plt.show()
-        
-        return 0
-
-##########
-# Plot Objects
-##########
-
-    def plot_objects(self):
-        """
-           Plot rings and stars, etc, if we have them.
-      """
-        
-        # If we have them, draw the stars on top
-
-        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
-                                            # We can reference table['col'][n] or table[n]['col'] - either OK
-        w = WCS(t['Filename'])                  # Look up the WCS coordinates for this frame
-         
-        filename = self.t_group['Filename'][self.index_image]
-        filename = str(filename)
-        
-#        print("is_navigated: " + repr(self.t_group['is_navigated'][self.index_image])  )                      
-								
-        if (self.t_group['is_navigated'][self.index_image]):
-
-            # Remove all of the current 'lines' (aka points) from the plot. This leaves the axis and the image
-            # preserved, but just removes the lines. Awesome. Using ax1.cla() will clear the entire 'axis', including image.
-            # Q: Does this remove legend? Not sure.
-		
-            lines = self.ax1.get_lines()
-            for line in lines:
-                line.remove()		# Not vectorized -- have to do it one-by-one
-
-# Get ring position
-												
-            x_pos_ring1 = eval('np.' + t['x_pos_ring1']) # Convert from string (which can go in table) to array
-            y_pos_ring1 = eval('np.' + t['y_pos_ring1'])
-            x_pos_ring2 = eval('np.' + t['x_pos_ring2'])
-            y_pos_ring2 = eval('np.' + t['y_pos_ring2'])           
+x_pos_ring1 = x_ring1 # Convert from string (which can go in table) to array
+y_pos_ring1 = y_ring1
+x_pos_ring2 = x_ring2
+y_pos_ring2 = y_ring2          
 
 # Get the user offset position
-            
-            dx = t['dx_opnav'] + self.slider_offset_dx.get()
-            dy = t['dy_opnav'] + self.slider_offset_dy.get()
+#
+#dx = t['dx_opnav'] + self.slider_offset_dx.get()
+#dy = t['dy_opnav'] + self.slider_offset_dy.get()
 
 # Plot the stars -- catalog, and DAO
 
-            self.ax1.plot(eval('np.' + t['x_pos_star_cat']) + t['dx_opnav'], 
-                     eval('np.' + t['y_pos_star_cat']) + t['dy_opnav'], 
-                     marker='o', ls='None', 
-                     color='lightgreen', ms=12, mew=1, label = 'Cat Stars, OpNav')
-                     
-            self.ax1.plot(eval('np.' + t['x_pos_star_cat']), 
-                     eval('np.' + t['y_pos_star_cat']), 
-                     marker='o', ls='None', 
-                     color='lightgreen', label = 'Cat Stars, WCS')
+plt.plot(x_stars_cat, y_stars_cat, 
+         marker='o', ls='None', 
+         color='lightgreen', alpha = 0.5, ms=12, mew=1, label = 'Cat Stars, Raw')
+         
+plt.plot(x_stars_dao, y_stars_dao, 
+         marker='o', ls='None', 
+         color='pink', alpha = 0.5, label = 'DAOfind Stars')               
 
-            self.ax1.plot(eval('np.' + t['x_pos_star_image']), 
-                     eval('np.' + t['y_pos_star_image']), 
-                     marker='o', ls='None', 
-                     color='pink', label = 'DAOfind Stars')               
+# Get position of satellites
 
-            # Get position of satellites
+name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])        
 
-            name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])        
-            x_bodies,  y_bodies   = hbt.get_pos_bodies(t['ET'], name_bodies, units='pixels', wcs=w)
-            ra_bodies, dec_bodies = hbt.get_pos_bodies(t['ET'], name_bodies, units='radec', wcs=w)
+x_bodies,  y_bodies   = hbt.get_pos_bodies(et, name_bodies, units='pixels', wcs=w)
+ra_bodies, dec_bodies = hbt.get_pos_bodies(et, name_bodies, units='radec', wcs=w)
 
-            # Plot satellites
-              
-            self.ax1.plot(x_bodies+dx, y_bodies+dy, marker = '+', color='red', markersize=20, linestyle='none')
-            
-            # Plot the ring
-                
-            DO_PLOT_RING_INNER = False
-            DO_PLOT_RING_OUTER = True
-            
-            if (DO_PLOT_RING_OUTER):
-                self.ax1.plot(x_pos_ring2, y_pos_ring2, marker='o', color = 'blue', ls = '--',
-                              label = 'Ring, OpNav only')
+# Plot satellites
+  
+plt.plot(x_bodies+dx, y_bodies+dy, marker = '+', color='red', markersize=20, linestyle='none')
 
-                self.ax1.plot(x_pos_ring2 + dx, y_pos_ring2 + dy, marker='o', color = 'lightblue', ls = '--',
-                              label = 'Ring, OpNav+User')
-                    
-            if (DO_PLOT_RING_INNER):
-                self.ax1.plot(x_pos_ring1, y_pos_ring1, marker='o', color='green', ls = '-', \
-                    ms=8, label='Ring, LT')
+# Plot the ring
+    
+DO_PLOT_RING_INNER = False
+DO_PLOT_RING_OUTER = True
 
-                self.ax1.plot(x_pos_ring1 + dx, y_pos_ring1 + dy, \
-                    marker='o', color='purple', ls = '-', ms=8, label='Ring, LT, Shifted')
+if (DO_PLOT_RING_OUTER):
+    plt.plot(x_pos_ring2, y_pos_ring2, marker='o', color = 'blue', ls = '--',
+                  label = 'Ring, OpNav only')
 
-            self.legend = self.ax1.legend()  # Draw legend. Might be irrel since remove() might keep it; not sure.
-
-            self.canvas1.draw()
-
+    plt.plot(x_pos_ring2 + dx, y_pos_ring2 + dy, marker='o', color = 'lightblue', ls = '--',
+                  label = 'Ring, OpNav+User')
         
+if (DO_PLOT_RING_INNER):
+    plt.plot(x_pos_ring1, y_pos_ring1, marker='o', color='green', ls = '-', \
+        ms=8, label='Ring, LT')
+
+    plt.plot(x_pos_ring1 + dx, y_pos_ring1 + dy, \
+        marker='o', color='purple', ls = '-', ms=8, label='Ring, LT, Shifted')
+
+plt.legend()  # Draw legend. Might be irrel since remove() might keep it; not sure.
+
+plt.imshow(stretch(image))
+plt.show
+
+plt.imshow(stretch(image))
+plt.show()
 
 
 
+    
+##### 
 
-#==============================================================================
-# Convert from DN to I/F
-#==============================================================================
+# Just a scratch spot to test star search, etc.
+
+
+from photutils import daofind
+from astropy.stats import sigma_clipped_stats
+from photutils import find_peaks
+
+num = 200 # Number of brightest objects to keep
+
+image_s = hbt.remove_sfit(image,4)
+
+mean, median, std = sigma_clipped_stats(image, sigma=3.0, iters=5)
+    
+sources = daofind(image, fwhm=2.0, threshold=2.*std)
+
+threshold = median + (10.0 * std) # Ten sigma
+tbl = find_peaks(image, threshold, box_size=5)
+
+sources.sort('flux')  # Sort in-place
+tbl.sort('peak_value')
+    
+if (num > 0):  
+    index_start = -num
+else:
+    index_start = 0
         
-    def dn2iof(self, dn, exptime, pixfov, rsolar):
-        
-    # Convert DN to I/F. 
-    # This is not a general routine -- it's specific to LORRI 1x1 @ Jupiter.
-    
-        # Calculate LORRI pixel size, in sr
-
-        pixfov = 0.3 * hbt.d2r * 1e6 / 1024  # This keyword is missing. "Plate scale in microrad/pix "
-
-        sr_pix       = (pixfov*(1e-6))**2  # Angular size of each MVIC pixel, in sr
-    
-        # Look up the solar flux at 1 AU, using the solar spectral irradiance at 
-        #    http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
-        # or http://www.pas.rochester.edu/~emamajek/AST453/AST453_stellarprops.pdf
-    
-        f_solar_1au_si     = 1.77                 # W/m2/nm. At 600 nm. 
-        f_solar_1au_cgs    = f_solar_1au_si * 100 # Convert from W/m2/nm to erg/sec/cm2/Angstrom
-    
-        f_solar_1au        = f_solar_1au_cgs
-    
-        # Calculate the solar flux at Pluto's distance. [Actual distance is 33.8 AU]
-    
-        f_solar_jup       = f_solar_1au / (5**2)  # Use 1/r^2, not 1/(4pi r^2)
-    
-        # Use constants (from Level-2 files) to convert from DN, to intensity at detector.
-    
-        # This is the equation in ICD @ 62.
-    
-        i_per_sr    = dn / exptime / rsolar # Convert into erg/cm2/s/sr/Angstrom.
-    
-        # Because the ring is spatially extended, it fills the pixel, so we mult by pixel size
-        # to get the full irradiance on the pixel.
-        # *** But, somehow, this is not working. I get the right answer only if I ignore this 'per sr' factor.
-    
-        DO_OVERRIDE = True  # If true, ignore the missing factor of 'per sr' that seems to be in the conversion
-    
-        i           = i_per_sr * sr_pix     # Convert into erg/cm2/s/Angstrom
-    
-        if (DO_OVERRIDE):
-            i = i_per_sr
-    
-        # Calculate "I/F". This is not simply the ratio of I over F, because F in the eq is not actually Flux.
-        # "pi F is the incident solar flux density" -- ie, "F = solar flux density / pi"
-        # SC93 @ 125
-    
-        iof = i / (f_solar_jup / math.pi)
-        
-        return iof
-        
+x_phot = np.array(sources['xcentroid'][index_start:].data)
+y_phot = np.array(sources['ycentroid'][index_start:].data)
 
 
-    
+x_phot_2 = np.array(tbl['x_peak'][index_start:].data)
+y_phot_2 = np.array(tbl['y_peak'][index_start:].data)
 
+# Make a plot
+
+plt.imshow(stretch(image_s))
+plt.plot(x_phot,   y_phot,   marker='o', alpha=0.5, mec='lightgreen', mew=3, ls = 'none', markersize=12, mfc='none',
+         label = 'DAOfind')
+plt.plot(x_phot_2, y_phot_2, marker='o', alpha=0.5, mec='lightblue',  mew=3, ls = 'none', markersize=12, mfc='none',
+         label = 'find_peaks')
+
+plt.plot(x_stars_cat, y_stars_cat, 
+         marker='o', ls='None', mfc='none', 
+         mec='red', alpha = 0.5, ms=12, mew=3, label = 'Cat Stars, Raw')
+
+plt.legend(framealpha=0.9)
+plt.xlim((0,1000))
+plt.ylim((1000,0))
+
+plt.show()
+
+x_phot_merged = np.append(x_phot, x_phot_2)
+y_phot_merged = np.append(y_phot, y_phot_2)
+
+points_phot_merged = np.transpose(np.array([x_phot_merged, y_phot_merged]))
+
+(dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot_merged, points_stars, np.shape(image_raw), do_plot=True)
 
 
