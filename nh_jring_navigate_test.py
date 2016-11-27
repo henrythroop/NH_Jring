@@ -267,10 +267,19 @@ image_raw     = hbt.read_lorri(file, frac_clip = 0.9,
 
 # Use DAOphot to search the image for stars. It works really well.
 
-points_phot = hbt.find_stars(image_polyfit, num=50)
+points_phot = hbt.find_stars(image_polyfit, num=50) # Returns N x 2 aray. 0 = Row = y; 1 = Column = x.
 
-y_stars_dao =(points_phot[:,0]) # XXX Strangely, I had to swap x and y from how it is in nh_jring_gui to get to work...
-x_stars_dao =(points_phot[:,1])
+# Plot the DAO stars
+DO_PLOT_DAO = True
+if (DO_PLOT_DAO):
+    plt.imshow(stretch(image_polyfit))
+    plt.plot(points_phot[:,1], points_phot[:,0], linestyle='none', marker='o') # plot() uses x, y 
+    plt.ylim((1024,0))
+    plt.xlim((0,1024))
+    plt.show()
+    
+y_stars_dao =(points_phot[:,0]) # xy is correct -- see above
+x_stars_dao =(points_phot[:,1]) # 
 
 # Now look up the shift between the photometry and the star catalog. 
 # Do this by making a pair of fake images, and then looking up image registration on them.
