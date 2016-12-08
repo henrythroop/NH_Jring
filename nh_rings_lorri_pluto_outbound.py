@@ -65,3 +65,117 @@ from astropy.coordinates import SkyCoord
 
 # HBT imports
 import hbt
+
+dir = '/Users/throop/Data/NH_LORRI_Ring/'
+stretch_percent = 95
+
+files = glob.glob(dir + '*/*_header*')
+
+hdulist = []
+a       = [] # List of image arrays, one per file
+
+for file in files:
+    hdulist.append(fits.open(file))
+    a.append(hdulist[-1]['PRIMARY'].data)
+
+hbt.set_plot_defaults
+plt.set_cmap('Greys_r')
+ 
+stretch = astropy.visualization.PercentileInterval(stretch_percent)
+
+
+for i in range(np.size(files)): 
+    arr = np.array(a[i])
+
+    hbt.figsize((6,25))
+    
+    plt.imshow(stretch(arr))
+    plt.title(hdulist[i]['PRIMARY'].header['VISITNAM'])
+    plt.show()
+
+    binning = 100
+    
+    hbt.figsize((5,5))    
+    plt.plot(arr[800,:], label = 'Raw')
+    plt.plot(hbt.smooth_boxcar(arr[800,:],binning), label='Binning = {}'.format(binning), color='red')
+    plt.title(hdulist[i]['PRIMARY'].header['VISITNAM'])
+    plt.ylabel('DN')
+    plt.xlabel('Column')
+    plt.legend()
+
+    plt.show()
+    
+
+#==============================================================================
+# A one-off function to add valid headers to Tod's headerless mosaic files
+#==============================================================================
+
+def merge_mosaic_header():
+   
+    files_mos = glob.glob(dir + '*/*mos*fit*') # Read Tod's mosaics
+    files_raw = glob.glob(dir + '*/lor*fit*')  # Read the initial image in each of the two sequences 
+                                               # O_RING_DEP_LORRI_202, _305
+    
+    hdulist = []
+    for file in files:
+        hdulist.append(fits.open(file))
+    
+    # Now merge the headers and the mosaics
+    
+    files_out = []
+    for file in files_mos:
+        files_out.append(file.replace('_mos_', '_mos_header_'))
+    
+    hbt.merge_fits(files_mos[0], files_raw[0], files_out[0])
+    hbt.merge_fits(files_mos[1], files_raw[1], files_out[1])
+    
+#==============================================================================
+# A one-off function to take the files with headers, and wcs, and add backplanes to them.
+#==============================================================================
+    
+def add_backplanes():
+    
+    dir_out = '/Users/throop/data/NH_LORRI_Ring/'
+    
+    files_merged = glob.glob(dir + '*/*mos_header*fit*')
+    
+    for file in files_merged:
+        plane = hbt.create_backplane(file)
+        file_out = file_out.replace('.fit', '_planes.pkl')
+        
+for i,file in enumerate(files):
+
+    file_short = file.split('/')[-1]
+    file_out = dir_out + file_short    
+    file_out = file_out.replace('.fit', '_planes.pkl')
+    print("{}/{}: Generating backplane for {}".format(i, np.size(files), file_short))
+
+    plane = hbt.create_backplane(file)
+
+    
+    # Create the backplanes. 
+
+    print "Generating backplanes..."
+    
+    planes = hbt.create_backplane(file_out, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
+
+    file_header_pl = file_header.replace('.fits', '_pl.fits')     # File for backplanes
+
+# Create backplaned FITS file.
+
+# Create a new FITS file, made of an existing file plus these new planes
+
+    hdulist = fits.open(file_header_out)  # Read in the file we've just created, which has full fixed header
+
+    type_out = 'float32'  # Write backplane in single precision, to save space.
+    hdu_out = fits.HDUList() # Create a brand new FITS file
+    hdu_out.append(hdulist['PRIMARY'])
+    hdu_out.append(fits.ImageHDU(planes['RA'].astype(type_out), name = 'RA'))
+    hdu_out.append(fits.ImageHDU(planes['Dec'].astype(type_out), name = 'Dec'))
+    hdu_out.append(fits.ImageHDU(planes['Phase'].astype(type_out), name = 'Phase'))
+    hdu_out.append(fits.ImageHDU(planes['Longitude_eq'].astype(type_out), name = 'Longitude_eq'))
+    hdu_out.append(fits.ImageHDU(planes['Radius_eq'].astype(type_out), name = 'Radius_eq'))
+    
+    hdu_out.writeto(file_header_pl, clobber=True)
+    print "Wrote file: " + file_header_pl   
+    
