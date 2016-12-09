@@ -66,11 +66,10 @@ import hbt
 dir_mvic      = '/Users/throop/Data/NH_MVIC_Ring'    # MVIC
 dir_lorri     = '/Users/throop/Data/NH_LORRI_Ring'   # LORRI
 
-dir_out = dir + '/out'
 
 file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
 
-sp.furnsh(file_tm) # Start up SPICE
+sp.furnsh(file_tm) # Start up SPICEyl
 
 #==============================================================================
 # Initialize constants
@@ -89,14 +88,14 @@ sequence        = 'D211'  # MVIC
 
 # We can also analyze the LORRI mosaics here
 
-sequence        = 'D202_LORRI'
+#sequence        = 'D202_LORRI'
 sequence        = 'D305_LORRI'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
 
-#nbins_radius = 100
-nbins_radius = 1000
+nbins_radius = 100
+#nbins_radius = 1000
 
 #PIXSIZE =              13.0000 /Pixel size in microns                           
 #READNOI =              30.0000 /Readnoise in Electrons                          
@@ -106,12 +105,18 @@ nbins_radius = 1000
 #PSOLAR  = '2.5541E+14'         /(DN/s)/(erg/cm^2/s/Ang), Solar spectrum. Use for unresolved
 #RSOLAR  = '100190.64'          /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
 
+if ('LORRI' in sequence):
+    IS_LORRI = True
+    IS_MVIC = False
+    
 # Set the directory based on which instrument we are using
 
-if ('LORRI' in sequence):
+if (IS_LORRI):
     dir = dir_lorri
 else:
     dir = dir_mvic    
+
+dir_out = dir + '/out'
 
 #==============================================================================
 # Initialize parameters for each of the possible mosaics we can analyze
@@ -263,7 +268,7 @@ vec = vec[0:3]
 
 plt.set_cmap('Greys_r')
 
-hbt.figsize((20,40)) # This gets ignored sometimes here. I'm not sure why??
+hbt.figsize((9,6)) # This gets ignored sometimes here. I'm not sure why??
 plt.subplot(1,3,1)
 plt.imshow(stretch(im))
 plt.title(sequence)
@@ -286,10 +291,24 @@ plt.show()
 #==============================================================================
 
 hbt.figsize((5,12))
-plt.imshow(stretch(im))
 
 offset_x, offset_y = 100,100  # Offset PCNHSK labels by this many pixels
 
+color = 'red'
+
+if (sequence == 'D305_LORRI'):
+    
+    offset_x, offset_y = 20,20
+    hbt.figsize((12,15))
+    color='white'
+
+if (sequence == 'D202_LORRI'):
+    color = 'white'
+    hbt.figsize((12,15))
+    offset_x, offset_y = 20,20    
+    
+plt.imshow(stretch(im))
+    
 pos_body_pix = {}  # Create a new dictionary to save positions of each body
 
 name_body = ['Pluto', 'Charon', 'Nix', 'Hydra', 'Styx', 'Kerberos']
@@ -299,14 +318,20 @@ for name_body_i in name_body:
     (junk,ra,dec) = sp.recrad(vec_sc_targ) # Get the RA / Dec of the object
     x_pix, y_pix    = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0) # Convert to pixels
     plt.plot(x_pix, y_pix, marker = 'o', linestyle='none', markerfacecolor='none',
-             markeredgecolor='red', markeredgewidth=2)
-    plt.text(x_pix + offset_x, y_pix + offset_y, name_body_i[0], color='red', fontsize=15)
+             markeredgecolor=color, markeredgewidth=2)
+    plt.text(x_pix + offset_x, y_pix + offset_y, name_body_i[0], color=color, fontsize=15)
 
     pos_body_pix[name_body_i] = np.array([y_pix, x_pix])  # Save position of each body as a dictionary entry tuple
         
 plt.title(sequence)
 plt.xlim((0,np.shape(im)[1]))
 plt.ylim((0,np.shape(im)[0]))
+
+plt.tight_layout()
+file_out = dir_out + '/image_annotated_' + sequence + '.png'
+plt.savefig(file_out)
+print('Wrote: ' + file_out)
+
 plt.show()
 
 #==============================================================================
@@ -365,8 +390,11 @@ for i in range(nbins_radius-1):
             & np.array(radius < bins_radius[i+1]) \
             & (dist_body_pix['Pluto']  > 100) \
             & (dist_body_pix['Charon'] > 100) \
-            & (im != 0)  # Mask out the zero pixels (e.g., between MVIC mosaic frames)
-                         # Also need to mask out area near Pluto and near Charon
+            & (im != 0) \
+            & (im != -10.)
+            
+            # Mask out the zero pixels (e.g., between MVIC mosaic frames) 
+            # Also need to mask out area near Pluto and near Charon
             
     bin_number_2d[is_good] = i          # For each pixel in the array, assign a bin number
 
@@ -402,7 +430,7 @@ if (sequence == 'D202_LORRI'):
     d_radius = 500
 
 if (sequence == 'D305_LORRI'):
-    d_radius = 500
+    d_radius = 4000
     
 # Look up the distance using SPICE
 
@@ -419,17 +447,26 @@ for name_body_i in name_body:
     
 r_h = d_pluto_body['Hydra']  # Hydra orbital radius
 
+mask_orbit['Hydra x 2'] = \
+    np.array(radius > (r_h*2 - d_radius)) & np.array(radius < (r_h*2 + d_radius))
+    
 mask_orbit['Hydra x 4'] = \
     np.array(radius > (r_h*4 - d_radius)) & np.array(radius < (r_h*4 + d_radius))
     
 mask_orbit['Hydra x 5'] = \
     np.array(radius > (r_h*5 - d_radius)) & np.array(radius < (r_h*5 + d_radius))
     
+mask_orbit['Hydra x 6'] = \
+    np.array(radius > (r_h*6 - d_radius)) & np.array(radius < (r_h*6 + d_radius))
+        
 mask_orbit['Hydra x 10'] = \
     np.array(radius > (r_h*10 - d_radius)) & np.array(radius < (r_h*10 + d_radius))
 
 mask_orbit['Hydra x 20'] = \
     np.array(radius > (r_h*20 - d_radius)) & np.array(radius < (r_h*20 + d_radius))
+
+mask_orbit['Hydra x 30'] = \
+    np.array(radius > (r_h*30 - d_radius)) & np.array(radius < (r_h*30 + d_radius))
 
 mask_orbit['Hydra x 40'] = \
     np.array(radius > (r_h*40 - d_radius)) & np.array(radius < (r_h*40 + d_radius))
@@ -439,251 +476,172 @@ mask_orbit['Hydra x 60'] = \
     
 mask_orbit['Hydra x 80'] = \
     np.array(radius > (r_h*80 - d_radius)) & np.array(radius < (r_h*80 + d_radius))    
+
+#==============================================================================
+# Convert measurements from DN into I/F and optical depth
+#==============================================================================
+
+dist_au    = hdulist[0].header['SPCTSORN']*u.km.to('AU')  # Heliocentric distance in AU. Roughly 32 AU.
+
+lat_subsc  = hdulist[0].header['SPCTSCLA']                 # Sub-sc Lat, in deg. Roughly 43 deg.
+
+RSOLAR_l11 = 221999.98             # (DN/s/pixel)/(erg/cm^2/s/A/sr) for LORRI 1x1
+RSOLAR_l44 = 3800640.0             # (DN/s/pixel)/(erg/cm^2/s/A/sr) for LORRI 4x4. = 221999.98 * 1.07 * 16.
+RSOLAR_mpf = 100190.64             # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. MVIC Pan Frame. 
+
+FSOLAR     = 176.					     # Solar flux at r=1 AU in ergs/cm^2/s/A
+
+if ('LORRI' in sequence):
+    exptime = 0.4  # Tod's LORRI mosaics have 200ms and 400ms in them, and are normalized to 400 ms.
+
+    if hdulist[0].header['SFORMAT'] == '1X1':
+        RSOLAR = RSOLAR_l11
+        
+    if hdulist[0].header['SFORMAT'] == '4X4':
+        RSOLAR = RSOLAR_l44
+                
+else:
+    exptime = 10   # Tod's MVIC Pan Frame mosaics are all 10 sec exposures, and averaged (not summed).
+    RSOLAR = RSOLAR_mpf
+
+# Convert from DN to irradiance (ergs/cm2/s/sr/A). From Hal's writeup.
+ 
+dn = dn_median_clean_arr
+   
+I = dn / exptime / RSOLAR   
+
+# Convert from irradiance to I/F. From Hal's writeup.
+
+iof = math.pi * I * dist_au**2 / FSOLAR
+
+# Convert from I/F to 'normal I/F'
+
+mu = math.cos(lat_subsc * hbt.d2r)  # mu = cos(lat)
+iof_normal = 4 * mu * iof  # (I/F)_normal = 4 mu I/F
     
 #==============================================================================
 # Make plots of radial profile
 #==============================================================================
 
 hbt.figsize((10,5))
-
-
     
 if (nbins_radius == 100) & (sequence == 'O_RINGDEP_A_1'):
     offset = 0.02
-    ylim = (-0.1, 0.1)
-
+    ylim_dn = (-0.1, 0.1)
 
 if (nbins_radius == 1000) & (sequence == 'O_RINGDEP_A_1'):
     offset = 0.2
-    ylim = ((-0.3, 0.3))
+    ylim_dn = ((-0.3, 0.3))
 
 if (nbins_radius == 100) & (sequence == 'D202'):
     offset = 0.03
-    ylim = ((-0.05, 0.05))  
+    ylim_dn = ((-0.05, 0.05))  
 
 if (nbins_radius == 100) & (sequence == 'D202'):
     offset = 0.2
-    ylim = ((-0.3, 0.3))    
+    ylim_dn = ((-0.3, 0.3))    
     
 if (nbins_radius == 1000) & (sequence == 'D202'):
     offset = 0.2
-    ylim = ((-0.3, 0.3))    
+    ylim_dn = ((-0.3, 0.3))    
     
 if (nbins_radius == 100) & (sequence == 'D211'):
     offset = 0.03
-    ylim = ((-0.05, 0.05))  
+    ylim_dn = ((-0.05, 0.05))  
         
 if (nbins_radius == 1000) & (sequence == 'D211'):
     offset = 0.06
-    ylim = ((-0.08, 0.08))  
+    ylim_dn = ((-0.08, 0.08))  
         
 if (nbins_radius == 100) & (sequence == 'D305'):
     offset = 0.03
-    ylim = (-0.05, 0.05)
+    ylim_dn = (-0.05, 0.05)
 
 if (nbins_radius == 1000) & (sequence == 'D305'):
     offset = 0.1
-    ylim = ((-0.1, 0.2))
-
+    ylim_dn = ((-0.1, 0.2))
 
 if (nbins_radius == 1000) & (sequence == 'D202_LORRI'):
     offset = 0.1
-    ylim = ((-0.1, 0.2))
-
+    ylim_dn = ((-1, 1))
 
 if (nbins_radius == 1000) & (sequence == 'D305_LORRI'):
     offset = 0.1
-    ylim = ((-2, 2))
-
+    ylim_dn = ((-2, 2))
     
 # Plot the radial profile: mean and median
 
-plt.plot(bins_radius / 1000, dn_mean_clean_arr, label='Mean')
-plt.plot(bins_radius / 1000, dn_median_clean_arr + offset, label='Median + offset')
+DO_PLOT_PROFILE_MEDIAN = True
+DO_PLOT_PROFILE_MEAN   = False
+
+hbt.figsize((10,6))
+
+fig, ax1 = plt.subplots()
+
+if (DO_PLOT_PROFILE_MEAN):
+    ax1.plot(bins_radius / 1000, dn_mean_clean_arr, label='Mean')
+    
+if (DO_PLOT_PROFILE_MEDIAN):
+    ax1.plot(bins_radius / 1000, dn_median_clean_arr + offset, label='Median')
 
 # Plot lines for satellite orbits
 
 if (sequence == 'A_RINGDEP_01'):
     for name_body_i in name_body[1:]: # Loop over moons, excluding Pluto
       plt.vlines(d_pluto_body[name_body_i]/1000, -1,1, linestyle='--')
-      plt.text(  d_pluto_body[name_body_i]/1000, ylim[1]*0.8, ' ' + name_body_i[0])
+      plt.text(  d_pluto_body[name_body_i]/1000, ylim_dn[1]*0.8, ' ' + name_body_i[0])
 
 if (sequence == 'D305'):
     for rh_i in [20, 40, 60, 80]:
-      plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
-      plt.text((rh_i + 2) * r_h/1000, ylim[0]*0.9, ' ' + repr(rh_i) + ' RH')
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
+      plt.text((rh_i + 2) * r_h/1000, ylim_dn[0]*0.9, ' ' + repr(rh_i) + ' R_H')
 
 if (sequence == 'D202'):
     for rh_i in [1, 2, 4]:
-      plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim[1]*0.9, ' ' + repr(rh_i) + ' RH')
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' RH')
 
 if (sequence == 'D202_LORRI'):
-    for rh_i in [1, 2, 4]:
-      plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim[1]*0.9, ' ' + repr(rh_i) + ' RH')
+    for rh_i in [1, 2]:
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' RH')
       
-
 if (sequence == 'D305_LORRI'):
-    for rh_i in [1, 2, 4]:
-      plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim[1]*0.9, ' ' + repr(rh_i) + ' RH')
+    for rh_i in [5, 10, 20, 40]:
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' R_H')
             
-plt.ylim(ylim)
-plt.title(sequence + ', nbins = ' + repr(nbins_radius) + \
+ax1.set_ylim(ylim_dn)
+
+# Create a second y axis
+
+# We don't plot a second time. We just set the y range on the second axis.
+
+ylim_iof = np.array(ylim_dn) * np.nanmedian(iof_normal / dn)
+
+ax2 = ax1.twinx() # Yes, twinx means they will share x axis (and have indep y axes)
+#ax2.plot(bins_radius/1000, iof_normal)
+iof_units = 1e-5
+
+ax2.set_ylim(ylim_iof / iof_units)
+ax2.set_ylabel('Normal I/F [{:.1e}]'.format(iof_units))
+
+ax1.set_title(sequence + ', nbins = ' + repr(nbins_radius) + \
                      ', $\delta r$ = ' + hbt.trunc(dradius,0) + ' km')
 
-plt.xlabel('Orbital Distance [1000 km]')
-plt.ylabel('DN')
-plt.legend(loc = 'best') # also 'lower center'
+ax1.set_xlabel('Orbital Distance [1000 km]')
+ax1.set_ylabel('DN')
+
+# Plot the legend, iff we are plotting two lines (mean and median)
+
+if (DO_PLOT_PROFILE_MEDIAN and DO_PLOT_PROFILE_MEAN):
+    ax1.legend(loc = 'lower center') # also 'lower center'
 
 file_out = dir_out + '/profile_radial_n' + repr(nbins_radius) + '_' + sequence + '.png'
-plt.savefig(file_out)
+fig.savefig(file_out)
 print('Wrote: ' + file_out)
 
-plt.show()
-
-#==============================================================================
-# Convert measurements from DN into I/F and optical depth
-#==============================================================================
-
-# Set up some conversion constants. These are mostly in the FITS header file.
-
-exptime      = float(hdulist['PRIMARY'].header['EXPTIME']) # # All MVIC Framing ring mosaics are 10 sec/exposure
-                                        
-pixfov       = float(hdulist['PRIMARY'].header['PIXFOV'])# 19.8065   # Plate scale in microrad/pix    
-rsolar       = float(hdulist['PRIMARY'].header['RSOLAR']) # 100190.64. # (DN/s)/(erg/cm^2/s/Ang/sr)
-                         # RSOLAR is conversion for solar spectrum. Use for resolved sources.
-
-                         # NB: This value is 0.0695 in the NH MVIC ICD @ 63. Is one an error??
-                         # NB: rsolar and psolar vary only by factor pixfov^2 [in sr]
-                         # LORRI RSOLAR is 2e5, suggesting that the MVIC number is basically right. 
-                         # https://www.spaceops.swri.org/nh/wiki/index.php/LORRI#Conversion_from_DN_to_physical_units
-                         
-
-#rsolar       = 0.0695    # Value for RSOLAR in ICD @ 63.
- 
-# Calculate MVIC pixel size, in sr
-
-sr_pix       = (pixfov*(1e-6))**2  # Angular size of each MVIC pixel, in sr
-
-# Set value for the DN of the ring. Since we didn't detect the ring, I'm not using the
-# DN array itself, but rather my own estimate of a DN upper limit.
-
-dn_ring      = 0.03      # What is our DN limit? This is the value that we read
-                         # off of the radial profile plots above
-
-# Look up the solar flux at 1 AU, using the solar spectral irradiance at 
-#    http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
-# or http://www.pas.rochester.edu/~emamajek/AST453/AST453_stellarprops.pdf
-
-f_solar_1au_si     = 1.77                 # W/m2/nm. At 600 nm. 
-f_solar_1au_cgs    = f_solar_1au_si * 100 # Convert from W/m2/nm to erg/sec/cm2/Angstrom
-                                          # Unit conv. is correct -- see python code below.
-
-f_solar_1au        = f_solar_1au_cgs
-
-# Calculate the solar flux at 40 AU. [NB: Actual distance is 33.8 AU]
-
-f_solar_40au       = f_solar_1au / (33.8**2)  # Yes, use 1/r^2, not 1/(4pi r^2)
-
-# Use constants (from Level-2 files) to convert from DN, to intensity at detector.
-
-# This is the equation in ICD @ 62.
-                         
-i_ring_per_sr    = dn_ring / exptime / rsolar # Convert into erg/cm2/s/sr/Angstrom.
-
-# Because the ring is spatially extended, it fills the pixel, so we mult by pixel size
-# to get the full irradiance on the pixel.
-# *** But, somehow, this is not working. I get the right answer only if I ignore this 'per sr' factor.
-
-DO_OVERRIDE = True  # If true, ignore the missing factor of 'per sr' that seems to be in the conversion
-
-i_ring           = i_ring_per_sr * sr_pix     # Convert into erg/cm2/s/Angstrom
-
-if (DO_OVERRIDE):
-    i_ring = i_ring_per_sr
-    
-# Calculate "I/F". This is not simple the ratio of I over F, because F in the eq is not actually Flux.
-# "pi F is the incident solar flux density" -- ie, "F = solar flux density / pi"
-# SC93 @ 125
-
-iof_ring = i_ring / (f_solar_40au / math.pi)
-
-# Now get optical depth, using equation I/F = tau omega P / (4 mu)
-
-omega_0 = 0.3        # Single scattering albedo. Rough guess.
-p11     = 10         # Phase function (normalized). This is a guess for forward-scattering.
-                     # http://nit.colorado.edu/atoc5560/week8.pdf
-                     # Or better: fig 4.8 of Wendisch & Yang book (from Google Books)
-
-tau_ring = iof_ring * 4 * np.cos(lat_obs) / omega_0 / p11
-
-print("Ring upper limit: DN = {:.3g}, I/F = {:.2g}, tau = {:.2g}.".format(dn_ring, iof_ring, tau_ring))
-
-# Concl: DN = 0.3 --> I/F = 4e-10 -> tau = 1e-8. This is possible, I guess. But it seems
-# really low. I doubt we are actually that sensitive. And if we went this deep in 10 sec, then
-# any PAN Framing obs on the body (with I/F ~ 1) would saturate in a millisecond.
-
-###################
-
-# For reference, compare with an MVIC Framing image of Pluto, and try to get that to work
-# Exptime = 0.5 sec
-# DN typical = 1000
-
-file = dir + '/mpf_0299175045_0x548_sci_1.fit'
-hdu_mf = fits.open(file)
-header = hdu_mf['PRIMARY'].header
-exptime = float(header['EXPTIME'])
-rpluto  = float(header['RPLUTO']) # (DN/s)/(erg/cm^2/s/Ang/sr), Pluto spectrum  
-rsolar  = float(header['RSOLAR']) # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum 
-ppluto  = float(header['PPLUTO'])
-pixfov  = float(header['PIXFOV'])
-
-sr_pix = (pixfov*1e-6)**2
-
-im_mf = hdu_mf['PRIMARY'].data
-im_mfe = (np.transpose(im_mf[0,:,2700:2800]))  # Extract of mvic framing image
-
-plt.imshow(stretch(im_mfe))
-plt.show()
-
-# Convert from DN to I/F, using same math as above
-
-dn_pluto = np.median(im_mfe)
-i_pluto_per_sr = dn_pluto / exptime / rpluto
-i_pluto = i_pluto_per_sr * sr_pix
-if (DO_OVERRIDE):
-    i_pluto = i_pluto_per_sr
-
-iof_pluto = i_pluto / (f_solar_40au / math.pi) # Works if I put i_pluto_per_sr here
-
-iof_pluto_known = 0.6 # From fig. 1F of Nature paper: (I/F)_sp ~ 0.6
-
-print("Pluto surface: DN = {}, I/F = {}.".format(dn_pluto, iof_pluto))
-
-# Concl: I/F for Pluto should be ~0.5 But I am instead getting I/F ~ 2000x lower than that.
-# So, this means that I should multiply my rings I/F and tau numbers by 2000, to get the right value.
-
-fudge = iof_pluto_known / iof_pluto
-
-print("Using fudge = {:.2f}: Ring upper limit: DN = {:.2g}, I/F = {:.2g}, tau = {:.2g}.".\
-  format(fudge, dn_ring, fudge*iof_ring, fudge*tau_ring))
-
-#stop
-
-#==============================================================================
-# Do some unit conversion in Python, just to check it.
-#==============================================================================
-
-from astropy import units as u
-
-si = u.watt / (u.meter)**2 / u.nm
-cgs = u.erg / u.second/(u.cm)**2/u.angstrom
-
-f = 1.7*si.to(cgs)
-
-# Concl: Yes, I am doing the unit conversion properly. My solar flux at 40 AU must be correct.
+fig.show()
 
 #==============================================================================
 # Make an image showing the satellite orbits, and labled with satellite names
@@ -765,7 +723,6 @@ if (sequence == 'D305'):
     plt.gca().get_xaxis().set_visible(False)
     plt.gca().get_yaxis().set_visible(False)
     
-
     for name_body_i in ['Charon', 'Hydra']:
         
         y_pix, x_pix    = pos_body_pix[name_body_i]
@@ -779,7 +736,89 @@ if (sequence == 'D305'):
     plt.gca().get_yaxis().set_visible(False)
     
     plt.imshow(stretch(im_clean2))
+    
+##### D305 LORRI Sequence #####
+    
+if (sequence == 'D305_LORRI'):
+    
+    hbt.figsize((20,20))
+    im_composite = im.copy()
+    
+    mask_composite = mask_orbit['Charon']     + mask_orbit['Hydra']        + mask_orbit['Hydra x 5'] + \
+                     mask_orbit['Hydra x 10'] + mask_orbit['Hydra x 20'] + mask_orbit['Hydra x 30']
+                     
+    im_composite[mask_composite] = 3
 
+#    im_composite[im_composite == im_composite[0,0]] = np.amin(im_composite)
+   
+    plt.subplots() 
+    plt.subplot(1,2,1)
+    plt.imshow(stretch(im_composite))
+    
+    plt.xlim((0,np.shape(im)[1]))
+    plt.ylim((0,np.shape(im)[0]))
+    
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
+    for name_body_i in ['Charon', 'Hydra']:
+        
+        y_pix, x_pix    = pos_body_pix[name_body_i]
+
+        if (DO_LABEL_BODIES):
+            plt.text(x_pix + 40, y_pix + 40, name_body_i[0], weight='bold', color='red', fontsize=12)
+
+    plt.subplot(1,2,2)
+
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
+    plt.imshow(stretch(im_clean2))
+    plt.xlim((0,np.shape(im)[1]))
+    plt.ylim((0,np.shape(im)[0]))
+
+#    plt.tight_layout()
+    
+##### D202 LORRI Sequence #####
+    
+if (sequence == 'D202_LORRI'):
+    
+    hbt.figsize((20,20))
+    im_composite = im.copy()
+    
+    mask_composite = mask_orbit['Charon']     + mask_orbit['Hydra']        + mask_orbit['Hydra'] + \
+                     mask_orbit['Hydra x 2']
+                     
+    im_composite[mask_composite] = 3
+
+#    im_composite[im_composite == im_composite[0,0]] = np.amin(im_composite)
+    
+    plt.subplots()
+    plt.subplot(1,2,1)
+    plt.imshow(stretch(im_composite))
+    
+    plt.xlim((0,np.shape(im)[1]))
+    plt.ylim((0,np.shape(im)[0]))
+    
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
+    for name_body_i in ['Charon', 'Hydra']:
+        
+        y_pix, x_pix    = pos_body_pix[name_body_i]
+
+        if (DO_LABEL_BODIES):
+            plt.text(x_pix + 40, y_pix + 40, name_body_i[0], weight='bold', color='red', fontsize=12)
+
+    plt.subplot(1,2,2)
+
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    
+    plt.imshow(stretch(im_clean2))
+    plt.xlim((0,np.shape(im)[1]))
+    plt.ylim((0,np.shape(im)[0]))
+        
 ##### D202 Sequence #####
     
 if (sequence == 'D202'):
@@ -866,8 +905,7 @@ if (sequence == 'D211'):
     
     plt.imshow(stretch(im_clean2))
     
-    
-plt.tight_layout()
+#plt.tight_layout()
     
 file_out = dir_out + '/image_orbits_' + sequence + '.png'
 plt.savefig(file_out)
@@ -881,7 +919,12 @@ plt.show()
 
 plt.set_cmap('Greys_r')
 
-hbt.figsize((18,60))
+if (IS_MVIC):
+    hbt.figsize((18,60))
+
+if (IS_LORRI):
+    hbt.figsize((25,35))
+    
 plt.subplot(1,2,1)
 plt.imshow(stretch(im))
 plt.title(sequence)
@@ -900,86 +943,11 @@ plt.title(sequence + ', Cleaned')
 plt.gca().get_xaxis().set_visible(False)
 plt.gca().get_yaxis().set_visible(False)
 
+plt.tight_layout()
+
 file_out = dir_out + '/image_threshhold_' + sequence + '.png'
 plt.savefig(file_out)
 print('Wrote: ' + file_out)
 
 plt.savefig
 plt.show()
-
-        
-#==============================================================================
-# XXX OLD CODE: Navigate the image using star catalog
-#==============================================================================
-
-#sequence = 'A_RINGDEP_01'
-#file_raw = dir + '/ringdep_mos_v1.fits'
-#
-#hdulist = fits.open(file_raw)
-#im = hdulist['PRIMARY'].data
-#
-#name_cat = 'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
-#crval = [91, 15]  # Array with RA, Dec of center position, in degrees
-#
-#stars     = conesearch.conesearch(crval, 5, cache=False, catalog_db = name_cat) # center [deg], radius [deg]
-#table_stars = Table(stars.array.data)
-#mask = table_stars['Pmag'] < 9
-#table_stars_m = table_stars[mask]  
-#
-#ra_stars  = table_stars_m['RAJ2000']*hbt.d2r # Convert to radians
-#dec_stars = table_stars_m['DEJ2000']*hbt.d2r # Convert to radians
-#
-#radec_stars        = np.transpose(np.array((ra_stars,dec_stars)))
-#x_stars, y_stars   = w.wcs_world2pix(radec_stars[:,0]*hbt.r2d,   radec_stars[:,1]*hbt.r2d, 0)        
-#points_stars        = np.transpose((y_stars, x_stars))  # 
-#
-#shape = (5000,2250)
-#diam_kernel=5
-#
-#image_1 = hbt.image_from_list_points(points_stars, shape, diam_kernel) # star catalog image: working
-#image_2 = hbt.image_from_list_points(points_phot,  shape, diam_kernel) # photometry: cut off
-#        
-#points_phot = hbt.find_stars(im) # Weirdly, find_stars does not return magnitudes -- only positions
-#            
-#(dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(im), plot=False)
-
-
-stop
-
-# Read in one of the original, non-mosaiced images to figure out DN vs. I/F, etc.
-
-stretch = astropy.visualization.PercentileInterval(90)
-
-file_l2 = dir + '/mpf_0299292106_0x548_sci_2.fit'  # Level-2 from SOC
-hdu_l2 = fits.open(file_l2)
-im_l2  = hdu_l2['PRIMARY'].data
-
-file_l1 = dir + '/mpf_0299292106_0x548_eng_2.fit'  # Level-1 from SOC
-hdu_l1 = fits.open(file_l1)
-im_l1  = hdu_l1['PRIMARY'].data
-
-file_tod = dir + '/mpf_0299292106_02_v2.fits' # Tod gave me this. I don't know what it is.
-hdu_tod = fits.open(file_tod) # )ython will not read this. "Keyword NAXIS3 not found."
-im_tod = hdu_tod['PRIMARY'].data
-     
-im_l2 = hdu_l2['PRIMARY'].data  # 2 x 128 x 5024
-
-# Extract some subframes to examine
-
-im_l1_sub = im_l1[1,5:100,405:500] # Level-1. Range = 100 .. 200 mostly. Integers (ie, DN)
-im_l2_sub = im_l2[1,5:100,405:500] # Level-2. Same units as l1, just scaled a bit differently. Floats (ie, calibrated DN)
-rsolar    = 100190.64              # Conversion factor, DN -> cgs
- 
-exptime = 10
-
-i_cgs = im_l2_sub / exptime / rsolar # Convert into erg/cm2/s/Angstrom/sr
-
-# Comments at end of Level2 file 
-#PIXSIZE =              13.0000 /Pixel size in microns                           
-#READNOI =              30.0000 /Readnoise in Electrons                          
-#GAIN    =              58.6000 /Gain in Electrons/DN                            
-#PIXFOV  =              19.8065 /Plate scale in microrad/pix    
-
-#PSOLAR  = '2.5541E+14'         /(DN/s)/(erg/cm^2/s/Ang), Solar spectrum. Use for unresolved
-#RSOLAR  = '100190.64'          /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
-             
