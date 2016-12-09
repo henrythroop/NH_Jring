@@ -80,22 +80,22 @@ sp.furnsh(file_tm) # Start up SPICEyl
 #files = ['mvic_d305_sum_mos_v1.fits', 'ringdep_mos_v1.fits']
 
 #file = dir + '/mvic_d305_sum_mos_v1.fits'
-
+#
 #sequence        = 'D305' # MVIC
-#sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
+sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
 #sequence        = 'D202' # MVIC
-sequence        = 'D211'  # MVIC
+#sequence        = 'D211'  # MVIC
 
 # We can also analyze the LORRI mosaics here
 
-sequence        = 'D202_LORRI'
+#sequence        = 'D202_LORRI'
 #sequence        = 'D305_LORRI'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
 
-nbins_radius = 100
-#nbins_radius = 1000
+#nbins_radius = 100
+nbins_radius = 1000
 
 #PIXSIZE =              13.0000 /Pixel size in microns                           
 #READNOI =              30.0000 /Readnoise in Electrons                          
@@ -106,9 +106,11 @@ nbins_radius = 100
 #RSOLAR  = '100190.64'          /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
 
 if ('LORRI' in sequence):
-    IS_LORRI = True
-    IS_MVIC = False
-    
+    IS_LORRI, IS_MVIC = True, False
+
+else:
+    IS_MVIC, IS_LORRI = (True, False)
+
 # Set the directory based on which instrument we are using
 
 if (IS_LORRI):
@@ -406,6 +408,14 @@ for i in range(nbins_radius-1):
     
     npix_arr[i] = np.sum(is_good) # Count of number of pixels in this radial bin
 
+# Now normalize these so they have median at zero. Could argue whether to do this or not, but I think it's fine.
+
+dn_mean_arr         -= np.nanmedian(dn_mean_arr)
+dn_mean_clean_arr   -= np.nanmedian(dn_mean_clean_arr)
+dn_median_arr       -= np.nanmedian(dn_mean_clean_arr)
+dn_median_clean_arr -= np.nanmedian(dn_median_clean_arr)
+
+    
 #==============================================================================
 # Calc orbital distances (from Pluto) for each body
 #==============================================================================
@@ -490,7 +500,7 @@ RSOLAR_mpf = 100190.64             # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum.
 
 FSOLAR     = 176.					     # Solar flux at r=1 AU in ergs/cm^2/s/A
 
-if ('LORRI' in sequence):
+if IS_LORRI:
     exptime = 0.4  # Tod's LORRI mosaics have 200ms and 400ms in them, and are normalized to 400 ms.
 
     if hdulist[0].header['SFORMAT'] == '1X1':
@@ -499,7 +509,7 @@ if ('LORRI' in sequence):
     if hdulist[0].header['SFORMAT'] == '4X4':
         RSOLAR = RSOLAR_l44
                 
-else:
+if IS_MVIC:
     exptime = 10   # Tod's MVIC Pan Frame mosaics are all 10 sec exposures, and averaged (not summed).
     RSOLAR = RSOLAR_mpf
 
@@ -517,6 +527,19 @@ iof = math.pi * I * dist_au**2 / FSOLAR
 
 mu = math.cos(lat_subsc * hbt.d2r)  # mu = cos(lat)
 iof_normal = 4 * mu * iof  # (I/F)_normal = 4 mu I/F
+
+# Calculate the 3sigma iof value
+
+std_iof_normal = np.nanstd(iof_normal)
+
+# Special case: for the O_RINGDEP_A_1 sequence, the edges are bad, but the signal 
+# in the middle is good. So, when we take the SNR, do it *only* of the middle region.
+# We will show the full plot and it will be obvious what we did.
+
+if (sequence == 'O_RINGDEP_A_1'):
+     x0 = int(np.size(iof_normal)*0.25)
+     x1 = int(np.size(iof_normal)*0.75)
+     std_iof_normal = np.nanstd(iof_normal[x0:x1])   
     
 #==============================================================================
 # Make plots of radial profile
@@ -526,23 +549,19 @@ hbt.figsize((10,5))
     
 if (nbins_radius == 100) & (sequence == 'O_RINGDEP_A_1'):
     offset = 0.02
-    ylim_dn = (-0.1, 0.1)
+    ylim_dn = (-0.2, 0.2)
 
 if (nbins_radius == 1000) & (sequence == 'O_RINGDEP_A_1'):
-    offset = 0.2
-    ylim_dn = ((-0.3, 0.3))
-
-if (nbins_radius == 100) & (sequence == 'D202'):
-    offset = 0.03
-    ylim_dn = ((-0.05, 0.05))  
+    offset = 0.
+    ylim_dn = ((-0.2, 0.2))
 
 if (nbins_radius == 100) & (sequence == 'D202'):
     offset = 0.2
-    ylim_dn = ((-0.3, 0.3))    
+    ylim_dn = ((-0.15, 0.15))    
     
 if (nbins_radius == 1000) & (sequence == 'D202'):
     offset = 0.2
-    ylim_dn = ((-0.3, 0.3))    
+    ylim_dn = ((-0.15, 0.15))    
     
 if (nbins_radius == 100) & (sequence == 'D211'):
     offset = 0.03
@@ -550,7 +569,7 @@ if (nbins_radius == 100) & (sequence == 'D211'):
         
 if (nbins_radius == 1000) & (sequence == 'D211'):
     offset = 0.06
-    ylim_dn = ((-0.08, 0.08))  
+    ylim_dn = ((-0.05, 0.05))  
         
 if (nbins_radius == 100) & (sequence == 'D305'):
     offset = 0.03
@@ -564,10 +583,18 @@ if (nbins_radius == 1000) & (sequence == 'D202_LORRI'):
     offset = 0.1
     ylim_dn = ((-1, 1))
 
+if (nbins_radius == 100) & (sequence == 'D202_LORRI'):
+    offset = 0.1
+    ylim_dn = ((-1, 1))
+    
 if (nbins_radius == 1000) & (sequence == 'D305_LORRI'):
     offset = 0.1
     ylim_dn = ((-2, 2))
-    
+
+if (nbins_radius == 100) & (sequence == 'D305_LORRI'):
+    offset = 0.1
+    ylim_dn = ((-2, 2))
+
 # Plot the radial profile: mean and median
 
 DO_PLOT_PROFILE_MEDIAN = True
@@ -581,7 +608,11 @@ if (DO_PLOT_PROFILE_MEAN):
     ax1.plot(bins_radius / 1000, dn_mean_clean_arr, label='Mean')
     
 if (DO_PLOT_PROFILE_MEDIAN):
-    ax1.plot(bins_radius / 1000, dn_median_clean_arr + offset, label='Median')
+
+    ax1.plot(bins_radius / 1000, 
+             dn_median_clean_arr +
+             offset*DO_PLOT_PROFILE_MEAN, # Ignore offset if plotting only one curve
+             label='Median')
 
 # Plot lines for satellite orbits
 
@@ -615,12 +646,20 @@ ax1.set_ylim(ylim_dn)
 # Create a second y axis
 
 # We don't plot a second time. We just set the y range on the second axis.
+# This line below looks funny, but it calculates the exact ratio of dn:iof, and sets ylimit based on that.
 
 ylim_iof = np.array(ylim_dn) * np.nanmedian(iof_normal / dn)
 
-ax2 = ax1.twinx() # Yes, twinx means they will share x axis (and have indep y axes)
+ax2 = ax1.twinx() # Yes, twinx means they will share x axis (and have indep y axes) - correct as written.
 #ax2.plot(bins_radius/1000, iof_normal)
-iof_units = 1e-5
+
+# Set scaling factor for I/F
+
+if (IS_LORRI):
+    iof_units = 1e-5
+    
+if (IS_MVIC):
+    iof_units = 1e-6    
 
 ax2.set_ylim(ylim_iof / iof_units)
 ax2.set_ylabel('Normal I/F [{:.1e}]'.format(iof_units))
@@ -635,6 +674,9 @@ ax1.set_ylabel('DN')
 
 if (DO_PLOT_PROFILE_MEDIAN and DO_PLOT_PROFILE_MEAN):
     ax1.legend(loc = 'lower center') # also 'lower center'
+
+# Plot a text with the final derived I/F limit
+ax1.text(0.02, 0.8, '3$\sigma$ I/F = {:.1e}'.format(3*std_iof_normal), transform=ax1.transAxes)
 
 file_out = dir_out + '/profile_radial_n' + repr(nbins_radius) + '_' + sequence + '.png'
 fig.savefig(file_out)
@@ -740,7 +782,7 @@ if (sequence == 'D305'):
     
 if (sequence == 'D305_LORRI'):
     
-    hbt.figsize((20,20))
+    hbt.figsize((7,20))
     im_composite = im.copy()
     
     mask_composite = mask_orbit['Charon']     + mask_orbit['Hydra']        + mask_orbit['Hydra x 5'] + \
