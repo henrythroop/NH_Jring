@@ -88,8 +88,8 @@ sequence        = 'D211'  # MVIC
 
 # We can also analyze the LORRI mosaics here
 
-#sequence        = 'D202_LORRI'
-sequence        = 'D305_LORRI'
+sequence        = 'D202_LORRI'
+#sequence        = 'D305_LORRI'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
@@ -406,7 +406,6 @@ for i in range(nbins_radius-1):
     
     npix_arr[i] = np.sum(is_good) # Count of number of pixels in this radial bin
 
-
 #==============================================================================
 # Calc orbital distances (from Pluto) for each body
 #==============================================================================
@@ -599,12 +598,12 @@ if (sequence == 'D305'):
 if (sequence == 'D202'):
     for rh_i in [1, 2, 4]:
       plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' RH')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' R_H')
 
 if (sequence == 'D202_LORRI'):
     for rh_i in [1, 2]:
       plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' RH')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' R_H')
       
 if (sequence == 'D305_LORRI'):
     for rh_i in [5, 10, 20, 40]:
@@ -777,7 +776,7 @@ if (sequence == 'D305_LORRI'):
     plt.xlim((0,np.shape(im)[1]))
     plt.ylim((0,np.shape(im)[0]))
 
-#    plt.tight_layout()
+    plt.tight_layout()
     
 ##### D202 LORRI Sequence #####
     
@@ -786,10 +785,20 @@ if (sequence == 'D202_LORRI'):
     hbt.figsize((20,20))
     im_composite = im.copy()
     
-    mask_composite = mask_orbit['Charon']     + mask_orbit['Hydra']        + mask_orbit['Hydra'] + \
+#    mask_composite = mask_orbit['Charon']     + mask_orbit['Hydra']        + mask_orbit['Hydra'] + \
+#                     mask_orbit['Hydra x 2']
+
+    mask_composite = ((mask_orbit['Charon'])   & (dist_body_pix['Charon'] > 20)) + \
+                     ((mask_orbit['Styx'])     & (dist_body_pix['Styx'] > 20)) + \
+                     ((mask_orbit['Hydra'])    & (dist_body_pix['Hydra'] > 20)) + \
+                     ((mask_orbit['Kerberos']) & (dist_body_pix['Kerberos'] > 20)) + \
+                     ((mask_orbit['Nix'])      & (dist_body_pix['Nix'] > 20)) + \
                      mask_orbit['Hydra x 2']
                      
-    im_composite[mask_composite] = 3
+                     
+#    im_composite[mask_composite] = 10
+                     
+    im_composite[mask_composite] = 10
 
 #    im_composite[im_composite == im_composite[0,0]] = np.amin(im_composite)
     
@@ -802,14 +811,23 @@ if (sequence == 'D202_LORRI'):
     
     plt.gca().get_xaxis().set_visible(False)
     plt.gca().get_yaxis().set_visible(False)
-    
-    for name_body_i in ['Charon', 'Hydra']:
-        
+
+    for name_body_i in name_body:
         y_pix, x_pix    = pos_body_pix[name_body_i]
-
+        plt.plot(x_pix, y_pix, marker = 'o', linestyle='none', markerfacecolor='none',
+                 markeredgecolor='red', markeredgewidth=2, markersize=30)
         if (DO_LABEL_BODIES):
-            plt.text(x_pix + 40, y_pix + 40, name_body_i[0], weight='bold', color='red', fontsize=12)
+            plt.text(x_pix + offset_x, y_pix + offset_y, name_body_i[0], color='white', \
+                     weight='bold', fontsize=15)
 
+            
+#    for name_body_i in ['Charon', 'Hydra']:
+#        
+#        y_pix, x_pix    = pos_body_pix[name_body_i]
+#
+#        if (DO_LABEL_BODIES):
+#            plt.text(x_pix + 40, y_pix + 40, name_body_i[0], weight='bold', color='red', fontsize=12)
+#
     plt.subplot(1,2,2)
 
     plt.gca().get_xaxis().set_visible(False)
@@ -818,6 +836,8 @@ if (sequence == 'D202_LORRI'):
     plt.imshow(stretch(im_clean2))
     plt.xlim((0,np.shape(im)[1]))
     plt.ylim((0,np.shape(im)[0]))
+    
+    plt.tight_layout()
         
 ##### D202 Sequence #####
     
