@@ -57,6 +57,7 @@ import mpl_toolkits.axisartist as AA             # For adding a second axis to a
 import imreg_dft as ird
 import re # Regexp
 import pickle # For load/save
+import spiceypy as sp
 
 # Imports for Tk
 
@@ -82,7 +83,6 @@ hbt.set_plot_defaults
 plt.set_cmap('Greys_r')
  
 stretch = astropy.visualization.PercentileInterval(stretch_percent)
-
 
 for i in range(np.size(files)): 
     arr = np.array(a[i])
@@ -131,51 +131,48 @@ def merge_mosaic_header():
     
 #==============================================================================
 # A one-off function to take the files with headers, and wcs, and add backplanes to them.
+# ring_lor202_mos_v1.fits               -- from Tod
+# ring_lor202_mos_v1_header.fits        -- with NH header from individual LORRI added 
+# ring_lor202_mos_v1_header_wcs.fits    -- with WCS info added
+# ring_lor202_mos_v1_header_wcs_pl.fits -- with backplanes added
 #==============================================================================
     
 def add_backplanes():
+  
+    dir = '/Users/throop/data/NH_LORRI_Ring/'
     
-    dir_out = '/Users/throop/data/NH_LORRI_Ring/'
+    files = glob.glob(dir + '/*_header_wcs.fits')
     
-    files_merged = glob.glob(dir + '*/*mos_header*fit*')
+    file_tm           = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
+ 
+    # Make sure SPICE is running
     
-    for file in files_merged:
-        plane = hbt.create_backplane(file)
-        file_out = file_out.replace('.fit', '_planes.pkl')
+    sp.furnsh(file_tm)
+    
+    for i,file in enumerate(files):
+
+        file_out = file.replace('.fits', '_pl.fits')
         
-for i,file in enumerate(files):
-
-    file_short = file.split('/')[-1]
-    file_out = dir_out + file_short    
-    file_out = file_out.replace('.fit', '_planes.pkl')
-    print("{}/{}: Generating backplane for {}".format(i, np.size(files), file_short))
-
-    plane = hbt.create_backplane(file)
-
+        print("{}/{}: Generating backplane for {}".format(i, np.size(files), file))
     
-    # Create the backplanes. 
-
-    print "Generating backplanes..."
+        # Create the backplanes
     
-    planes = hbt.create_backplane(file_out, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
-
-    file_header_pl = file_header.replace('.fits', '_pl.fits')     # File for backplanes
-
-# Create backplaned FITS file.
-
-# Create a new FITS file, made of an existing file plus these new planes
-
-    hdulist = fits.open(file_header_out)  # Read in the file we've just created, which has full fixed header
-
-    type_out = 'float32'  # Write backplane in single precision, to save space.
-    hdu_out = fits.HDUList() # Create a brand new FITS file
-    hdu_out.append(hdulist['PRIMARY'])
-    hdu_out.append(fits.ImageHDU(planes['RA'].astype(type_out), name = 'RA'))
-    hdu_out.append(fits.ImageHDU(planes['Dec'].astype(type_out), name = 'Dec'))
-    hdu_out.append(fits.ImageHDU(planes['Phase'].astype(type_out), name = 'Phase'))
-    hdu_out.append(fits.ImageHDU(planes['Longitude_eq'].astype(type_out), name = 'Longitude_eq'))
-    hdu_out.append(fits.ImageHDU(planes['Radius_eq'].astype(type_out), name = 'Radius_eq'))
+        print("Generating backplane...")
+                
+        planes = hbt.create_backplane(file, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
+            
+    # Create a new FITS file, made of an existing file plus these new planes
     
-    hdu_out.writeto(file_header_pl, clobber=True)
-    print "Wrote file: " + file_header_pl   
+        hdulist = fits.open(file)  # Read in the file we've just created, which has full fixed header
     
+        type_out = 'float32'        # Write backplane in single precision, to save space.
+        hdu_out = fits.HDUList()    # Create a brand new FITS file
+        hdu_out.append(hdulist['PRIMARY'])
+        hdu_out.append(fits.ImageHDU(planes['RA'].astype(type_out), name = 'RA'))
+        hdu_out.append(fits.ImageHDU(planes['Dec'].astype(type_out), name = 'Dec'))
+        hdu_out.append(fits.ImageHDU(planes['Phase'].astype(type_out), name = 'Phase'))
+        hdu_out.append(fits.ImageHDU(planes['Longitude_eq'].astype(type_out), name = 'Longitude_eq'))
+        hdu_out.append(fits.ImageHDU(planes['Radius_eq'].astype(type_out), name = 'Radius_eq'))
+        
+        hdu_out.writeto(file_out, clobber=True)
+        print("Wrote file: " + file_out)

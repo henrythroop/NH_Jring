@@ -31,9 +31,9 @@ import astropy.visualization
 from   scipy.optimize import curve_fit
 #from   pylab import *  # So I can change plot size.
                        # Pylab defines the 'plot' command
-import cspice
+import spiceypy as sp
 import skimage
-from   itertools   import izip    # To loop over groups in a table -- see astropy tables docs
+#from   itertools   import izip    # To loop over groups in a table -- see astropy tables docs
 from   astropy.wcs import WCS
 from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy     import units as u           # Units library
@@ -53,22 +53,24 @@ import pickle # For load/save
 
 # Imports for Tk
 
-import Tkinter
-import ttk
-import tkMessageBox
-from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from   matplotlib.figure import Figure
+#import Tkinter
+#import ttk
+#import tkMessageBox
+#from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+#from   matplotlib.figure import Figure
 
 ###
 
 import hbt
 
-dir     = '/Users/throop/Data/NH_MVIC_Ring' 
+dir_mvic      = '/Users/throop/Data/NH_MVIC_Ring'    # MVIC
+dir_lorri     = '/Users/throop/Data/NH_LORRI_Ring'   # LORRI
+
 dir_out = dir + '/out'
 
 file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
 
-cspice.furnsh(file_tm) # Start up SPICE
+sp.furnsh(file_tm) # Start up SPICE
 
 #==============================================================================
 # Initialize constants
@@ -80,10 +82,15 @@ cspice.furnsh(file_tm) # Start up SPICE
 
 #file = dir + '/mvic_d305_sum_mos_v1.fits'
 
-#sequence        = 'D305'
+#sequence        = 'D305' # MVIC
 #sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
-#sequence        = 'D202'
-sequence        = 'D211'
+#sequence        = 'D202' # MVIC
+sequence        = 'D211'  # MVIC
+
+# We can also analyze the LORRI mosaics here
+
+sequence        = 'D202_LORRI'
+sequence        = 'D305_LORRI'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
@@ -99,9 +106,15 @@ nbins_radius = 1000
 #PSOLAR  = '2.5541E+14'         /(DN/s)/(erg/cm^2/s/Ang), Solar spectrum. Use for unresolved
 #RSOLAR  = '100190.64'          /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. Use for resolved sources.
 
+# Set the directory based on which instrument we are using
+
+if ('LORRI' in sequence):
+    dir = dir_lorri
+else:
+    dir = dir_mvic    
 
 #==============================================================================
-# Initialize parameters for each of the possible MVIC mosaics we can analyze
+# Initialize parameters for each of the possible mosaics we can analyze
 #==============================================================================
 
 # *_wcs.fits file are created by astrometry.net. Their default name is new-image.fits .
@@ -128,7 +141,17 @@ if (sequence == 'D211'):
   utc = '2015::211 00:00:00'  # Set the time.
   stretch = astropy.visualization.PercentileInterval(99.6)
   
+if (sequence == 'D202_LORRI'):
+  file_wcs = dir + '/ring_lor202_mos_v1_wcs.fits'
+  utc = '2015::202 00:00:00'  # Set the time.
+  stretch = astropy.visualization.PercentileInterval(99.6)
+    
+if (sequence == 'D305_LORRI'):
+  file_wcs = dir + '/ring_lor305_mos_v3_wcs.fits'
+  utc = '2015::305 00:00:00'  # Set the time.
+  stretch = astropy.visualization.PercentileInterval(99.6)
   
+
 file_header    = file_wcs.replace('.fits', '_header.fits')    # File with fixed FITS ET info
 file_header_pl = file_header.replace('.fits', '_pl.fits')     # File for backplanes
 
@@ -153,8 +176,8 @@ if (DO_FIX_FITS):
     if (sequence == 'D305'):
         file_header_in = dir + '/mpf_0308706706_0x539_sci_6.fit'
 
-    print "Reading file: " + file_header_in
-    print "Reading file: " + file_image_in
+    print("Reading file: " + file_header_in)
+    print("Reading file: " + file_image_in)
     
     hdulist_header_in = fits.open(file_header_in)
     hdulist_image_in  = fits.open(file_image_in) # Has Tod's image, and WCS data
@@ -173,7 +196,7 @@ if (DO_FIX_FITS):
     
     hdulist_image_in.writeto(file_header_out, clobber=True)
     
-    print "Wrote new FITS file with fixed header: " + file_header_out
+    print("Wrote new FITS file with fixed header: " + file_header_out)
 
     hdulist_header_in.close()
     hdulist_image_in.close()
@@ -181,9 +204,10 @@ if (DO_FIX_FITS):
 # Create the backplanes. 
 # Start by reading in the file we just created.
 
-    print "Generating backplanes..."
+    print("Generating backplanes...")
     
-    planes = hbt.create_backplane(file_header_out, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
+    planes = hbt.create_backplane(file_header_out, frame = 'IAU_PLUTO', 
+                                  name_target='Pluto', name_observer='New Horizons')
 
 # Create backplaned FITS file.
 
@@ -201,7 +225,7 @@ if (DO_FIX_FITS):
     hdu_out.append(fits.ImageHDU(planes['Radius_eq'].astype(type_out), name = 'Radius_eq'))
     
     hdu_out.writeto(file_header_pl, clobber=True)
-    print "Wrote file: " + file_header_pl   
+    print("Wrote file: " + file_header_pl)
 
 #==============================================================================
 # Load the image + backplane
@@ -223,15 +247,15 @@ radius    = hdulist['Radius_eq'].data
 longitude = hdulist['Longitude_eq'].data
 
 et = hdulist['PRIMARY'].header['SPCSCET'] # Get the ET from the file
-utc = cspice.et2utc(et, 'C', 0)
+utc = sp.et2utc(et, 'C', 0)
 
 w = WCS(file)
 
 # Calculate the sub-observer latitude (ie, ring tilt angle)
 
-(vec, lt) = cspice.spkezr('New Horizons', et, 'IAU_PLUTO', 'LT', 'Pluto')
+(vec, lt) = sp.spkezr('New Horizons', et, 'IAU_PLUTO', 'LT', 'Pluto')
 vec = vec[0:3]
-(junk, lon_obs, lat_obs) = cspice.reclat(vec) # Get latitude, in radians
+(junk, lon_obs, lat_obs) = sp.reclat(vec) # Get latitude, in radians
 
 #==============================================================================
 # Make a plot of the image + backplanes
@@ -270,9 +294,9 @@ pos_body_pix = {}  # Create a new dictionary to save positions of each body
 
 name_body = ['Pluto', 'Charon', 'Nix', 'Hydra', 'Styx', 'Kerberos']
 for name_body_i in name_body:
-    vec,lt = cspice.spkezr(name_body_i, et, 'J2000', 'LT', 'New Horizons')
+    vec,lt = sp.spkezr(name_body_i, et, 'J2000', 'LT', 'New Horizons')
     vec_sc_targ = vec[0:3]
-    (junk,ra,dec) = cspice.recrad(vec_sc_targ) # Get the RA / Dec of the object
+    (junk,ra,dec) = sp.recrad(vec_sc_targ) # Get the RA / Dec of the object
     x_pix, y_pix    = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0) # Convert to pixels
     plt.plot(x_pix, y_pix, marker = 'o', linestyle='none', markerfacecolor='none',
              markeredgecolor='red', markeredgewidth=2)
@@ -373,12 +397,18 @@ if (sequence == 'D202'):
 
 if (sequence == 'D211'):
     d_radius = 1000
+
+if (sequence == 'D202_LORRI'):
+    d_radius = 500
+
+if (sequence == 'D305_LORRI'):
+    d_radius = 500
     
 # Look up the distance using SPICE
 
 for name_body_i in name_body:
-  (vec_body,junk) = cspice.spkezr(name_body_i, et, 'IAU_PLUTO', 'LT', 'Pluto')
-  d_pluto_body[name_body_i] = cspice.vnorm(vec_body[0:3])
+  (vec_body,junk) = sp.spkezr(name_body_i, et, 'IAU_PLUTO', 'LT', 'Pluto')
+  d_pluto_body[name_body_i] = sp.vnorm(vec_body[0:3])
    
 # Generate a pixel mask showing the orbit of each body
 
@@ -454,6 +484,17 @@ if (nbins_radius == 100) & (sequence == 'D305'):
 if (nbins_radius == 1000) & (sequence == 'D305'):
     offset = 0.1
     ylim = ((-0.1, 0.2))
+
+
+if (nbins_radius == 1000) & (sequence == 'D202_LORRI'):
+    offset = 0.1
+    ylim = ((-0.1, 0.2))
+
+
+if (nbins_radius == 1000) & (sequence == 'D305_LORRI'):
+    offset = 0.1
+    ylim = ((-2, 2))
+
     
 # Plot the radial profile: mean and median
 
@@ -476,8 +517,18 @@ if (sequence == 'D202'):
     for rh_i in [1, 2, 4]:
       plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
       plt.text((rh_i + 0.1) * r_h/1000, ylim[1]*0.9, ' ' + repr(rh_i) + ' RH')
-#      plt.xlim((0,500))
+
+if (sequence == 'D202_LORRI'):
+    for rh_i in [1, 2, 4]:
+      plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim[1]*0.9, ' ' + repr(rh_i) + ' RH')
       
+
+if (sequence == 'D305_LORRI'):
+    for rh_i in [1, 2, 4]:
+      plt.vlines(rh_i * r_h/1000, -1,1, linestyle='--')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim[1]*0.9, ' ' + repr(rh_i) + ' RH')
+            
 plt.ylim(ylim)
 plt.title(sequence + ', nbins = ' + repr(nbins_radius) + \
                      ', $\delta r$ = ' + hbt.trunc(dradius,0) + ' km')
@@ -488,7 +539,7 @@ plt.legend(loc = 'best') # also 'lower center'
 
 file_out = dir_out + '/profile_radial_n' + repr(nbins_radius) + '_' + sequence + '.png'
 plt.savefig(file_out)
-print 'Wrote: ' + file_out
+print('Wrote: ' + file_out)
 
 plt.show()
 
@@ -568,7 +619,7 @@ p11     = 10         # Phase function (normalized). This is a guess for forward-
 
 tau_ring = iof_ring * 4 * np.cos(lat_obs) / omega_0 / p11
 
-print "Ring upper limit: DN = {:.3g}, I/F = {:.2g}, tau = {:.2g}.".format(dn_ring, iof_ring, tau_ring)
+print("Ring upper limit: DN = {:.3g}, I/F = {:.2g}, tau = {:.2g}.".format(dn_ring, iof_ring, tau_ring))
 
 # Concl: DN = 0.3 --> I/F = 4e-10 -> tau = 1e-8. This is possible, I guess. But it seems
 # really low. I doubt we are actually that sensitive. And if we went this deep in 10 sec, then
@@ -609,15 +660,15 @@ iof_pluto = i_pluto / (f_solar_40au / math.pi) # Works if I put i_pluto_per_sr h
 
 iof_pluto_known = 0.6 # From fig. 1F of Nature paper: (I/F)_sp ~ 0.6
 
-print "Pluto surface: DN = {}, I/F = {}.".format(dn_pluto, iof_pluto)
+print("Pluto surface: DN = {}, I/F = {}.".format(dn_pluto, iof_pluto))
 
 # Concl: I/F for Pluto should be ~0.5 But I am instead getting I/F ~ 2000x lower than that.
 # So, this means that I should multiply my rings I/F and tau numbers by 2000, to get the right value.
 
 fudge = iof_pluto_known / iof_pluto
 
-print "Using fudge = {:.2f}: Ring upper limit: DN = {:.2g}, I/F = {:.2g}, tau = {:.2g}.".\
-  format(fudge, dn_ring, fudge*iof_ring, fudge*tau_ring)
+print("Using fudge = {:.2f}: Ring upper limit: DN = {:.2g}, I/F = {:.2g}, tau = {:.2g}.".\
+  format(fudge, dn_ring, fudge*iof_ring, fudge*tau_ring))
 
 #stop
 
@@ -820,7 +871,7 @@ plt.tight_layout()
     
 file_out = dir_out + '/image_orbits_' + sequence + '.png'
 plt.savefig(file_out)
-print 'Wrote: ' + file_out
+print('Wrote: ' + file_out)
 
 plt.show()
 
@@ -851,7 +902,7 @@ plt.gca().get_yaxis().set_visible(False)
 
 file_out = dir_out + '/image_threshhold_' + sequence + '.png'
 plt.savefig(file_out)
-print 'Wrote: ' + file_out
+print('Wrote: ' + file_out)
 
 plt.savefig
 plt.show()
