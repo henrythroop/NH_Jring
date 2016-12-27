@@ -109,6 +109,6 @@ def read_hd_all(verbose=False):
         
     #    num_hd.append(l[0:6])
     
-    t = Table([num_hd, ra, dec, mag_ptg, mag_ptm, spt], names=['HD', 'RA', 'Dec', 'Ptg', 'Ptm', 'Type'])
+    t = Table([num_hd, ra, dec, mag_ptg, mag_ptm, spt], names=['ID', 'RA', 'Dec', 'Ptg', 'Ptm', 'Type'])
     
     return(t)
