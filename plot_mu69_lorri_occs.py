@@ -49,7 +49,7 @@ DO_PLOT_LORRI = True              # Plot limits of LORRI FOV?
                             
 # Define the start and end time for the plot. This is the main control to use.
 
-case = 4.5
+case = 4
 
 if (case == 1): # Outbound, 0.3 .. 96 hour
     et_start  = et_ca + 0.3*hour
@@ -430,3 +430,13 @@ plt.show()
 #==============================================================================
 # Do some test cases
 #==============================================================================
+
+# Print coords for one candidate star
+
+is_candidate = (usno['ID'] == '1050-033050028')
+print("ID={}, RA={} deg, Dec={} deg".format(
+      usno['ID'][is_candidate]*hbt.r2d,
+      usno['RA_2000'][is_candidate]*hbt.r2d,
+      usno['Dec_2000'][is_candidate]*hbt.r2d))
+      
+ 
