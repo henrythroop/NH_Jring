@@ -223,6 +223,7 @@ if DO_PLOT_USNO:
     stars = conesearch.conesearch(crval, radius_search, cache=False, catalog_db = name_cat)
     ra_stars  = np.array(stars.array['RAJ2000'])*hbt.d2r # Convert to radians
     id_stars = np.array(stars.array['USNO-A2.0']) # ID
+    id_stars = id_stars.astype('U') # Convert from byte string to Unicode, ugh.
     dec_stars = np.array(stars.array['DEJ2000'])*hbt.d2r # Convert to radians
     mag_b_stars = np.array(stars.array['Bmag'])
     mag_r_stars = np.array(stars.array['Rmag'])
@@ -414,7 +415,7 @@ if DO_PLOT_USNO:
 if DO_LABEL_USNO:
     for i in range(np.size(usno)):
         plt.text(usno['RA_2000'][i]*hbt.r2d, usno['Dec_2000'][i]*hbt.r2d, 
-            '  B={:.1f}, R={:.1f}  {}'.format(usno['Bmag'][i], usno['Rmag'][i], usno['ID'][i].decode("utf-8")),
+            '  B={:.1f}, R={:.1f}  {}'.format(usno['Bmag'][i], usno['Rmag'][i], usno['ID'][i]),
             fontsize = 8, clip_on = True)
            
 plt.xlim(xlim)
@@ -433,10 +434,13 @@ plt.show()
 
 # Print coords for one candidate star
 
-is_candidate = (usno['ID'] == '1050-033050028')
-print("ID={}, RA={} deg, Dec={} deg".format(
-      usno['ID'][is_candidate]*hbt.r2d,
-      usno['RA_2000'][is_candidate]*hbt.r2d,
-      usno['Dec_2000'][is_candidate]*hbt.r2d))
+for i in range(np.size(usno)):             # Ugh -- loop over and check each one!
+                                           # Should be able to use np.equal() but 
+                                           # diagnostic says it is not actually implemented yet?!
+    if (usno['ID'][i] == '1050-03305028'): # This is the good occultation star
+        print("ID={}, RA={} deg, Dec={} deg".format(
+          usno['ID'][i],
+          usno['RA_2000'][i]*hbt.r2d,
+          usno['Dec_2000'][i]*hbt.r2d))
       
  
