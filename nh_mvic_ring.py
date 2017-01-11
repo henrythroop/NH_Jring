@@ -5,6 +5,11 @@ Created on Wed Sep  7 22:55:34 2016
 @author: throop
 """
 
+# This program analyzes the OUTBOUND MVIC and LORRI NH Rings data.
+# This is the main program to do this analysis. It reads Tod's mosaic
+# files, and generates and plots radial profiles from them.
+# HBT Nov 2016
+
 dir = '/Users/throop/Data/NH_MVIC_Ring/'
 file = 'mvic_d305_sum_mos_v1.fits'
 
@@ -25,6 +30,7 @@ from   astropy.table import Table
 import astropy.table   # I need the unique() function here. Why is in in table and not Table??
 import matplotlib.pyplot as plt # pyplot
 from   matplotlib.figure import Figure
+import matplotlib # So I can use matplotlib.rc
 import numpy as np
 import astropy.modeling
 import astropy.visualization
@@ -51,16 +57,6 @@ import imreg_dft as ird
 import re # Regexp
 import pickle # For load/save
 
-# Imports for Tk
-
-#import Tkinter
-#import ttk
-#import tkMessageBox
-#from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-#from   matplotlib.figure import Figure
-
-###
-
 import hbt
 
 dir_mvic      = '/Users/throop/Data/NH_MVIC_Ring'    # MVIC
@@ -69,7 +65,7 @@ dir_lorri     = '/Users/throop/Data/NH_LORRI_Ring'   # LORRI
 
 file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
 
-sp.furnsh(file_tm) # Start up SPICEyl
+sp.furnsh(file_tm) # Start up SPICE
 
 #==============================================================================
 # Initialize constants
@@ -82,9 +78,9 @@ sp.furnsh(file_tm) # Start up SPICEyl
 #file = dir + '/mvic_d305_sum_mos_v1.fits'
 #
 #sequence        = 'D305' # MVIC
-sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
+#sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
 #sequence        = 'D202' # MVIC
-#sequence        = 'D211'  # MVIC
+sequence        = 'D211'  # MVIC
 
 # We can also analyze the LORRI mosaics here
 
@@ -119,6 +115,10 @@ else:
     dir = dir_mvic    
 
 dir_out = dir + '/out'
+
+fontsize = 15    # Font size for radial profile plots
+figsize = (10,5) # Figure size for radial profile plots
+
 
 #==============================================================================
 # Initialize parameters for each of the possible mosaics we can analyze
@@ -545,6 +545,8 @@ if (sequence == 'O_RINGDEP_A_1'):
 # Make plots of radial profile
 #==============================================================================
 
+matplotlib.rc('font', size = fontsize)
+
 hbt.figsize((10,5))
     
 if (nbins_radius == 100) & (sequence == 'O_RINGDEP_A_1'):
@@ -624,22 +626,22 @@ if (sequence == 'A_RINGDEP_01'):
 if (sequence == 'D305'):
     for rh_i in [20, 40, 60, 80]:
       plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
-      plt.text((rh_i + 2) * r_h/1000, ylim_dn[0]*0.9, ' ' + repr(rh_i) + ' R_H')
+      plt.text((rh_i + 2) * r_h/1000, ylim_dn[0]*0.9, ' ' + repr(rh_i) + ' R$_H$')
 
 if (sequence == 'D202'):
     for rh_i in [1, 2, 4]:
       plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' R_H')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' $R_H$')
 
 if (sequence == 'D202_LORRI'):
     for rh_i in [1, 2]:
       plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' R_H')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' $R_H$')
       
 if (sequence == 'D305_LORRI'):
     for rh_i in [5, 10, 20, 40]:
       plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' R_H')
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' $R_H$')
             
 ax1.set_ylim(ylim_dn)
 
@@ -665,7 +667,8 @@ ax2.set_ylim(ylim_iof / iof_units)
 ax2.set_ylabel('Normal I/F [{:.1e}]'.format(iof_units))
 
 ax1.set_title(sequence + ', nbins = ' + repr(nbins_radius) + \
-                     ', $\delta r$ = ' + hbt.trunc(dradius,0) + ' km')
+#                     ', $\delta r$ = {:.0f} km'.format(dradius,0) +                     
+                     ', 3$\sigma$ I/F $\leq$ {:.1e}'.format(3*std_iof_normal))
 
 ax1.set_xlabel('Orbital Distance [1000 km]')
 ax1.set_ylabel('DN')
@@ -676,7 +679,7 @@ if (DO_PLOT_PROFILE_MEDIAN and DO_PLOT_PROFILE_MEAN):
     ax1.legend(loc = 'lower center') # also 'lower center'
 
 # Plot a text with the final derived I/F limit
-ax1.text(0.02, 0.8, '3$\sigma$ I/F = {:.1e}'.format(3*std_iof_normal), transform=ax1.transAxes)
+#ax1.text(0.02, 0.8, '3$\sigma$ I/F = {:.1e}'.format(3*std_iof_normal), transform=ax1.transAxes)
 
 file_out = dir_out + '/profile_radial_n' + repr(nbins_radius) + '_' + sequence + '.png'
 fig.savefig(file_out)
