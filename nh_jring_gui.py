@@ -38,6 +38,7 @@ import astropy
 from   astropy.io import fits
 from   astropy.table import Table
 import astropy.table   # I need the unique() function here. Why is in in table and not Table??
+import matplotlib
 import matplotlib.pyplot as plt # pyplot
 from   matplotlib.figure import Figure
 import numpy as np
