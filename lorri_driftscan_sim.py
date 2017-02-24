@@ -40,7 +40,7 @@ from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalo
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 #from   photutils import datasets
-
+    
 
 # HBT imports
 
