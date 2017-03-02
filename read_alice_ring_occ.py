@@ -183,9 +183,10 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False):
 
 #sequence 	= 'O_RING_OC3'
 #sequence 	= 'O_RING_OC2'
-sequence   = 'STAROCC1'
+sequence   = 'OCCSTAR1'
 
 DO_ABBREVIATED = False       # For debugging. Just use a subset of the data?
+DO_HICAD       = False
 
 binning      = 25000		# Smoothing. 25000 is too much (shows opposite trend!). 5000 and 1000 look roughly similar.
                             # To be meaningful, the binning timescale must be less than the deadband 
@@ -204,12 +205,12 @@ plt.set_cmap('plasma')
 
 if (sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3'):
     xlim = np.array([370,910])  # Wavelength
-    ylim = np.array([13,19])    # Spatial of the star
+    ylim = np.array([15,18])    # Spatial of the star. Was [13,19]
 
 if (sequence == 'O_RING_OC2'): 
     DO_HICAD = True             # Used hicad since that's where the data was when I grabbed it
     
-if (sequence == 'STAROCC1'):
+if (sequence == 'OCCSTAR1'):
     DO_HICAD = False
     xlim = np.array([370,910]) # Wavelength 
     ylim = np.array([10,13])    # Spatial, star #1, brighter, v = 4.9, and closer to lollipop
@@ -247,7 +248,7 @@ print("Reading...")
 # a second time. Function could be rewritten to extract two stars at once, 
 # but that is a lot of work.
 
-if (sequence == 'STAROCC1'):
+if (sequence == 'OCCSTAR1'):
     print('Reading star 2...')
     (met, count_rate_target_2, count_rate_2, image_target_summed_2, image_summed) = \
         read_alice_occ_data(file_list, xlim, ylim_2, verbose=True, short=DO_ABBREVIATED)
@@ -273,7 +274,7 @@ plt.imshow(stretch(image_target_summed), aspect=10)
 plt.title(sequence + ', target')
 plt.show()
 
-if (sequence == 'STAROCC1'): # Plot second target as well, if we have it
+if (sequence == 'OCCSTAR1'): # Plot second target as well, if we have it
     plt.imshow(stretch(image_target_summed_2), aspect=10)
     plt.title(sequence + ', target #2')
     plt.show()
@@ -313,7 +314,7 @@ print('Computing boresight positions...')
 if (sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3'):
     pos_star_str = "06 07 34.326 +14 46 06.51"  # Vizier coords in FK5 = J2K
 
-if (sequence == 'STAROCC1'):
+if (sequence == 'OCCSTAR1'):
     pos_star_str = "06 12 03.27955 +16 07 49.4614"  # HD 42545, brighter, closer to lollipop.  
     pos_star2_str= "06 15 25.12824 +16 08 35.4219"  # HD 42153, fainter,  closer to tip of stick
     pos_star2 = SkyCoord(pos_star2_str, unit=(u.hourangle, u.deg))
@@ -356,10 +357,10 @@ count_rate_nonlinear = coeffs_ra.intercept + coeffs_ra.slope * ra - np.mean(coun
 count_rate_fixed     = count_rate - count_rate_nonlinear 
 
 #==============================================================================
-# For STAROCC1, do a polynomial fit to remove effect of motion within deadband
+# For OCCSTAR1, do a polynomial fit to remove effect of motion within deadband
 #==============================================================================
 
-if (sequence == 'STAROCC1'):
+if (sequence == 'OCCSTAR1'):
 
     count_rate_target_3000 = hbt.smooth_boxcar(count_rate_target, 3000)
     count_rate_target_2_3000 = hbt.smooth_boxcar(count_rate_target_2, 3000)
@@ -416,7 +417,7 @@ count_rate_fake_3000 = hbt.smooth_boxcar(count_rate_fake, 3000)
 count_rate_fake_30000 = hbt.smooth_boxcar(count_rate_fake, 30000)
 count_rate_target_fake_30000 = hbt.smooth_boxcar(count_rate_target_fake, 30000)
 
-if (sequence == 'STAROCC1'): # Do statistics for second star in the aperture
+if (sequence == 'OCCSTAR1'): # Do statistics for second star in the aperture
     
     count_rate_target_2_30000 = hbt.smooth_boxcar(count_rate_target_2, 30000)
     count_rate_target_2_3000 = hbt.smooth_boxcar(count_rate_target_2, 3000)
@@ -505,7 +506,7 @@ for i,et_i in enumerate(et_vals):
 # Compute angular distance from star to Pluto, for each timestep
 #==============================================================================
 
-if (sequence == 'STAROCC1'):
+if (sequence == 'OCCSTAR1'):
     
     r_pluto_km = 1187
     
@@ -608,7 +609,7 @@ if (sequence == 'O_RING_OC3') or (sequence == 'O_RING_OC2'): # Complex plot -- d
         
     plt.show()
 
-if (sequence == 'STAROCC1'):
+if (sequence == 'OCCSTAR1'):
     
         binning = 3000 
         DO_PLOT_NORMALIZED = True
@@ -782,7 +783,7 @@ plt.show()
 
 hbt.set_fontsize(12)
 
-if (sequence == 'STAROCC1'): # Made plot for first star above. Now do it for the second star
+if (sequence == 'OCCSTAR1'): # Made plot for first star above. Now do it for the second star
     plt.rcParams['figure.figsize'] = 16,8
     plt.subplot(1,2,1)
     plt.rcParams['figure.figsize'] = 10,10
@@ -833,7 +834,7 @@ if (sequence == 'O_RING_OC3'):
     plt.imshow(count_rate_s_arr, interpolation='none', vmin=13,vmax=14)
 if (sequence == 'O_RING_OC2'):
     plt.imshow(count_rate_s_arr, interpolation='none', vmin=16.4,vmax=16.8)
-if (sequence == 'STAROCC1'):
+if (sequence == 'OCCSTAR1'):
     plt.imshow(count_rate_s_arr, interpolation='none', vmin=3,vmax=6) # Star 1. Not a really useful plot, though.
     plt.imshow(count_rate_s_arr, interpolation='none', vmin=0,vmax=3) # Star 2
     
@@ -944,7 +945,7 @@ if ((sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3')):
     plt.legend()
     plt.show()
 
-if (sequence == 'STAROCC1') and False:
+if (sequence == 'OCCSTAR1') and True:
 
     # Plot first subplot, for star #1
     
@@ -1048,12 +1049,14 @@ if (sequence == 'STAROCC1') and False:
     
     # Star 1
 
+    nsig =  3  # 3 sigma? 5 sigma? Plug it in here (3, 4, 5, etc)
+    
     f0 = np.mean(count_rate_target[x0:x1])
-    f_3s = f0 - 4 * np.std(count_rate_target_fixed[x0:x1])
-    f_3s_30 = f0 - 4 * np.std(count_rate_target_fixed_30[x0:x1])
-    f_3s_300 = f0 - 4 * np.std(count_rate_target_fixed_300[x0:x1])
-    f_3s_3000 = f0 - 4 * np.std(count_rate_target_fixed_3000[x0:x1])
-    f_3s_30000 = f0 - 4 * np.std(count_rate_target_fixed_30000[x0:x1])
+    f_3s = f0 - nsig * np.std(count_rate_target_fixed[x0:x1])
+    f_3s_30 = f0 - nsig * np.std(count_rate_target_fixed_30[x0:x1])
+    f_3s_300 = f0 - nsig * np.std(count_rate_target_fixed_300[x0:x1])
+    f_3s_3000 = f0 - nsig * np.std(count_rate_target_fixed_3000[x0:x1])
+    f_3s_30000 = f0 - nsig * np.std(count_rate_target_fixed_30000[x0:x1])
         
     tau_norm = -np.cos(subobslat) * np.log(f_3s / f0)
     tau_norm_30 = -np.cos(subobslat) * np.log(f_3s_30 / f0)
@@ -1067,11 +1070,11 @@ if (sequence == 'STAROCC1') and False:
     x1_2 = 2000000
     
     f0_2 = np.mean(count_rate_target_2[x0_2:x1_2])
-    f_3s_2 = f0_2 - 4 * np.std(count_rate_target_2_fixed[x0_2:x1_2])
-    f_3s_2_30 = f0_2 - 4 * np.std(count_rate_target_2_fixed_30[x0_2:x1_2])
-    f_3s_2_300 = f0_2 - 4 * np.std(count_rate_target_2_fixed_300[x0_2:x1_2])
-    f_3s_2_3000 = f0_2 - 4 * np.std(count_rate_target_2_fixed_3000[x0_2:x1_2])
-    f_3s_2_30000 = f0_2 - 4 * np.std(count_rate_target_2_fixed_30000[x0_2:x1_2])
+    f_3s_2 = f0_2 - nsig * np.std(count_rate_target_2_fixed[x0_2:x1_2])
+    f_3s_2_30 = f0_2 - nsig * np.std(count_rate_target_2_fixed_30[x0_2:x1_2])
+    f_3s_2_300 = f0_2 - nsig * np.std(count_rate_target_2_fixed_300[x0_2:x1_2])
+    f_3s_2_3000 = f0_2 - nsig * np.std(count_rate_target_2_fixed_3000[x0_2:x1_2])
+    f_3s_2_30000 = f0_2 - nsig * np.std(count_rate_target_2_fixed_30000[x0_2:x1_2])
 
     tau_norm_2       = -np.cos(subobslat) * np.log(f_3s_2       / f0_2)
     tau_norm_2_30    = -np.cos(subobslat) * np.log(f_3s_2_30    / f0_2)
@@ -1235,3 +1238,32 @@ plt.xlabel('Offset [bins]')
 plt.ylabel('ln(Correlation)')
 plt.title(sequence + ", Binning = 30")
 plt.show()
+
+#==============================================================================
+# Print some statistics, for use in tables.
+#==============================================================================
+
+print("Start time = " + sp.et2utc(et[0], 'C', 2))
+print("End time = " + sp.et2utc(et[-1], 'C', 2))
+print("Duration = {} s".format(et[-1]-et[0]))
+
+if (sequence == 'STAROCC1'):
+    print("Star 1 dist from Pluto center: {} .. {} km. HD 42545.".format(
+            np.min(ang_target_center_radii)*r_pluto_km, np.max(ang_target_center_radii)*r_pluto_km))
+    
+    print("Star 2 dist from Pluto center: {} .. {} km. HD 43153.".format(
+            np.min(ang_target_2_center_radii)*r_pluto_km, np.max(ang_target_2_center_radii)*r_pluto_km))
+
+    print("Star 1 dist from Pluto center: {} .. {} R_P".format(
+            np.min(ang_target_center_radii), np.max(ang_target_center_radii)))
+    
+    print("Star 2 dist from Pluto center: {} .. {} R_P.".format(
+            np.min(ang_target_2_center_radii), np.max(ang_target_2_center_radii)))
+    
+    print("Star 1 velocity typical = {} km/s".format(vel_star1))
+    print("Star 2 velocity typical = {} km/s".format(vel_star2))
+    
+else:
+    print("Distance from Pluto Barycenter: {} .. {} km".format(radius_bary[0], radius_bary[1]))
+    print("Velocity: {} km/s".format( (radius_bary[1] - radius_bary[0])/(et[-1] - et[0])))
+    
