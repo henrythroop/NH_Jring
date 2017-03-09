@@ -596,7 +596,10 @@ if (sequence == 'O_RING_OC3') or (sequence == 'O_RING_OC2'): # Complex plot -- d
     
     do_fake = False
 
-    vel_star1 = 5 * r_pluto_km / (np.amax(t) - np.amin(t)) # Velocity is not constant, but this is ballpark km/sec
+    # Calc stellar velocity. It's not constant, but this gives it in terms of (total motion) / (total time).
+    # That is fine for O_Ring_Oc2 and O_Ring_Oc3
+    
+    vel = (radius_bary[1]-radius_bary[0]) / (np.amax(t) - np.amin(t)) # Velocity in km/sec
     
     # Jump through some hoops to place a second x-axis here: et vs. radius_pluto
     
@@ -635,12 +638,15 @@ if (sequence == 'O_RING_OC3') or (sequence == 'O_RING_OC2'): # Complex plot -- d
     par.set_xlabel('Distance from Pluto barycenter [km]', fontsize=fs)
     
     if (sequence == 'O_RING_OC3'):
-      plt.ylim((np.mean(count_rate_target_3000/dt) -13*sigma_s/dt, np.mean(count_rate_target_3000/dt) +11*sigma_s/dt))
+      plt.ylim((3100,3450))
     
     if (sequence == 'O_RING_OC2'):
-      plt.ylim((np.mean(count_rate_target_3000/dt) -9*sigma_s/dt, np.mean(count_rate_target_3000/dt) +8*sigma_s/dt))
       plt.ylim((3250,3500))
+
+    file_out = dir_out + '/' + sequence + '_vignetting_fixed.png'
         
+    plt.savefig(file_out)
+    print("Wrote: " + file_out)
     plt.show()
 
 if (sequence == 'OCCSTAR1'):
@@ -687,9 +693,9 @@ if (sequence == 'OCCSTAR1'):
 #        ax2.set_ylim([0.04, 5])
         ax1.set_ylim([-290, 1400])
         ax1.text(1000, 1050, 'HD 42545')
-        ax1.text(7000, 100,  'HD 43153')
+        ax1.text(7000, 100,  'HD 42153')
         
-        file_out = dir_out + '/' + sequence + '_star12_fixed.png'
+        file_out = dir_out + '/' + sequence + '_vignetting_fixed.png'
         
         plt.savefig(file_out)
         print("Wrote: " + file_out)
@@ -700,8 +706,9 @@ if (sequence == 'OCCSTAR1'):
         #
         
         # Plot 1 (Star 1)
-        vel_star1 = 5 * r_pluto_km / (np.amax(t) - np.amin(t)) # Velocity is not constant, but this is ballpark km/sec
-        vel = vel_star1
+        # Calc velocity of star. It moves in & out, so use a ballpark total distance.
+
+        vel = 5 * r_pluto_km / (np.amax(t) - np.amin(t)) # Velocity is not constant, but this is ballpark km/sec
         
         hbt.figsize((15,3))
         
@@ -729,8 +736,9 @@ if (sequence == 'OCCSTAR1'):
 
         # Plot 2 (Star 2)
         
-        vel_star2 = 6 * r_pluto_km / (np.amax(t) - np.amin(t)) # Velocity is not constant, but this is ballpark km/sec
-        vel_2 = vel_star2
+        # Calc velocity of star. It moves in & out, so use a ballpark total distance.
+        
+        vel_2 = 6 * r_pluto_km / (np.amax(t) - np.amin(t)) # Velocity is not constant, but this is ballpark km/sec
         
         fix, ax1 = plt.subplots()
         ax2 = ax1.twinx()
@@ -960,17 +968,17 @@ if ((sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3')):
     par.axis["bottom"].toggle(all=True)          # Make sure the bottom axis is displayed
     par.axis["top"].set_visible(False)           # Do not display the axis on *top* of the plot.
     
-    res_1 = 1 * dt*u.s * vel_star1*u.km/u.s
-    res_30 = 30 * dt*u.s * vel_star1*u.km/u.s
-    res_300 = 300 * dt*u.s * vel_star1*u.km/u.s
-    res_3000 = 3000 * dt*u.s * vel_star1*u.km/u.s
-    res_30000 = 30000 * dt*u.s * vel_star1*u.km/u.s
+    res_1 = 1 * dt*u.s * vel*u.km/u.s
+    res_30 = 30 * dt*u.s * vel*u.km/u.s
+    res_300 = 300 * dt*u.s * vel*u.km/u.s
+    res_3000 = 3000 * dt*u.s * vel*u.km/u.s
+    res_30000 = 30000 * dt*u.s * vel*u.km/u.s
     
     p1, = host.plot(t, count_rate_target_fixed/dt, ms=0.1, linestyle='none', marker='.', color='orange', 
-             label = 'Raw, {:6.3f} sec = {:3.1f} m [orange]'.format(dt, res.to('meter').value))
+             label = 'Raw, {:6.3f} sec = {:3.1f} m [orange]'.format(dt, res_1.to('meter').value))
     
     host.plot(t, count_rate_target_fixed_30/dt, linestyle='none', marker='.', linewidth=0.1, ms=1, color='green', 
-             label = 'Binned x30, {:5.2f} sec = {:3.1f} m [green]'.format(30*dt, res_30.to('km').value))
+             label = 'Binned x30, {:5.2f} sec = {:3.1f} m [green]'.format(30*dt, res_30.to('m').value))
     
     host.plot(t, count_rate_target_fixed_300/dt, linewidth=0.1, ms=0.1, color='blue', 
              label = 'Binned x300, {:4.1f} sec = {:3.1f} km [blue]'.format(300*dt, res_300.to('km').value))
@@ -993,8 +1001,21 @@ if ((sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3')):
     plt.xlabel('Seconds since ' + utc_start.split('.')[0], fontsize=fs)
     par.set_xlabel('Distance from Pluto barycenter [km]', fontsize=fs)
     
+    # Plot the legend, if requested
+    
     if (DO_PLOT_LEGEND_TIME_SEQUENCE):
         plt.legend(loc = 'upper left', framealpha=0.90)
+        leg = host.get_legend()
+        leg.legendHandles[0].set_linestyle('solid')  # Change symbols from points, to solid lines
+        leg.legendHandles[1].set_linestyle('solid')
+        leg.legendHandles[2].set_linestyle('solid')
+        leg.legendHandles[3].set_linestyle('solid')
+        leg.legendHandles[4].set_linestyle('solid')
+        leg.legendHandles[4].set_linewidth(4)
+        leg.legendHandles[3].set_linewidth(4)
+        leg.legendHandles[2].set_linewidth(4)
+        leg.legendHandles[1].set_linewidth(4)
+        leg.legendHandles[0].set_linewidth(4)
         
     file_out = dir_out + sequence + '_all.png'
 
@@ -1021,8 +1042,6 @@ if (sequence == 'OCCSTAR1') and True:
     hbt.set_fontsize(size=fs)
 
     # Do a very rough calculation of shadow velocity.
-
-    v = vel_star1
     
     host = host_subplot(111, axes_class=AA.Axes) # Set up the host axis
     plt.subplots_adjust(bottom=0.2)              # Adjusts overall height of the whole plot in y direction 
@@ -1031,20 +1050,20 @@ if (sequence == 'OCCSTAR1') and True:
 
   
     p1, = host.plot(t, count_rate_target/dt, ms=0.1, linestyle='none', marker='.', color='orange', 
-             label = 'Raw, ' + repr(dt) + ' sec = {:.0f} m'.format(dt*v*1000))
+             label = 'Raw, ' + repr(dt) + ' sec = {:.0f} m'.format(dt*vel*1000))
     
     host.plot(t, count_rate_target_fixed_30/dt, linestyle='none', marker='.', linewidth=0.1, ms=1, color='green', 
-             label='Binned x30, ' + repr(30*dt) + ' sec = {:.0f} m'.format(dt*v*30*1000) )
+             label='Binned x30, ' + repr(30*dt) + ' sec = {:.0f} m'.format(dt*vel*30*1000) )
     
     host.plot(t, count_rate_target_fixed_300/dt, linewidth=0.1, ms=0.1, color='blue', 
-             label='Binned x300, ' + repr(300*dt) + ' sec = {:.0f} km'.format(dt*v*300))
+             label='Binned x300, ' + repr(300*dt) + ' sec = {:.0f} km'.format(dt*vel*300))
     
     host.plot(t, count_rate_target_fixed_3000/dt, linewidth=0.3, ms=0.1, color='red', 
-             label='Binned x3000, ' + repr(3000*dt) + ' sec = {:.0f} km'.format(dt*v*3000))
+             label='Binned x3000, ' + repr(3000*dt) + ' sec = {:.0f} km'.format(dt*vel*3000))
     
     host.plot(t, count_rate_target_fixed_30000/dt, linewidth=0.2, ms=0.1, color='yellow', 
              label='Binned x30000, ' + repr(30000 * dt) + 
-             ' sec = {:.0f} km'.format(dt*v*30000) )
+             ' sec = {:.0f} km'.format(dt*vel*30000) )
     
     host.set_ylim((500,1650))
     
@@ -1054,23 +1073,25 @@ if (sequence == 'OCCSTAR1') and True:
 
     plt.ylabel('Counts/sec', fontsize=fs) # Fontsize is ignored here, probably because of the twin-axis thing...
 #    plt.xlabel('Seconds since ' + utc_start, fontsize=fs)
-    
-    plt.legend(framealpha=0.8, loc='lower left', fontsize=fs*0.75)
-    
-# Retrieve the individual lines for the legend(), and tweak them a bit. Make them lines, not points
-# This was hard to figure out, but got w help from http://matplotlib.org/mpl_toolkits/axes_grid/users/overview.html
 
-    leg = host.get_legend()
-    leg.legendHandles[0].set_linestyle('solid')
-    leg.legendHandles[1].set_linestyle('solid')
-    leg.legendHandles[2].set_linestyle('solid')
-    leg.legendHandles[3].set_linestyle('solid')
-    leg.legendHandles[4].set_linestyle('solid')
-    leg.legendHandles[4].set_linewidth(4)
-    leg.legendHandles[3].set_linewidth(4)
-    leg.legendHandles[2].set_linewidth(4)
-    leg.legendHandles[1].set_linewidth(4)
-    leg.legendHandles[0].set_linewidth(4)
+    if (DO_PLOT_LEGEND_TIME_SEQUENCE):
+    
+        plt.legend(framealpha=0.8, loc='lower left', fontsize=fs*0.75)
+        
+    # Retrieve the individual lines for the legend(), and tweak them a bit. Make them lines, not points
+    # This was hard to figure out, but got w help from http://matplotlib.org/mpl_toolkits/axes_grid/users/overview.html
+    
+        leg = host.get_legend()
+        leg.legendHandles[0].set_linestyle('solid')
+        leg.legendHandles[1].set_linestyle('solid')
+        leg.legendHandles[2].set_linestyle('solid')
+        leg.legendHandles[3].set_linestyle('solid')
+        leg.legendHandles[4].set_linestyle('solid')
+        leg.legendHandles[4].set_linewidth(4)
+        leg.legendHandles[3].set_linewidth(4)
+        leg.legendHandles[2].set_linewidth(4)
+        leg.legendHandles[1].set_linewidth(4)
+        leg.legendHandles[0].set_linewidth(4)
     
     DO_SUPPRESS_X_AXIS = False
 
@@ -1099,27 +1120,26 @@ if (sequence == 'OCCSTAR1') and True:
 #    dist_2 = (5 * r_pluto_km) - (-1*r_pluto_km) # From -1 RP, to 5 RP
 #    v_2 = dist_2 / (np.amax(t) - np.amin(t))    # km/sec
 
-    v_2 = vel_star2
     host = host_subplot(111, axes_class=AA.Axes) # Set up the host axis
     plt.subplots_adjust(bottom=0.2)              # Adjusts overall height of the whole plot in y direction 
     offset = 50                                  # How far away from the main plot the parasite axis is.
     new_fixed_axis     = par.get_grid_helper().new_fixed_axis
     
     p1, = host.plot(t, count_rate_target_2/dt, ms=0.1, linestyle='none', marker='.', color='orange', 
-             label = 'Raw, ' + repr(dt) + ' sec = {:.0f} m'.format(dt*v_2*1000))
+             label = 'Raw, ' + repr(dt) + ' sec = {:.0f} m'.format(dt*vel_2*1000))
     
     host.plot(t, count_rate_target_2_fixed_30/dt, linestyle='none', marker='.', linewidth=0.2, ms=1, color='green', 
-             label='Binned x30 bins, ' + repr(30*dt) + ' sec = {:.0f} m'.format(dt*v_2*30*1000))
+             label='Binned x30 bins, ' + repr(30*dt) + ' sec = {:.0f} m'.format(dt*vel_2*30*1000))
     
     host.plot(t, count_rate_target_2_fixed_300/dt, linewidth=0.2, ms=0.1, color='blue', 
-             label='Binned x300 bins, ' + repr(300*dt) + ' sec = {:.0f} km'.format(dt*v_2*300))
+             label='Binned x300 bins, ' + repr(300*dt) + ' sec = {:.0f} km'.format(dt*vel_2*300))
     
     host.plot(t, count_rate_target_2_fixed_3000/dt, linewidth=0.3, ms=0.1, color='red', 
-             label='Binned x3000 bins, ' + repr(3000*dt) + ' sec = {:.0f} km'.format(dt*v_2*3000))
+             label='Binned x3000 bins, ' + repr(3000*dt) + ' sec = {:.0f} km'.format(dt*vel_2*3000))
     
     host.plot(t, count_rate_target_2_fixed_30000/dt, linewidth=0.3, ms=0.1, color='yellow', 
              label='Binned x30000 bins, ' + repr(int(30000 * dt)) + 
-             ' sec = {:.0f} km'.format(dt*v_2*30000) )
+             ' sec = {:.0f} km'.format(dt*vel_2*30000) )
     
     host.set_ylim((000,800))
     
@@ -1168,27 +1188,28 @@ if ((sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3')):
 
 # Star 1
 
-v = vel_star1
-
 nsig =  3  # 3 sigma? 5 sigma? Plug it in here (3, 4, 5, etc)
 
 f0 = np.mean(count_rate_target[x0:x1])
 f_3s = f0 - nsig * np.std(count_rate_target_fixed[x0:x1])
+f_3s_3 = f0 - nsig * np.std(count_rate_target_fixed_3[x0:x1])
 f_3s_30 = f0 - nsig * np.std(count_rate_target_fixed_30[x0:x1])
 f_3s_300 = f0 - nsig * np.std(count_rate_target_fixed_300[x0:x1])
 f_3s_3000 = f0 - nsig * np.std(count_rate_target_fixed_3000[x0:x1])
 f_3s_30000 = f0 - nsig * np.std(count_rate_target_fixed_30000[x0:x1])
     
 tau_norm = -np.cos(subobslat) * np.log(f_3s / f0)
+tau_norm_3 = -np.cos(subobslat) * np.log(f_3s_3 / f0)
 tau_norm_30 = -np.cos(subobslat) * np.log(f_3s_30 / f0)
 tau_norm_300 = -np.cos(subobslat) * np.log(f_3s_300 / f0)
 tau_norm_3000 = -np.cos(subobslat) * np.log(f_3s_3000 / f0)
 tau_norm_30000 = -np.cos(subobslat) * np.log(f_3s_30000 / f0)
 
-print("Star 1, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*v*30, tau_norm_30))
-print("Star 1, Binning 300   = {:.0f} km, tau <= {:.3f}".format(dt*v*300, tau_norm_300))
-print("Star 1, Binning 3000  = {:.0f} km, tau <= {:.3f}".format(dt*v*3000, tau_norm_3000))
-print("Star 1, Binning 30000 = {:.0f} km, tau <= {:.3f}".format(dt*v*30000, tau_norm_30000))
+print("Star 1, Binning 3     = {:.3f}  m, tau <= {:.3f}".format(dt*vel * 3*1000, tau_norm_3))
+print("Star 1, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*vel * 30, tau_norm_30))
+print("Star 1, Binning 300   = {:.0f} km, tau <= {:.3f}".format(dt*vel * 300, tau_norm_300))
+print("Star 1, Binning 3000  = {:.0f} km, tau <= {:.3f}".format(dt*vel * 3000, tau_norm_3000))
+print("Star 1, Binning 30000 = {:.0f} km, tau <= {:.3f}".format(dt*vel * 30000, tau_norm_30000))
 
 # If there are two stars, now do statistics for the second one
 
@@ -1197,11 +1218,11 @@ if (sequence == 'OCCSTAR1'): # If there are two stars, then now do the second st
     x0_2 = 1500000
     x1_2 = 2000000
     
-    f0_2 = np.mean(count_rate_target_2[x0_2:x1_2])
-    f_3s_2 = f0_2 - nsig * np.std(count_rate_target_2_fixed[x0_2:x1_2])
-    f_3s_2_30 = f0_2 - nsig * np.std(count_rate_target_2_fixed_30[x0_2:x1_2])
-    f_3s_2_300 = f0_2 - nsig * np.std(count_rate_target_2_fixed_300[x0_2:x1_2])
-    f_3s_2_3000 = f0_2 - nsig * np.std(count_rate_target_2_fixed_3000[x0_2:x1_2])
+    f0_2         = np.mean(count_rate_target_2[x0_2:x1_2])
+    f_3s_2       = f0_2 - nsig * np.std(count_rate_target_2_fixed[x0_2:x1_2])
+    f_3s_2_30    = f0_2 - nsig * np.std(count_rate_target_2_fixed_30[x0_2:x1_2])
+    f_3s_2_300   = f0_2 - nsig * np.std(count_rate_target_2_fixed_300[x0_2:x1_2])
+    f_3s_2_3000  = f0_2 - nsig * np.std(count_rate_target_2_fixed_3000[x0_2:x1_2])
     f_3s_2_30000 = f0_2 - nsig * np.std(count_rate_target_2_fixed_30000[x0_2:x1_2])
     
     tau_norm_2       = -np.cos(subobslat) * np.log(f_3s_2       / f0_2)
@@ -1210,10 +1231,10 @@ if (sequence == 'OCCSTAR1'): # If there are two stars, then now do the second st
     tau_norm_2_3000  = -np.cos(subobslat) * np.log(f_3s_2_3000  / f0_2)
     tau_norm_2_30000 = -np.cos(subobslat) * np.log(f_3s_2_30000 / f0_2)
     
-    print("Star 2, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*v_2*30, tau_norm_2_30))
-    print("Star 2, Binning 300   = {:.0f} km, tau <= {:.3f}".format(dt*v_2*300, tau_norm_2_300))
-    print("Star 2, Binning 3000  = {:.0f} km, tau <= {:.3f}".format(dt*v_2 * 3000, tau_norm_2_3000))
-    print("Star 2, Binning 30000 = {:.0f} km, tau <= {:.3f}".format(dt*v_2 * 30000, tau_norm_2_30000))
+    print("Star 2, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*vel_2 * 30, tau_norm_2_30))
+    print("Star 2, Binning 300   = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 300, tau_norm_2_300))
+    print("Star 2, Binning 3000  = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 3000, tau_norm_2_3000))
+    print("Star 2, Binning 30000 = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 30000, tau_norm_2_30000))
 
 print("These are {}-sigma values".format(nsig))
 print("Sequence = {}".format(sequence))
@@ -1234,6 +1255,7 @@ if (sequence == 'O_RING_OC2'):
                                                  #  (~ figure.figsize)
     offset = 50                                  # How far away from the main plot the parasite axis is. 
                                                  #  Don't know units.
+                                                 
     new_fixed_axis     = par.get_grid_helper().new_fixed_axis
     par.axis["bottom"] = new_fixed_axis(loc="bottom", axes=par,
                                         offset=(0,-offset))
@@ -1374,8 +1396,8 @@ plt.show()
 print("Start time = " + sp.et2utc(et[0], 'C', 2))
 print("End time = " + sp.et2utc(et[-1], 'C', 2))
 print("Duration = {} s".format(et[-1]-et[0]))
-print("Fresnel scale START = " + repr(d_fresnel_start))
-print("Fresnel scale END   = " + repr(d_fresnel_end))
+print("Fresnel scale START = {:.2f} m".format(d_fresnel_start.value))
+print("Fresnel scale END   = {:.2f} m".format(d_fresnel_end.value))
 
 if (sequence == 'OCCSTAR1'):
     print("Star 1 dist from Pluto center: {:.1f} .. {:.1f} km. HD 42545.".format(
@@ -1390,10 +1412,13 @@ if (sequence == 'OCCSTAR1'):
     print("Star 2 dist from Pluto center: {:.2f} .. {:.2f} R_P.".format(
             np.min(ang_target_2_center_radii), np.max(ang_target_2_center_radii)))
     
-    print("Star 1 velocity typical = {:.2f} km/s".format(vel_star1))
-    print("Star 2 velocity typical = {:.2f} km/s".format(vel_star2))
+    print("Star 1 velocity typical = {:.2f} km/s".format(vel))
+    print("Star 2 velocity typical = {:.2f} km/s".format(vel_2))
+    print("Star 1 Per-sample resolution typical = {} m".format(vel * dt * 1000))
+    print("Star 2 Per-sample resolution typical = {} m".format(vel_2 * dt * 1000))
     
 else:
     print("Distance from Pluto Barycenter: {:.1f} .. {:.1f} km".format(radius_bary[0], radius_bary[1]))
-    print("Velocity: {:.2f} km/s".format( (radius_bary[1] - radius_bary[0])/(et[-1] - et[0])))
-    
+    print("Velocity: {:.2f} km/s".format(vel))
+    print("Per-sample resolution typical = {:.2f} m".format( vel*dt *1000   )   )
+ 
