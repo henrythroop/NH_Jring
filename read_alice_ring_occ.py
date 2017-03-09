@@ -79,6 +79,10 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
     count_rate_all = []        # Count rate computed from the PIXEL_LIST_TABLE. Should match COUNT_RATE extension
     count_rate_target_all = [] # Count rate for the target only, extracted by spatially filtering the PIXEL_LIST_TABLE
  
+    dn_bg = 0                  # Background DN level. For filling in empty data.
+
+    bin_lya = [536,556]        # Column range for LyA radiation, in bins.
+    
     # O_RING_OC2, O_RING_OC3
     
     if (True):
@@ -96,14 +100,17 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
             file_list_use = file_list_use[0:100]
 
         for i, file in enumerate(file_list_use):
-            if (verbose):
-                sys.stdout.write('.')
+            if (verbose): sys.stdout.write('.')
             
             hdulist = fits.open(file)
             image = hdulist['PRIMARY'].data # Units of this are float, but I'm not sure what they are. 
                                         # I prefer raw counts.
                                         # d is 32 x 1024 
-                                                              
+            
+            if (DO_MASK_LYA):           # If requested, mask out the LyA right at the start
+                                        # The columns are hardcoded -- so be careful if we ever change them.
+                image[:,bin_lya[0]:bin_lya[1]] = dn_bg
+                                                  
             # First go into the 'image', and sum photons at the right wavelength and spatial position
             
             image_target = image[ylim[0]:ylim[1], xlim[0]:xlim[1]] # Extract the right rows and columns, as per Steffl.
@@ -113,7 +120,7 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
             image_target_summed += image_target  # A 2D array of the extracted region
     
             image_summed        += image
-            
+             
             # Now go through and process the FITS file in a second way, by summing all the photons in the list.
             # This should in theory give us the same results as above, if we spatially integrate.
             # Also, it gives us the ability to *not* spatially integrate, and extract individual rows/columns.
@@ -129,9 +136,12 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
             
             # Now downselect the pixel list for just the photons in the proper X and Y position on the detector
             
-            is_good = (p['Y_INDEX'] < ylim[1]) & (p['Y_INDEX'] >= ylim[0]) & (p['X_INDEX'] >= xlim[0]) & \
-                      (p['X_INDEX'] < xlim[1])
+            is_target = (p['Y_INDEX'] < ylim[1]) & (p['Y_INDEX'] >= ylim[0]) & (p['X_INDEX'] >= xlim[0]) & \
+                        (p['X_INDEX'] < xlim[1])
         
+            
+            is_lya = (p['X_INDEX'] < bin_lya[0]) | (p['X_INDEX'] > bin_lya[1])
+              
             # Now we have a list of all of the good pixels. For each of these, now we want to grab its timestep.
         
             timesteps_good = p['TIMESTEP'][is_good]
@@ -189,7 +199,7 @@ sequence   = 'OCCSTAR1'
 
 DO_ABBREVIATED = False       # For debugging. Just use a subset of the data?
 DO_HICAD       = False
-DO_MASK_LYA    = False        # Mask out the LyA lines?
+DO_MASK_LYA    = True        # Mask out the LyA lines in the Alice data?
 #DO_LOAD_PICKLE = True        # Load pre-processed data from Pickle file?
 
 dir_out = '/Users/throop/Data/NH_Alice_Ring/out/' # For saving plots, etc.
@@ -251,7 +261,7 @@ print("Reading...")
 # and count rate within a box defined by xlim, ylim.
 
 (met, count_rate_target, count_rate, image_target_summed, image_summed) = \
-  read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=DO_ABBREVIATED,DO_MASK_LYA=DO_MASK_LYA)
+  read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=DO_ABBREVIATED,DO_MASK_LYA=DO_MASK_LYA)d
 
 # If there are two stars, then also read count rate of second one.
 # Programmatically this is a bit inefficient since I read the entire dataset 
@@ -643,7 +653,8 @@ if (sequence == 'O_RING_OC3') or (sequence == 'O_RING_OC2'): # Complex plot -- d
     if (sequence == 'O_RING_OC2'):
       plt.ylim((3250,3500))
 
-    file_out = dir_out + '/' + sequence + '_vignetting_fixed.png'
+    file_out = (dir_out + '/' + sequence + '_vignetting_fixed' +
+        ('_mask-lya'   if DO_MASK_LYA   else '') + '.png')
         
     plt.savefig(file_out)
     print("Wrote: " + file_out)
@@ -679,7 +690,7 @@ if (sequence == 'OCCSTAR1'):
             x1 = 850000
             ax1.plot(t[0:x1], 1/dt * count_rate_target_2_3000[0:x1], 
                      label='Count Rate Fixed, Star 2', color='darkgreen')
-            ax1.plot(t[x1:], 1/dt * count_rate_target_2_3000[x1:] / f_2_norm(dec[x1:]), color='darkgreen')     
+            ax1.plot(t[x1:], 1/dt * count_rate_target_2_3000[x1:] / f_2_norm(dec[x1:]), color='darkgreen')
             
         ax1.set_xlabel('Time since ' + utc_start + ' [sec]', fontsize=fs)
         ax1.set_ylabel('Counts/sec')
@@ -695,7 +706,8 @@ if (sequence == 'OCCSTAR1'):
         ax1.text(1000, 1050, 'HD 42545')
         ax1.text(7000, 100,  'HD 42153')
         
-        file_out = dir_out + sequence + '_vignetting_fixed.png'
+        file_out = (dir_out + '/' + sequence + '_vignetting_fixed' +
+            ('_mask-lya'   if DO_MASK_LYA   else '') + '.png')
         
         plt.savefig(file_out)
         print("Wrote: " + file_out)
@@ -1016,15 +1028,13 @@ if ((sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3')):
         leg.legendHandles[2].set_linewidth(4)
         leg.legendHandles[1].set_linewidth(4)
         leg.legendHandles[0].set_linewidth(4)
-        
-    file_out = dir_out + sequence + '_all.png'
 
-    if (DO_PLOT_LEGEND_TIME_SEQUENCE):
-        file_out = file_out.replace('_all', '_all_legend')
+    file_out = (dir_out + sequence + '_all' +
+      ('_legend'  if DO_PLOT_LEGEND_TIME_SEQUENCE else '') +
+      ('_title'   if DO_PLOT_TITLE_TIME_SEQUENCE  else '') + 
+      ('_mask-lya'if DO_MASK_LYA                  else '') +
+      '.png')
 
-    if (DO_PLOT_TITLE_TIME_SEQUENCE):
-        file_out = file_out.replace('_all', '_all_title')
-        
     plt.savefig(file_out)
     print("Wrote: " + file_out)
     plt.show()
@@ -1101,9 +1111,9 @@ if (sequence == 'OCCSTAR1') and True:
         plt.xlabel('Seconds since ' + utc_start.split('.')[0])    
 
     file_out = (dir_out + sequence + '_star1_all' +
-      ('_legend' if DO_PLOT_LEGEND_TIME_SEQUENCE else '') +
-      ('_title'  if DO_PLOT_TITLE_TIME_SEQUENCE  else '') + 
-      ('_mask'   if DO_MASK_LYA                  else '') +
+      ('_legend'   if DO_PLOT_LEGEND_TIME_SEQUENCE else '') +
+      ('_title'    if DO_PLOT_TITLE_TIME_SEQUENCE  else '') + 
+      ('_mask-lya' if DO_MASK_LYA                  else '') +
       '.png')
 
     plt.savefig(file_out)
@@ -1390,7 +1400,7 @@ tau_fresnel = 1 / (m * np.sqrt(bins_fresnel) + b)
 #plt.ylabel('1/tau')
 
 print()
-print("Sequence = {}".format(sequence))
+print("Sequence = {}, LyA masking = {}".format(sequence, DO_MASK_LYA))
 print("----------------------------")
 print("Star 1, Binning 3     = {:.3f} m, tau <= {:.3f}".format(dt*vel * 3*1000, tau_norm_3))
 print("Star 1, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*vel * 30, tau_norm_30))
@@ -1471,4 +1481,35 @@ else:
     print("Distance from Pluto Barycenter: {:.1f} .. {:.1f} km".format(radius_bary[0], radius_bary[1]))
     print("Velocity: {:.2f} km/s".format(vel))
     print("Per-sample resolution typical = {:.2f} m".format( vel*dt *1000   )   )
+
+#==============================================================================
+# Testing for LyA masking
+#==============================================================================
+
+# requires sequence = OCCSTAR1
+
+print('Reading star 2...')
+(met, count_rate_target_2, count_rate_2, image_target_summed_2, image_summed) = \
+    read_alice_occ_data(file_list, xlim, ylim_2, verbose=True, short=DO_ABBREVIATED, DO_MASK_LYA=False)
+
+
+print('Reading star 2...')  # _m -> masked (ie, with LyA removed)
+(met_m, count_rate_target_2_m, count_rate_2_m, image_target_summed_2_m, image_summed_m) = \
+    read_alice_occ_data(file_list, xlim, ylim_2, verbose=True, short=DO_ABBREVIATED, DO_MASK_LYA=True)
+
+stretch = astropy.visualization.PercentileInterval(99)
  
+hbt.figsize((10,5))
+
+plt.imshow(stretch(image_target_summed_2), aspect=10)
+plt.title('target_summed')
+plt.show()
+
+plt.imshow(stretch(image_target_summed_2_m), aspect=10)
+plt.title('target_summed')
+plt.show()
+
+print("Ratio of images = {}".format(np.sum(image_target_summed_2_m) / np.sum(image_target_summed_2)))
+print("Rato of time series = {}".format(np.sum(count_rate_2_m) / np.sum(count_rate_2)))
+print("Rato of time series target = {}".format(np.sum(count_rate_target_2_m) / np.sum(count_rate_target_2)))
+       
