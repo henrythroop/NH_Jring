@@ -183,14 +183,14 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
 # NB: The spelling / capitalization is inconsistent in SAPNAME vs. VISITNAM. I have standardized it here.
 ##########
 
-sequence 	= 'O_RING_OC3'
+#sequence 	= 'O_RING_OC3'
 #sequence 	= 'O_RING_OC2'
-#sequence   = 'OCCSTAR1'
+sequence   = 'OCCSTAR1'
 
 DO_ABBREVIATED = False       # For debugging. Just use a subset of the data?
 DO_HICAD       = False
 DO_MASK_LYA    = False        # Mask out the LyA lines?
-DO_LOAD_PICKLE = True
+#DO_LOAD_PICKLE = True        # Load pre-processed data from Pickle file?
 
 dir_out = '/Users/throop/Data/NH_Alice_Ring/out/' # For saving plots, etc.
 
@@ -695,7 +695,7 @@ if (sequence == 'OCCSTAR1'):
         ax1.text(1000, 1050, 'HD 42545')
         ax1.text(7000, 100,  'HD 42153')
         
-        file_out = dir_out + '/' + sequence + '_vignetting_fixed.png'
+        file_out = dir_out + sequence + '_vignetting_fixed.png'
         
         plt.savefig(file_out)
         print("Wrote: " + file_out)
@@ -1168,77 +1168,7 @@ if (sequence == 'OCCSTAR1') and True:
     print("Wrote: " + file_out)
     
     plt.show()
-    
-#==============================================================================
-# Now make a data table for the data, for the final optical depth
-#==============================================================================
 
-if ((sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3')):
-
-    x0 = 100000 # Starting sample number
-    x1 = 400000 # Ending sample number
-
-# Calculate the fractional 3-sigma variance from the mean.
-# F = F0 * exp(-tau / cos(theta))
-#   Where F0 is the unocculted flux, and F is the occulted.
-#   I assume here that F = F0 - 3*stdev(F0)
-#
-# Solve this and it gives tau = -cos * ln(F/F0)
-#   Where F = F_3S = F0 - 3*stdev(F0)
-
-# Star 1
-
-nsig =  3  # 3 sigma? 5 sigma? Plug it in here (3, 4, 5, etc)
-
-f0 = np.mean(count_rate_target[x0:x1])
-f_3s = f0 - nsig * np.std(count_rate_target_fixed[x0:x1])
-f_3s_3 = f0 - nsig * np.std(count_rate_target_fixed_3[x0:x1])
-f_3s_30 = f0 - nsig * np.std(count_rate_target_fixed_30[x0:x1])
-f_3s_300 = f0 - nsig * np.std(count_rate_target_fixed_300[x0:x1])
-f_3s_3000 = f0 - nsig * np.std(count_rate_target_fixed_3000[x0:x1])
-f_3s_30000 = f0 - nsig * np.std(count_rate_target_fixed_30000[x0:x1])
-    
-tau_norm = -np.cos(subobslat) * np.log(f_3s / f0)
-tau_norm_3 = -np.cos(subobslat) * np.log(f_3s_3 / f0)
-tau_norm_30 = -np.cos(subobslat) * np.log(f_3s_30 / f0)
-tau_norm_300 = -np.cos(subobslat) * np.log(f_3s_300 / f0)
-tau_norm_3000 = -np.cos(subobslat) * np.log(f_3s_3000 / f0)
-tau_norm_30000 = -np.cos(subobslat) * np.log(f_3s_30000 / f0)
-
-print("Star 1, Binning 3     = {:.3f}  m, tau <= {:.3f}".format(dt*vel * 3*1000, tau_norm_3))
-print("Star 1, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*vel * 30, tau_norm_30))
-print("Star 1, Binning 300   = {:.0f} km, tau <= {:.3f}".format(dt*vel * 300, tau_norm_300))
-print("Star 1, Binning 3000  = {:.0f} km, tau <= {:.3f}".format(dt*vel * 3000, tau_norm_3000))
-print("Star 1, Binning 30000 = {:.0f} km, tau <= {:.3f}".format(dt*vel * 30000, tau_norm_30000))
-
-# If there are two stars, now do statistics for the second one
-
-if (sequence == 'OCCSTAR1'): # If there are two stars, then now do the second star
-    # Star 2
-    x0_2 = 1500000
-    x1_2 = 2000000
-    
-    f0_2         = np.mean(count_rate_target_2[x0_2:x1_2])
-    f_3s_2       = f0_2 - nsig * np.std(count_rate_target_2_fixed[x0_2:x1_2])
-    f_3s_2_30    = f0_2 - nsig * np.std(count_rate_target_2_fixed_30[x0_2:x1_2])
-    f_3s_2_300   = f0_2 - nsig * np.std(count_rate_target_2_fixed_300[x0_2:x1_2])
-    f_3s_2_3000  = f0_2 - nsig * np.std(count_rate_target_2_fixed_3000[x0_2:x1_2])
-    f_3s_2_30000 = f0_2 - nsig * np.std(count_rate_target_2_fixed_30000[x0_2:x1_2])
-    
-    tau_norm_2       = -np.cos(subobslat) * np.log(f_3s_2       / f0_2)
-    tau_norm_2_30    = -np.cos(subobslat) * np.log(f_3s_2_30    / f0_2)
-    tau_norm_2_300   = -np.cos(subobslat) * np.log(f_3s_2_300   / f0_2)
-    tau_norm_2_3000  = -np.cos(subobslat) * np.log(f_3s_2_3000  / f0_2)
-    tau_norm_2_30000 = -np.cos(subobslat) * np.log(f_3s_2_30000 / f0_2)
-    
-    print("Star 2, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*vel_2 * 30, tau_norm_2_30))
-    print("Star 2, Binning 300   = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 300, tau_norm_2_300))
-    print("Star 2, Binning 3000  = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 3000, tau_norm_2_3000))
-    print("Star 2, Binning 30000 = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 30000, tau_norm_2_30000))
-
-print("These are {}-sigma values".format(nsig))
-print("Sequence = {}".format(sequence))
-        
 #==============================================================================
 # Zoom in on one area of interest in OC2
 #==============================================================================
@@ -1304,8 +1234,8 @@ if (sequence == 'O_RING_OC2'):
  
 # Calculate some statistics for that blip at met0 + 1796 sec
 
-    std_5 = np.std(count_rate_target_5)/dt
-    std_30 = np.std(count_rate_target_30)/dt
+    std_5 = np.std(count_rate_target_fixed_5)/dt
+    std_30 = np.std(count_rate_target_fixed_30)/dt
     
     depth_5 = 3400-2000
     depth_30 = 3400 - 2800
@@ -1347,12 +1277,12 @@ plt.show()
 (st, lt) = sp.spkezr('NEW_HORIZONS', et[0], 'IAU_PLUTO', 'LT+S', 'PLUTO')
 dist_start = sp.vnorm(st[0:3]) * u.km # Distance in km
 alam = 100 * u.nm
-d_fresnel_start = np.sqrt(dist_start * alam/2).decompose()
+d_fresnel_start = np.sqrt(dist_start * alam/2).to('m').value
 
 (st, lt) = sp.spkezr('NEW_HORIZONS', et[-1], 'IAU_PLUTO', 'LT+S', 'PLUTO')
 dist_end = sp.vnorm(st[0:3]) * u.km # Distance in km
 
-d_fresnel_end = np.sqrt(dist_end * alam/2).decompose()
+d_fresnel_end = np.sqrt(dist_end * alam/2).to('m').value
 
 #==============================================================================
 # Make a binned plot right at the fresnel limit
@@ -1388,16 +1318,136 @@ plt.xlabel('Offset [bins]')
 plt.ylabel('ln(Correlation)')
 plt.title(sequence + ", Binning = 30")
 plt.show()
+    
+#==============================================================================
+# Now make a data table for the data, for the final optical depth
+#==============================================================================
 
+if ((sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3')):
+
+    x0 = 100000 # Starting sample number
+    x1 = 400000 # Ending sample number
+
+# Calculate the fractional 3-sigma variance from the mean.
+# F = F0 * exp(-tau / cos(theta))
+#   Where F0 is the unocculted flux, and F is the occulted.
+#   I assume here that F = F0 - 3*stdev(F0)
+#
+# Solve this and it gives tau = -cos * ln(F/F0)
+#   Where F = F_3S = F0 - 3*stdev(F0)
+
+# Star 1
+
+nsig =  3  # 3 sigma? 5 sigma? Plug it in here (3, 4, 5, etc)
+
+f0 = np.mean(count_rate_target[x0:x1])
+f_3s = f0 - nsig * np.std(count_rate_target_fixed[x0:x1]) # This one might be negative due to noise. Not a problem
+f_3s_3 = f0 - nsig * np.std(count_rate_target_fixed_3[x0:x1])
+f_3s_30 = f0 - nsig * np.std(count_rate_target_fixed_30[x0:x1])
+f_3s_300 = f0 - nsig * np.std(count_rate_target_fixed_300[x0:x1])
+f_3s_3000 = f0 - nsig * np.std(count_rate_target_fixed_3000[x0:x1])
+f_3s_30000 = f0 - nsig * np.std(count_rate_target_fixed_30000[x0:x1])
+    
+tau_norm = -np.cos(subobslat) * np.log(f_3s / f0)
+tau_norm_3 = -np.cos(subobslat) * np.log(f_3s_3 / f0)
+tau_norm_30 = -np.cos(subobslat) * np.log(f_3s_30 / f0)
+tau_norm_300 = -np.cos(subobslat) * np.log(f_3s_300 / f0)
+tau_norm_3000 = -np.cos(subobslat) * np.log(f_3s_3000 / f0)
+tau_norm_30000 = -np.cos(subobslat) * np.log(f_3s_30000 / f0)
+
+# We want to calculate optical depth at the fresnel limit. We could just figure out the proper binning width
+# for this, and make an array in the code for it. But instead, we just interpolate from other widths, and say
+# what the optical depth should be. 
+# We assume the signal is basically all shot noise, so tau ~ 1/sqrt(width), which it does.
+
+# How many bins wide is the fresnel limit?
+
+d_fresnel = (d_fresnel_start + d_fresnel_end)/2 # Fresnel limit, in meters
+
+bins_fresnel = d_fresnel / (vel * dt *1000)
+
+# Now interpolate logarithmically .
+
+x = np.array([3,          30,          300,          3000])  # Binning width, in bins
+y = np.array([tau_norm_3, tau_norm_30, tau_norm_300, tau_norm_3000]) # Optical depth
+
+# Modify these to be something we can do a linear fit against
+
+x = np.sqrt(x)
+y = 1/y
+
+# Do a linear fit
+
+m,b = np.polyfit(x, y, 1)
+
+# And calculate the derived optical depth for the given binning width
+
+tau_fresnel = 1 / (m * np.sqrt(bins_fresnel) + b)
+
+# Make a plot of binning width vs. tau. This is just a check for linearity. It goes exactly as it should.
+#plt.plot(x,y, marker='+')
+#plt.xlabel('sqrt(bining width, bins)')
+#plt.ylabel('1/tau')
+
+print()
+print("Sequence = {}".format(sequence))
+print("----------------------------")
+print("Star 1, Binning 3     = {:.3f} m, tau <= {:.3f}".format(dt*vel * 3*1000, tau_norm_3))
+print("Star 1, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*vel * 30, tau_norm_30))
+print("Star 1, Binning 300   = {:.1f} km, tau <= {:.3f}".format(dt*vel * 300, tau_norm_300))
+print("Star 1, Binning 3000  = {:.1f} km, tau <= {:.3f}".format(dt*vel * 3000, tau_norm_3000))
+print("Star 1, Binning 30000 = {:.1f} km, tau <= {:.3f}".format(dt*vel * 30000, tau_norm_30000))
+print("Star 1, Binning {:.1f} = {:.1f} m, tau <= {:.3f}    **** Fresnel limit ***".format(bins_fresnel, bins_fresnel * vel * dt * 1000, tau_fresnel))
+
+# If there are two stars, now do statistics for the second one
+
+if (sequence == 'OCCSTAR1'): # If there are two stars, then now do the second star
+    # Star 2
+    x0_2 = 1500000
+    x1_2 = 2000000
+    
+    f0_2         = np.mean(count_rate_target_2[x0_2:x1_2])
+    f_3s_2       = f0_2 - nsig * np.std(count_rate_target_2_fixed[x0_2:x1_2])
+    f_3s_2_3     = f0_2 - nsig * np.std(count_rate_target_2_fixed_3[x0_2:x1_2])
+    f_3s_2_30    = f0_2 - nsig * np.std(count_rate_target_2_fixed_30[x0_2:x1_2])
+    f_3s_2_300   = f0_2 - nsig * np.std(count_rate_target_2_fixed_300[x0_2:x1_2])
+    f_3s_2_3000  = f0_2 - nsig * np.std(count_rate_target_2_fixed_3000[x0_2:x1_2])
+    f_3s_2_30000 = f0_2 - nsig * np.std(count_rate_target_2_fixed_30000[x0_2:x1_2])
+    
+    tau_norm_2       = -np.cos(subobslat) * np.log(f_3s_2       / f0_2)
+    tau_norm_2_3     = -np.cos(subobslat) * np.log(f_3s_2_3     / f0_2)
+    tau_norm_2_30    = -np.cos(subobslat) * np.log(f_3s_2_30    / f0_2)
+    tau_norm_2_300   = -np.cos(subobslat) * np.log(f_3s_2_300   / f0_2)
+    tau_norm_2_3000  = -np.cos(subobslat) * np.log(f_3s_2_3000  / f0_2)
+    tau_norm_2_30000 = -np.cos(subobslat) * np.log(f_3s_2_30000 / f0_2)
+
+    bins_fresnel_2 = d_fresnel / (vel_2 * dt *1000)
+    x = np.array([3, 30, 300, 3000])  # Binning width, in bins
+    y = np.array([tau_norm_2_3, tau_norm_2_30, tau_norm_2_300, tau_norm_2_3000]) # Optical depth    
+    x = np.sqrt(x)
+    y = 1/y
+    m,b = np.polyfit(x, y, 1)
+    tau_fresnel_2 = 1 / (m * np.sqrt(bins_fresnel_2) + b)
+    
+    print("Star 2, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*vel_2 * 30, tau_norm_2_30))
+    print("Star 2, Binning 300   = {:.1f} km, tau <= {:.3f}".format(dt*vel_2 * 300, tau_norm_2_300))
+    print("Star 2, Binning 3000  = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 3000, tau_norm_2_3000))
+    print("Star 2, Binning 30000 = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 30000, tau_norm_2_30000))
+    print("Star 2, Binning {:.1f} = {:.1f} m, tau <= {:.3f}    **** Fresnel limit ***".format(bins_fresnel_2, 
+          bins_fresnel_2 * vel_2 * dt * 1000, tau_fresnel_2))
+
+print("These are {}-sigma values".format(nsig))
+        
+#
 #==============================================================================
 # Print some statistics, for use in tables.
 #==============================================================================
 
 print("Start time = " + sp.et2utc(et[0], 'C', 2))
 print("End time = " + sp.et2utc(et[-1], 'C', 2))
-print("Duration = {} s".format(et[-1]-et[0]))
-print("Fresnel scale START = {:.2f} m".format(d_fresnel_start.value))
-print("Fresnel scale END   = {:.2f} m".format(d_fresnel_end.value))
+print("Duration = {:.2f} s".format(et[-1]-et[0]))
+print("Fresnel scale START = {:.2f} m".format(d_fresnel_start))
+print("Fresnel scale END   = {:.2f} m".format(d_fresnel_end))
 
 if (sequence == 'OCCSTAR1'):
     print("Star 1 dist from Pluto center: {:.1f} .. {:.1f} km. HD 42545.".format(
@@ -1414,8 +1464,8 @@ if (sequence == 'OCCSTAR1'):
     
     print("Star 1 velocity typical = {:.2f} km/s".format(vel))
     print("Star 2 velocity typical = {:.2f} km/s".format(vel_2))
-    print("Star 1 Per-sample resolution typical = {} m".format(vel * dt * 1000))
-    print("Star 2 Per-sample resolution typical = {} m".format(vel_2 * dt * 1000))
+    print("Star 1 Per-sample resolution typical = {:.2f} m".format(vel * dt * 1000))
+    print("Star 2 Per-sample resolution typical = {:.2f} m".format(vel_2 * dt * 1000))
     
 else:
     print("Distance from Pluto Barycenter: {:.1f} .. {:.1f} km".format(radius_bary[0], radius_bary[1]))
