@@ -140,8 +140,10 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
                         (p['X_INDEX'] < xlim[1])
         
             
-            is_lya = (p['X_INDEX'] < bin_lya[0]) | (p['X_INDEX'] > bin_lya[1])
-              
+            is_lya = (p['X_INDEX'] > bin_lya[0]) | (p['X_INDEX'] < bin_lya[1])
+            
+            is_good = is_target & not(is_lya)
+            
             # Now we have a list of all of the good pixels. For each of these, now we want to grab its timestep.
         
             timesteps_good = p['TIMESTEP'][is_good]
@@ -177,7 +179,7 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
         count_rate_target  = np.array([item for sublist in count_rate_target_all for item in sublist]) 
         count_rate_target  = np.array(count_rate_target, dtype=float)					  
         
-        met         = np.array([item for sublist in met_all for item in sublist])   # Flatten the MET array from 2D to 1D
+        met         = np.array([item for sublist in met_all for item in sublist])   # Flatten the MET array 2D to 1D
         met         = np.array(met, dtype=float)
     
     return (met, count_rate_target, count_rate, image_target_summed, image_summed)
@@ -261,7 +263,7 @@ print("Reading...")
 # and count rate within a box defined by xlim, ylim.
 
 (met, count_rate_target, count_rate, image_target_summed, image_summed) = \
-  read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=DO_ABBREVIATED,DO_MASK_LYA=DO_MASK_LYA)d
+  read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=DO_ABBREVIATED,DO_MASK_LYA=DO_MASK_LYA)
 
 # If there are two stars, then also read count rate of second one.
 # Programmatically this is a bit inefficient since I read the entire dataset 
@@ -1407,7 +1409,8 @@ print("Star 1, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*vel * 30, tau
 print("Star 1, Binning 300   = {:.1f} km, tau <= {:.3f}".format(dt*vel * 300, tau_norm_300))
 print("Star 1, Binning 3000  = {:.1f} km, tau <= {:.3f}".format(dt*vel * 3000, tau_norm_3000))
 print("Star 1, Binning 30000 = {:.1f} km, tau <= {:.3f}".format(dt*vel * 30000, tau_norm_30000))
-print("Star 1, Binning {:.1f} = {:.1f} m, tau <= {:.3f}    **** Fresnel limit ***".format(bins_fresnel, bins_fresnel * vel * dt * 1000, tau_fresnel))
+print("Star 1, Binning {:.1f} = {:.1f} m, tau <= {:.3f}    **** Fresnel limit ***".format(
+      bins_fresnel, bins_fresnel * vel * dt * 1000, tau_fresnel))
 
 # If there are two stars, now do statistics for the second one
 
