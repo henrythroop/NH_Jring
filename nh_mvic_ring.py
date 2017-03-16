@@ -37,6 +37,9 @@ import astropy.visualization
 from   scipy.optimize import curve_fit
 #from   pylab import *  # So I can change plot size.
                        # Pylab defines the 'plot' command
+import astropy.units as u
+import astropy.constants as c
+
 import spiceypy as sp
 import skimage
 #from   itertools   import izip    # To loop over groups in a table -- see astropy tables docs
@@ -80,12 +83,12 @@ sp.furnsh(file_tm) # Start up SPICE
 #sequence        = 'D305' # MVIC
 #sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
 #sequence        = 'D202' # MVIC
-sequence        = 'D211'  # MVIC
+#sequence        = 'D211'  # MVIC
 
 # We can also analyze the LORRI mosaics here
 
 #sequence        = 'D202_LORRI'
-#sequence        = 'D305_LORRI'
+sequence        = 'D305_LORRI'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
@@ -119,6 +122,10 @@ dir_out = dir + '/out'
 fontsize = 15    # Font size for radial profile plots
 figsize = (10,5) # Figure size for radial profile plots
 
+r_pluto_km = 1187
+
+m_pluto = 1.309e22 * u.kg
+r_hill = 33*u.AU * (m_pluto / (3 * c.M_sun))**(1/3)
 
 #==============================================================================
 # Initialize parameters for each of the possible mosaics we can analyze
@@ -500,6 +507,8 @@ RSOLAR_mpf = 100190.64             # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum.
 
 FSOLAR     = 176.					     # Solar flux at r=1 AU in ergs/cm^2/s/A
 
+n_sig      = 3                     # Do we do 3sigma? or 4 sigma? Set it here (3 or 4)
+
 if IS_LORRI:
     exptime = 0.4  # Tod's LORRI mosaics have 200ms and 400ms in them, and are normalized to 400 ms.
 
@@ -669,7 +678,7 @@ ax2.set_ylabel('Normal I/F [{:.1e}]'.format(iof_units))
 
 ax1.set_title(sequence + ', nbins = ' + repr(nbins_radius) + \
 #                     ', $\delta r$ = {:.0f} km'.format(dradius,0) +                     
-                     ', 3$\sigma$ I/F $\leq$ {:.1e}'.format(3*std_iof_normal))
+                     ', {}$\sigma$ I/F $\leq$ {:.1e}'.format(n_sig, n_sig*std_iof_normal))
 
 ax1.set_xlabel('Orbital Distance [1000 km]')
 ax1.set_ylabel('DN')
@@ -1017,3 +1026,18 @@ print('Wrote: ' + file_out)
 
 plt.savefig
 plt.show()
+
+#==============================================================================
+# Make a data table about this image and sequence
+#==============================================================================
+
+r_hill_km = r_hill.to('km').value
+
+print("Sequence = {}".format(sequence))
+print("N = {} bins".format(nbins_radius))
+print("Radius = {:.1f} .. {:.1f} km".format(np.amin(radius), np.amax(radius)))
+print("Radius = {:.1f} .. {:.1f} r_pluto".format(np.amin(radius)/r_pluto_km, np.amax(radius)/r_pluto_km))
+print("Radius = {:.1f} .. {:.1f} R_hydra".format(np.amin(radius)/r_h, np.amax(radius)/r_h))
+print("Radius = {:.1f} .. {:.2f} R_hill".format(np.amin(radius)/r_hill_km, np.amax(radius)/r_hill_km))
+print("Radial resolution = {:.1f} km".format( (np.amax(radius)-np.amin(radius)) / nbins_radius  ))
+print("{} sigma I/F = {:.2e}".format(nsig, nsig*std_iof_normal))

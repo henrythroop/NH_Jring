@@ -87,6 +87,7 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
     
     if (True):
         print("read_alice_occ_data: ylim = " + repr(ylim))
+        print("DO_MASK_LYA = {}".format(DO_MASK_LYA))
         
         image_target_summed = np.zeros((ylim[1]-ylim[0],xlim[1]-xlim[0])) 
                                             # The 2D extracted region of the full spectral-spatial array.
@@ -140,14 +141,22 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
                         (p['X_INDEX'] < xlim[1])
         
             
-            is_lya = (p['X_INDEX'] > bin_lya[0]) | (p['X_INDEX'] < bin_lya[1])
+            is_lya = (p['X_INDEX'] >= bin_lya[0]) & (p['X_INDEX'] <= bin_lya[1]) # This is an array of booleans.
+            # Not a numpy array.
             
-            is_good = is_target & not(is_lya)
+            # Flag each pixel as good or bad, based on its position, and based on the LyA mask flag
             
+            if (DO_MASK_LYA):
+                is_good = is_target & (is_lya == False)   # Strangely, have to do ==False, rather than not().
+                timesteps_all  = p['TIMESTEP'][(is_lya == False)]
+
+            else:
+                is_good = is_target
+                timesteps_all  = p['TIMESTEP']
+           
             # Now we have a list of all of the good pixels. For each of these, now we want to grab its timestep.
         
             timesteps_good = p['TIMESTEP'][is_good]
-            timesteps_all  = p['TIMESTEP']
         
         # Now count how many photons are in each timestep bin. I have defined those timestep bins up above.
         
@@ -770,7 +779,7 @@ if (sequence == 'OCCSTAR1'):
         ax1.set_xlabel('Time since ' + utc_start + ' [sec]', fontsize=fs)
         ax1.set_ylabel('Counts/sec')
 
-        ax1.text(100, 200, 'HD 43153, {:4.2f} km/sec'.format(vel_2))
+        ax1.text(100, 200, 'HD 42153, {:4.2f} km/sec'.format(vel_2))
         ax2.set_ylabel('Pluto-Star Separation [$r_P$]')
         ax1.legend(framealpha=0.8, loc='upper left', fontsize=fs*0.7)
         ax2.legend(framealpha=0.8, loc='lower right',fontsize=fs*0.7)
@@ -1058,9 +1067,8 @@ if (sequence == 'OCCSTAR1') and True:
     host = host_subplot(111, axes_class=AA.Axes) # Set up the host axis
     plt.subplots_adjust(bottom=0.2)              # Adjusts overall height of the whole plot in y direction 
     offset = 50                                  # How far away from the main plot the parasite axis is.
-    new_fixed_axis     = par.get_grid_helper().new_fixed_axis
+#    new_fixed_axis     = par.get_grid_helper().new_fixed_axis
 
-  
     p1, = host.plot(t, count_rate_target/dt, ms=0.1, linestyle='none', marker='.', color='orange', 
              label = 'Raw, ' + repr(dt) + ' sec = {:.0f} m'.format(dt*vel*1000))
     
@@ -1135,6 +1143,7 @@ if (sequence == 'OCCSTAR1') and True:
     host = host_subplot(111, axes_class=AA.Axes) # Set up the host axis
     plt.subplots_adjust(bottom=0.2)              # Adjusts overall height of the whole plot in y direction 
     offset = 50                                  # How far away from the main plot the parasite axis is.
+    par = host.twiny()                           # Set up the parasite axis
     new_fixed_axis     = par.get_grid_helper().new_fixed_axis
     
     p1, = host.plot(t, count_rate_target_2/dt, ms=0.1, linestyle='none', marker='.', color='orange', 
@@ -1340,6 +1349,14 @@ if ((sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3')):
     x0 = 100000 # Starting sample number
     x1 = 400000 # Ending sample number
 
+if (sequence == 'OCCSTAR1'):
+    
+    x0   = 400000  # For 'Star 1' of OCCSTAR1. Skip the Pluto occultation / appulse.
+    x1   = 700000
+
+    x0_2 = 1500000  # For 'Star 2' of OCCSTAR1. Skip the Pluto occultation / appulse.
+    x1_2 = 2000000
+    
 # Calculate the fractional 3-sigma variance from the mean.
 # F = F0 * exp(-tau / cos(theta))
 #   Where F0 is the unocculted flux, and F is the occulted.
@@ -1352,19 +1369,22 @@ if ((sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3')):
 
 nsig =  3  # 3 sigma? 5 sigma? Plug it in here (3, 4, 5, etc)
 
+# f0 is the mean flux, in bins x0:x1
+# f_3s = f0 - 3*stdev(f0)  -- see above equation
+
 f0 = np.mean(count_rate_target[x0:x1])
-f_3s = f0 - nsig * np.std(count_rate_target_fixed[x0:x1]) # This one might be negative due to noise. Not a problem
-f_3s_3 = f0 - nsig * np.std(count_rate_target_fixed_3[x0:x1])
-f_3s_30 = f0 - nsig * np.std(count_rate_target_fixed_30[x0:x1])
-f_3s_300 = f0 - nsig * np.std(count_rate_target_fixed_300[x0:x1])
-f_3s_3000 = f0 - nsig * np.std(count_rate_target_fixed_3000[x0:x1])
+f_3s       = f0 - nsig * np.std(count_rate_target_fixed[x0:x1]) # This one might be negative due to noise. Not a problem
+f_3s_3     = f0 - nsig * np.std(count_rate_target_fixed_3[x0:x1])
+f_3s_30    = f0 - nsig * np.std(count_rate_target_fixed_30[x0:x1])
+f_3s_300   = f0 - nsig * np.std(count_rate_target_fixed_300[x0:x1])
+f_3s_3000  = f0 - nsig * np.std(count_rate_target_fixed_3000[x0:x1])
 f_3s_30000 = f0 - nsig * np.std(count_rate_target_fixed_30000[x0:x1])
     
-tau_norm = -np.cos(subobslat) * np.log(f_3s / f0)
-tau_norm_3 = -np.cos(subobslat) * np.log(f_3s_3 / f0)
-tau_norm_30 = -np.cos(subobslat) * np.log(f_3s_30 / f0)
-tau_norm_300 = -np.cos(subobslat) * np.log(f_3s_300 / f0)
-tau_norm_3000 = -np.cos(subobslat) * np.log(f_3s_3000 / f0)
+tau_norm       = -np.cos(subobslat) * np.log(f_3s       / f0)
+tau_norm_3     = -np.cos(subobslat) * np.log(f_3s_3     / f0)
+tau_norm_30    = -np.cos(subobslat) * np.log(f_3s_30    / f0)
+tau_norm_300   = -np.cos(subobslat) * np.log(f_3s_300   / f0)
+tau_norm_3000  = -np.cos(subobslat) * np.log(f_3s_3000  / f0)
 tau_norm_30000 = -np.cos(subobslat) * np.log(f_3s_30000 / f0)
 
 # We want to calculate optical depth at the fresnel limit. We could just figure out the proper binning width
@@ -1416,8 +1436,7 @@ print("Star 1, Binning {:.1f} = {:.1f} m, tau <= {:.3f}    **** Fresnel limit **
 
 if (sequence == 'OCCSTAR1'): # If there are two stars, then now do the second star
     # Star 2
-    x0_2 = 1500000
-    x1_2 = 2000000
+
     
     f0_2         = np.mean(count_rate_target_2[x0_2:x1_2])
     f_3s_2       = f0_2 - nsig * np.std(count_rate_target_2_fixed[x0_2:x1_2])
@@ -1442,12 +1461,14 @@ if (sequence == 'OCCSTAR1'): # If there are two stars, then now do the second st
     m,b = np.polyfit(x, y, 1)
     tau_fresnel_2 = 1 / (m * np.sqrt(bins_fresnel_2) + b)
     
+    print()
     print("Star 2, Binning 30    = {:.3f} km, tau <= {:.3f}".format(dt*vel_2 * 30, tau_norm_2_30))
     print("Star 2, Binning 300   = {:.1f} km, tau <= {:.3f}".format(dt*vel_2 * 300, tau_norm_2_300))
     print("Star 2, Binning 3000  = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 3000, tau_norm_2_3000))
     print("Star 2, Binning 30000 = {:.0f} km, tau <= {:.3f}".format(dt*vel_2 * 30000, tau_norm_2_30000))
     print("Star 2, Binning {:.1f} = {:.1f} m, tau <= {:.3f}    **** Fresnel limit ***".format(bins_fresnel_2, 
           bins_fresnel_2 * vel_2 * dt * 1000, tau_fresnel_2))
+    print()
 
 print("These are {}-sigma values".format(nsig))
         
@@ -1466,7 +1487,7 @@ if (sequence == 'OCCSTAR1'):
     print("Star 1 dist from Pluto center: {:.1f} .. {:.1f} km. HD 42545.".format(
             np.min(ang_target_center_radii)*r_pluto_km, np.max(ang_target_center_radii)*r_pluto_km))
     
-    print("Star 2 dist from Pluto center: {:.1f} .. {:.1f} km. HD 43153.".format(
+    print("Star 2 dist from Pluto center: {:.1f} .. {:.1f} km. HD 42153.".format(
             np.min(ang_target_2_center_radii)*r_pluto_km, np.max(ang_target_2_center_radii)*r_pluto_km))
 
     print("Star 1 dist from Pluto center: {:.2f} .. {:.2f} R_P".format(
@@ -1489,30 +1510,42 @@ else:
 # Testing for LyA masking
 #==============================================================================
 
+# This is a simple test to make sure that the DO_MASK_LYA flag is working as it is supposed to.
+# I get strange results. For the fainter star in OCCSTAR1 (star 2), omitting the LyA flux reduces 
+# flux in the image to about 85% of nominal. But when masking out the same bands in the pixel-list
+# (aka count rate), the change is only to about 98%.
+# Why the difference? Not sure. My only guess is that perhaps the image arrage is not counting # of photons.
+# It is a floating-point value. So maybe it is wavelength-weighted??
+# If I am wrong and not masking, it's not really a big deal. It will weaken my optical depth limits by maybe 10%
+# for one star, and lesss for the others. Not a big deal at all. Not worth obsessing over.
+#
 # requires sequence = OCCSTAR1
 
-print('Reading star 2...')
-(met, count_rate_target_2, count_rate_2, image_target_summed_2, image_summed) = \
-    read_alice_occ_data(file_list, xlim, ylim_2, verbose=True, short=DO_ABBREVIATED, DO_MASK_LYA=False)
+DO_TEST_LYA_MASKING = False
 
-
-print('Reading star 2...')  # _m -> masked (ie, with LyA removed)
-(met_m, count_rate_target_2_m, count_rate_2_m, image_target_summed_2_m, image_summed_m) = \
-    read_alice_occ_data(file_list, xlim, ylim_2, verbose=True, short=DO_ABBREVIATED, DO_MASK_LYA=True)
-
-stretch = astropy.visualization.PercentileInterval(99)
- 
-hbt.figsize((10,5))
-
-plt.imshow(stretch(image_target_summed_2), aspect=10)
-plt.title('target_summed')
-plt.show()
-
-plt.imshow(stretch(image_target_summed_2_m), aspect=10)
-plt.title('target_summed')
-plt.show()
-
-print("Ratio of images = {}".format(np.sum(image_target_summed_2_m) / np.sum(image_target_summed_2)))
-print("Rato of time series = {}".format(np.sum(count_rate_2_m) / np.sum(count_rate_2)))
-print("Rato of time series target = {}".format(np.sum(count_rate_target_2_m) / np.sum(count_rate_target_2)))
+if DO_TEST_LYA_MASKING:
+    print('Reading star 2, mask False...')
+    (met, count_rate_target_2, count_rate_2, image_target_summed_2, image_summed) = \
+        read_alice_occ_data(file_list, xlim, ylim_2, verbose=True, short=DO_ABBREVIATED, DO_MASK_LYA=False)
+    
+    print()
+    print('Reading star 2, mask True...')  # _m -> masked (ie, with LyA removed)
+    (met_m, count_rate_target_2_m, count_rate_2_m, image_target_summed_2_m, image_summed_m) = \
+        read_alice_occ_data(file_list, xlim, ylim_2, verbose=True, short=DO_ABBREVIATED, DO_MASK_LYA=True)
+    
+    stretch = astropy.visualization.PercentileInterval(99)
+     
+    hbt.figsize((10,5))
+    
+    plt.imshow(stretch(image_target_summed_2), aspect=10)
+    plt.title('target_summed')
+    plt.show()
+    
+    plt.imshow(stretch(image_target_summed_2_m), aspect=10)
+    plt.title('target_summed')
+    plt.show()
+    
+    print("Ratio of images = {}".format(np.sum(image_target_summed_2_m) / np.sum(image_target_summed_2)))
+    print("Ratio of time series = {}".format(np.sum(count_rate_2_m) / np.sum(count_rate_2)))
+    print("Ratio of time series target = {}".format(np.sum(count_rate_target_2_m) / np.sum(count_rate_target_2)))
        
