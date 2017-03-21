@@ -21,7 +21,9 @@ import pickle
 from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 
     
-file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69.tm'
+file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69.tm'       # C/A time 11:00:00 (??) - older 
+file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69_tcm22.tm' # C/A time 07:00:00 - newer version
+
 file_hd_pickle = '/Users/throop/git/NH_rings/cat_hd.pkl'
 
 #==============================================================================
@@ -33,7 +35,11 @@ sp.furnsh(file_tm) # Start up SPICE
 hour      = 3600
 day       = 24 * hour
 
-utc_ca    = '2019 1 jan 03:09:00' # MU69 C/A time. I got this from GV.
+if ('tcm22' in file_tm):
+    utc_ca    = '2019 1 jan 07:00:00'
+else:
+    utc_ca    = '2019 1 jan 03:09:00' # MU69 C/A time. I got this from GV.
+    
 et_ca     = sp.utc2et(utc_ca)
 dt_tof    = 180                   # Time-of-flight uncertainty (halfwidth, seconds)
 
@@ -46,10 +52,16 @@ DO_PLOT_TOF = False               # In general, plotting TOF is not necessary --
                                   # and changes the occultation times but not positions.
 
 DO_PLOT_LORRI = True              # Plot limits of LORRI FOV?
-                            
+          
+DO_SCALEBAR_ARCSEC = False
+
+DO_UNITS_TITLE_DAYS = False       # Flag: Use Days or Hours for the units in the plot title  
+        
+DO_UNITS_TICKS_DAYS = False
+          
 # Define the start and end time for the plot. This is the main control to use.
 
-case = 4
+case = 6
 
 if (case == 1): # Outbound, 0.3 .. 96 hour
     et_start  = et_ca + 0.3*hour
@@ -124,6 +136,23 @@ if (case == 5): # Inbound, 2d .. 10
     DO_PLOT_LORRI = False
 
     
+if (case == 6): # Inbound, K-45d .. K-14 (for Spencer one-off project, not for an MT)
+    et_start  = et_ca - 45*day
+    et_end    = et_ca - 14*day
+    pad_ra_deg  = 0.005 # Add additional padding at edge of plots, RA = x dir. Degrees.
+    pad_dec_deg = 0.005
+    DO_PLOT_HD  = False
+    DO_LABEL_HD = DO_PLOT_HD # Plot star IDs on chart
+    DO_PLOT_USNO   = True
+    DO_LABEL_USNO  = DO_PLOT_USNO
+    plot_tick_every = 24*60*60
+    hbt.figsize((15,10))
+    mag_limit = 12 # Plot stars brighter than this. HD is probably complete to 10 or so.
+    DO_PLOT_LORRI = False
+    DO_SCALEBAR_ARCSEC = True
+    DO_UNITS_TITLE_DAYS = True
+    DO_UNITS_TICKS_DAYS = True
+
 fov_lorri = 0.3*hbt.d2r  # Radians. LORRI width.
 
 num_dt = 4000 # Number of timesteps
@@ -417,14 +446,44 @@ if DO_LABEL_USNO:
         plt.text(usno['RA_2000'][i]*hbt.r2d, usno['Dec_2000'][i]*hbt.r2d, 
             '  B={:.1f}, R={:.1f}  {}'.format(usno['Bmag'][i], usno['Rmag'][i], usno['ID'][i]),
             fontsize = 8, clip_on = True)
-           
+
+# Plot a scalebar if requested
+
+if (DO_SCALEBAR_ARCSEC):
+
+    d2as = 60. * 60.
+    as2d = 1/d2as
+    y0 = ylim[0]
+    dy = ylim[1] - ylim[0]
+    
+    delta_pos_usno_as = 0.2
+    delta_pos_mu69_as = 0.5 # This is positional uncertainty now, from Earth. I want to map this into 
+    
+    y0_scalebar = ylim[0] + 0.1*(ylim[1]-ylim[0])
+    x0_scalebar = xlim[0] + 0.1*(xlim[1]-xlim[0])
+    x1_scalebar = x0_scalebar + 1 * as2d
+ 
+    plt.hlines(y0 + dy * 0.1, x0_scalebar, x0_scalebar + 1*as2d)
+    plt.hlines(y0 + dy * 0.15, x0_scalebar, x0_scalebar + delta_pos_usno_as*as2d)
+#    plt.hlines(y0 + dy * 0.2, x0_scalebar, x0_scalebar + delta_pos_mu69_as*as2d)
+    
+#    plt.text(y0_scalebar, x0_scalebar, "   1\" scalebar")
+    plt.figtext(0.23, 0.195, "1\"")
+    plt.figtext(0.23, 0.23, "USNO accuracy = {}\"".format(delta_pos_usno_as))
+#    plt.figtext(0.23, 0.265, "MU69 uncertainty = {}\"".format(delta_pos_mu69_as))
+       
 plt.xlim(xlim)
 plt.ylim(ylim)
 plt.xlabel('RA [deg]')
 plt.ylabel('Dec [deg]')
+
+if (DO_UNITS_TITLE_DAYS):
+    plt.title('MU69 {}, ticks every {:.0f}h, K{:+}d .. K{:+}d'.format(
+              encounter_phase, plot_tick_every/(60*60), (et_start - et_ca)/day, (et_end-et_ca)/day))
+else:    
+    plt.title('MU69 {}, ticks every {:.0f} min, K{:+}h .. K{:+}h'.format(
+              encounter_phase, plot_tick_every/60, (et_start - et_ca)/hour, (et_end-et_ca)/hour))
     
-plt.title('MU69 {}, ticks every {:.0f} min, K{:+}h .. K{:+}h'.format(
-          encounter_phase, plot_tick_every/60, (et_start - et_ca)/hour, (et_end-et_ca)/hour))
 plt.legend(framealpha=0.8, loc = 'lower right')
 plt.show()
 
