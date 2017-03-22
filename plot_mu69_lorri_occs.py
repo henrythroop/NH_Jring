@@ -185,14 +185,14 @@ if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project, not for a
                 # Using K-40 since it is one that JS did calculations for in his 22-Mar-2017 email.    
     et_start  = et_ca - 40*day
     et_end    = et_ca - 14*day
-    pad_ra_deg  = 0.005 # Add additional padding at edge of plots, RA = x dir. Degrees.
-    pad_dec_deg = 0.005
+    pad_ra_deg  = 0.01 # Add additional padding at edge of plots, RA = x dir. Degrees.
+    pad_dec_deg = 0.01
     DO_PLOT_HD  = False
     DO_LABEL_HD = DO_PLOT_HD # Plot star IDs on chart
-    DO_PLOT_USNO   = False
-    DO_LABEL_USNO  = DO_PLOT_USNO
+    DO_PLOT_USNO   = True
+    DO_LABEL_USNO  = True # DO_PLOT_USNO
     DO_PLOT_GAIA = True
-    DO_LABEL_GAIA = True
+    DO_LABEL_GAIA = True # DO_PLOT_GAIA
     plot_tick_every = 24*60*60
     hbt.figsize((15,10))
     mag_limit = 12 # Plot stars brighter than this. HD is probably complete to 10 or so.
@@ -213,6 +213,7 @@ color_kbo_center = 'red'
 color_lorri      = 'lightgreen'
 color_roche      = 'yellow'
 color_stars      = 'green'
+color_gaia       = 'crimson'
 color_tof        = 'blue'
 color_uncertainty_mu69 = 'blue'
 
@@ -286,7 +287,7 @@ index_asymptote = 0 if (encounter_phase == 'Outbound') else 1
 (junk, ra_asymptote, dec_asymptote) = sp.recrad(st[0:3])   
 crval = np.array([ra_asymptote, dec_asymptote]) * hbt.r2d
                   
-radius_search = 0.1 # degrees # We only use these catalog for very fine searches, so narrow is OK.
+radius_search = 0.15 # degrees # We only use these catalog for very fine searches, so narrow is OK.
 
 DO_PLOT_GSC = False # Goes to about v=12
 
@@ -513,7 +514,7 @@ if DO_PLOT_HD:
 
 if DO_PLOT_USNO:
     ax.plot(usno['RA_2000']*hbt.r2d, usno['Dec_2000']*hbt.r2d, linestyle='none', marker='.', 
-         label = 'USNO', color=color_stars)
+         label = 'USNO positions', color=color_stars)
 
 if DO_LABEL_USNO:
     for i in range(np.size(usno)):
@@ -525,7 +526,7 @@ if DO_LABEL_USNO:
 
 if DO_PLOT_GAIA:
     ax.plot(gaia['RA_2000']*hbt.r2d, gaia['Dec_2000']*hbt.r2d, linestyle='none', marker='.', 
-         label = 'Gaia positions', color=color_stars)
+         label = 'Gaia positions', color=color_gaia, alpha = 0.5)
 
 if DO_LABEL_GAIA:
     for i in range(np.size(gaia)):
@@ -577,7 +578,7 @@ if (DO_PLOT_UNCERTAINTY_MU69):
     
     # Plot at start of period
     
-    width  = (dpos_x/dist_kbo[0]).value*hbt.r2d*2
+    width  = (dpos_x/dist_kbo[0]).value*hbt.r2d*2/math.cos(dec_kbo[0])
     height = (dpos_y/dist_kbo[0]).value*hbt.r2d*2
     
     xy = (ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
@@ -587,7 +588,7 @@ if (DO_PLOT_UNCERTAINTY_MU69):
 
     # Plot at end of period
     
-    width  = (dpos_x/dist_kbo[-1]).value*hbt.r2d*2
+    width  = (dpos_x/dist_kbo[-1]).value*hbt.r2d*2/math.cos(dec_kbo[-1])
     height = (dpos_y/dist_kbo[-1]).value*hbt.r2d*2
     
     xy = (ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
@@ -607,19 +608,21 @@ if DO_PLOT_1000_KM:
     
     # Plot at start of period
     
-    radius = (dpos_y/dist_kbo[0]).value*hbt.r2d*2
+    width = (dpos_y/dist_kbo[0]).value*hbt.r2d*2/math.cos(dec_kbo[0])
+    height = (dpos_y/dist_kbo[0]).value*hbt.r2d*2
     
     xy = (ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
-    ell = matplotlib.patches.Ellipse(xy=xy, width=radius, height=radius, angle = angle, alpha=0.1, 
+    ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.1, 
                                      color='black')
     ax.add_patch(ell)    
 
     # Plot at end of period
     
-    radius  = (dpos_x/dist_kbo[-1]).value*hbt.r2d*2
+    width = (dpos_y/dist_kbo[-1]).value*hbt.r2d*2/math.cos(dec_kbo[-1])
+    height = (dpos_y/dist_kbo[-1]).value*hbt.r2d*2
     
     xy = (ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
-    ell = matplotlib.patches.Ellipse(xy=xy, width=radius, height=radius, angle = angle, alpha=0.1, 
+    ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.1, 
                                      color='black')
     ax.add_patch(ell)    
     
@@ -667,3 +670,23 @@ plt.show()
 #          usno['Dec_2000'][i]*hbt.r2d))
 #      
  
+DO_TEST_GAIA = False
+
+if DO_TEST_GAIA:
+    plt.plot(gaia['RA_2000']*hbt.r2d, gaia['Dec_2000']*hbt.r2d, marker = '.', linestyle='none', color = 'blue', 
+             label = 'Gaia positions')
+   
+    plt.plot(usno['RA_2000']*hbt.r2d, usno['Dec_2000']*hbt.r2d, linestyle='none', marker='o', 
+         label = 'USNO positions', color='none', markeredgecolor='green', mew=1)
+    plt.plot()
+    plt.xlabel('RA [deg]')
+    plt.title('Gaia vs USNO positions')
+    plt.ylabel('Dec [deg]')
+    DO_WINDOW_ZOOM = False
+    if (DO_WINDOW_ZOOM):
+        plt.xlim((274.70, 274.80))
+        plt.ylim((-20.95, -20.80))
+    plt.legend(loc='upper right')
+    plt.show()
+    
+    
