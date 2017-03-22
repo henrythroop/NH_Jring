@@ -8,10 +8,12 @@ Created on Sun Dec 25 22:45:55 2016
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 import astropy
-from astropy.table import Table
+from   astropy.table import Table
 import astropy.table as table
-from astropy.coordinates import SkyCoord
+from   astropy.coordinates import SkyCoord
+import astropy.coordinates as coord
 import math
 import hbt
 import spiceypy as sp
@@ -19,8 +21,47 @@ import astropy.units as u
 import astropy.constants as c
 import pickle
 from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
+import astroquery
+from   astroquery.vizier import Vizier 
+from matplotlib.patches import Ellipse
 
+
+# NB: In future, conesearch will move from astropy to astroquery -- see mailing list 17-Mar-2017.
+# But it hasn't happened yet, so even if I wanted to be pro-active, I can't.
+
+#==============================================================================
+# A quick wrapper to query the Gaia catalog
+# From https://michaelmommert.wordpress.com/2017/02/13/accessing-the-gaia-and-pan-starrs-catalogs-using-python/
+#==============================================================================
+
+def gaia_query(ra_deg, dec_deg, rad_deg, maxmag=20, 
+               maxsources=10000): 
+    """
+    Query Gaia DR1 @ VizieR using astroquery.vizier
+    parameters: ra_deg, dec_deg, rad_deg: RA, Dec, field 
+                                          radius in degrees
+                maxmag: upper limit G magnitude (optional)
+                maxsources: maximum number of sources
+    returns: astropy.table object
+    """
+    vquery = Vizier(columns=['Source', 'RA_ICRS', 'DE_ICRS', 
+                             'phot_g_mean_mag'], 
+                    column_filters={"phot_g_mean_mag": 
+                                    ("<%f" % maxmag)}, 
+                    row_limit = maxsources) 
+ 
+    field = coord.SkyCoord(ra=ra_deg, dec=dec_deg, 
+                           unit=(u.deg, u.deg), 
+                           frame='icrs')
+    return vquery.query_region(field, 
+                               width=("%fd" % rad_deg), 
+                               catalog="I/337/gaia")[0] 
     
+
+#==============================================================================
+# Define kernels and files
+#==============================================================================
+
 file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69.tm'       # C/A time 11:00:00 (??) - older 
 file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69_tcm22.tm' # C/A time 07:00:00 - newer version
 
@@ -34,6 +75,8 @@ sp.furnsh(file_tm) # Start up SPICE
 
 hour      = 3600
 day       = 24 * hour
+
+fs        = 15   # General font size
 
 if ('tcm22' in file_tm):
     utc_ca    = '2019 1 jan 07:00:00'
@@ -58,6 +101,8 @@ DO_SCALEBAR_ARCSEC = False
 DO_UNITS_TITLE_DAYS = False       # Flag: Use Days or Hours for the units in the plot title  
         
 DO_UNITS_TICKS_DAYS = False
+
+DO_PLOT_UNCERTAINTY_MU69 = False  # Make a plot of errorbars in MU69 position?
           
 # Define the start and end time for the plot. This is the main control to use.
 
@@ -136,15 +181,18 @@ if (case == 5): # Inbound, 2d .. 10
     DO_PLOT_LORRI = False
 
     
-if (case == 6): # Inbound, K-45d .. K-14 (for Spencer one-off project, not for an MT)
-    et_start  = et_ca - 45*day
+if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project, not for an MT)
+                # Using K-40 since it is one that JS did calculations for in his 22-Mar-2017 email.    
+    et_start  = et_ca - 40*day
     et_end    = et_ca - 14*day
     pad_ra_deg  = 0.005 # Add additional padding at edge of plots, RA = x dir. Degrees.
     pad_dec_deg = 0.005
     DO_PLOT_HD  = False
     DO_LABEL_HD = DO_PLOT_HD # Plot star IDs on chart
-    DO_PLOT_USNO   = True
+    DO_PLOT_USNO   = False
     DO_LABEL_USNO  = DO_PLOT_USNO
+    DO_PLOT_GAIA = True
+    DO_LABEL_GAIA = True
     plot_tick_every = 24*60*60
     hbt.figsize((15,10))
     mag_limit = 12 # Plot stars brighter than this. HD is probably complete to 10 or so.
@@ -152,6 +200,7 @@ if (case == 6): # Inbound, K-45d .. K-14 (for Spencer one-off project, not for a
     DO_SCALEBAR_ARCSEC = True
     DO_UNITS_TITLE_DAYS = True
     DO_UNITS_TICKS_DAYS = True
+    DO_PLOT_UNCERTAINTY_MU69 = True
 
 fov_lorri = 0.3*hbt.d2r  # Radians. LORRI width.
 
@@ -162,11 +211,12 @@ num_dt = 4000 # Number of timesteps
 color_kbo_radius = 'pink'
 color_kbo_center = 'red'
 color_lorri      = 'lightgreen'
-color_roche      = 'lightblue'
+color_roche      = 'yellow'
 color_stars      = 'green'
 color_tof        = 'blue'
+color_uncertainty_mu69 = 'blue'
 
-hbt.set_fontsize(15)
+hbt.set_fontsize(fs)
     
 try:
     lun = open(file_hd_pickle, 'rb')
@@ -260,6 +310,16 @@ if DO_PLOT_USNO:
     usno = Table([id_stars, ra_stars, dec_stars, mag_b_stars, mag_r_stars], 
                  names = ['ID', 'RA_2000', 'Dec_2000', 'Bmag', 'Rmag'])
 
+if DO_PLOT_GAIA:
+    stars = gaia_query(crval[0], crval[1], radius_search, maxmag=20, maxsources=10000)
+    ra_stars = np.array(stars['RA_ICRS'])*hbt.d2r # Convert to radians
+    id_stars = np.array(stars['Source'])
+    dec_stars = np.array(stars['DE_ICRS'])*hbt.d2r # Convert to radians
+    mag_stars = np.array(stars['__Gmag_'])
+
+    gaia = Table([id_stars, ra_stars, dec_stars, mag_stars], 
+                 names = ['ID', 'RA_2000', 'Dec_2000', 'mag'])    
+    
 #==============================================================================
 # Look up NH position (ie, KBO position)
 #==============================================================================
@@ -333,8 +393,8 @@ angle_kbo  = (r_kbo / dist_kbo).to('').value # Radians
 
 # Compute angular size of Roche limit
 
-a_roche     = 2.5 * r_kbo
-angle_roche = (a_roche / dist_kbo).to('').value # Radians
+r_roche     = 2.5 * r_kbo
+angle_roche = (r_roche / dist_kbo).to('').value # Radians
 
 # Set the x and y limits for the plot
 
@@ -343,7 +403,6 @@ ylim = hbt.mm(dec_kbo*hbt.r2d)
 
 xlim = np.array(xlim) + pad_ra_deg * np.array([-1,1]) # Pad the plot by the specified amount
 ylim = np.array(ylim) + pad_dec_deg * np.array([-1,1])
-
 
 
 # Filter the stars. Set a flag for each one we want to plot, based on mag and position.
@@ -357,24 +416,35 @@ is_good =  np.logical_and(
                                 np.logical_and(ylim[0] < dec,
                                                dec < ylim[1])  )    )
 
+# Generate human-readable strings for the plot
+
+if (DO_UNITS_TITLE_DAYS):
+    t_start_relative_str = "K{:+.0f}d".format((et_start - et_ca)/day)
+    t_end_relative_str   = "K{:+.0f}d".format((et_end   - et_ca)/day)
+else:
+    t_start_relative_str = "K{:+}h".format((et_start - et_ca)/hour)
+    t_end_relative_str   = "K{:+}h".format((et_end   - et_ca)/hour)     
+    
 #==============================================================================
 # Make the plot
 #==============================================================================
 
 # Draw the main trajectory
 
+fig, ax = plt.subplots()
+
 DO_PLOT_TRAJECTORY = True
 
 if DO_PLOT_TRAJECTORY:
-    plt.plot(ra_kbo*hbt.r2d, dec_kbo*hbt.r2d, color=color_kbo_center)
+    ax.plot(ra_kbo*hbt.r2d, dec_kbo*hbt.r2d, color=color_kbo_center)
 
 # Plot the time-of-flight uncertainty.
 # Concl: TOF error does not change the position of any of these occultations. It just changes the time 
 # at which we see them. This wasn't obvious to me, but these two curves lay over each other identically.
     
 if DO_PLOT_TOF:
-    plt.plot(ra_kbo_tof_minus*hbt.r2d, dec_kbo_tof_minus*hbt.r2d, color=color_tof, marker = '+', ms=5)
-    plt.plot(ra_kbo_tof_plus*hbt.r2d,  dec_kbo_tof_plus*hbt.r2d,  color=color_tof, marker = '+', ms=10)
+    ax.plot(ra_kbo_tof_minus*hbt.r2d, dec_kbo_tof_minus*hbt.r2d, color=color_tof, marker = '+', ms=5)
+    ax.plot(ra_kbo_tof_plus*hbt.r2d,  dec_kbo_tof_plus*hbt.r2d,  color=color_tof, marker = '+', ms=10)
     
 # Draw the LORRI FOVs -- 0.3 x 0.3 deg square
 
@@ -383,23 +453,23 @@ if DO_PLOT_LORRI:
     dec_kbo_minus_lorri = dec_kbo - (fov_lorri/2) * np.sqrt(2)
     
     
-    plt.fill_between(ra_kbo*hbt.r2d, (dec_kbo_plus_lorri)*hbt.r2d, (dec_kbo_minus_lorri)*hbt.r2d, 
+    ax.fill_between(ra_kbo*hbt.r2d, (dec_kbo_plus_lorri)*hbt.r2d, (dec_kbo_minus_lorri)*hbt.r2d, 
                      color=color_lorri, alpha=0.5, label = 'LORRI FOV')
 
 # Draw the Hill sphere
 
-plt.plot(ra_kbo*hbt.r2d, (dec_kbo - angle_hill)*hbt.r2d, linestyle = '--')
-plt.plot(ra_kbo*hbt.r2d, (dec_kbo + angle_hill)*hbt.r2d, linestyle = '--')
+ax.plot(ra_kbo*hbt.r2d, (dec_kbo - angle_hill)*hbt.r2d, linestyle = '--')
+ax.plot(ra_kbo*hbt.r2d, (dec_kbo + angle_hill)*hbt.r2d, linestyle = '--')
 
 # Draw the Roche radius
 
-plt.fill_between(ra_kbo*hbt.r2d, (dec_kbo+angle_roche)*hbt.r2d, (dec_kbo-angle_roche)*hbt.r2d, 
-                 color=color_roche, alpha=0.5, label = 'MU69 Roche radius')
+ax.fill_between(ra_kbo*hbt.r2d, (dec_kbo+angle_roche)*hbt.r2d, (dec_kbo-angle_roche)*hbt.r2d, 
+                 color=color_roche, alpha=0.5, label = 'MU69 Roche radius = {} km'.format(r_roche.to('km').value))
 
 # Draw the MU69 radius
 
-plt.fill_between(ra_kbo*hbt.r2d, (dec_kbo+angle_kbo)*hbt.r2d, (dec_kbo-angle_kbo)*hbt.r2d, 
-                 color=color_kbo_radius, alpha=1, label = 'MU69 radius')
+ax.fill_between(ra_kbo*hbt.r2d, (dec_kbo+angle_kbo)*hbt.r2d, (dec_kbo-angle_kbo)*hbt.r2d, 
+                 color=color_kbo_radius, alpha=1, label = 'MU69 radius = {} km'.format(r_kbo.to('km').value))
 
 # Draw '+' symbols every hour
 
@@ -410,13 +480,17 @@ for i,et_i in enumerate(et):
             kwargs = {'label' : 'MU69 position'}
         else:
             kwargs = {}
-        plt.plot(ra_kbo[i]*hbt.r2d, dec_kbo[i]*hbt.r2d, marker='+', 
+        ax.plot(ra_kbo[i]*hbt.r2d, dec_kbo[i]*hbt.r2d, marker='+', 
                  markersize=20, color='black', **kwargs )
+
+
+ax.text(ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d, t_start_relative_str+'\n', fontsize=12, clip_on=True)  # Why does plt.text() kill my plot??
+ax.text(ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d, t_end_relative_str+'\n', fontsize=12, clip_on=True)  # Why does plt.text() kill my plot??
 
 # Plot the HD stars
 if DO_PLOT_HD:
     
-    plt.plot(hd['RA_2000'][is_good]*hbt.r2d, hd['Dec_2000'][is_good]*hbt.r2d, linestyle='none', marker='.', 
+    ax.plot(hd['RA_2000'][is_good]*hbt.r2d, hd['Dec_2000'][is_good]*hbt.r2d, linestyle='none', marker='.', 
          label = 'HD, V < {}'.format(mag_limit), color=color_stars)
 
 # Label the HD stars
@@ -429,7 +503,7 @@ if DO_PLOT_HD:
             else:
                 string_hd = ''
             
-            plt.text(hd['RA_2000'][i]*hbt.r2d, hd['Dec_2000'][i]*hbt.r2d, 
+            ax.text(hd['RA_2000'][i]*hbt.r2d, hd['Dec_2000'][i]*hbt.r2d, 
                 '  {}  {:.1f}  {}'.format(hd['Type'][i], hd['Ptg'][i], string_hd),
                 fontsize = 8, clip_on = True)
 
@@ -438,15 +512,27 @@ if DO_PLOT_HD:
 #         label = 'HD star', color=color_stars)
 
 if DO_PLOT_USNO:
-    plt.plot(usno['RA_2000']*hbt.r2d, usno['Dec_2000']*hbt.r2d, linestyle='none', marker='.', 
+    ax.plot(usno['RA_2000']*hbt.r2d, usno['Dec_2000']*hbt.r2d, linestyle='none', marker='.', 
          label = 'USNO', color=color_stars)
 
 if DO_LABEL_USNO:
     for i in range(np.size(usno)):
-        plt.text(usno['RA_2000'][i]*hbt.r2d, usno['Dec_2000'][i]*hbt.r2d, 
+        ax.text(usno['RA_2000'][i]*hbt.r2d, usno['Dec_2000'][i]*hbt.r2d, 
             '  B={:.1f}, R={:.1f}  {}'.format(usno['Bmag'][i], usno['Rmag'][i], usno['ID'][i]),
             fontsize = 8, clip_on = True)
 
+# Plot the Gaia stars
+
+if DO_PLOT_GAIA:
+    ax.plot(gaia['RA_2000']*hbt.r2d, gaia['Dec_2000']*hbt.r2d, linestyle='none', marker='.', 
+         label = 'Gaia positions', color=color_stars)
+
+if DO_LABEL_GAIA:
+    for i in range(np.size(gaia)):
+        ax.text(gaia['RA_2000'][i]*hbt.r2d, gaia['Dec_2000'][i]*hbt.r2d, 
+            '  v={:.1f}  {}'.format(gaia['mag'][i], gaia['ID'][i]),
+            fontsize = 8, clip_on = True)
+    
 # Plot a scalebar if requested
 
 if (DO_SCALEBAR_ARCSEC):
@@ -459,32 +545,110 @@ if (DO_SCALEBAR_ARCSEC):
     delta_pos_usno_as = 0.2
     delta_pos_mu69_as = 0.5 # This is positional uncertainty now, from Earth. I want to map this into 
     
+    # Get the distance to Pluto for start and end times
+    
     y0_scalebar = ylim[0] + 0.1*(ylim[1]-ylim[0])
     x0_scalebar = xlim[0] + 0.1*(xlim[1]-xlim[0])
     x1_scalebar = x0_scalebar + 1 * as2d
  
-    plt.hlines(y0 + dy * 0.1, x0_scalebar, x0_scalebar + 1*as2d)
-    plt.hlines(y0 + dy * 0.15, x0_scalebar, x0_scalebar + delta_pos_usno_as*as2d)
+    ax.hlines(y0 + dy * 0.1, x0_scalebar, x0_scalebar + 1*as2d)
+    ax.hlines(y0 + dy * 0.15, x0_scalebar, x0_scalebar + delta_pos_usno_as*as2d)
 #    plt.hlines(y0 + dy * 0.2, x0_scalebar, x0_scalebar + delta_pos_mu69_as*as2d)
     
-#    plt.text(y0_scalebar, x0_scalebar, "   1\" scalebar")
-    plt.figtext(0.23, 0.195, "1\"")
-    plt.figtext(0.23, 0.23, "USNO accuracy = {}\"".format(delta_pos_usno_as))
-#    plt.figtext(0.23, 0.265, "MU69 uncertainty = {}\"".format(delta_pos_mu69_as))
-       
-plt.xlim(xlim)
-plt.ylim(ylim)
-plt.xlabel('RA [deg]')
-plt.ylabel('Dec [deg]')
-
-if (DO_UNITS_TITLE_DAYS):
-    plt.title('MU69 {}, ticks every {:.0f}h, K{:+}d .. K{:+}d'.format(
-              encounter_phase, plot_tick_every/(60*60), (et_start - et_ca)/day, (et_end-et_ca)/day))
-else:    
-    plt.title('MU69 {}, ticks every {:.0f} min, K{:+}h .. K{:+}h'.format(
-              encounter_phase, plot_tick_every/60, (et_start - et_ca)/hour, (et_end-et_ca)/hour))
+    ax.text(x0_scalebar, y0_scalebar, "       1\" = {:.0f} km (at {}) = {:.0f} km (at {})".format(
+                                                                          (dist_kbo[ 0].value)*1*hbt.as2r,
+                                                                          t_start_relative_str,
+                                                                          (dist_kbo[-1].value)*1*hbt.as2r,
+                                                                          t_end_relative_str ))
     
-plt.legend(framealpha=0.8, loc = 'lower right')
+#    ax.figtext(0.23, 0.23, "USNO accuracy = {}\"".format(delta_pos_usno_as))
+#    plt.figtext(0.23, 0.265, "MU69 uncertainty = {}\"".format(delta_pos_mu69_as))
+
+# Plot error ellipses for the position of MU69. These are from JS's email to me, which are in turn from Marc Buie's
+# slides as of 2-Mar-2017. I am assuming that everything is equatorial.
+
+
+if (DO_PLOT_UNCERTAINTY_MU69):
+    
+    dpos_x = 6413*u.km  # Uncertainty in X position, km, from JS email 22-Mar-17. Halfwidth
+    dpos_y = 366*u.km   # Uncertainty in Y position, km
+
+    angle = 0           # Rotation angle of ellipse, in degrees
+    
+    # Plot at start of period
+    
+    width  = (dpos_x/dist_kbo[0]).value*hbt.r2d*2
+    height = (dpos_y/dist_kbo[0]).value*hbt.r2d*2
+    
+    xy = (ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
+    ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.1, 
+                                     color=color_uncertainty_mu69)
+    ax.add_patch(ell)    
+
+    # Plot at end of period
+    
+    width  = (dpos_x/dist_kbo[-1]).value*hbt.r2d*2
+    height = (dpos_y/dist_kbo[-1]).value*hbt.r2d*2
+    
+    xy = (ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
+    ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.1, 
+                                     color=color_uncertainty_mu69)
+    ax.add_patch(ell)    
+
+
+DO_PLOT_1000_KM = True
+
+if DO_PLOT_1000_KM:
+    
+    dpos_x = 1000*u.km
+    dpos_y = 1000*u.km
+    
+    angle = 0           # Rotation angle of ellipse, in degrees
+    
+    # Plot at start of period
+    
+    radius = (dpos_y/dist_kbo[0]).value*hbt.r2d*2
+    
+    xy = (ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
+    ell = matplotlib.patches.Ellipse(xy=xy, width=radius, height=radius, angle = angle, alpha=0.1, 
+                                     color='black')
+    ax.add_patch(ell)    
+
+    # Plot at end of period
+    
+    radius  = (dpos_x/dist_kbo[-1]).value*hbt.r2d*2
+    
+    xy = (ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
+    ell = matplotlib.patches.Ellipse(xy=xy, width=radius, height=radius, angle = angle, alpha=0.1, 
+                                     color='black')
+    ax.add_patch(ell)    
+    
+#fig, ax = plt.subplots()
+    
+#mean = [ 0.5 ,  0.5]
+#width = 0.1
+#height = 0.2
+#angle = -54
+#fig, ax = plt.subplots()
+#plt.plot(x,y)
+
+    
+       
+ax.set_xlim(xlim)
+ax.set_ylim(ylim)
+ax.set_xlabel('RA [deg]')
+ax.set_ylabel('Dec [deg]')
+
+  
+        
+if (DO_UNITS_TITLE_DAYS):
+    ax.set_title('MU69 {}, ticks every {:.0f}h, {} .. {}'.format(
+              encounter_phase, plot_tick_every/(60*60), t_start_relative_str, t_end_relative_str))
+else:    
+    ax.set_title('MU69 {}, ticks every {:.0f} min, K{:+}h .. K{:+}h'.format(
+              encounter_phase, plot_tick_every/60, t_start_relative_str, t_end_relative_str))
+    
+ax.legend(framealpha=0.8, loc = 'lower right')
 plt.show()
 
 #==============================================================================
@@ -493,13 +657,13 @@ plt.show()
 
 # Print coords for one candidate star
 
-for i in range(np.size(usno)):             # Ugh -- loop over and check each one!
-                                           # Should be able to use np.equal() but 
-                                           # diagnostic says it is not actually implemented yet?!
-    if (usno['ID'][i] == '1050-03305028'): # This is the good occultation star
-        print("ID={}, RA={} deg, Dec={} deg".format(
-          usno['ID'][i],
-          usno['RA_2000'][i]*hbt.r2d,
-          usno['Dec_2000'][i]*hbt.r2d))
-      
+#for i in range(np.size(usno)):             # Ugh -- loop over and check each one!
+#                                           # Should be able to use np.equal() but 
+#                                           # diagnostic says it is not actually implemented yet?!
+#    if (usno['ID'][i] == '1050-03305028'): # This is the good occultation star
+#        print("ID={}, RA={} deg, Dec={} deg".format(
+#          usno['ID'][i],
+#          usno['RA_2000'][i]*hbt.r2d,
+#          usno['Dec_2000'][i]*hbt.r2d))
+#      
  
