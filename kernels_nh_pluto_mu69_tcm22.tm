@@ -47,6 +47,8 @@ KERNELS_TO_LOAD = (
 'kernels/NavSE_plu047_od121.bsp',
 'kernels/sb-2014mu69-20150903_s6.bsp',
 'kernels/nh_ref_20150801_20190901_od128_tcm22.bsp',
+'kernels/NavSBE_2014MU69_od128.bsp',
+'kernels/NavPE_de433_od128.bsp',
 'kernels/gv_pluto_smallsats_lhr.tf',
 'kernels/gv_pck.tpc',
 )

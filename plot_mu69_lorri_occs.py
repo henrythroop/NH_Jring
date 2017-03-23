@@ -185,8 +185,8 @@ if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project, not for a
                 # Using K-40 since it is one that JS did calculations for in his 22-Mar-2017 email.    
     et_start  = et_ca - 40*day
     et_end    = et_ca - 14*day
-    pad_ra_deg  = 0.01 # Add additional padding at edge of plots, RA = x dir. Degrees.
-    pad_dec_deg = 0.01
+    pad_ra_deg  = 0.008 # Add additional padding at edge of plots, RA = x dir. Degrees.
+    pad_dec_deg = 0.008
     DO_PLOT_HD  = False
     DO_LABEL_HD = DO_PLOT_HD # Plot star IDs on chart
     DO_PLOT_USNO   = True
@@ -202,6 +202,9 @@ if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project, not for a
     DO_UNITS_TICKS_DAYS = True
     DO_PLOT_UNCERTAINTY_MU69 = True
 
+#    DO_LABEL_USNO = False
+#    DO_LABEL_GAIA = False
+    
 fov_lorri = 0.3*hbt.d2r  # Radians. LORRI width.
 
 num_dt = 4000 # Number of timesteps
@@ -478,15 +481,18 @@ for i,et_i in enumerate(et):
     
     if (np.mod(et_i - et[0], plot_tick_every)) < dt:
         if (i == 0): # Pass the info for this to plt.label()... but only for the first call!
-            kwargs = {'label' : 'MU69 position'}
+            kwargs = {'label' : 'MU69 position, SPICE, tcm22'}
         else:
             kwargs = {}
         ax.plot(ra_kbo[i]*hbt.r2d, dec_kbo[i]*hbt.r2d, marker='+', 
                  markersize=20, color='black', **kwargs )
 
 
-ax.text(ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d, t_start_relative_str+'\n', fontsize=12, clip_on=True)  # Why does plt.text() kill my plot??
-ax.text(ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d, t_end_relative_str+'\n', fontsize=12, clip_on=True)  # Why does plt.text() kill my plot??
+ax.text(ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d, t_start_relative_str + '                  ' , 
+        fontsize=12, clip_on=True, horizontalalignment='center')  # Why does plt.text() kill my plot??
+
+ax.text(ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d, '                ' + t_end_relative_str, 
+        fontsize=12, clip_on=True, horizontalalignment='center')  # Why does plt.text() kill my plot??
 
 # Plot the HD stars
 if DO_PLOT_HD:
@@ -556,11 +562,12 @@ if (DO_SCALEBAR_ARCSEC):
     ax.hlines(y0 + dy * 0.15, x0_scalebar, x0_scalebar + delta_pos_usno_as*as2d)
 #    plt.hlines(y0 + dy * 0.2, x0_scalebar, x0_scalebar + delta_pos_mu69_as*as2d)
     
-    ax.text(x0_scalebar, y0_scalebar, "       1\" = {:.0f} km (at {}) = {:.0f} km (at {})".format(
+    ax.text(x0_scalebar, y0_scalebar,  "    = 1\" = {:.0f} km (at {}) = {:.0f} km (at {})".format(
                                                                           (dist_kbo[ 0].value)*1*hbt.as2r,
                                                                           t_start_relative_str,
                                                                           (dist_kbo[-1].value)*1*hbt.as2r,
-                                                                          t_end_relative_str ))
+                                                                          t_end_relative_str ), 
+                                                         bbox={'facecolor':'white', 'alpha':0.5, 'pad':10})
     
 #    ax.figtext(0.23, 0.23, "USNO accuracy = {}\"".format(delta_pos_usno_as))
 #    plt.figtext(0.23, 0.265, "MU69 uncertainty = {}\"".format(delta_pos_mu69_as))
@@ -583,7 +590,7 @@ if (DO_PLOT_UNCERTAINTY_MU69):
     
     xy = (ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
     ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.1, 
-                                     color=color_uncertainty_mu69)
+                                     color=color_uncertainty_mu69, label = 'MU69 3$\sigma$ pos, Buie')
     ax.add_patch(ell)    
 
     # Plot at end of period
@@ -597,33 +604,38 @@ if (DO_PLOT_UNCERTAINTY_MU69):
     ax.add_patch(ell)    
 
 
+#==============================================================================
+# Plot a circle showing where 1000 km radius rings would be, if they were there
+#==============================================================================
+
 DO_PLOT_1000_KM = True
 
 if DO_PLOT_1000_KM:
     
-    dpos_x = 1000*u.km
+    dpos_x = 1000*u.km   # Radius of the rings to draw
     dpos_y = 1000*u.km
     
     angle = 0           # Rotation angle of ellipse, in degrees
     
-    # Plot at start of period
+    # Plot ring at start of period
     
     width = (dpos_y/dist_kbo[0]).value*hbt.r2d*2/math.cos(dec_kbo[0])
     height = (dpos_y/dist_kbo[0]).value*hbt.r2d*2
     
     xy = (ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
-    ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.1, 
-                                     color='black')
+    ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.5, 
+                                     facecolor='none', edgecolor = 'grey', linewidth=3)
     ax.add_patch(ell)    
 
-    # Plot at end of period
+    # Plot ring at end of period
     
     width = (dpos_y/dist_kbo[-1]).value*hbt.r2d*2/math.cos(dec_kbo[-1])
     height = (dpos_y/dist_kbo[-1]).value*hbt.r2d*2
     
     xy = (ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
-    ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.1, 
-                                     color='black')
+    ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.5, 
+                                     edgecolor='grey', facecolor='none', linewidth=3, 
+                                     label = 'MU69 ring, radius = 1000 km')
     ax.add_patch(ell)    
     
 #fig, ax = plt.subplots()
@@ -670,6 +682,10 @@ plt.show()
 #          usno['Dec_2000'][i]*hbt.r2d))
 #      
  
+#==============================================================================
+# Make a plot of USNO vs. Gaia stellar positions. Run this after the variables are initialized in above code.
+#==============================================================================
+
 DO_TEST_GAIA = False
 
 if DO_TEST_GAIA:
@@ -682,7 +698,9 @@ if DO_TEST_GAIA:
     plt.xlabel('RA [deg]')
     plt.title('Gaia vs USNO positions')
     plt.ylabel('Dec [deg]')
-    DO_WINDOW_ZOOM = False
+    plt.plot(crval[0], crval[1], marker = 'o', color = 'pink', ms=20, alpha=0.5, linestyle='none', 
+             label='MU69 asymptote')
+    DO_WINDOW_ZOOM = True
     if (DO_WINDOW_ZOOM):
         plt.xlim((274.70, 274.80))
         plt.ylim((-20.95, -20.80))
