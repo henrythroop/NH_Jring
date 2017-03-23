@@ -24,13 +24,14 @@ from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalo
 import astroquery
 from   astroquery.vizier import Vizier 
 from matplotlib.patches import Ellipse
+import os.path # For expanduser
 
 
 # NB: In future, conesearch will move from astropy to astroquery -- see mailing list 17-Mar-2017.
 # But it hasn't happened yet, so even if I wanted to be pro-active, I can't.
 
 #==============================================================================
-# A quick wrapper to query the Gaia catalog
+# A quick wrapper to query the Gaia catalog using Vizier
 # From https://michaelmommert.wordpress.com/2017/02/13/accessing-the-gaia-and-pan-starrs-catalogs-using-python/
 #==============================================================================
 
@@ -58,6 +59,99 @@ def gaia_query(ra_deg, dec_deg, rad_deg, maxmag=20,
                                catalog="I/337/gaia")[0] 
     
 
+#==============================================================================
+# Return a list of NH MegaCam Gaia stars that match a given position and mag limit
+#==============================================================================
+# NB: After I finished this function, I realized that RA of catalog excerpt is
+# different than RA of MU69 KEM encounter. So maybe this section is just academic.
+
+def nh_gaia_query(ra_deg, dec_ddeg, rad_deg, maxmag=20, maxsources=10000):
+    
+    """
+    Return a list of NH MegaCam Gaia stars that match a given position and mag limit
+    """
+    
+    # Load the catalog into an array.
+    # In an ideal world we would not load this if it was already loaded.
+    # But I don't know how to do that. Function only gets called 1x per execution, so 
+    # maybe not a big deal?
+    
+    nh_gaia = load_nh_gaia()
+    
+    # Do a set of boolean matches to extract and return the proper stars.
+    # This logic here is simplistic: square box, ignore cos(dec), ignore 360->0 crossing, etc.
+    # But for the case of NH KEM, that is sufficient.
+    
+    is_ra = np.logical_and( nh_gaia['RA'] < (ra_deg + rad_deg),
+                            nh_gaia['RA'] > (ra_deg - rad_deg) )
+
+    is_dec = np.logical_and(nh_gaia['Dec'] < (dec_deg + rad_deg),
+                            nh_gaia['Dec'] > (dec_deg - rad_deg) )
+    
+    is_mag_g = np.logical_and( nh_gaia['g'] < maxmag,
+                               nh_gaia['g'] > 0)
+    
+    is_mag_r = np.logical_and( nh_gaia['r'] < maxmag,
+                               nh_gaia['r'] > 0)
+
+    # Combine all these bitmasks
+    
+    is_good = np.logical_and(
+                  np.logical_or(is_mag_g, is_mag_r),
+                  np.logical_and(is_ra, is_dec) )
+
+
+    # Return the selected values
+    
+    return nh_gaia[is_good]
+
+#==============================================================================
+# Read the NH MegaCam-Gaia star catalog from disk. Use a pickle file if available.
+#==============================================================================
+# NB: After I finished this function, I realized that RA of catalog excerpt is
+# different than RA of MU69 KEM encounter. So maybe this section is just academic.
+    
+def load_nh_gaia():
+
+    """
+    Read the NH MegaCam-Gaia star catalog from disk. 
+    Use a pickle file if available. If not, read text file 
+    and then create a pickle file.
+    """
+    
+    dir_gaia = os.path.expanduser('~') + '/Data/Catalogs/Gaia/' 
+    file_txt = 'nh16.mega.gaia.rdmpm.txt'
+    file_pickle = file_txt.replace('.txt', '.pkl')
+    
+    if os.path.isfile(dir_gaia + file_pickle):
+        lun = open(dir_gaia + file_pickle, 'rb')
+        gaia = pickle.load(lun)
+        lun.close()
+        print("Loaded: " + file_pickle)
+    
+    else:
+        
+        # Read the NH MegaCam-Gaia catalog from disk
+      
+        gaia = astropy.io.ascii.read(dir_gaia + file_txt, format = 'basic')
+          
+        # Make a plot of the Gaia stars
+          
+        plt.plot(gaia['RA'], gaia['Dec'], linestyle='none', marker = '.', ms=0.005)
+        plt.xlabel('RA [deg]')
+        plt.ylabel('Dec [deg]')
+        plt.title('NH MegaCam-Gaia catalog')
+        plt.show()
+      
+      # Save it as a pickle file
+      
+        lun = open(dir_gaia + file_pickle, 'wb')
+        pickle.dump(gaia, lun) 
+        print("Wrote: " + dir_gaia + file_pickle)
+        lun.close()
+    
+    return gaia
+  
 #==============================================================================
 # Define kernels and files
 #==============================================================================
@@ -182,21 +276,27 @@ if (case == 5): # Inbound, 2d .. 10
 
     
 if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project, not for an MT)
-                # Using K-40 since it is one that JS did calculations for in his 22-Mar-2017 email.    
-    et_start  = et_ca - 40*day
-    et_end    = et_ca - 14*day
-    pad_ra_deg  = 0.008 # Add additional padding at edge of plots, RA = x dir. Degrees.
-    pad_dec_deg = 0.008
-    DO_PLOT_HD  = False
-    DO_LABEL_HD = DO_PLOT_HD # Plot star IDs on chart
-    DO_PLOT_USNO   = True
-    DO_LABEL_USNO  = True # DO_PLOT_USNO
-    DO_PLOT_GAIA = True
-    DO_LABEL_GAIA = True # DO_PLOT_GAIA
-    plot_tick_every = 24*60*60
+                # Using K-40 since it is one that JS did calculations for in his 22-Mar-2017 email.
+                
+    et_start         = et_ca - 40*day
+    et_end           = et_ca - 14*day
+    pad_ra_deg       = 0.008 # Add additional padding at edge of plots, RA = x dir. Degrees.
+    pad_dec_deg      = 0.008
+    
+    DO_PLOT_HD       = False
+    DO_LABEL_HD      = DO_PLOT_HD # Plot star IDs on chart
+    DO_PLOT_USNO     = True
+    DO_LABEL_USNO    = True # DO_PLOT_USNO
+    DO_PLOT_GAIA     = True
+    DO_LABEL_GAIA    = True # DO_PLOT_GAIA
+    DO_PLOT_NH_GAIA  = True
+    DO_LABEL_NH_GAIA = False
+    
+    plot_tick_every  = 24*60*60
     hbt.figsize((15,10))
-    mag_limit = 12 # Plot stars brighter than this. HD is probably complete to 10 or so.
-    DO_PLOT_LORRI = False
+    mag_limit       = 12 # Plot stars brighter than this. HD is probably complete to 10 or so.
+    
+    DO_PLOT_LORRI   = False
     DO_SCALEBAR_ARCSEC = True
     DO_UNITS_TITLE_DAYS = True
     DO_UNITS_TICKS_DAYS = True
@@ -323,6 +423,27 @@ if DO_PLOT_GAIA:
 
     gaia = Table([id_stars, ra_stars, dec_stars, mag_stars], 
                  names = ['ID', 'RA_2000', 'Dec_2000', 'mag'])    
+
+if DO_PLOT_NH_GAIA:
+    stars = nh_gaia_query(crval[0], crval[1], radius_search, maxmag=20, maxsources=10000)
+    ra_stars = np.array(stars['RA'])*hbt.d2r # Convert to radians
+#    id_stars = np.array(stars['Source'])
+
+    dec_stars = np.array(stars['Dec'])*hbt.d2r # Convert to radians
+    
+    # Do a bit of maniplation to take G mag, or B mag, or mean, depending on what we have
+    
+    mag_stars = np.array(stars['g'] + stars['r'])  
+    is_both = (gaia['r'] * gaia['g']) > 0.0
+    mag_stars[is_both] /= 2
+             
+    # Remove a very small number of stars that have clearly spurious magnitudes
+         
+    is_error = (mag_stars > 50)
+    mag_stars[is_error] = 20          
+
+    nh_gaia = Table([ra_stars, dec_stars, mag_stars], 
+                 names = ['RA', 'Dec', 'mag'])  
     
 #==============================================================================
 # Look up NH position (ie, KBO position)
