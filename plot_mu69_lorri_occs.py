@@ -289,7 +289,7 @@ if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project, not for a
     DO_LABEL_USNO    = True # DO_PLOT_USNO
     DO_PLOT_GAIA     = True
     DO_LABEL_GAIA    = True # DO_PLOT_GAIA
-    DO_PLOT_NH_GAIA  = True
+    DO_PLOT_NH_GAIA  = False
     DO_LABEL_NH_GAIA = False
     
     plot_tick_every  = 24*60*60
@@ -307,10 +307,11 @@ if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project, not for a
     
 fov_lorri = 0.3*hbt.d2r  # Radians. LORRI width.
 
-num_dt = 4000 # Number of timesteps
+num_dt = 200 # Number of timesteps. 4000 is way too many -- 200 should be fine.
 
 # Define plot colors
 
+color_kbo        = 'purple'
 color_kbo_radius = 'pink'
 color_kbo_center = 'red'
 color_lorri      = 'lightgreen'
@@ -702,7 +703,8 @@ if (DO_PLOT_UNCERTAINTY_MU69):
     dpos_x = 6413*u.km  # Uncertainty in X position, km, from JS email 22-Mar-17. Halfwidth
     dpos_y = 366*u.km   # Uncertainty in Y position, km
 
-    angle = 0           # Rotation angle of ellipse, in degrees
+    angle = 3           # Rotation angle of ellipse, in degrees. This is a guess, just to make 
+                         # it vaguely align with what is in plots of Buie (from JS email).
     
     # Plot at start of period
     
@@ -729,12 +731,12 @@ if (DO_PLOT_UNCERTAINTY_MU69):
 # Plot a circle showing where 1000 km radius rings would be, if they were there
 #==============================================================================
 
-DO_PLOT_1000_KM = True
+DO_PLOT_RING_MU69 = True
 
-if DO_PLOT_1000_KM:
+if DO_PLOT_RING_MU69:
     
-    dpos_x = 1000*u.km   # Radius of the rings to draw
-    dpos_y = 1000*u.km
+    dpos_x = 3000*u.km   # Radius of the rings to draw
+    dpos_y = 3000*u.km
     
     angle = 0           # Rotation angle of ellipse, in degrees
     
@@ -756,8 +758,81 @@ if DO_PLOT_1000_KM:
     xy = (ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d)  # Get uncertainty in x and y, and convert to deg
     ell = matplotlib.patches.Ellipse(xy=xy, width=width, height=height, angle = angle, alpha=0.5, 
                                      edgecolor='grey', facecolor='none', linewidth=3, 
-                                     label = 'MU69 ring, radius = 1000 km')
-    ax.add_patch(ell)    
+                                     label = 'MU69 ring, radius = {:.0f} km'.format(dpos_x.to('km').value))
+    ax.add_patch(ell)
+
+#==============================================================================
+# Plot a Lauer image with MU69 at center, and axes in km.
+#==============================================================================
+#%%
+
+radius_ring = 3000*u.km
+
+color_stars = 'blue'
+
+fig, ax = plt.subplots()
+
+# Plot ring around MU69
+
+radius_plot = 7000  # Radius, in km
+
+ax.set_xlim(radius_plot * np.array([-1,1]))
+ax.set_ylim(radius_plot * np.array([-1,1]))
+
+# Grab RA and Dec for all stars
+
+ra_stars  = gaia['RA_2000'] 
+dec_stars = gaia['Dec_2000']
+
+for i,t in enumerate(et[0:1000]):  # Plot for every timestep
+
+    d_ra_ang  = (ra_stars  - ra_kbo[i])/np.cos(dec_stars)
+    d_dec_ang = dec_stars - dec_kbo[i]
+  
+    d_ra_km_proj = d_ra_ang * dist_kbo[i]
+    d_dec_km_proj = d_dec_ang * dist_kbo[i]
+
+    ax.plot(d_ra_km_proj, d_dec_km_proj, marker = '.', linestyle='none', color = color_stars, markersize=1)
+
+    # Label each star at its starting position (at outer edge)
+
+    if (i == 0):
+        for j in range(np.size(gaia)):  # Loop over stars
+            ax.text(d_ra_km_proj[j].value, d_dec_km_proj[j].value, '  mag={:.1f}'.format(gaia['mag'][j]),
+                fontsize = 8, clip_on = True)
+#            print("Plotted at {}, {}, {}".format(d_ra_km_proj[j], d_dec_km_proj[j], gaia['mag'][j]))
+        
+# Plot MU69
+
+ax.plot(0,0,marker = 'o', color = color_kbo, label = 'MU69', linestyle='none')
+ax.set_xlabel('Projected Distance, RA [km]')
+ax.set_ylabel('Projected Distance, Dec [km]')
+
+ax.set_title('K{}d .. K{}d'.format(
+              t_start_relative_str, t_end_relative_str))
+    
+xy = np.array([0,0])
+width  = radius_ring.to('km').value * 2
+height = radius_ring.to('km').value * 2
+angle  = 0
+
+ell = matplotlib.patches.Ellipse(xy = xy, width=width, height=height, angle = angle, alpha=0.5, 
+                                     edgecolor='grey', facecolor='none', linewidth=3, 
+                                     label = 'MU69 ring, radius = {:.0f} km'.format(radius_ring.to('km').value))
+ax.add_patch(ell)
+ax.set_aspect('equal')
+
+ax.legend()    
+plt.show()
+plt.savefig('up.png')
+
+
+
+#%%
+    
+# Convert RA and Dec to to projected distance at this et  
+# Assume a ring size 
+# Plot every time that a star goes within, say, 100 km 
     
 #fig, ax = plt.subplots()
     
@@ -781,7 +856,7 @@ if (DO_UNITS_TITLE_DAYS):
     ax.set_title('MU69 {}, ticks every {:.0f}h, {} .. {}'.format(
               encounter_phase, plot_tick_every/(60*60), t_start_relative_str, t_end_relative_str))
 else:    
-    ax.set_title('MU69 {}, ticks every {:.0f} min, K{:+}h .. K{:+}h'.format(
+    ax.set_title('MU69 {}, ticks every {:.0f} min, K{} .. {}'.format(
               encounter_phase, plot_tick_every/60, t_start_relative_str, t_end_relative_str))
     
 ax.legend(framealpha=0.8, loc = 'lower right')
