@@ -767,6 +767,7 @@ if DO_PLOT_RING_MU69:
 #%%
 
 radius_ring = 3000*u.km
+radius_plot = 7400  # Radius, in km
 
 color_stars = 'blue'
 
@@ -774,7 +775,6 @@ fig, ax = plt.subplots()
 
 # Plot ring around MU69
 
-radius_plot = 7000  # Radius, in km
 
 ax.set_xlim(radius_plot * np.array([-1,1]))
 ax.set_ylim(radius_plot * np.array([-1,1]))
@@ -800,6 +800,8 @@ for i,t in enumerate(et[0:1000]):  # Plot for every timestep
         for j in range(np.size(gaia)):  # Loop over stars
             ax.text(d_ra_km_proj[j].value, d_dec_km_proj[j].value, '  mag={:.1f}'.format(gaia['mag'][j]),
                 fontsize = 8, clip_on = True)
+        ax.plot(d_ra_km_proj[i], d_dec_km_proj[i], marker = '.', linestyle = 'none', color=color_stars,
+                markersize=3, label = 'Gaia star')
 #            print("Plotted at {}, {}, {}".format(d_ra_km_proj[j], d_dec_km_proj[j], gaia['mag'][j]))
         
 # Plot MU69
@@ -808,8 +810,7 @@ ax.plot(0,0,marker = 'o', color = color_kbo, label = 'MU69', linestyle='none')
 ax.set_xlabel('Projected Distance, RA [km]')
 ax.set_ylabel('Projected Distance, Dec [km]')
 
-ax.set_title('K{}d .. K{}d'.format(
-              t_start_relative_str, t_end_relative_str))
+ax.set_title('{} .. {}'.format(t_start_relative_str, t_end_relative_str))
     
 xy = np.array([0,0])
 width  = radius_ring.to('km').value * 2
@@ -822,11 +823,25 @@ ell = matplotlib.patches.Ellipse(xy = xy, width=width, height=height, angle = an
 ax.add_patch(ell)
 ax.set_aspect('equal')
 
-ax.legend()    
+ax.legend(loc = 'lower right')    
 plt.show()
 plt.savefig('up.png')
 
+# Calculate the LORRI pixel scale at start and end of this.
 
+ang_pix_lorri = 0.3*hbt.d2r/1024 # Radians per pixel, LORRI
+
+km_pix_lorri_start = ang_pix_lorri * dist_kbo[0].to('km').value
+km_pix_lorri_end   = ang_pix_lorri * dist_kbo[-1].to('km').value
+
+print("At {}, LORRI pixel scale = {:.0f} km/pix; plot width = {:.0f} pix".format(
+        t_start_relative_str, km_pix_lorri_start, 2*radius_plot/km_pix_lorri_start))
+print("At {}, LORRI pixel scale = {:.0f} km/pix; plot width = {:.0f} pix".format(
+        t_end_relative_str, km_pix_lorri_end, 2*radius_plot/km_pix_lorri_end))
+print("")
+
+#print("Plot width = {:.0f} LORRI pixels start, {:.0f} pixels end".format(
+#        2*radius_plot/km_pix_lorri_start, 2*radius_plot/km_pix_lorri_end))
 
 #%%
     
