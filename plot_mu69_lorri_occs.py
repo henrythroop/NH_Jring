@@ -65,7 +65,7 @@ def gaia_query(ra_deg, dec_deg, rad_deg, maxmag=20,
 # NB: After I finished this function, I realized that RA of catalog excerpt is
 # different than RA of MU69 KEM encounter. So maybe this section is just academic.
 
-def nh_gaia_query(ra_deg, dec_ddeg, rad_deg, maxmag=20, maxsources=10000):
+def nh_gaia_query(ra_deg, dec_deg, rad_deg, maxmag=20, maxsources=10000):
     
     """
     Return a list of NH MegaCam Gaia stars that match a given position and mag limit
@@ -120,7 +120,9 @@ def load_nh_gaia():
     """
     
     dir_gaia = os.path.expanduser('~') + '/Data/Catalogs/Gaia/' 
-    file_txt = 'nh16.mega.gaia.rdmpm.txt'
+#    file_txt = 'nh16.mega.gaia.rdmpm.txt' # Original catalog, but covers MU69 area as seen from Earth
+    file_txt = 'mu69.mega.gaia.rdmspm.txt' # Smaller area, covers MU69 as seen from NH.
+    
     file_pickle = file_txt.replace('.txt', '.pkl')
     
     if os.path.isfile(dir_gaia + file_pickle):
@@ -151,6 +153,10 @@ def load_nh_gaia():
         lun.close()
     
     return gaia
+
+#==============================================================================
+# Start of main program
+#==============================================================================
   
 #==============================================================================
 # Define kernels and files
@@ -180,6 +186,41 @@ else:
 et_ca     = sp.utc2et(utc_ca)
 dt_tof    = 180                   # Time-of-flight uncertainty (halfwidth, seconds)
 
+utc_opnav = np.array(
+            [
+#             '16 Aug 2018',
+
+             '15 Sep 2018', '16 Sep 2018', '17 Sep 2018',
+             '24 Sep 2018', '25 Sep 2018', '26 Sep 2018',
+             '05 Oct 2018', '06 Oct 2018', '07 Oct 2018',             
+             '15 Oct 2018', '16 Oct 2018', '17 Oct 2018',                
+             '25 Oct 2018', '26 Oct 2018', '27 Oct 2018',                
+             '04 Nov 2018', '05 Nov 2018', '06 Nov 2018',
+             '12 Nov 2018', '13 Nov 2018', '14 Nov 2018',             
+             '15 Nov 2018', '16 Nov 2018', '17 Nov 2018',
+             '24 Nov 2018', '25 Nov 2018', '26 Nov 2018',
+             '27 Nov 2018', '28 Nov 2018', '28 Nov 2018', '30 Nov 2018', '01 Dec 2018',
+             '03 Dec 2018', '04 Dec 2018', 
+             '05 Dec 2018', '06 Dec 2018', '07 Dec 2018', '08 Dec 2018', '09 Dec 2018',
+             '13 Dec 2018', '14 Dec 2018', '15 Dec 2018', '16 Dec 2018',
+             
+#             '19 Dec 2018', '20 Dec 2018', '21 Dec 2018',
+#             '23 Dec 2018', '24 Dec 2018',             
+#             '25 Dec 2018', 
+#             '26 Dec 2018', 
+#             '27 Dec 2018', 
+#             '28 Dec 2018', 
+#             '29 Dec 2018', 
+#             '30 Dec 2018', 
+#             '31 Dec 2018'
+#             
+             ] )
+
+et_opnav = np.zeros(np.size(utc_opnav))
+
+for i in range(np.size(utc_opnav)):
+    et_opnav[i] = sp.utc2et(utc_opnav[i])
+                          
 hbt.figsize((15,10))
 mag_limit = 8 # Plot stars brighter than this.
 plot_tick_every = 360  # Plot a time-tick every __ seconds
@@ -197,6 +238,8 @@ DO_UNITS_TITLE_DAYS = False       # Flag: Use Days or Hours for the units in the
 DO_UNITS_TICKS_DAYS = False
 
 DO_PLOT_UNCERTAINTY_MU69 = False  # Make a plot of errorbars in MU69 position?
+
+DO_TIMES_OPNAV = False            # Plot times just for OpNavs?
           
 # Define the start and end time for the plot. This is the main control to use.
 
@@ -280,17 +323,22 @@ if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project, not for a
                 
     et_start         = et_ca - 40*day
     et_end           = et_ca - 14*day
+    et_start         = np.amin(et_opnav)
+    et_end           = np.amax(et_opnav)
+    
     pad_ra_deg       = 0.008 # Add additional padding at edge of plots, RA = x dir. Degrees.
     pad_dec_deg      = 0.008
     
     DO_PLOT_HD       = False
     DO_LABEL_HD      = DO_PLOT_HD # Plot star IDs on chart
-    DO_PLOT_USNO     = True
-    DO_LABEL_USNO    = True # DO_PLOT_USNO
-    DO_PLOT_GAIA     = True
-    DO_LABEL_GAIA    = True # DO_PLOT_GAIA
-    DO_PLOT_NH_GAIA  = False
-    DO_LABEL_NH_GAIA = False
+    DO_PLOT_USNO     = False
+    DO_LABEL_USNO    = False # DO_PLOT_USNO
+    DO_PLOT_GAIA     = False
+    DO_LABEL_GAIA    = False # DO_PLOT_GAIA
+    DO_PLOT_NH_GAIA  = True
+    DO_LABEL_NH_GAIA = True
+    
+    DO_TIMES_OPNAV   = False
     
     plot_tick_every  = 24*60*60
     hbt.figsize((15,10))
@@ -380,7 +428,11 @@ encounter_phase = 'Inbound' if (et_start < et_ca) else 'Outbound'
 
 # Set up the ET array
 
-et = hbt.frange(et_start, et_end, num_dt)
+if DO_TIMES_OPNAV:
+    et = et_opnav
+    
+else:    
+    et = hbt.frange(et_start, et_end, num_dt)
 
 index_asymptote = 0 if (encounter_phase == 'Outbound') else 1
 
@@ -435,7 +487,7 @@ if DO_PLOT_NH_GAIA:
     # Do a bit of maniplation to take G mag, or B mag, or mean, depending on what we have
     
     mag_stars = np.array(stars['g'] + stars['r'])  
-    is_both = (gaia['r'] * gaia['g']) > 0.0
+    is_both = (stars['r'] * stars['g']) > 0.0
     mag_stars[is_both] /= 2
              
     # Remove a very small number of stars that have clearly spurious magnitudes
@@ -550,7 +602,8 @@ if (DO_UNITS_TITLE_DAYS):
 else:
     t_start_relative_str = "K{:+}h".format((et_start - et_ca)/hour)
     t_end_relative_str   = "K{:+}h".format((et_end   - et_ca)/hour)     
-    
+
+#%%    
 #==============================================================================
 # Make the plot
 #==============================================================================
@@ -661,6 +714,17 @@ if DO_LABEL_GAIA:
         ax.text(gaia['RA_2000'][i]*hbt.r2d, gaia['Dec_2000'][i]*hbt.r2d, 
             '  v={:.1f}  {}'.format(gaia['mag'][i], gaia['ID'][i]),
             fontsize = 8, clip_on = True)
+
+if DO_PLOT_NH_GAIA:
+    ax.plot(nh_gaia['RA']*hbt.r2d, nh_gaia['Dec']*hbt.r2d, linestyle='none', marker='.', 
+         label = 'Gaia positions', color=color_gaia, alpha = 0.5)
+
+if DO_LABEL_NH_GAIA:
+    for i in range(np.size(nh_gaia)):
+        ax.text(nh_gaia['RA'][i]*hbt.r2d, nh_gaia['Dec'][i]*hbt.r2d, 
+            '  v={:.1f}'.format(nh_gaia['mag'][i]),
+            fontsize = 8, clip_on = True)
+    
     
 # Plot a scalebar if requested
 
@@ -762,9 +826,21 @@ if DO_PLOT_RING_MU69:
     ax.add_patch(ell)
 
 #==============================================================================
+#  Finalize and display the plot
+#==============================================================================
+    
+plt.xlim(xlim)
+plt.ylim(ylim)
+
+plt.legend()
+
+plt.show()
+    
+#%%
+#==============================================================================
 # Plot a Lauer image with MU69 at center, and axes in km.
 #==============================================================================
-#%%
+
 
 radius_ring = 3000*u.km
 radius_plot = 7400  # Radius, in km
@@ -781,9 +857,18 @@ ax.set_ylim(radius_plot * np.array([-1,1]))
 
 # Grab RA and Dec for all stars
 
-ra_stars  = gaia['RA_2000'] 
-dec_stars = gaia['Dec_2000']
+if (DO_PLOT_GAIA):
+    ra_stars  = gaia['RA_2000'] 
+    dec_stars = gaia['Dec_2000']
+    mag_stars = gaia['mag'] 
+    name_catalog = 'Gaia'
 
+if (DO_PLOT_NH_GAIA):
+    ra_stars  = nh_gaia['RA'] 
+    dec_stars = nh_gaia['Dec']
+    mag_stars = nh_gaia['mag']
+    name_catalog = 'NH Gaia'
+    
 for i,t in enumerate(et[0:1000]):  # Plot for every timestep
 
     d_ra_ang  = (ra_stars  - ra_kbo[i])/np.cos(dec_stars)
@@ -794,15 +879,14 @@ for i,t in enumerate(et[0:1000]):  # Plot for every timestep
 
     ax.plot(d_ra_km_proj, d_dec_km_proj, marker = '.', linestyle='none', color = color_stars, markersize=1)
 
-    # Label each star at its starting position (at outer edge)
+# Label each star at its starting position (at outer edge)
 
     if (i == 0):
-        for j in range(np.size(gaia)):  # Loop over stars
-            ax.text(d_ra_km_proj[j].value, d_dec_km_proj[j].value, '  mag={:.1f}'.format(gaia['mag'][j]),
+        for j in range(np.size(ra_stars)):  # Loop over stars
+            ax.text(d_ra_km_proj[j].value, d_dec_km_proj[j].value, '  mag={:.1f}'.format(mag_stars[j]),
                 fontsize = 8, clip_on = True)
         ax.plot(d_ra_km_proj[i], d_dec_km_proj[i], marker = '.', linestyle = 'none', color=color_stars,
-                markersize=3, label = 'Gaia star')
-#            print("Plotted at {}, {}, {}".format(d_ra_km_proj[j], d_dec_km_proj[j], gaia['mag'][j]))
+                markersize=3, label = name_catalog)
         
 # Plot MU69
 
