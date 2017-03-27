@@ -186,6 +186,9 @@ else:
 et_ca     = sp.utc2et(utc_ca)
 dt_tof    = 180                   # Time-of-flight uncertainty (halfwidth, seconds)
 
+# Define the dates of the OpNavs. I have no time for these, but it probably doens't matter.
+# Taken from MOL = Master Obs List spreadsheet 27-Mar-2017
+
 utc_opnav = np.array(
             [
 #             '16 Aug 2018',
@@ -225,21 +228,17 @@ hbt.figsize((15,10))
 mag_limit = 8 # Plot stars brighter than this.
 plot_tick_every = 360  # Plot a time-tick every __ seconds
 
-DO_PLOT_TOF = False               # In general, plotting TOF is not necessary -- it
+DO_PLOT_TOF           = False     # In general, plotting TOF is not necessary -- it
                                   # is a translation in position along track,
                                   # and changes the occultation times but not positions.
 
-DO_PLOT_LORRI = True              # Plot limits of LORRI FOV?
-          
-DO_SCALEBAR_ARCSEC = False
-
-DO_UNITS_TITLE_DAYS = False       # Flag: Use Days or Hours for the units in the plot title  
-        
-DO_UNITS_TICKS_DAYS = False
-
+DO_PLOT_LORRI         = True              # Plot limits of LORRI FOV?
+DO_SCALEBAR_ARCSEC    = False
+DO_UNITS_TITLE_DAYS   = False       # Flag: Use Days or Hours for the units in the plot title  
+DO_UNITS_TICKS_DAYS   = False
 DO_PLOT_UNCERTAINTY_MU69 = False  # Make a plot of errorbars in MU69 position?
-
-DO_TIMES_OPNAV = False            # Plot times just for OpNavs?
+DO_TIMES_OPNAV        = False            # Plot times just for OpNavs?
+DO_PLOT_WIDE          = False              # Make the plot extra-wide (to cover full range of RA), or zoom in on a narrow RA?
           
 # Define the start and end time for the plot. This is the main control to use.
 
@@ -318,27 +317,39 @@ if (case == 5): # Inbound, 2d .. 10
     DO_PLOT_LORRI = False
 
     
-if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project, not for an MT)
+if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project on LORRI OpNav inbound occs, not for an MT)
                 # Using K-40 since it is one that JS did calculations for in his 22-Mar-2017 email.
+
+# This is the routine I am using for search for LORRI inbound stellar occultations that would happen 
+# by serendipity during OpNav. The idea is to use USNO and/or the 'NH_GAIA' catalog. The latter is
+# the special catalog prepared for me by Stephen Gwyn y JJ Kavalers.
                 
-    et_start         = et_ca - 40*day
-    et_end           = et_ca - 14*day
+#    et_start         = et_ca - 40*day
+#    et_end           = et_ca - 14*day
+
     et_start         = np.amin(et_opnav)
     et_end           = np.amax(et_opnav)
     
-    pad_ra_deg       = 0.008 # Add additional padding at edge of plots, RA = x dir. Degrees.
-    pad_dec_deg      = 0.008
+    pad_ra_deg       = 0.003 # 0.019 # Add additional padding at edge of plots, RA = x dir. Degrees.
+    pad_dec_deg      = 0.0035
+    
+    if (DO_PLOT_WIDE):
+        pad_ra_deg = 0.030
+        pad_dec_deg = 0.019
+   
+    # Set the flags for which stars to plot. In general the code just supports one at a time.
     
     DO_PLOT_HD       = False
     DO_LABEL_HD      = DO_PLOT_HD # Plot star IDs on chart
     DO_PLOT_USNO     = False
-    DO_LABEL_USNO    = False # DO_PLOT_USNO
+    DO_LABEL_USNO    = DO_PLOT_USNO
     DO_PLOT_GAIA     = False
     DO_LABEL_GAIA    = False # DO_PLOT_GAIA
     DO_PLOT_NH_GAIA  = True
-    DO_LABEL_NH_GAIA = True
+    DO_LABEL_NH_GAIA = DO_PLOT_NH_GAIA
     
-    DO_TIMES_OPNAV   = False
+    DO_TIMES_OPNAV   = True  # If True, set the plot time limits based on OpNav times.
+                             # If False, uset them based on ET values that are defined in the code header.  
     
     plot_tick_every  = 24*60*60
     hbt.figsize((15,10))
@@ -504,7 +515,6 @@ if DO_PLOT_NH_GAIA:
 
 print("Looking up NH position...")
 
-
 dt = et[1] - et[0] # Timestep
 
 ra_kbo   = []
@@ -582,7 +592,6 @@ ylim = hbt.mm(dec_kbo*hbt.r2d)
 xlim = np.array(xlim) + pad_ra_deg * np.array([-1,1]) # Pad the plot by the specified amount
 ylim = np.array(ylim) + pad_dec_deg * np.array([-1,1])
 
-
 # Filter the stars. Set a flag for each one we want to plot, based on mag and position.
 
 is_good =  np.logical_and(
@@ -605,10 +614,12 @@ else:
 
 #%%    
 #==============================================================================
-# Make the plot
+# Make plot #1, which is in a fixed star field, with MU69 moving across it.
 #==============================================================================
 
 # Draw the main trajectory
+
+hbt.figsize((21,12)) # Medium-sized figure
 
 fig, ax = plt.subplots()
 
@@ -696,6 +707,7 @@ if DO_PLOT_HD:
 if DO_PLOT_USNO:
     ax.plot(usno['RA_2000']*hbt.r2d, usno['Dec_2000']*hbt.r2d, linestyle='none', marker='.', 
          label = 'USNO positions', color=color_stars)
+    name_catalog = 'USNO'
 
 if DO_LABEL_USNO:
     for i in range(np.size(usno)):
@@ -708,21 +720,25 @@ if DO_LABEL_USNO:
 if DO_PLOT_GAIA:
     ax.plot(gaia['RA_2000']*hbt.r2d, gaia['Dec_2000']*hbt.r2d, linestyle='none', marker='.', 
          label = 'Gaia positions', color=color_gaia, alpha = 0.5)
+    name_catalog = 'Gaia'
+
 
 if DO_LABEL_GAIA:
     for i in range(np.size(gaia)):
         ax.text(gaia['RA_2000'][i]*hbt.r2d, gaia['Dec_2000'][i]*hbt.r2d, 
-            '  v={:.1f}  {}'.format(gaia['mag'][i], gaia['ID'][i]),
+            '  {:.1f}  {}'.format(gaia['mag'][i], gaia['ID'][i]),
             fontsize = 8, clip_on = True)
 
 if DO_PLOT_NH_GAIA:
     ax.plot(nh_gaia['RA']*hbt.r2d, nh_gaia['Dec']*hbt.r2d, linestyle='none', marker='.', 
-         label = 'Gaia positions', color=color_gaia, alpha = 0.5)
+         label = 'Gaia-MegaCam positions', color=color_gaia, alpha = 0.5)
+    name_catalog = 'Gaia-MegaCam'
+
 
 if DO_LABEL_NH_GAIA:
     for i in range(np.size(nh_gaia)):
         ax.text(nh_gaia['RA'][i]*hbt.r2d, nh_gaia['Dec'][i]*hbt.r2d, 
-            '  v={:.1f}'.format(nh_gaia['mag'][i]),
+            '  {:.1f}'.format(nh_gaia['mag'][i]),
             fontsize = 8, clip_on = True)
     
     
@@ -792,7 +808,7 @@ if (DO_PLOT_UNCERTAINTY_MU69):
 
 
 #==============================================================================
-# Plot a circle showing where 1000 km radius rings would be, if they were there
+# Plot a circle showing where rings would be, if they were there
 #==============================================================================
 
 DO_PLOT_RING_MU69 = True
@@ -828,29 +844,47 @@ if DO_PLOT_RING_MU69:
 #==============================================================================
 #  Finalize and display the plot
 #==============================================================================
+
+if (DO_TIMES_OPNAV):
+    title_str = '{} .. {}, {} OpNav visits'.format(t_start_relative_str, t_end_relative_str, np.size(et_opnav))
+
+else:
+    title_str = '{} .. {}'.format(t_start_relative_str, t_end_relative_str)
+
+plt.title(title_str)
     
 plt.xlim(xlim)
 plt.ylim(ylim)
 
-plt.legend()
+# Write the image to disk
+
+dir_out = os.path.expanduser('~') + '/git/NH_rings/out/'
+file_out = ('LORRI_occs_MU69_inbound_' + name_catalog + 
+    (['', '_wide'][DO_PLOT_WIDE]) + '.png' )
+
+plt.legend(loc = 'upper left')
+plt.savefig(dir_out + file_out)
+print("Wrote: " + dir_out + file_out)
 
 plt.show()
     
 #%%
 #==============================================================================
-# Plot a Lauer image with MU69 at center, and axes in km.
+# Make plot #2, which is with MU69 at center, and rings at a fixed scale, and stars moving across / into the ring.
 #==============================================================================
+# Stars pass from the outside toward the inside... that is, at the end, 
+# more and more stars are inside the ring, which makes sense.
 
+hbt.figsize((12,12)) # Make a large figure here
 
 radius_ring = 3000*u.km
-radius_plot = 7400  # Radius, in km
+radius_plot = 3400  # Radius, in km
 
 color_stars = 'blue'
 
 fig, ax = plt.subplots()
 
 # Plot ring around MU69
-
 
 ax.set_xlim(radius_plot * np.array([-1,1]))
 ax.set_ylim(radius_plot * np.array([-1,1]))
@@ -867,9 +901,14 @@ if (DO_PLOT_NH_GAIA):
     ra_stars  = nh_gaia['RA'] 
     dec_stars = nh_gaia['Dec']
     mag_stars = nh_gaia['mag']
-    name_catalog = 'NH Gaia'
+
+if (DO_PLOT_USNO):
+    ra_stars  = usno['RA_2000'] 
+    dec_stars = usno['Dec_2000']
+    mag_stars = usno['Bmag']
+    name_catalog = 'USNO'
     
-for i,t in enumerate(et[0:1000]):  # Plot for every timestep
+for i,et_i in enumerate(et):  # Plot for every timestep
 
     d_ra_ang  = (ra_stars  - ra_kbo[i])/np.cos(dec_stars)
     d_dec_ang = dec_stars - dec_kbo[i]
@@ -881,9 +920,9 @@ for i,t in enumerate(et[0:1000]):  # Plot for every timestep
 
 # Label each star at its starting position (at outer edge)
 
-    if (i == 0):
+    if (et_i == et[-1]):         # i=0 is the starting position 
         for j in range(np.size(ra_stars)):  # Loop over stars
-            ax.text(d_ra_km_proj[j].value, d_dec_km_proj[j].value, '  mag={:.1f}'.format(mag_stars[j]),
+            ax.text(d_ra_km_proj[j].value, d_dec_km_proj[j].value, ' {:.1f}'.format(mag_stars[j]),
                 fontsize = 8, clip_on = True)
         ax.plot(d_ra_km_proj[i], d_dec_km_proj[i], marker = '.', linestyle = 'none', color=color_stars,
                 markersize=3, label = name_catalog)
@@ -894,7 +933,7 @@ ax.plot(0,0,marker = 'o', color = color_kbo, label = 'MU69', linestyle='none')
 ax.set_xlabel('Projected Distance, RA [km]')
 ax.set_ylabel('Projected Distance, Dec [km]')
 
-ax.set_title('{} .. {}'.format(t_start_relative_str, t_end_relative_str))
+ax.set_title(title_str)
     
 xy = np.array([0,0])
 width  = radius_ring.to('km').value * 2
@@ -904,12 +943,8 @@ angle  = 0
 ell = matplotlib.patches.Ellipse(xy = xy, width=width, height=height, angle = angle, alpha=0.5, 
                                      edgecolor='grey', facecolor='none', linewidth=3, 
                                      label = 'MU69 ring, radius = {:.0f} km'.format(radius_ring.to('km').value))
-ax.add_patch(ell)
+ax.add_patch(ell) # Render the ellipse
 ax.set_aspect('equal')
-
-ax.legend(loc = 'lower right')    
-plt.show()
-plt.savefig('up.png')
 
 # Calculate the LORRI pixel scale at start and end of this.
 
@@ -918,17 +953,35 @@ ang_pix_lorri = 0.3*hbt.d2r/1024 # Radians per pixel, LORRI
 km_pix_lorri_start = ang_pix_lorri * dist_kbo[0].to('km').value
 km_pix_lorri_end   = ang_pix_lorri * dist_kbo[-1].to('km').value
 
-print("At {}, LORRI pixel scale = {:.0f} km/pix; plot width = {:.0f} pix".format(
+plt.figtext(0.02, 0.02, "At {}, LORRI pixel scale = {:.0f} km/pix; plot width = {:.0f} pix".format(
         t_start_relative_str, km_pix_lorri_start, 2*radius_plot/km_pix_lorri_start))
-print("At {}, LORRI pixel scale = {:.0f} km/pix; plot width = {:.0f} pix".format(
+plt.figtext(0.02, 0.04, "At {}, LORRI pixel scale = {:.0f} km/pix; plot width = {:.0f} pix".format(
         t_end_relative_str, km_pix_lorri_end, 2*radius_plot/km_pix_lorri_end))
-print("")
+
+# Write the image to disk
+
+dir_out = os.path.expanduser('~') + '/git/NH_rings/out/'
+file_out = 'LORRI_occs_MU69_inbound_centered_' + name_catalog + '.png'
+
+ax.legend(loc = 'lower right')
+plt.savefig(dir_out + file_out)
+print("Wrote: " + dir_out + file_out)
+plt.show()
+
+
 
 #print("Plot width = {:.0f} LORRI pixels start, {:.0f} pixels end".format(
 #        2*radius_plot/km_pix_lorri_start, 2*radius_plot/km_pix_lorri_end))
 
+# Now do a one-off calculation to calculate SNR that we'd get from a v=16 or v=19 occultation
+
+# Exptime for OpNav = 
+
+
+
 #%%
     
+# 
 # Convert RA and Dec to to projected distance at this et  
 # Assume a ring size 
 # Plot every time that a star goes within, say, 100 km 
@@ -950,7 +1003,6 @@ ax.set_xlabel('RA [deg]')
 ax.set_ylabel('Dec [deg]')
 
   
-        
 if (DO_UNITS_TITLE_DAYS):
     ax.set_title('MU69 {}, ticks every {:.0f}h, {} .. {}'.format(
               encounter_phase, plot_tick_every/(60*60), t_start_relative_str, t_end_relative_str))
