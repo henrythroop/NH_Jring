@@ -1036,22 +1036,37 @@ plt.show()
 DO_TEST_GAIA = False
 
 if DO_TEST_GAIA:
+
+#%%    
     plt.plot(gaia['RA_2000']*hbt.r2d, gaia['Dec_2000']*hbt.r2d, marker = '.', linestyle='none', color = 'blue', 
-             label = 'Gaia positions')
+             label = 'Gaia')
    
     plt.plot(usno['RA_2000']*hbt.r2d, usno['Dec_2000']*hbt.r2d, linestyle='none', marker='o', 
-         label = 'USNO positions', color='none', markeredgecolor='green', mew=1)
+         label = 'USNO', color='none', markeredgecolor='green', mew=1, markersize=11)
+ 
+    plt.plot(nh_gaia['RA']*hbt.r2d, nh_gaia['Dec']*hbt.r2d, linestyle='none', marker='o', 
+         label = 'Gaia+MegaCam', color='none', markeredgecolor='red', mew=1, markersize=7)    
+    
     plt.plot()
     plt.xlabel('RA [deg]')
-    plt.title('Gaia vs USNO positions')
+    plt.title('Stellar cpatalogs, MU69 approach region')
     plt.ylabel('Dec [deg]')
-    plt.plot(crval[0], crval[1], marker = 'o', color = 'pink', ms=20, alpha=0.5, linestyle='none', 
-             label='MU69 asymptote')
+    plt.plot(ra_kbo[0]*hbt.r2d, dec_kbo[0]*hbt.r2d, marker = 'o', color = 'lime', ms=20, alpha=0.5, linestyle='none')
+    plt.plot(ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d, marker = 'o', color = 'lime', ms=20, alpha=0.5, linestyle='none', 
+         label='MU69, {} .. {}'.format(t_start_relative_str, t_end_relative_str))
+        
     DO_WINDOW_ZOOM = True
     if (DO_WINDOW_ZOOM):
         plt.xlim((274.70, 274.80))
         plt.ylim((-20.95, -20.80))
     plt.legend(loc='upper right')
+    
+    dir_out = os.path.expanduser('~') + '/git/NH_rings/out/'
+    file_out = 'LORRI_occs_MU69_catalog_comparison.png'
+    
+    plt.savefig(dir_out + file_out)
+    print("Wrote: " + dir_out + file_out)    
+    
     plt.show()
     
-    
+#%%    
