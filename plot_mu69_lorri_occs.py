@@ -162,7 +162,7 @@ def load_nh_gaia():
 # Define kernels and files
 #==============================================================================
 
-file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69.tm'       # C/A time 11:00:00 (??) - older 
+#file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69.tm'       # C/A time 11:00:00 (??) - older 
 file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69_tcm22.tm' # C/A time 07:00:00 - newer version
 
 file_hd_pickle = '/Users/throop/git/NH_rings/cat_hd.pkl'
@@ -239,10 +239,16 @@ DO_UNITS_TICKS_DAYS   = False
 DO_PLOT_UNCERTAINTY_MU69 = False  # Make a plot of errorbars in MU69 position?
 DO_TIMES_OPNAV        = False            # Plot times just for OpNavs?
 DO_PLOT_WIDE          = False              # Make the plot extra-wide (to cover full range of RA), or zoom in on a narrow RA?
+DO_PLOT_USNO          = False
+DO_LABEL_USNO         = False
+DO_PLOT_GAIA          = False
+DO_LABEL_GAIA         = False
+DO_PLOT_NH_GAIA       = False
+DO_LABEL_NH_GAIA      = False
           
 # Define the start and end time for the plot. This is the main control to use.
 
-case = 6
+case = 1
 
 if (case == 1): # Outbound, 0.3 .. 96 hour
     et_start  = et_ca + 0.3*hour
@@ -684,7 +690,7 @@ ax.text(ra_kbo[-1]*hbt.r2d, dec_kbo[-1]*hbt.r2d, '                ' + t_end_rela
 if DO_PLOT_HD:
     
     ax.plot(hd['RA_2000'][is_good]*hbt.r2d, hd['Dec_2000'][is_good]*hbt.r2d, linestyle='none', marker='.', 
-         label = 'HD, V < {}'.format(mag_limit), color=color_stars)
+         label = 'HD, V < {}'.format(mag_limit), color=color_stars, clip_on = True)
 
 # Label the HD stars
 
