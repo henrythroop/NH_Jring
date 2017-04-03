@@ -163,14 +163,25 @@ def load_nh_gaia():
 #==============================================================================
 
 #file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69.tm'       # C/A time 11:00:00 (??) - older 
-file_tm = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69_tcm22.tm' # C/A time 07:00:00 - newer version
+
+file_tm_dayside   = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69_tcm22.tm' # C/A time 07:00:00 - newer version
+file_tm_nightside = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69_nightside.tm' # Sort of hacked this together
 
 file_hd_pickle = '/Users/throop/git/NH_rings/cat_hd.pkl'
 
+DO_FLYBY_DAYSIDE = True
+
 #==============================================================================
-# Initialize settings
+# Initialize setting
 #==============================================================================
 
+if (DO_FLYBY_DAYSIDE):           # Dayside flyby works as intended
+    file_tm = file_tm_dayside
+    side_str = 'dayside'
+else:
+    file_tm = file_tm_nightside  # I have not really validated that nightside works. Results look dfft than expected.
+    side_str = 'nightside'
+    
 sp.furnsh(file_tm) # Start up SPICE
 
 hour      = 3600
@@ -245,6 +256,8 @@ DO_PLOT_GAIA          = False
 DO_LABEL_GAIA         = False
 DO_PLOT_NH_GAIA       = False
 DO_LABEL_NH_GAIA      = False
+
+maglimit_plot         = 100              # Plot stars brighter than this
           
 # Define the start and end time for the plot. This is the main control to use.
 
@@ -359,13 +372,15 @@ if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project on LORRI O
     
     plot_tick_every  = 24*60*60
     hbt.figsize((15,10))
-    mag_limit       = 12 # Plot stars brighter than this. HD is probably complete to 10 or so.
+    mag_limit       = 12 # Plot stars brighter than this.  XXX This parameter is not really used.
+    maglimit_plot = 100  # Plot only stars brighter than this XXX This one is the one to use.
     
     DO_PLOT_LORRI   = False
     DO_SCALEBAR_ARCSEC = True
     DO_UNITS_TITLE_DAYS = True
     DO_UNITS_TICKS_DAYS = True
     DO_PLOT_UNCERTAINTY_MU69 = True
+    
 
 #    DO_LABEL_USNO = False
 #    DO_LABEL_GAIA = False
@@ -852,10 +867,12 @@ if DO_PLOT_RING_MU69:
 #==============================================================================
 
 if (DO_TIMES_OPNAV):
-    title_str = '{} .. {}, {} OpNav visits'.format(t_start_relative_str, t_end_relative_str, np.size(et_opnav))
+    title_str = '{} .. {}, {} OpNav visits, {} flyby'.format(
+            t_start_relative_str, t_end_relative_str, np.size(et_opnav),
+            side_str)
 
 else:
-    title_str = '{} .. {}'.format(t_start_relative_str, t_end_relative_str)
+    title_str = '{} .. {}, {} flybyr'.format(t_start_relative_str, t_end_relative_str, side_str)
 
 plt.title(title_str)
     
@@ -866,7 +883,7 @@ plt.ylim(ylim)
 
 dir_out = os.path.expanduser('~') + '/git/NH_rings/out/'
 file_out = ('LORRI_occs_MU69_inbound_' + name_catalog + 
-    (['', '_wide'][DO_PLOT_WIDE]) + '.png' )
+    (['', '_wide'][DO_PLOT_WIDE]) + '_' + str_side + '.png' )
 
 plt.legend(loc = 'upper left')
 plt.savefig(dir_out + file_out)
@@ -892,9 +909,14 @@ fig, ax = plt.subplots()
 
 # Plot ring around MU69
 
-ax.set_xlim(radius_plot * np.array([-3,1.1]))
-ax.set_ylim(radius_plot * np.array([-1.5,1.5]))
+if (DO_FLYBY_DAYSIDE):
+    ax.set_xlim(radius_plot * np.array([-3,1.5]))
+    ax.set_ylim(radius_plot * np.array([-1.5,1.5]))
 
+else:
+    ax.set_xlim(radius_plot * np.array([-5,5]))
+    ax.set_ylim(radius_plot * np.array([-1.5,1.5]))
+    
 # Grab RA and Dec for all stars
 
 if (DO_PLOT_GAIA):
@@ -922,16 +944,20 @@ for i,et_i in enumerate(et):  # Plot for every timestep
     d_ra_km_proj = d_ra_ang * dist_kbo[i]
     d_dec_km_proj = d_dec_ang * dist_kbo[i]
 
-    ax.plot(d_ra_km_proj, d_dec_km_proj, marker = '.', linestyle='none', color = color_stars, markersize=1)
+    ax.plot(d_ra_km_proj[mag_stars < maglimit_plot], 
+            d_dec_km_proj[mag_stars < maglimit_plot], 
+            marker = '.', linestyle='none', color = color_stars, markersize=1)
 
-# Label each star at its starting position (at outer edge)
+# Label each star at its final position (at inner edge)
 
     if (et_i == et[-1]):         # i=0 is the starting position 
         for j in range(np.size(ra_stars)):  # Loop over stars
-            ax.text(d_ra_km_proj[j].value, d_dec_km_proj[j].value, ' {:.1f}'.format(mag_stars[j]),
-                fontsize = 8, clip_on = True)
+            if (mag_stars[j] < maglimit_plot):
+                ax.text(d_ra_km_proj[j].value, d_dec_km_proj[j].value, ' {:.1f}'.format(mag_stars[j]),
+                    fontsize = 8, clip_on = True)
+                
         ax.plot(d_ra_km_proj[i], d_dec_km_proj[i], marker = '.', linestyle = 'none', color=color_stars,
-                markersize=3, label = name_catalog)
+                markersize=3, label = name_catalog)  # Make an entry for legend()
         
 # Plot MU69
 
@@ -967,7 +993,8 @@ plt.figtext(0.02, 0.04, "At {}, LORRI pixel scale = {:.0f} km/pix; plot width = 
 # Write the image to disk
 
 dir_out = os.path.expanduser('~') + '/git/NH_rings/out/'
-file_out = 'LORRI_occs_MU69_inbound_centered_' + name_catalog + '.png'
+file_out = 'LORRI_occs_MU69_inbound_centered_' + name_catalog + '_' + str_side + \
+  '_maglimit' + repr(maglimit_plot) + '.png'
 
 ax.legend(loc = 'lower right')
 plt.savefig(dir_out + file_out)
