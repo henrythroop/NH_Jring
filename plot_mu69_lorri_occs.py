@@ -238,7 +238,7 @@ DO_UNITS_TITLE_DAYS   = False       # Flag: Use Days or Hours for the units in t
 DO_UNITS_TICKS_DAYS   = False
 DO_PLOT_UNCERTAINTY_MU69 = False  # Make a plot of errorbars in MU69 position?
 DO_TIMES_OPNAV        = False            # Plot times just for OpNavs?
-DO_PLOT_WIDE          = False              # Make the plot extra-wide (to cover full range of RA), or zoom in on a narrow RA?
+DO_PLOT_WIDE          = False            # Make the plot extra-wide (cover full range of RA), or zoom on a narrow RA?
 DO_PLOT_USNO          = False
 DO_LABEL_USNO         = False
 DO_PLOT_GAIA          = False
@@ -248,7 +248,7 @@ DO_LABEL_NH_GAIA      = False
           
 # Define the start and end time for the plot. This is the main control to use.
 
-case = 1
+case = 6
 
 if (case == 1): # Outbound, 0.3 .. 96 hour
     et_start  = et_ca + 0.3*hour
@@ -892,8 +892,8 @@ fig, ax = plt.subplots()
 
 # Plot ring around MU69
 
-ax.set_xlim(radius_plot * np.array([-1,1]))
-ax.set_ylim(radius_plot * np.array([-1,1]))
+ax.set_xlim(radius_plot * np.array([-3,1.1]))
+ax.set_ylim(radius_plot * np.array([-1.5,1.5]))
 
 # Grab RA and Dec for all stars
 
