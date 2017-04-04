@@ -55,7 +55,7 @@ KERNELS_TO_LOAD = (
 'kernels/nh_nom_20151022_20190715_kboflyby3000_v1.bsp',
 'kernels/NavPE_de433_od121.bsp',
 'kernels/NavSE_plu047_od121.bsp',
-'ernels/sb-2014mu69-20150903_s6.bsp',
+'kernels/sb-2014mu69-20150903_s6.bsp',
 'kernels/gv_pluto_smallsats_lhr.tf',
 'kernels/gv_pck.tpc',
 )

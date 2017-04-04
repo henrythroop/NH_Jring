@@ -169,7 +169,7 @@ file_tm_nightside = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69_nightside.
 
 file_hd_pickle = '/Users/throop/git/NH_rings/cat_hd.pkl'
 
-DO_FLYBY_DAYSIDE = True
+DO_FLYBY_DAYSIDE = True # For this plot, do night-side (testing) or day-side (default) flyby?
 
 #==============================================================================
 # Initialize setting
@@ -832,6 +832,9 @@ if (DO_PLOT_UNCERTAINTY_MU69):
 # Plot a circle showing where rings would be, if they were there
 #==============================================================================
 
+# NB: There is a small bug here somewhere. Some stars are plotted *outside* the ring
+#     on this plot, but inside the ring on the other plot, or v/v.
+#     My guess is that this has to do with cos(dec) 
 DO_PLOT_RING_MU69 = True
 
 if DO_PLOT_RING_MU69:
@@ -883,7 +886,7 @@ plt.ylim(ylim)
 
 dir_out = os.path.expanduser('~') + '/git/NH_rings/out/'
 file_out = ('LORRI_occs_MU69_inbound_' + name_catalog + 
-    (['', '_wide'][DO_PLOT_WIDE]) + '_' + str_side + '.png' )
+    (['', '_wide'][DO_PLOT_WIDE]) + '_' + side_str + '.png' )
 
 plt.legend(loc = 'upper left')
 plt.savefig(dir_out + file_out)
@@ -909,12 +912,12 @@ fig, ax = plt.subplots()
 
 # Plot ring around MU69
 
-if (DO_FLYBY_DAYSIDE):
-    ax.set_xlim(radius_plot * np.array([-3,1.5]))
+if (DO_FLYBY_DAYSIDE):                # Dayside flyby (nominal)
+    ax.set_xlim(radius_plot * np.array([-3,1.1]))  # Set x range of plot. 0 is the x position of MU69
     ax.set_ylim(radius_plot * np.array([-1.5,1.5]))
 
-else:
-    ax.set_xlim(radius_plot * np.array([-5,5]))
+else:                                 # Nightside flyby
+    ax.set_xlim(radius_plot * np.array([-1.1,3]))
     ax.set_ylim(radius_plot * np.array([-1.5,1.5]))
     
 # Grab RA and Dec for all stars
@@ -993,7 +996,7 @@ plt.figtext(0.02, 0.04, "At {}, LORRI pixel scale = {:.0f} km/pix; plot width = 
 # Write the image to disk
 
 dir_out = os.path.expanduser('~') + '/git/NH_rings/out/'
-file_out = 'LORRI_occs_MU69_inbound_centered_' + name_catalog + '_' + str_side + \
+file_out = 'LORRI_occs_MU69_inbound_centered_' + name_catalog + '_' + side_str + \
   '_maglimit' + repr(maglimit_plot) + '.png'
 
 ax.legend(loc = 'lower right')
