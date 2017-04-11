@@ -137,7 +137,7 @@ class App:
 # Check if there is a pickle save file found. If it is there, go ahead and read it.
 
         if os.path.exists(self.dir_out + self.filename_save):
-            print("Loading file: " + self.filename_save)
+            print("Loading file: " + self.dir_out + self.filename_save)
             self.load(verbose=False) # This will load self.t
             t = self.t
 
@@ -937,14 +937,22 @@ class App:
         
 # Now look up positions of stars in this field, from a star catalog
 
-        w = WCS(t['Filename'][index_image])                  # Look up the WCS coordinates for this frame
+        with warnings.catch_warnings():  # Without this, we get lots of warnings about a FITS error: 'DEG' vs. 'deg'
+            warnings.simplefilter("ignore")
+            print("Loading WCS for image" + t['Filename'][index_image])
+            
+            w = WCS(t['Filename'][index_image])                  # Look up the WCS coordinates for this frame
+            
         et = t['ET'][index_image]
 
         print('ET[i] =  ' + repr(et))
         print('UTC[i] = ' + repr(t['UTC'][index_image]))
         print('crval[i] = ' + repr(w.wcs.crval))              # crval is a two-element array of [RA, Dec], in degrees
         
-        center  = w.wcs.crval  # degrees
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            center  = w.wcs.crval  # degrees
+            
         DO_GSC1     = False    # Stopped working 2-Oct-2016
         DO_GSC2     = True
         DO_USNOA2   = False
@@ -1058,7 +1066,7 @@ class App:
 #
 # For this, I can use either abcorr stars or normal stars -- whatever I am going to compute the offset from.        
 
-        (dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(image_raw), plot=False)
+        (dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(image_raw), do_plot=False)
 
 # Save the newly computed values to variables that we can access externally
 # For the star locations, we can't put an array into an element of an astropy table.
@@ -1191,7 +1199,9 @@ class App:
 
 # autozoom: if set, and we are loading a 4x4 image, then scale it up to a full 1x1.
 
-        file = self.t_group[self.index_image]['Filename']                    
+        file = self.t_group[self.index_image]['Filename']  
+
+                  
         self.image_raw = hbt.read_lorri(file, frac_clip = 1., bg_method = 'None', autozoom=True)
         print("Loaded image: " + file)
 
@@ -1461,8 +1471,8 @@ the internal state which is already correct. This does *not* refresh the image i
             self.plot_objects()									
 
         
-        plt.imshow(stretch(self.image_processed))
-        plt.show()
+#        plt.imshow(stretch(self.image_processed))
+#        plt.show()
         
         return 0
 
@@ -1479,7 +1489,10 @@ the internal state which is already correct. This does *not* refresh the image i
 
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
                                             # We can reference table['col'][n] or table[n]['col'] - either OK
-        w = WCS(t['Filename'])                  # Look up the WCS coordinates for this frame
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            w = WCS(t['Filename'])                  # Look up the WCS coordinates for this frame
          
         filename = self.t_group['Filename'][self.index_image]
         filename = str(filename)
@@ -1619,7 +1632,9 @@ the internal state which is already correct. This does *not* refresh the image i
 
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
                                             # We can reference table['col'][n] or table[n]['col'] - either OK
-        w = WCS(t['Filename'])  
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            w = WCS(t['Filename'])  
                 
         name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])        
         x_bodies,  y_bodies   = hbt.get_pos_bodies(t['ET'], name_bodies, units='pixels', wcs=w)
@@ -1744,7 +1759,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def load(self, verbose=True):
         
-        lun = open(self.filename_save, 'rb')
+        lun = open(self.dir_out + self.filename_save, 'rb')
         t = pickle.load(lun)
         self.t = t # All of the variables we need are in the 't' table.
         lun.close()
@@ -1773,7 +1788,7 @@ the internal state which is already correct. This does *not* refresh the image i
     
         print("Writing to {}".format(self.dir_out + self.filename_save))
         
-        lun = open(self.filename_save, 'wb')
+        lun = open(self.dir_out + self.filename_save, 'wb')
         t = self.t
         pickle.dump(t, lun)
         lun.close()
@@ -1922,8 +1937,7 @@ app  = App(root)
 
 # set the dimensions and position of the window
 
-
-root.geometry('%dx%d+%d+%d' % (1750, 900, 2, 2))
+root.geometry('%dx%d+%d+%d' % (1960, 1050, 2, 2))
 root.configure(background='#ECECEC')                # ECECEC is the 'default' background for a lot of ttk widgets, which
                                                     # I figured out using photoshop. Not sure how to change that.
 
