@@ -87,6 +87,8 @@ ang_deadband = ang_deadband_deg * hbt.d2r  # Deadband size
 
 drift_per_sec_pix = rate_drift / ang_pix
 
+num_sum = num_steps   # corect?? XXX I had to add this line; not sure if it is right or not.
+
 dt = length_sec / num_sum  # Timestep
 
 t = hbt.frange(0, length_sec, num_sum)
@@ -142,3 +144,75 @@ plt.savefig(file_out)
 print('Wrote: ' + file_out)
 plt.show()
 
+#==============================================================================
+# Now, do an unrelated calculation to determine the SNR that we'd get for a driftscan observation
+# if it happened to go across a ring.
+#==============================================================================
+
+#%%
+file_tm_dayside = '/Users/throop/git/NH_rings/kernels_nh_pluto_mu69_tcm22.tm' # Sort of hacked this together
+
+utc_ca = '2019 1 Jan 07:00:00'
+
+sp.furnsh(file_tm_dayside)
+
+#Get the typical 
+
+et_ca = sp.utc2et(utc_ca)
+
+hour = 3600
+minute = 60
+
+dt = -0.5 * hour   # What is the offset of our observation, from KBO C/A. K-1h, K+2d, etc.
+
+ddt = 1*minute   # Time offset for my calculation of velocity
+
+width_pix_rad_4x4 = 4 * (0.3*hbt.d2r / 1024)  # LORRI 4x4 pixel size, in radians
+width_pix_rad_1x1 =     (0.3*hbt.d2r / 1024)  # LORRI 4x4 pixel size, in radians
+
+et_0 = et_ca + dt
+
+(state_0, lt_0) = sp.spkezr('MU69', et_0,            'J2000', 'LT+S', 'New Horizons')
+(state_1, lt_1) = sp.spkezr('MU69', et_0 + ddt, 'J2000', 'LT+S', 'New Horizons')
+
+(junk, ra_0, dec_0) = sp.recrad(state_0[0:3])
+(junk, ra_1, dec_1) = sp.recrad(state_1[0:3])
+
+omega_kbo = sp.vsep(state_0[0:3], state_1[0:3]) / ddt  # Radians per second of sky motion that the KBO has, from NH
+
+dist_kbo = sp.vnorm(state_0[0:3])  # Distance to KBO, in km
+
+# Calculate the shadow velocity of the KBO
+
+v_shadow_kbo = omega_kbo * dist_kbo  # km/sec of the shadow
+
+# Calculate the time resolution of the LORRI driftscan.
+# That is, how long does it take for LORRI to drift one 4x4 LORRI pixel?
+# [A: Basically one sec: 0.681 sec, technically.]
+
+dt_lorri_driftscan = width_star_rad / rate_drift
+
+res_occ_kbo = v_shadow_kbo / dt_lorri_driftscan  # Resolution, in km
+
+print("-----")
+print("T =  K{:-.2f} h, dist =  {:.2f} km".format(dt/hour, dist_kbo))
+print("KBO Shadow velocity = {:.2f} km/s".format(v_shadow_kbo))
+print("LORRI drift rate (deadband) = {:.2e} rad/sec = {:.2f} 4x4 pix/sec.".format(
+        rate_drift, rate_drift / width_pix_rad_4x4))
+print("LORRI time resolution = {:.2f} sec.".format(dt_lorri_driftscan))
+print("Time for KBO to move one LORRI 4x4 pixel = {:.2f} sec".format( 
+        width_pix_rad_4x4 * dist_kbo / v_shadow_kbo))
+
+# Compare speeds of KBO and of LORRI drift
+
+print("LORRI is drifting {:.2f} x faster than KBO".format(rate_drift / omega_kbo))
+
+# Get our final answer, for the spatial resolution we can observe with driftscan
+
+# XXX I don't think this one is correct below
+
+print("Final spatial resolution of a driftscan observation at K{:-.2f} h = {:.2f} km".format(
+        dt/hour, v_shadow_kbo / dt_lorri_driftscan))
+
+print("At this same time, the 1x1 imaging resolution of LORRI is: {:.2f} km/pix".format(
+        dist_kbo * width_pix_rad_1x1))

@@ -56,6 +56,9 @@ minute    = 60
 name_target = 'MU69'
 name_observer = 'New Horizons'
 
+DO_INVERT_SAUCER = True # This is John Spencer's terminology. He thinks my plot looks like a teacup on a saucer.
+                        # During MT call, we decided to flip it around, so now the saucer will be inverted.
+
 ang_per_pix = (5.7 / 5024) * hbt.d2r  # Angular resolution, radians, MVIC framing
 
 width_fov_rad = 5.7 * hbt.d2r
@@ -151,11 +154,17 @@ for i in range(n_exp):
     x = -width_fov_km[i]/2 
     y = y_last
 
-    if (i == 60):              # Repoint to the bottom half of MU69 after this many images
-        y = y - 2500           #  
-        
+    if (i == 60):              # After this many images, do a one-time slew to the bottom half of MU69
+        if (DO_INVERT_SAUCER): 
+            y = y - 1600           # Size of slew in 'inverted' case 
+        else:  
+            y = y - 2500           # Size of slew in 'non-inverted' case
+      
     if (index_footprint[i] > index_footprint_last):
-        y += height_fov_km[i] * frac_overlap
+        if (DO_INVERT_SAUCER) and (i >= 60):
+            y -= height_fov_km[i] * frac_overlap
+        else:
+            y += height_fov_km[i] * frac_overlap
 
     rect = matplotlib.patches.Rectangle(xy=(x,y), width=width_fov_km[i], height=height_fov_km[i], angle=0, 
                                         edgecolor='green', facecolor='none', 
@@ -194,7 +203,7 @@ ax.set_title('MU69 Outbound Rings, ' + t_start_rel_str )
 # Write the image to disk
 
 dir_out = os.path.expanduser('~') + '/git/NH_rings/out/'
-file_out = 'mu69_rings_mosaic_mvic_plot.png'
+file_out = 'mu69_rings_mosaic_mvic_plot' + ('_inverted' if DO_INVERT_SAUCER else '') + '.png'
 
 plt.savefig(dir_out + file_out)
 print("Wrote: " + dir_out + file_out)
