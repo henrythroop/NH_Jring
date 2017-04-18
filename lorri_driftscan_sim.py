@@ -163,7 +163,7 @@ et_ca = sp.utc2et(utc_ca)
 hour = 3600
 minute = 60
 
-dt = -20 * hour   # What is the offset of our observation, from KBO C/A. K-1h, K+2d, etc.
+dt = -12 * hour   # What is the offset of our observation, from KBO C/A. K-1h, K+2d, etc.
 
 ddt = 1*minute   # Time offset for my calculation of velocity
 
@@ -192,6 +192,12 @@ v_shadow_kbo = omega_kbo * dist_kbo  # km/sec of the shadow
 
 dt_lorri_driftscan = width_pix_rad_4x4 / rate_drift
 
+# Calculate Roche radius 
+
+r_kbo       = 16.5 * u.km
+r_roche     = 2.5 * r_kbo
+r_roche_km  = r_roche.to('km').value
+
 res_occ_kbo = v_shadow_kbo / dt_lorri_driftscan  # Resolution, in km
 
 print("-----")
@@ -214,5 +220,8 @@ print("LORRI is drifting {:.2f} x as fast as KBO".format(rate_drift / omega_kbo)
 print("Final spatial resolution of a driftscan observation at K{:-.2f} h = {:.2f} km".format(
         dt/hour, v_shadow_kbo / dt_lorri_driftscan))
 
-print("At this same time, the 1x1 imaging resolution of LORRI is: {:.2f} km/pix".format(
-        dist_kbo * width_pix_rad_1x1))
+print("At this same time, the 4x4 imaging resolution of LORRI is: {:.2f} km/pix".format(
+        dist_kbo * width_pix_rad_4x4))
+print("r_roche = {:.2f} km = {:.2f} LORRI 4x4 pix.".format(r_roche_km, 
+      r_roche_km /dist_kbo / width_pix_rad_4x4))
+      
