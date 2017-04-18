@@ -163,7 +163,7 @@ et_ca = sp.utc2et(utc_ca)
 hour = 3600
 minute = 60
 
-dt = -0.5 * hour   # What is the offset of our observation, from KBO C/A. K-1h, K+2d, etc.
+dt = -20 * hour   # What is the offset of our observation, from KBO C/A. K-1h, K+2d, etc.
 
 ddt = 1*minute   # Time offset for my calculation of velocity
 
@@ -190,7 +190,7 @@ v_shadow_kbo = omega_kbo * dist_kbo  # km/sec of the shadow
 # That is, how long does it take for LORRI to drift one 4x4 LORRI pixel?
 # [A: Basically one sec: 0.681 sec, technically.]
 
-dt_lorri_driftscan = width_star_rad / rate_drift
+dt_lorri_driftscan = width_pix_rad_4x4 / rate_drift
 
 res_occ_kbo = v_shadow_kbo / dt_lorri_driftscan  # Resolution, in km
 
@@ -199,13 +199,13 @@ print("T =  K{:-.2f} h, dist =  {:.2f} km".format(dt/hour, dist_kbo))
 print("KBO Shadow velocity = {:.2f} km/s".format(v_shadow_kbo))
 print("LORRI drift rate (deadband) = {:.2e} rad/sec = {:.2f} 4x4 pix/sec.".format(
         rate_drift, rate_drift / width_pix_rad_4x4))
-print("LORRI time resolution = {:.2f} sec.".format(dt_lorri_driftscan))
+print("LORRI time resolution in a driftscan (ie, time to move one pixel) = {:.2f} sec.".format(dt_lorri_driftscan))
 print("Time for KBO to move one LORRI 4x4 pixel = {:.2f} sec".format( 
         width_pix_rad_4x4 * dist_kbo / v_shadow_kbo))
 
 # Compare speeds of KBO and of LORRI drift
 
-print("LORRI is drifting {:.2f} x faster than KBO".format(rate_drift / omega_kbo))
+print("LORRI is drifting {:.2f} x as fast as KBO".format(rate_drift / omega_kbo))
 
 # Get our final answer, for the spatial resolution we can observe with driftscan
 
