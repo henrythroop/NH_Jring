@@ -160,7 +160,7 @@ class App:
             t['Comment']  = 'Empty comment'  # Blank -- I'm not sure how to init its length if needed
             t['is_navigated'] = False  # Flag
             t['x_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr
-            t['y_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr            
+            t['y_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr
             t['x_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
             t['y_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
             t['x_pos_ring1']      = np.array(t['Format'],dtype='U20000')  # 5000 char is not long enough!
@@ -742,7 +742,8 @@ class App:
         # in the profiles is 
         # Azimuthal
         
-        #profile_azimuth_bg_inner = np.nansum(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],0)
+        #profile_azimuth_bg_inner = 
+        #    np.nansum(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],0)
         
         plt.rcParams['figure.figsize'] = 10,5
         
@@ -956,26 +957,31 @@ class App:
         DO_GSC1     = False    # Stopped working 2-Oct-2016
         DO_GSC2     = True
         DO_USNOA2   = False
+
+        radius_search_deg = 0.15
         
         if (DO_GSC1):
             name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
-            radius_search = 0.15
-            stars = conesearch.conesearch(w.wcs.crval, radius_search, cache=False, catalog_db = name_cat)
+            radius_search_deg = 0.15
+            stars = conesearch.conesearch(w.wcs.crval, radius_search_deg, cache=False, catalog_db = name_cat)
             ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
             dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
 #            table_stars = Table(stars.array.data)
 
         if (DO_GSC2):
             name_cat = u'Guide Star Catalog v2 1'
-#            name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
 
+#            name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; why?
 #            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+
             from astropy.utils import data
             
             with data.conf.set_temp('remote_timeout', 30): # This is the very strange syntax to set a timeout delay.
                                                            # The default is 3 seconds, and that times out often.
-                stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+                stars = conesearch.conesearch(w.wcs.crval, radius_search_deg, cache=True, catalog_db = name_cat)
 
+            # NB: the returned value is a Table, but I have to access via .array[] -- not sure why.
+            
             ra_stars  = np.array(stars.array['ra'])*d2r # Convert to radians
             dec_stars = np.array(stars.array['dec'])*d2r # Convert to radians
 
@@ -1507,7 +1513,7 @@ the internal state which is already correct. This does *not* refresh the image i
 		
             lines = self.ax1.get_lines()
             for line in lines:
-                line.remove()		# Not vectorized -- have to do it one-by-one											
+                line.remove()		# Not vectorized -- have to do it one-by-one
 
 # Get ring position
 												

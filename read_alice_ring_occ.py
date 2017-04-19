@@ -520,7 +520,7 @@ plane_plu = sp.nvp2pl([0,0,1], [0,0,0])    # nvp2pl: Normal Vec + Point to Plane
 
 vec_plu_star = sp.radrec(1., ra_star, dec_star) # Vector from Pluto to star, in J2K
 
-# Set the values of ET for which we look up the projected radius. We could do every ET, but that's pretty slow, and the 
+# Set the values of ET for which we look up the projected radius. We could do every ET, but that's pretty slow, and the
 # behavior is essentially linear. So, we do the opposite extreme, which is just the starting and ending values.
 
 et_vals = hbt.mm(et)
