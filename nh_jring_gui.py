@@ -57,7 +57,8 @@ from   scipy.stats import mode
 from   scipy.stats import linregress
 import wcsaxes
 import time
-from scipy.interpolate import griddata
+from   scipy.interpolate import griddata
+from   importlib import reload            # So I can do reload(module)
 
 import re # Regexp
 import pickle # For load/save

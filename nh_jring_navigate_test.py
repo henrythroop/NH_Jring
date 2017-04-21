@@ -1,9 +1,22 @@
 #!/usr/bin/env python3
-w
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Nov 18 15:54:05 2016
+
+@author: throop
+"""
+
+# -*- coding: utf-8 -*-
+"""
+
+@author: throop
+
+"""
+
 # -*- coding: utf-8 -*-
 """
 Created on Mon Feb 29 14:55:00 2016
-#
+
 # Short stand-alone program to debug image navigation. This program includes code taken from nh_jring_gui.pro .
 # 
 # Ideally, I will debug it here, and then write a standalone function, which nh_jring_gui will call.
