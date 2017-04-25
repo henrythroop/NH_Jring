@@ -99,7 +99,7 @@ class App:
 
 # Set some default values
 
-        self.filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters 
+        self.filename_save = 'nh_jring_read_params_571.pklXXX' # Filename to save parameters 
 
         self.dir_out    = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
         
@@ -147,7 +147,7 @@ class App:
 # Find and process all of the FITS header info for all of the image files
 # 't' is our main data table, and has all the info for all the files.
         
-            t = hbt.get_fits_info_from_files_lorri(dir_images)
+            t = hbt.get_fits_info_from_files_lorri(dir_images, pattern='opnav')
 
 # Define new columns for the main table. 
 # For several of these, we want to stick an array into the table cell. We do this by defining it as a string.
@@ -942,8 +942,13 @@ class App:
         with warnings.catch_warnings():  # Without this, we get lots of warnings about a FITS error: 'DEG' vs. 'deg'
             warnings.simplefilter("ignore")
             print("Loading WCS for image" + t['Filename'][index_image])
-                        
-            w = WCS(t['Filename'][index_image])                  # Look up the WCS coordinates for this frame
+    
+# Look for a file ending in '_opnav.fit'. If it exists, then it is properly navigated. Use WCS from it.
+        
+            file_opnav = t['Filename'][index_image].replace('.fit', '_opnav.fit')
+            
+            if (os.isfile(file_opnav)):
+                w = WCS(file_opnav)                  # Look up the WCS coordinates for this frame
             
         et = t['ET'][index_image]
 

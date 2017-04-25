@@ -57,6 +57,7 @@ from   matplotlib.figure import Figure
 import warnings
 from   importlib import reload
 from   time import gmtime, strftime
+import shutil
 
 # HBT imports
 
@@ -82,7 +83,7 @@ files = glob.glob(dir + '*[123456].fit')  # Exclude any '*_opnav.fit'
 plt.set_cmap('Greys_r')            
 hbt.figsize((15,15))
 do_plot           = True
-DO_SKIP_NAVIGATED = False
+DO_SKIP_NAVIGATED = True
 DO_INTERACTIVE    = True
 method_opnav      = 'fft'
 is_success        = False
@@ -149,15 +150,21 @@ while True:
         hdulist.close()           
         
         is_navigated = os.path.isfile(file_out)
+
+# If it's a 4x4 file, it's saturated and lots of things don't work. So doing navigation 
+# it hopeless. But we don't want to lose track of the file (for the numbering scheme), 
+# so we tag it and copy anyhow.
         
         if (mode == '4X4'):
-            print("{}/{}: Skipping due to 4x4".format(i, np.size(files)))
-            
+            print("{}/{}: Skipping OpNav due to 4x4".format(i, np.size(files)))
+            print("Copying to {}".format(file_out))
+            shutil.copyfile(file, file_out)
+
         elif (is_navigated and DO_SKIP_NAVIGATED):
             print ("{}/{}: Skipping since already navigated".format(i, np.size(files)))
     
         else:
-            
+    
             with warnings.catch_warnings():   # Block the warnings
                 warnings.simplefilter("ignore")    
                 w_orig  = WCS(file)           # Look up the WCS coordinates for this frame

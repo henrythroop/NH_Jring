@@ -7,7 +7,10 @@ Created on Sun Jun  5 22:45:22 2016
 
 # Create all backplanes. This is a one-off script that is run (in theory) only one time ever.
 # It creates all of the navigation backplanes based on WCS keywords found in the image headers.
-# Any offset (from stellar navigation, or user-determined coeffs) is *not* added.
+# Any offset (from stellar navigation, or user-determined coeffs) is *not* added, unless the image
+# has had its WCS coords updated (e.g. *_opnav.fit)
+# 
+# This routine takes ~ 1 minute per file.
 
 import math      
 import astropy
@@ -36,7 +39,9 @@ dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 
 dir_out = '/Users/throop/data/NH_Jring/out/'
 
-file_list = glob.glob(dir_images + '/*fit')
+#file_list = glob.glob(dir_images + '/*fit')
+file_list = glob.glob(dir_images + '/*_opnav.fit')  # Navigate the opnav'd files
+
 files = np.array(file_list)
 
 DO_TEST = False
