@@ -11,6 +11,8 @@ Created on Sun Jun  5 22:45:22 2016
 # has had its WCS coords updated (e.g. *_opnav.fit)
 # 
 # This routine takes ~ 1 minute per file.
+#
+# I should investigate if I can multi-thread this. It seems like it could be sped up very easily.
 
 import math      
 import astropy
@@ -21,12 +23,13 @@ import wcsaxes
 import hbt
 from   astropy.wcs import WCS
 import pickle # For load/save
+import os
 
 import pdb
 import glob
 import math
 
-#from create_backplane import create_backplane
+DO_OVERWRITE = False
 
 # Start up SPICE
 
@@ -54,21 +57,25 @@ for i,file in enumerate(files):
     file_short = file.split('/')[-1]
     file_out = dir_out + file_short    
     file_out = file_out.replace('.fit', '_planes.pkl')
+    
     print("{}/{}: Generating backplane for {}".format(i, np.size(files), file_short))
-
-    plane = hbt.create_backplane(file)
-
-#    print "RA, Dec mean = " + repr(np.mean(plane['RA']) * hbt.r2d) + ', ' + repr(np.mean(plane['Dec']) * hbt.r2d)
     
-#    print "Ang_Metis meaan = " + repr(np.mean(plane['Ang_Metis']) * hbt.r2d) + ' deg'
-#    print "Ang_Adrastea mean = " + repr(np.mean(plane['Ang_Adrastea']) * hbt.r2d) + ' deg'
-#    print "Ang_Thebe mean = " + repr(np.mean(plane['Ang_Thebe']) * hbt.r2d) + ' deg'
+    if os.path.isfile(file_out) and not(DO_OVERWRITE):
+        print("  ** File already exists! Skipping. {}".format(file_short))
+    else:    
+        plane = hbt.create_backplane(file)
+
+    #    print "RA, Dec mean = " + repr(np.mean(plane['RA']) * hbt.r2d) + ', ' + repr(np.mean(plane['Dec']) * hbt.r2d)
+        
+    #    print "Ang_Metis meaan = " + repr(np.mean(plane['Ang_Metis']) * hbt.r2d) + ' deg'
+    #    print "Ang_Adrastea mean = " + repr(np.mean(plane['Ang_Adrastea']) * hbt.r2d) + ' deg'
+    #    print "Ang_Thebe mean = " + repr(np.mean(plane['Ang_Thebe']) * hbt.r2d) + ' deg'
+        
+        # Write one variable to a file        
     
-    # Write one variable to a file        
-
-    lun = open(file_out, 'wb')
-    pickle.dump(plane, lun)
-    lun.close()
-
-    print("Wrote: " + file_out)
-    print
+        lun = open(file_out, 'wb')
+        pickle.dump(plane, lun)
+        lun.close()
+    
+        print("Wrote: " + file_out)
+        print
