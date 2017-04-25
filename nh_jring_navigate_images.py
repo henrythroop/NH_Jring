@@ -9,7 +9,7 @@ Created on Wed Apr 19 16:15:18 2017
 """
 User-level program to interactively navigate all LORRI rings images.
 Allows user to move around within image list, view images, navigate automatically, write
-new WCS coords out to .fits file, etc.
+new WCS coords out to .fits file, etc. 
 This is essentially a user interface to hbt.navigate_image_stellar().
 """
 
@@ -80,7 +80,7 @@ dir =  '/Users/throop/Dropbox/Data/NH_Jring/data/jupiter/level2/lor/all/'
 files = glob.glob(dir + '*[123456].fit')  # Exclude any '*_opnav.fit'
 
 plt.set_cmap('Greys_r')            
-hbt.figsize((10,10))
+hbt.figsize((15,15))
 do_plot           = True
 DO_SKIP_NAVIGATED = False
 DO_INTERACTIVE    = True
@@ -114,7 +114,13 @@ while True:
        k = repr(list_batch[ii])      # Extract one element from it
        print ("Running from {} to {}...".format(i1, i2))
        DO_INTERACTIVE = False
-       
+
+    if ('*' in k):                   # Wildcard search
+        searchstr = k.replace('*', '')
+        for ii,file in enumerate(files):
+            if (searchstr in file):
+                print("{}. {}".format(ii, file.split('/')[-1]))
+                
     if (k == 'l'):                  # List all files
         for ii,file in enumerate(files):
             print("{}. {}".format(ii, file.split('/')[-1]))
@@ -129,7 +135,6 @@ while True:
         k = repr(i)
     
     if hbt.is_number(k):            # If a number was entered () 
-        print("I = {}".format(i))
         i = int(k)
         file = files[i]
         file_short = file.split('/')[-1]
@@ -163,7 +168,8 @@ while True:
     # Do the navigation call
                     
             (w, (dy_pix, dx_pix)) = hbt.navigate_image_stellar(im, w, method = method_opnav,
-                                     title = file.split('/')[-1], do_plot=do_plot)
+                                     title = "{}, {} s".format(file.split('/')[-1], repr(exptime)), 
+                                     do_plot=do_plot)
         
             crval = w.wcs.crval
         

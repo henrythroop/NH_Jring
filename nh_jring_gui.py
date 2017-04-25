@@ -8,7 +8,7 @@ Created on Mon Feb 29 14:55:00 2016
 
 # -*- coding: utf-8 -*-
 """
-# Program display a GUI of NJ J-ring data to navigate and extract it.
+# Program display a GUI of NH J-ring data to navigate and extract it.
 
 # Possible features to be added:
 #  o Output images as PNG
@@ -117,8 +117,8 @@ class App:
         
         option_bg_default   = 'String'
         entry_bg_default    = '0-10' # Default polynomial order XXX need to set a longer string length here!
-        index_group_default = 8 # Jupiter ring phase curve
-        index_image_default = 54 # Image number within the group
+        index_group_default = 5 # Default group to start with
+        index_image_default = 5 # Default image number within the group
 
         self.do_autoextract     = 0             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -942,7 +942,7 @@ class App:
         with warnings.catch_warnings():  # Without this, we get lots of warnings about a FITS error: 'DEG' vs. 'deg'
             warnings.simplefilter("ignore")
             print("Loading WCS for image" + t['Filename'][index_image])
-            
+                        
             w = WCS(t['Filename'][index_image])                  # Look up the WCS coordinates for this frame
             
         et = t['ET'][index_image]
