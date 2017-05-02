@@ -8,8 +8,8 @@ Created on Wed Apr 19 16:15:18 2017
 
 """
 User-level program to interactively navigate all LORRI rings images.
-Allows user to move around within image list, view images, navigate automatically, write
-new WCS coords out to .fits file, etc. 
+Allows user to list all images, navigate one or a series automatically, etc.
+New WCS coords are written out to .fits file. 
 This is essentially a user interface to hbt.navigate_image_stellar().
 """
 

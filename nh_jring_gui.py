@@ -99,7 +99,7 @@ class App:
 
 # Set some default values
 
-        self.filename_save = 'nh_jring_read_params_571.pklXXX' # Filename to save parameters 
+        self.filename_save = 'nh_jring_read_params_571.pklXXXXX' # Filename to save parameters 
 
         self.dir_out    = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
         
@@ -146,6 +146,7 @@ class App:
 
 # Find and process all of the FITS header info for all of the image files
 # 't' is our main data table, and has all the info for all the files.
+# We want to locate only the 'opnav' files, which are the ones which have correctly navigated WCS info.
         
             t = hbt.get_fits_info_from_files_lorri(dir_images, pattern='opnav')
 
@@ -939,16 +940,25 @@ class App:
         
 # Now look up positions of stars in this field, from a star catalog
 
+        file = t['Filename'][index_image]
+        
         with warnings.catch_warnings():  # Without this, we get lots of warnings about a FITS error: 'DEG' vs. 'deg'
             warnings.simplefilter("ignore")
-            print("Loading WCS for image" + t['Filename'][index_image])
+            
+            print("Loading WCS for " + file)
     
 # Look for a file ending in '_opnav.fit'. If it exists, then it is properly navigated. Use WCS from it.
         
-            file_opnav = t['Filename'][index_image].replace('.fit', '_opnav.fit')
-            
-            if (os.isfile(file_opnav)):
-                w = WCS(file_opnav)                  # Look up the WCS coordinates for this frame
+            if ('opnav' in file):
+                file_opnav = file
+            else:                
+                file_opnav = file.replace('.fit', '_opnav.fit')
+        
+        if not(os.path.isfile(file_opnav)):
+            print("Error: Can't file " + file_opnav)
+            return
+        
+        w = WCS(file_opnav)                  # Look up the WCS coordinates for this frame
             
         et = t['ET'][index_image]
 
@@ -1078,8 +1088,11 @@ class App:
 #
 # For this, I can use either abcorr stars or normal stars -- whatever I am going to compute the offset from.        
 
-        (dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(image_raw), do_plot=False)
+        (dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(image_raw), 
+             do_plot_before=True, do_plot_after=True)
 
+        (dy_opnav, dx_opnav) = (0,0)
+        
 # Save the newly computed values to variables that we can access externally
 # For the star locations, we can't put an array into an element of an astropy table.
 # But we *can* put a string into astropy table! Do that: wrap with repr(), unwrap with eval('np.' + ).
@@ -1101,18 +1114,6 @@ class App:
         self.t_group['y_pos_ring1'][self.index_image] = hbt.reprfix(y_ring1_abcorr)
         self.t_group['x_pos_ring2'][self.index_image] = hbt.reprfix(x_ring2_abcorr)
         self.t_group['y_pos_ring2'][self.index_image] = hbt.reprfix(y_ring2_abcorr)
-        
-#        self.t_group['x_pos_bodies'][self.index_image] = repr(x_pos_bodies)
-#        self.t_group['y_pos_bodies'][self.index_image] = repr(y_pos_bodies)
-#        self.t_group['ra_bodies'][self.index_image]  = repr(ra_bodies)
-#        self.t_group['dec_bodies'][self.index_image] = repr(dec_bodies)
-#        self.t_group['name_bodies'][self.index_image] = repr(name_bodies)
-
-#        print("Opnav computed: {dx,dy}_opnav = " + repr(dx_opnav) + ', ' + repr(dy_opnav))
-#
-#        print('ra_stars      : ' + repr(ra_stars*r2d) + ' deg')
-               
-        # Now that we have navigated it, replot the image!
                
         return 0
 
@@ -1213,7 +1214,6 @@ class App:
 
         file = self.t_group[self.index_image]['Filename']  
 
-                  
         self.image_raw = hbt.read_lorri(file, frac_clip = 1., bg_method = 'None', autozoom=True)
         print("Loaded image: " + file)
 
@@ -1223,9 +1223,16 @@ class App:
         if DO_LOAD_BACKPLANE:
             self.load_backplane()
 
-#        print("Loaded backplane.")
-                                                
+# If we load a backplane, by definition we have navigated the image.
+            
+            i_n = self.t_group['is_navigated'][self.index_image]
+            print("is_navigated = " + ('True' if i_n else 'False'))
+            
+#            self.t_group['is_navigated'][self.index_image] = True
 
+            i_n = self.t_group['is_navigated'][self.index_image]
+            print("is_navigated = " + ('True' if i_n else 'False'))
+            
 #==============================================================================
 # Change Group
 #==============================================================================
@@ -1247,10 +1254,6 @@ class App:
         print("Group #{} = {} of size {} hit!".format(index, name_group, self.num_images_group))
 
 # Now look up the new group name. Extract those elements.        
-								
-#        name = self.t_group['Shortname'][index]
-#        print("selected = " + repr(index) + ' ' + name)
-
 
         files_short = t_group['Shortname']
 
@@ -1533,22 +1536,26 @@ the internal state which is already correct. This does *not* refresh the image i
             dx = t['dx_opnav'] + self.slider_offset_dx.get()
             dy = t['dy_opnav'] + self.slider_offset_dy.get()
 
-# Plot the stars -- catalog, and DAO
+# Plot the stars -- catalog, and DAO            
+    
+            color_phot = 'red'            # Color for stars found photometrically
+            color_cat  = 'lightgreen'     # Color for stars in catalog  
 
             self.ax1.plot(eval('np.' + t['x_pos_star_cat']) + t['dx_opnav'], 
                      eval('np.' + t['y_pos_star_cat']) + t['dy_opnav'], 
                      marker='o', ls='None', 
-                     color='lightgreen', ms=12, mew=1, label = 'Cat Stars, OpNav')
+                     color=color_cat, alpha = 0.5, ms=12, mew=1, label = 'Cat Stars, adjusted')
                      
             self.ax1.plot(eval('np.' + t['x_pos_star_cat']), 
                      eval('np.' + t['y_pos_star_cat']), 
                      marker='o', ls='None', 
-                     color='lightgreen', label = 'Cat Stars, WCS')
+                     color=color_cat, alpha = 1, ms=4, mew=1, label = 'Cat Stars, raw')
 
             self.ax1.plot(eval('np.' + t['x_pos_star_image']), 
                      eval('np.' + t['y_pos_star_image']), 
                      marker='o', ls='None', 
-                     color='pink', label = 'DAOfind Stars')               
+                     color='none', markersize=10, mew=1, mec=color_phot, alpha = 1,
+                     label = 'DAOfind Stars')               
 
             # Get position of satellites
 
@@ -1683,7 +1690,7 @@ the internal state which is already correct. This does *not* refresh the image i
         self.file_backplane_shortname = self.t_group['Shortname'][self.index_image]
 				
         if (os.path.isfile(file_backplane)):
-#            print('load_backplane: loading ' + file_backplane) 
+            print('load_backplane: loading ' + file_backplane) 
             lun = open(file_backplane, 'rb')
             planes = pickle.load(lun)
             self.planes = planes # This will load self.t
