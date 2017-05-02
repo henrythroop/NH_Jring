@@ -9,7 +9,7 @@ import hbt
 import os
 import pickle
 import astropy
-import cspice
+import spiceypy as sp
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
@@ -21,6 +21,8 @@ import numpy as np
 # Also, make a text file with tabular data.
 #
 # HBT 14-Jun-2016
+# HBT 2-May-2017 Updated to Python3, and for new directory structure.
+#
 ##########
 
 # Possible additions: Phase angle [DONE]
@@ -32,17 +34,19 @@ filename_save = 'nh_jring_read_params_5711.pkl' # Filename to save parameters in
 
 file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
 
-dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
+dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
+
+dir_out = '/Users/throop/Data/NH_Jring/out/'
 
 file_out_pdf   = 'nh_jring_inventory.pdf'   # PDF output file which is created
 file_out_txt   = file_out_pdf.replace('pdf', 'txt')
 
-cspice.furnsh(file_tm) # Commented out for testing while SPICE was recopying kernel pool.
+sp.furnsh(file_tm) # Commented out for testing while SPICE was recopying kernel pool.
 
 # Check if there is a pickle save file found. If it is there, go ahead and read it.
 
 if os.path.exists(filename_save):
-    print "Loading file: " + filename_save
+    print("Loading file: " + filename_save)
 #            self.load(verbose=False) # This will load self.t
     
     lun = open(filename_save, 'rb')
@@ -58,11 +62,11 @@ if os.path.exists(filename_save):
 
 else:
     
-    t = hbt.get_fits_info_from_files_lorri(dir_images)
+    t = hbt.get_fits_info_from_files_lorri(dir_images, pattern='opnav')
 
 num_files = np.size(t)
 
-print 'Read ' + repr(num_files) + ' files.'
+print('Read ' + repr(num_files) + ' files.')
 
 # XXX Now shorten the list arbitrarily, just for testing purposes
 
@@ -86,7 +90,6 @@ num_cols = 4
 
 row = 1
 col = 1
-fs = 3 # Font size
 
 i = 1       # Current image #, starting at 1
 i_on_page = 1  # Current image #, on this page
@@ -102,9 +105,9 @@ plt.rc('image', cmap='Greys_r')  # Use a non-inverted colormap: White = stars an
 
 # Start the PDF
 
-pp = PdfPages(file_out_pdf)
+pp = PdfPages(dir_out + file_out_pdf)
 
-fs = 2.7 # Font size for the PDF
+fs = 5.5 # Font size for the PDF. 2.7 is very tiny. 7 is good but text is a bit too large per cell.
 
 # Now loop over every image
 
@@ -120,7 +123,7 @@ for i_group,group in enumerate(groups):
     header = " ----- " + group + " ----- "
     
     print
-    print header
+    print(header)
     lines_out.append('')
     lines_out.append(header)
     
@@ -130,6 +133,8 @@ for i_group,group in enumerate(groups):
     col     = 1
     i_on_page  = 1
     i_page     = 1
+
+#    print("Generating output...")
     
     for i_file,file in enumerate(files): # Loop over files in this particular group
 
@@ -147,9 +152,10 @@ for i_group,group in enumerate(groups):
       
       # Create a super-short version of the filename (cut out the ApID)
       
-      file_trunc = file['Shortname'].replace('lor_', '').replace('_0x630_sci', '').replace('_0x633_sci', '')
+      file_trunc = file['Shortname'].replace('lor_', '').replace('_0x630_sci', '').\
+        replace('_0x633_sci', '').replace('_opnav', '').replace('.fit', '')
       
-      utc_trunc = cspice.et2utc(cspice.utc2et(file['UTC']),'C', 0)
+      utc_trunc = sp.et2utc(sp.utc2et(file['UTC']),'C', 0)
       
       # Print a line of the table, to the screen and the file
       
@@ -157,7 +163,7 @@ for i_group,group in enumerate(groups):
                                                      int(num_files), int(i_group), 
                                                      int(i_file), file_trunc, file['Format'], utc_trunc, 
                                                      file['Exptime'], (dt_str), file['Phase']*hbt.r2d, file['Target'])
-      print line
+      print(line)
       lines_out.append(line)
       
       arr = hbt.read_lorri(file['Filename'], bg_method = 'Polynomial', bg_argument = 4, frac_clip = 1)
@@ -180,14 +186,19 @@ for i_group,group in enumerate(groups):
         
       # Generate the text to put next to each image on the PDF
       
-      label1 = "{}/{}: {}, {}, {} s; {}".format(int(i), int(num_files), file_trunc, file['Format'], file['Exptime'], dt_str)
-      label2 = r'{}, {:.1f}$^\circ$, Group {}, File {}'.format(utc_trunc,  file['Phase']*hbt.r2d, int(i_group), int(i_file)) 
+      label1 = "{}/{}: {}, {}, {} s; {}".format(int(i), int(num_files), file_trunc, file['Format'], 
+                file['Exptime'], dt_str)
+      label2 = r'{}, {:.1f}$^\circ$, Group {}, File {}'.format(utc_trunc,  file['Phase']*hbt.r2d, 
+                 int(i_group), int(i_file)) 
       
       plt.text(0, -90*scalefac, label1, fontsize = fs)
       plt.text(0, -30*scalefac, label2, fontsize = fs)
       
+      # Generate the text to be on the header of each page
+      
       if (i_on_page == 1):
-          plt.text(-250*scalefac, 200*scalefac, group + ', group ' + repr(i_group) + '         ' +  " page " + repr(i_page), 
+          plt.text(-250*scalefac, 200*scalefac, group + ', group ' + repr(i_group) + '         ' +  
+                   " page " + repr(i_page), 
                    fontsize=fs*2, rotation=90)
            
 #      print "Just plotted string: " + str
@@ -197,7 +208,7 @@ for i_group,group in enumerate(groups):
       i         += 1      
       i_on_page += 1
       
-      col = np.mod(i_on_page-1, num_cols)+1   # Calc new column number. The +1 is because they go 1, 2, 3   not   0, 1, 2
+      col = np.mod(i_on_page-1, num_cols)+1   # Calc new column number. The +1 is since they go 1, 2, 3   not   0, 1, 2
       if (col == 1):
           row += 1
       if (row == num_rows+1): # If we have just filled up the current page, and are starting a new one
@@ -230,13 +241,15 @@ for i_group,group in enumerate(groups):
 
 #pp.savefig(plt.gcf()) # This generates page 1
 
+print("Writing pdf...")
 pp.close()
-print "Wrote: " + file_out_pdf
+print("Wrote: " + dir_out + file_out_pdf)
 
+print("Writing txt...")
 np.savetxt(file_out_txt, np.array(lines_out), fmt='%s')
-print "Wrote: " + file_out_txt
+print("Wrote: " + file_out_txt)
 
-print 'Processed ' + repr(np.size(t)) + ' files.'
+print('Processed ' + repr(np.size(t)) + ' files.')
 
 
 # Now make some plots of various quantities vs. time
@@ -245,7 +258,7 @@ print 'Processed ' + repr(np.size(t)) + ' files.'
 # And then thre is also LORRI and anything at random. And Himalia ring of Cheng et al.
 
 jca_utc = '2007 FEB 28 05:41:48' # Looked up from GV
-jca_et  = cspice.utc2et(jca_utc)
+jca_et  = sp.utc2et(jca_utc)
 
 groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
 
