@@ -56,11 +56,13 @@ if os.path.exists(filename_save):
     lun.close()
 #            t = self.t
 
-
 # Find and process all of the FITS header info for all of the image files
 # 't' is our main data table, and has all the info for all the files.
 
 else:
+
+# Search for all files. Ideally I would search for all files that don't have 'opnav',
+# but the way the filter is set up, it is easier to search for all that do. Result is the same.
     
     t = hbt.get_fits_info_from_files_lorri(dir_images, pattern='opnav')
 
@@ -246,8 +248,8 @@ pp.close()
 print("Wrote: " + dir_out + file_out_pdf)
 
 print("Writing txt...")
-np.savetxt(file_out_txt, np.array(lines_out), fmt='%s')
-print("Wrote: " + file_out_txt)
+np.savetxt(dir_out + file_out_txt, np.array(lines_out), fmt='%s')
+print("Wrote: " + dir_out + file_out_txt)
 
 print('Processed ' + repr(np.size(t)) + ' files.')
 

@@ -83,7 +83,7 @@ file_tm    = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metaker
 
 sp.furnsh(file_tm)
 
-dt = -60  # Offset in flight time along line-of-sight.
+dt = 0  # Offset in flight time along line-of-sight.
 
 w = WCS(file)
 
@@ -152,12 +152,14 @@ name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])
 # Look up the times. XXX This does not properly incorporate the offset in time. It should be another argument,
 # and it is not just additive to et.
 
-x_bodies,  y_bodies   = hbt.get_pos_bodies(et + dt, name_bodies, units='pixels', wcs=w)
+x_bodies_pix,  y_bodies_pix   = hbt.get_pos_bodies(et + dt, name_bodies, units='pixels', wcs=w)
+x_bodies_deg,  y_bodies_deg   = hbt.get_pos_bodies(et + dt, name_bodies, units='degrees', wcs=w)
             
 #==============================================================================
 # Make a plot of stars: Catalog vs. Photometric
 #==============================================================================
 
+#%%
 color_phot = 'red'            # Color for stars found photometrically
 color_cat  = 'lightgreen'     # Color for stars in catalog  
 color_sat  = 'red'
@@ -190,9 +192,32 @@ plt.ylim([1023,0])
 
 # Plot the satellites
 for i in range(np.size(name_bodies)):
-    plt.plot(x_bodies[i], y_bodies[i], marker = marker_sat, color=color_sat, markersize=20, linestyle='none')
-    plt.text(x_bodies[i], y_bodies[i], '   ' + name_bodies[i], clip_on=True)
+    plt.plot(x_bodies_pix[i], y_bodies_pix[i], marker = marker_sat, color=color_sat, markersize=20, linestyle='none')
+    plt.text(x_bodies_pix[i], y_bodies_pix[i], '   ' + name_bodies[i], clip_on=True)
+
+ra_adras_gv = 252.16805*hbt.d2r
+dec_adras_gv = -18.76189*hbt.d2r
+
+radec_adras_gv = np.transpose(np.array((ra_adras_gv, dec_adras_gv)))
+x_adras_gv, y_adras_gv = w.wcs_world2pix(radec_adras_gv[0]*hbt.r2d, radec_adras_gv[1]*hbt.r2d, 0)
+
+plt.plot(x_adras_gv, y_adras_gv, marker = '*', color='lightblue', markersize=5)
 
 plt.legend(loc = 'upper left') 
 plt.show()
 
+#==============================================================================
+# Debugging: Print out RA/Dec of satellite positions, to compare to GV
+#==============================================================================
+
+#%%
+
+print()
+print("file = {}".format(file))
+print("UTC  = {}".format(utc))
+print("ET   = {}".format(et))
+
+for i in range(np.size(name_bodies)):
+    print("{:10}: RA={:.4f}, Dec={:.4f}".format(name_bodies[i], x_bodies_deg[i], y_bodies_deg[i]))
+    
+    
