@@ -105,7 +105,7 @@ class App:
         
         dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 
-        file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
+        file_tm = 'kernels_nh_jupiter.tm'  # SPICE metakernel
 
 # Set the sizes of the plots -- e.g., (7,7) = large square
 
@@ -1557,17 +1557,17 @@ the internal state which is already correct. This does *not* refresh the image i
                      color='none', markersize=10, mew=1, mec=color_phot, alpha = 1,
                      label = 'DAOfind Stars')               
 
-            # Get position of satellites
+# Get position of satellites
 
             name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])        
             x_bodies,  y_bodies   = hbt.get_pos_bodies(t['ET'], name_bodies, units='pixels', wcs=w)
             ra_bodies, dec_bodies = hbt.get_pos_bodies(t['ET'], name_bodies, units='radec', wcs=w)
 
-            # Plot satellites
+# Plot satellites
               
             self.ax1.plot(x_bodies+dx, y_bodies+dy, marker = '+', color='red', markersize=20, linestyle='none')
             
-            # Plot the ring
+# Plot the ring
                 
             DO_PLOT_RING_INNER = False
             DO_PLOT_RING_OUTER = True

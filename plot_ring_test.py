@@ -68,29 +68,39 @@ from   matplotlib.figure import Figure
 import hbt
 
 dir = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
+file_tm    = "/Users/throop/git/NH_rings/kernels_nh_jupiter.tm"  # SPICE metakernel
 
 file = dir + 'lor_0034961819_0x630_sci_1_opnav.fit' # noise, can't see much
-file = dir + 'lor_0034962025_0x630_sci_1_opnav.fit' # Sat on edge
+file = dir + 'lor_0034962025_0x630_sci_1_opnav.fit' # Metis on ansa. dt=40 way off. 
 #file = dir + 'lor_0034962461_0x630_sci_1_opnav.fit' # Ring, but not on ansa -- not a good test
 
-file = dir + 'lor_0034616523_0x630_sci_1_opnav.fit' # Adrastea in middle right
-file = dir + 'lor_0034618323_0x630_sci_1_opnav.fit' # Adrastea in on ansa
-file = dir + 'lor_0034620123_0x630_sci_1_opnav.fit' # Adrastea in middle left
+#file = dir + 'lor_0034616523_0x630_sci_1_opnav.fit' # Adrastea in middle right. dt =40 works.
+#file = dir + 'lor_0034618323_0x630_sci_1_opnav.fit' # Adrastea in on ansa
+#file = dir + 'lor_0034620123_0x630_sci_1_opnav.fit' # Adrastea in middle left. Fits dt=40 better than dt=0.
+#                                                   # dt=0 has cross 5 pix down right. 
 
-file_tm    = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
+#file = dir + 'lor_0035103963_0x633_sci_1_opnav.fit' # 4x4, gossamer, Amal in middle. Bad navigation - not useful.
+#file = dir + 'lor_0035117161_0x633_sci_1_opnav.fit' # 4x4, gossamer. Bad navigation - not useful.
+
+#file = dir + 'lor_0034715044_0x630_sci_1_opnav.fit' # 1x1, Metis on LHS. Fits dt = 60. Cross is 10 pix down from o.
+#file = dir + 'lor_0034627923_0x630_sci_1_opnav.fit' # 1x1, bright sat Amalthea passing by. Can't tell dt from it.
 
 # Initialize SPICE
 
 sp.furnsh(file_tm)
 
-dt = 0  # Offset in flight time along line-of-sight.
+dt = 0.001  # Offset in flight time along line-of-sight. Nominally zero, but might be otherwise.
 
 w = WCS(file)
 
-im = hbt.read_lorri(file)
+# Load the image and process the header
+
+im     = hbt.read_lorri(file)
 header = hbt.get_image_header(file)
-et = header['SPCSCET']
-utc = sp.et2utc(et, 'C', 1)
+et     = header['SPCSCET']
+dx_pix = header['NAXIS1']
+dy_pix = header['NAXIS2']
+utc    = sp.et2utc(et, 'C', 1)
 
 stretch_percent = 90
 
@@ -146,26 +156,47 @@ x_stars_phot =(points_stars_phot[:,1]) #
 #==============================================================================
 # Find location of Metis, Adrastea, Thebe
 #==============================================================================
+#%%
 
 name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])        
 
 # Look up the times. XXX This does not properly incorporate the offset in time. It should be another argument,
 # and it is not just additive to et.
 
-x_bodies_pix,  y_bodies_pix   = hbt.get_pos_bodies(et + dt, name_bodies, units='pixels', wcs=w)
-x_bodies_deg,  y_bodies_deg   = hbt.get_pos_bodies(et + dt, name_bodies, units='degrees', wcs=w)
-            
+# For abcorr, the stellar aberration is a constant shift which has been applied during opnav (ie, the offset between
+# catalog positions, and observed positions). We do not want to apply it again here to just the sats. So, use 'LT'
+# alone.
+
+x_bodies_pix,  y_bodies_pix   = hbt.get_pos_bodies(et, name_bodies, units='pixels',  abcorr='LT', wcs=w, dt=dt)
+x_bodies_deg,  y_bodies_deg   = hbt.get_pos_bodies(et, name_bodies, units='degrees', abcorr='LT', wcs=w, dt=dt)
+
 #==============================================================================
-# Make a plot of stars: Catalog vs. Photometric
+# Find location of ring points
 #==============================================================================
 
-#%%
+a_ring_outer_km = 129300
+a_ring_inner_km = 122000
+
+x_ring1, y_ring1 = hbt.get_pos_ring(et, name_body='Jupiter', radius=a_ring_inner_km, units='pixels', abcorr='LT', wcs=w)
+x_ring2, y_ring2 = hbt.get_pos_ring(et, name_body='Jupiter', radius=a_ring_outer_km, units='pixels', abcorr='LT', wcs=w)
+      
+#==============================================================================
+# Make a plot!
+#==============================================================================
+
 color_phot = 'red'            # Color for stars found photometrically
 color_cat  = 'lightgreen'     # Color for stars in catalog  
-color_sat  = 'red'
+color_sat  = 'yellow'
 marker_sat = '+'
+DO_PLOT_RING_INNER = True
+DO_PLOT_RING_OUTER = True
+marker_ring = 'None'
+
+color_ring = 'blue'
+alpha_ring = 0.3
 
 hbt.figsize((10,10))
+plt.set_cmap('Greys_r')
 
 plt.imshow(stretch(im))
 
@@ -179,6 +210,7 @@ plt.plot(x_stars_cat + dx, y_stars_cat + dy,
 #plt.plot(x_pos_star_cat, y_pos_star_cat, 
 #         eval('np.' + t['y_pos_star_cat']), 
 #         marker='o', ls='None', 
+
 #         color=color_cat, alpha = 1, ms=4, mew=1, label = 'Cat Stars, raw')
 
 plt.plot(x_stars_phot, y_stars_phot, 
@@ -187,21 +219,41 @@ plt.plot(x_stars_phot, y_stars_phot,
          label = 'DAOfind Stars')               
 
 
-plt.xlim([0,1023])  # This is an array and not a tuple. Beats me, like so many things with mpl.
-plt.ylim([1023,0])
+plt.xlim([0,dx_pix-1])  # This is an array and not a tuple. Beats me, like so many things with mpl.
+plt.ylim([dx_pix-1,0])
+
+# Plot the rings
+
+if (DO_PLOT_RING_OUTER):
+    plt.plot(x_ring2, y_ring2, marker=marker_ring, color = color_ring, ls = '--',
+                  alpha = alpha_ring, label = 'Ring outer')
+
+if (DO_PLOT_RING_INNER):
+    plt.plot(x_ring1, y_ring1, marker=marker_ring, color='green', ls = '-', \
+        ms=8, alpha = alpha_ring, label='Ring inner')
 
 # Plot the satellites
+
 for i in range(np.size(name_bodies)):
     plt.plot(x_bodies_pix[i], y_bodies_pix[i], marker = marker_sat, color=color_sat, markersize=20, linestyle='none')
-    plt.text(x_bodies_pix[i], y_bodies_pix[i], '   ' + name_bodies[i], clip_on=True)
+    plt.text(x_bodies_pix[i], y_bodies_pix[i], '   ' + name_bodies[i] + ', code', clip_on=True, color=color_sat)
+
+# Load values for Adrastea, from GV-dev local default
 
 ra_adras_gv = 252.16805*hbt.d2r
 dec_adras_gv = -18.76189*hbt.d2r
 
+# Load values for Adrastea, from GV 15sci_rhr on server
+
+ra_adras_gv = 252.15338*hbt.d2r
+dec_adras_gv = -18.76665*hbt.d2r
+
 radec_adras_gv = np.transpose(np.array((ra_adras_gv, dec_adras_gv)))
 x_adras_gv, y_adras_gv = w.wcs_world2pix(radec_adras_gv[0]*hbt.r2d, radec_adras_gv[1]*hbt.r2d, 0)
 
-plt.plot(x_adras_gv, y_adras_gv, marker = '*', color='lightblue', markersize=5)
+if (0<x_adras_gv<1023) and (0 < y_adras_gv < 1023):
+    plt.plot(x_adras_gv, y_adras_gv, marker = '*', color='lightblue', markersize=10, clip_on=True)
+    plt.text(x_adras_gv, y_adras_gv, '                                     Adrastea, GV', color='lightblue', clip_on=True)
 
 plt.legend(loc = 'upper left') 
 plt.show()
@@ -213,9 +265,10 @@ plt.show()
 #%%
 
 print()
-print("file = {}".format(file))
-print("UTC  = {}".format(utc))
-print("ET   = {}".format(et))
+print("file   = {}".format(file))
+print("UTC    = {}".format(utc))
+print("ET     = {}".format(et))
+print("TOF dt = {} sec".format(dt))
 
 for i in range(np.size(name_bodies)):
     print("{:10}: RA={:.4f}, Dec={:.4f}".format(name_bodies[i], x_bodies_deg[i], y_bodies_deg[i]))

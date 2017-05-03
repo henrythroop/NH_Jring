@@ -1,53 +1,16 @@
 \begindata
 
 KERNELS_TO_LOAD = (
-     'kernels/pck00009.tpc',
-     'kernels/p4p5.revised.bsp',
-     'kernels/plu020.bsp',
-     'kernels/de413.bsp',
-     'kernels/mar063.bsp',
-     'kernels/jup204.bsp',
+     'kernels/pck00010.tpc',
+     'kernels/de418.bsp',
      'kernels/jup260.bsp',
-     'kernels/sat077_2000-2025.bsp'
-     'kernels/sat227.bsp',
-     'kernels/ura027-3.bsp',
-     'kernels/nep016.bsp',
-     'kernels/nh_plu017.bsp',
-     'kernels/NavSBE_2014MU69_od128.bsp',
-     'kernels/nh_v220.tf', 
-     'kernels/nh_ralph_v100.ti', 
-     'kernels/nh_lorri_v100.ti', 
-     'kernels/nh_swap_v200.ti', 
-     'kernels/nh_sdc_v100.ti', 
-     'kernels/nh_pepssi_v110.ti', 
-     'kernels/nh_alice_v200.ti',
-     'kernels/nh_alice_rows.ti',
-     'kernels/nh_alice_rows.tf',
-     'kernels/nh_rex_v100.ti',
-     'kernels/nh_fss_v000.ti',
-     'kernels/nh_astr_v000.ti',
-     'kernels/naif0012.tls',
-     'kernels/new-horizons_0664.tsc',
-     'kernels/gv_pck.tpc',
-     'kernels/gv_naif_ids.txt',
-     'kernels/pluto_solar_heliographic.tf',
-     'kernels/gv_pluto_smallsats.tf',
-     'kernels/gv_smallbodies.tf',
+     'kernels/jup204.bsp',
 
-     'kernels/plu013.bsp',
-     'kernels/Nix_ephem_v02.bsp',
-     'kernels/Hydra_ephem_v02.bsp'
+     'kernels/naif0012.tls',
+     'kernels/new-horizons_1121.tsc',
 
      'kernels/nh_nom_20060119_20150727_v03.bsp',
-     'kernels/nh_pred_20141201_20190301_od122.bsp',
-     'kernels/nh_ref_20150801_20190901_od128_tcm22.bsp'
-     'kernels/merged_nhpc_2007_v001.bc',
-     'kernels/NavSE_plu047_od122.bsp',
-     'kernels/NavPE_de433_od122.bsp',
-     'kernels/nh_scispi_2015_pred.bc',
-     'kernels/nh_scispi_2015_recon.bc',
-     'kernels/nh_lorri_wcs.bc'
-
+     'kernels/nh_recon_e2j_v1.bsp'
 
       )
 \begintext
@@ -57,6 +20,56 @@ Kernels listed later have higher priority.
 
 -----
 
-15-Nov-2015: This set of kernels includes the important ones from 15sci_lhr as
-of today. This kernel set is not automatically updated, but should provide
-relatively good pointing based on encounter.
+This is a set of kernels just for the Jupiter flyby. It is minimal, so as to prevent any errors.
+I need: 
+  - Solar system kernel
+  - Jupiter system kernel including Adrastea
+  - NH .bsp kernel
+  
+jup204: Jupiter and      sats (incl Galilean + Adrastea)
+jup260: Jupiter and many sats (incl Galilean, smalls, *not* Adrastea)
+de413:  Barycenters incl Jupiter bary. ** Brian C is using de418. Doesn't make a difference?
+pck09:  pck10 is newer. Use it now.
+naif0012: Latest
+new-horizons_0664: Very old, from 2010. But still new enough not to matter. Updating to 1121 doesn't change things.
+
+In Carcich kernel:
+
+
+93230080	kernels/jup204.bsp
+210829312	kernels/jup260.bsp
+16456704	/home/html/nh/science_spice/kernels/spk/de418.bsp
+210833408	/home/html/nh/science_spice/kernels/spk/jup260.bsp
+
+2531328	/home/html/nh/science_spice/kernels/spk/nh_recon_e2j_v1.bsp *** This is the key one I was missing
+359424	/home/html/nh/science_spice/kernels/spk/nh_recon_j2sep07_prelimv1.bsp
+14873600	/home/html/nh/science_spice/kernels/spk/nh_recon_od077_v01.bsp
+2447360	/home/html/nh/science_spice/kernels/spk/nh_recon_od117_v01.bsp
+1724416	/home/html/nh/science_spice/kernels/spk/nh_recon_pluto_od122_v01.bsp
+304297984	/home/html/nh/science_spice/kernels/ck/merged_nhpc_2007_v006.bc
+3804160	/home/html/nh/science_spice/kernels/spk/nh_pred_20141201_20190301_od122.bsp
+2156544	/home/html/nh/science_spice/kernels/spk/NavSE_plu047_od122.bsp
+3385344	/home/html/nh/science_spice/kernels/spk/NavPE_de433_od122.bsp
+162402304	/home/html/nh/science_spice/kernels/ck/nh_scispi_2015_pred.bc
+104508416	/home/html/nh/science_spice/kernels/ck/nh_scispi_2015_recon.bc
+465920	/home/html/nh/science_spice/kernels/ck/nh_lorri_wcs.bc
+96345	/home/html/nh/science_spice/kernels/sclk/new-horizons_1121.tsc
+5257	/home/html/nh/science_spice/kernels/lsk/naif0012.tls
+12555	/home/html/nh/science_spice/kernels/pck/nh_targets_v001.tpc
+126143	/home/html/nh/science_spice/kernels/pck/pck00010.tpc
+4926	/home/html/nh/science_spice/kernels/pck/nh_pcnh_006.tpc
+128248	/home/html/nh/science_spice/kernels/fk/nh_v220.tf
+1698	/home/html/nh/science_spice/kernels/ik/nh_allinstruments_v002.ti
+45993	/home/html/nh/science_spice/kernels/ik/nh_alice_v200.ti
+54270	/home/html/nh/science_spice/kernels/ik/nh_lorri_v201.ti
+35778	/home/html/nh/science_spice/kernels/ik/nh_pepssi_v110.ti
+30607	/home/html/nh/science_spice/kernels/ik/nh_ralph_v100.ti
+9036	/home/html/nh/science_spice/kernels/ik/nh_rex_v100.ti
+7681	/home/html/nh/science_spice/kernels/ik/nh_sdc_v101.ti
+17367	/home/html/nh/science_spice/kernels/ik/nh_swap_v100.ti
+7413	/home/html/nh/science_spice/kernels/ik/nh_astr_v000.ti
+6291	/home/html/nh/science_spice/kernels/ik/nh_fss_v000.ti
+5865	/home/html/nh/science_spice/kernels/fk/nh_soc_misc_v001.tf
+19456	/home/html/nh/science_spice/kernels/spk/nh_stars.bsp
+4419	kernels/gv_pluto_smallsats_lhr.tf
+6751	kernels/gv_pck.tpc

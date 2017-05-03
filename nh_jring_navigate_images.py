@@ -84,6 +84,7 @@ plt.set_cmap('Greys_r')
 hbt.figsize((15,15))
 do_plot           = True
 DO_SKIP_NAVIGATED = True
+DO_SKIP_4X4       = False
 DO_INTERACTIVE    = True
 method_opnav      = 'fft'
 is_success        = False
@@ -91,6 +92,7 @@ is_success        = False
 i = 0   # i must be the current image number
         # ii is index within the list
         # k is the keyboard string
+ii = 0
 
 # Now start a keyboard loop and run with input from the user
 
@@ -127,8 +129,17 @@ while True:
             print("{}. {}".format(ii, file.split('/')[-1]))
     
     if (k == '?'):                  # Get help
-        print(" <#> = navigate, <#-#> = navigate range, l = list, n = next, x = exit")
+        print(" <#> = navigate, <#-#> = navigate range, l = list, n = next, x = exit, sn = toggle Skip_Navigated" + 
+                 "s4 = toggle Skip_4x4")
     
+    if (k == 'sn'):
+        DO_SKIP_NAVIGATED = not(DO_SKIP_NAVIGATED)
+        print("DO_SKIP_NAVIGATED = {}".format(DO_SKIP_NAVIGATED))
+
+    if (k == 's4'):
+        DO_SKIP_4X4 = not(DO_SKIP_4X4)
+        print("DO_SKIP_4X4 = {}".format(DO_SKIP_4X4))
+        
     if (k == 'n') :                 # Next
         k = repr(i)
 
@@ -151,11 +162,11 @@ while True:
         
         is_navigated = os.path.isfile(file_out)
 
-# If it's a 4x4 file, it's saturated and lots of things don't work. So doing navigation 
+# If it's a 4x4 file, it's probably saturated and lots of things don't work. So doing navigation 
 # it hopeless. But we don't want to lose track of the file (for the numbering scheme), 
 # so we tag it and copy anyhow.
         
-        if (mode == '4X4'):
+        if (mode == '4X4') and (DO_SKIP_4X4):
             print("{}/{}: Skipping OpNav due to 4x4".format(i, np.size(files)))
             print("Copying to {}".format(file_out))
             shutil.copyfile(file, file_out)
