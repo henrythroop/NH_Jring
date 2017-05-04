@@ -977,24 +977,21 @@ class App:
         radius_search_deg = 0.15
         
         if (DO_GSC1):
-            name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; investigating
-            radius_search_deg = 0.15
+            name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1'      
             stars = conesearch.conesearch(w.wcs.crval, radius_search_deg, cache=False, catalog_db = name_cat)
             ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
             dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
 #            table_stars = Table(stars.array.data)
 
         if (DO_GSC2):
-            name_cat = u'Guide Star Catalog v2 1'
-
-#            name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1' # works, but 1' errors; why?
-#            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
+            name_cat = u'Guide Star Catalog v2 1'# Works on gobi only (no tomato)
+            url_cat = 'http://gsss.stsci.edu/webservices/vo/ConeSearch.aspx?CAT=GSC23&' # Works always
 
             from astropy.utils import data
             
             with data.conf.set_temp('remote_timeout', 30): # This is the very strange syntax to set a timeout delay.
                                                            # The default is 3 seconds, and that times out often.
-                stars = conesearch.conesearch(w.wcs.crval, radius_search_deg, cache=True, catalog_db = name_cat)
+                stars = conesearch.conesearch(w.wcs.crval, radius_search_deg, cache=True, catalog_db = url_cat)
 
             # NB: the returned value is a Table, but I have to access via .array[] -- not sure why.
             

@@ -91,7 +91,9 @@ sp.furnsh(file_tm)
 
 dt = 0.001  # Offset in flight time along line-of-sight. Nominally zero, but might be otherwise.
 
-w = WCS(file)
+with warnings.catch_warnings():   # Block the warnings
+    warnings.simplefilter("ignore")    
+    w  = WCS(file)           # Look up the WCS coordinates for this frame
 
 # Load the image and process the header
 
@@ -114,13 +116,19 @@ NUM_STARS_CAT  = 50  # How many stars to use from star catalog
 # Find the catalog stars to plot
 #==============================================================================
 
+# Define the star catalog.
+# On tomato, for some reason name lookup does not work. But URL lookup always works.
+
 name_cat = u'Guide Star Catalog v2 1'
+url_cat = 'http://gsss.stsci.edu/webservices/vo/ConeSearch.aspx?CAT=GSC23&'
 
 radius_search_deg = 0.15
     
 with data.conf.set_temp('remote_timeout', 30): # This is the very strange syntax to set a timeout delay.
                                                # The default is 3 seconds, and that times out often.
-    stars_cat = conesearch.conesearch(w.wcs.crval, radius_search_deg, cache=True, catalog_db = name_cat)
+    with warnings.catch_warnings():   # Block the warnings
+        warnings.simplefilter("ignore")    
+        stars_cat = conesearch.conesearch(w.wcs.crval, radius_search_deg, cache=True, catalog_db = url_cat)
 
 ra_stars_cat  = np.array(stars_cat.array['ra'])*hbt.d2r # Convert to radians
 dec_stars_cat = np.array(stars_cat.array['dec'])*hbt.d2r # Convert to radians

@@ -129,7 +129,7 @@ while True:
             print("{}. {}".format(ii, file.split('/')[-1]))
     
     if (k == '?'):                  # Get help
-        print(" <#> = navigate, <#-#> = navigate range, l = list, n = next, x = exit, sn = toggle Skip_Navigated" + 
+        print(" <#> = navigate, <#-#> = navigate range, l = list, n = next, x = exit, sn = toggle Skip_Navigated, " + 
                  "s4 = toggle Skip_4x4")
     
     if (k == 'sn'):
