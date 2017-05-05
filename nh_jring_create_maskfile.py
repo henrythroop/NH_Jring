@@ -59,7 +59,7 @@ from astropy.utils import data
 
 import hbt
 
-def nh_jring_create_maskfile(file_in, do_stars=True, bodies = {}, num_stars_max = 100):
+def nh_jring_create_maskfile(file_in, do_stars=True, bodies = [], num_stars_max = 100):
     
     ''' 
     Creates a text file which lists all the stars in a file, with lines like
@@ -77,7 +77,6 @@ def nh_jring_create_maskfile(file_in, do_stars=True, bodies = {}, num_stars_max 
 #    file_in    = 'lor_0034962025_0x630_sci_1_opnav.fit'
     dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
     dir_out    = '/Users/throop/data/NH_Jring/out/'
-    file_tm    = 'kernels_nh_jupiter.tm'
     
     file_in_base = file_in.split('/')[-1]   # Strip the pathname
     file_out_base = file_in_base.replace('.fit', '_mask.txt')
@@ -114,12 +113,12 @@ def nh_jring_create_maskfile(file_in, do_stars=True, bodies = {}, num_stars_max 
 
     mag_stars = np.array(stars.array['Mag'])
     
-    print("Stars downloaded: {}; mag = {} .. {}".format(np.size(mag), np.nanmin(mag), np.nanmax(mag)))
+    print("Stars downloaded: {}; mag = {} .. {}".format(np.size(mag_stars), np.nanmin(mag_stars), np.nanmax(mag_stars)))
     print("RA = {} .. {}".format(np.nanmin(ra_stars)*hbt.r2d, np.nanmax(ra_stars)*hbt.r2d))
     
     # Now sort by magnitude, and keep the 100 brightest
 
-    order = np.argsort(mag)
+    order = np.argsort(mag_stars)
     order = np.array(order)[0:num_stars_max]
 
     ra_stars        = ra_stars[order]
@@ -148,17 +147,16 @@ def nh_jring_create_maskfile(file_in, do_stars=True, bodies = {}, num_stars_max 
 #==============================================================================
 
     if np.size(bodies) > 0:
-
+        
 # Look up satellite positions
 
-        sp.furnsh(file_tm)
         et = header['SPCSCET']
         utc = sp.et2utc(et, 'C', 0)
-        x_bodies, y_bodies = hbt.get_pos_bodies(et, name_bodies, units='pixels', wcs=w)
+        x_bodies, y_bodies = hbt.get_pos_bodies(et, bodies, units='pixels', wcs=w)
         t_sats = Table()
         t_sats['x_pix'] = x_bodies
         t_sats['y_pix'] = y_bodies
-        t_sats['name']  = name_bodies.astype('U30')
+        t_sats['name']  = np.array(bodies).astype('U30')
 
 #==============================================================================
 # Merge the stars and sats into one table

@@ -66,25 +66,31 @@ import hbt
 # Now the driver routine that calls the individual routine
 #==============================================================================
 
-files = glob.glob(dir + '*_opnav.fit')  # Only worth doing this for files that have been opnav'd
+dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
+file_tm    = 'kernels_nh_jupiter.tm'
 
 plt.set_cmap('Greys_r')            
 hbt.figsize((15,15))
+
 do_plot           = True
 DO_SKIP_NAVIGATED = True
 DO_SKIP_4X4       = False
 DO_INTERACTIVE    = True
-method_opnav      = 'fft'
 is_success        = False
 
-i = 0   # i must be the current image number
-        # ii is index within the list
-        # k is the keyboard string
+# Start up SPICE
 
-sats = ['Adrastea', 'Thebe', 'Metis', 'Io', 'Europa', 'Amalthea']
+sats = ['Adrastea', 'Thebe', 'Metis', 'Io', 'Europa', 'Amalthea', 'Jupiter']        
+sp.furnsh(file_tm)
 
+# Get a list of files to iterate over
 
+files      = glob.glob(dir_images + '*_opnav.fit')  # Only worth doing this for files that have been opnav'd
+                      
 # Now start a keyboard loop and run with input from the user
+
+i = 0   # i must be the current image number
+ii = 0
 
 while True:
     
@@ -144,7 +150,7 @@ while True:
         
         im = hbt.read_lorri(file) # Read the image, and process it a bit I think
 
-        print
+        print()
         print("Reading {}/{}: {}".format(int(k), np.size(files), file_short))
         hdulist = fits.open(file) 
         header  = hdulist['PRIMARY'].header
