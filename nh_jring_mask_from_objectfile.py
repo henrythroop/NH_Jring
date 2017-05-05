@@ -54,7 +54,8 @@ import hbt
 #==============================================================================
 # NH_JRING_MASK_FROM_OBJECTFILE
 # 
-# Given a
+# Given the name of an objectfile, creates a boolean array mask with one value per pixel,
+# indicating positions of stars, satellites, etc according to WCS, SPICE, and star catalogs.
 #==============================================================================
 
 def nh_jring_mask_from_objectfile(objectfile, do_plot = False):
@@ -62,6 +63,9 @@ def nh_jring_mask_from_objectfile(objectfile, do_plot = False):
     '''
     Input: an objectfile ('_opnav_objects.txt')
     Output: an array with a True/False mask. True = object there. False = no object.
+    
+    Boolean array mask with one value per pixel, indicating positions of stars, 
+    satellites, etc according to WCS, SPICE, and star catalogs.
     '''
 
 # Define the width of the 'PSF' for each type of object
@@ -133,10 +137,14 @@ def nh_jring_mask_from_objectfile(objectfile, do_plot = False):
         plt.title("{}, N = {}".format(objectfile_base, np.size(t)))
         plt.show()
         
-# Return the result
+# Return the mask. 
 
     return mask
         
+
+#==============================================================================
+# Test case to check if things are working
+#==============================================================================
         
 def test():
 
@@ -151,16 +159,21 @@ def test():
 
     im = hbt.read_lorri(dir_images + file_image)
 
+# Create the mask
+
     mask = nh_jring_mask_from_objectfile(objectfile)    
 
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent)  # PI(90) scales to 5th..95th %ile.     
-    plt.imshow(stretch(im))    
-    plt.imshow()
     
     im_masked = im.copy()
     im_masked[mask == True] = np.median(im)
     
     hbt.figsize((10,10))
+
+# And 
     plt.imshow(stretch(im_masked))
+    plt.show()
     plt.imshow(stretch(im)) 
+    plt.imshow(stretch(hbt.lorri_destripe(im)))
+    plt.show()
