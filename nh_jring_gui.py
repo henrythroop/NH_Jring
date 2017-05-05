@@ -80,6 +80,10 @@ from   matplotlib.figure import Figure
 
 import hbt
 
+# Local NH rings imports
+
+from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
+
 #pdb.set_trace()
 
 # First we define any general-purpose functions, which are not part of the class/module.
@@ -204,6 +208,8 @@ class App:
 
         self.planes             = 0         # Backplanes will be loaded into this variable
         self.has_backplane      = False     # Need to update this every time we load a new image file.
+        self.objectlist         = 0
+        self.has_objectlist     = False
         self.profile_radius     = np.zeros((1))
         self.profile_azimuth    = np.zeros((1))
         self.bins_radius        = np.zeros((1))
@@ -215,7 +221,8 @@ class App:
         self.image_bg_raw       = np.zeros((1)) # The 'raw' background image. No processing done to it. 
                                                 # Assume bg is single image; revisit as needed.
         
-        self.file_backplane_shortname = ''      # Shortname for the currently loaded backplane.
+        self.file_backplane_shortname  = ''     # Shortname for the currently loaded backplane.
+        self.file_objectlist_shortname = ''     # Shortname for the currently loaded objectlist.
 								
         self.legend             = False         # Store pointer to plot legend here, so it can be deleted
 								
@@ -914,6 +921,8 @@ class App:
                        
 ##########
 # Navigate the image and plot it
+# XXX For now, this does nothing at all. I will remove that button and replace with something else --
+# maybe a mask on/off switch?
 ##########
 
     """
@@ -922,9 +931,10 @@ class App:
     """
 				
     def handle_navigate(self):
-        self.navigate()
-        self.refresh_statusbar()  # Put the new nav info into the statusbar
-        self.plot_image()								
+        
+#        self.navigate()
+#        self.refresh_statusbar()  # Put the new nav info into the statusbar
+#        self.plot_image()								
 							
 #########
 # Navigate the image
@@ -1225,11 +1235,13 @@ class App:
             i_n = self.t_group['is_navigated'][self.index_image]
             print("is_navigated = " + ('True' if i_n else 'False'))
             
-#            self.t_group['is_navigated'][self.index_image] = True
+# Load the 'objectlist' in this frame as well. This is the precomputed list of stars and satellites.
+# It is used as a mask.
 
-            i_n = self.t_group['is_navigated'][self.index_image]
-            print("is_navigated = " + ('True' if i_n else 'False'))
-            
+        DO_LOAD_OBJECTLIST = True
+        if DO_LOAD_OBJECTLIST:
+            self.load_objectlist()
+        
 #==============================================================================
 # Change Group
 #==============================================================================
@@ -1533,36 +1545,31 @@ the internal state which is already correct. This does *not* refresh the image i
             dx = t['dx_opnav'] + self.slider_offset_dx.get()
             dy = t['dy_opnav'] + self.slider_offset_dy.get()
 
-# Plot the stars -- catalog, and DAO            
+# Plot the stars -- catalog 
     
             color_phot = 'red'            # Color for stars found photometrically
             color_cat  = 'lightgreen'     # Color for stars in catalog  
 
-            self.ax1.plot(eval('np.' + t['x_pos_star_cat']) + t['dx_opnav'], 
-                     eval('np.' + t['y_pos_star_cat']) + t['dy_opnav'], 
+            stars = self.objectlist['name'] == 'star'
+            
+            self.ax1.plot(stars['x_pix'], stars['y_pix'], 
                      marker='o', ls='None', 
-                     color=color_cat, alpha = 0.5, ms=12, mew=1, label = 'Cat Stars, adjusted')
+                     color=color_cat, alpha = 0.5, ms=12, mew=1, label = 'Stars, Catalog')
                      
-            self.ax1.plot(eval('np.' + t['x_pos_star_cat']), 
-                     eval('np.' + t['y_pos_star_cat']), 
+# Get position of satellites and plot them
+
+            sats = self.objectlist['name'] != 'star'
+            
+            for i in range(np.size(sats)):
+                
+# Plot the sats                
+                self.ax1.plot(sats['x_pix'][i], sats['y_pix'][i], 
                      marker='o', ls='None', 
-                     color=color_cat, alpha = 1, ms=4, mew=1, label = 'Cat Stars, raw')
-
-            self.ax1.plot(eval('np.' + t['x_pos_star_image']), 
-                     eval('np.' + t['y_pos_star_image']), 
-                     marker='o', ls='None', 
-                     color='none', markersize=10, mew=1, mec=color_phot, alpha = 1,
-                     label = 'DAOfind Stars')               
-
-# Get position of satellites
-
-            name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])        
-            x_bodies,  y_bodies   = hbt.get_pos_bodies(t['ET'], name_bodies, units='pixels', wcs=w)
-            ra_bodies, dec_bodies = hbt.get_pos_bodies(t['ET'], name_bodies, units='radec', wcs=w)
-
-# Plot satellites
-              
-            self.ax1.plot(x_bodies+dx, y_bodies+dy, marker = '+', color='red', markersize=20, linestyle='none')
+                     color=color_sat, alpha = 0.5, ms=12, mew=1)
+# Label each one
+                
+                self.ax1.text(sats['x_pix'][i], sats['y_pix'][i],
+                              sats['name'][i], clip_on = True)
             
 # Plot the ring
                 
@@ -1594,12 +1601,14 @@ the internal state which is already correct. This does *not* refresh the image i
             
     def get_mask_stars(self):
         """
-        Returns a boolean image, set to True at pixels within r_pix_mask of a satellite.
+        Returns a boolean image, set to True for pixels close to a satellite or star.
         """
 
         # XXX This routine needs to be rewritten. It is a bottleneck. I think it can 
         # be done by calling np.roll() on a boolean mask of one star, rather than taking
         # sqrt of every pixel.
+        
+        mask = nh_jring_mask_from_objectlist(self.objectlist)
         
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
                                             # We can reference table['col'][n] or table[n]['col'] - either OK
@@ -1697,6 +1706,32 @@ the internal state which is already correct. This does *not* refresh the image i
         else:
             print("Can't load backplane " + file_backplane)
             return False
+
+##########
+# Load objectlist
+##########
+# Return True if loaded successfully; False if not
+
+    def load_objectlist(self):
+        dir_objectlist = '/Users/throop/data/NH_Jring/out/'
+        file_objectlist = dir_objectlists + self.t_group['Shortname'][self.index_image].\
+            replace('.fit', '_opnav_objects.txt')
+
+        # Save the shortname associated with the current objectlist.
+        # That lets us verify if the objectlist for current image is indeed loaded.
+
+        self.file_objectlist_shortname = self.t_group['Shortname'][self.index_image]
+				
+        if (os.path.isfile(file_objectlist)):
+            print('load_objectlist: loading ' + file_objectlist) 
+            t = Table.read(file_objectlist, format='csv')
+            self.objectlist = t  # This will load self.t
+            return True
+
+        else:
+            print("Can't load objectlist " + file_objectlist)
+            return False
+        
 
 ##########
 # Repoint an image
