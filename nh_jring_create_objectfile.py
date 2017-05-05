@@ -59,7 +59,7 @@ from astropy.utils import data
 
 import hbt
 
-def nh_jring_create_maskfile(file_in, do_stars=True, bodies = [], num_stars_max = 100):
+def nh_jring_create_objectfile(file_in, do_stars=True, bodies = [], num_stars_max = 100):
     
     ''' 
     Creates a text file which lists all the stars in a file, with lines like
@@ -79,7 +79,7 @@ def nh_jring_create_maskfile(file_in, do_stars=True, bodies = [], num_stars_max 
     dir_out    = '/Users/throop/data/NH_Jring/out/'
     
     file_in_base = file_in.split('/')[-1]   # Strip the pathname
-    file_out_base = file_in_base.replace('.fit', '_mask.txt')
+    file_out_base = file_in_base.replace('.fit', '_objects.txt')
     file_out   = dir_out + file_out_base
 
 # If we were passed a
@@ -185,4 +185,4 @@ def test():
     file_in    = 'lor_0034962025_0x630_sci_1_opnav.fit'
     
     sats = ['Adrastea', 'Thebe', 'Metis', 'Io', 'Europa', 'Amalthea']
-    t = nh_jring_create_maskfile(file_in, bodies=sats)
+    t = nh_jring_create_objectfile(file_in, bodies=sats)

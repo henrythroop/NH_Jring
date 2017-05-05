@@ -6,7 +6,7 @@ Created on Thu May  4 16:59:29 2017
 @author: throop
 """
 
-# This is a driver routine that calls NH_JRING_CREATE_MASKFILE() many times.
+# This is a driver routine that calls NH_JRING_CREATE_OBJECTFILE() many times.
 # That function works on individual files. This function reads and interactively 
 # plots an entire directory.
 
@@ -14,14 +14,9 @@ Created on Thu May  4 16:59:29 2017
 
 import pdb
 import glob
-import math       # We use this to get pi. Documentation says math is 'always available' 
-                  # but apparently it still must be imported.
-from   subprocess import call
 import warnings
-import pdb
 import os.path
 import os
-import subprocess
 
 import astropy
 from   astropy.io import fits
@@ -30,27 +25,23 @@ import astropy.table   # I need the unique() function here. Why is in in table a
 import matplotlib.pyplot as plt # pyplot
 from   matplotlib.figure import Figure
 import numpy as np
-import astropy.modeling
 from   astropy.utils import data
 
-from   scipy.optimize import curve_fit
-                       # Pylab defines the 'plot' command
 import spiceypy as sp
 from   astropy.wcs import WCS
 from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 from   scipy.stats import mode
-from   scipy.stats import linregress
 import wcsaxes
 import time
 from   scipy.interpolate import griddata
+from   photutils import DAOStarFinder
 #import cv2
 
 import re # Regexp
 import pickle # For load/save
 
-import cProfile # For profiling
 
 from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
@@ -58,22 +49,26 @@ import warnings
 from   importlib import reload
 from   time import gmtime, strftime
 
+from  nh_jring_create_objectfile import nh_jring_create_objectfile
+
 # HBT imports
 
 import hbt
 
 #==============================================================================
-# Now the driver routine that calls the individual routine
+# NH_JRING_CREATEOBJECTFILES . This is the driver routine that calls the individual function many times.
 #==============================================================================
 
-dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
+dir_images = '/Users/throop/Data/NH_Jring/data/jupiter/level2/lor/all/'
+dir_out    = '/Users/throop/Data/NH_Jring/out/'
+
 file_tm    = 'kernels_nh_jupiter.tm'
 
 plt.set_cmap('Greys_r')            
 hbt.figsize((15,15))
 
 do_plot           = True
-DO_SKIP_NAVIGATED = True
+DO_SKIP_EXISTING  = True
 DO_SKIP_4X4       = False
 DO_INTERACTIVE    = True
 is_success        = False
@@ -85,7 +80,7 @@ sp.furnsh(file_tm)
 
 # Get a list of files to iterate over
 
-files      = glob.glob(dir_images + '*_opnav.fit')  # Only worth doing this for files that have been opnav'd
+files      = glob.glob(dir_images + '*[123456]_opnav.fit')  # Only worth doing this for files that have been opnav'd
                       
 # Now start a keyboard loop and run with input from the user
 
@@ -128,9 +123,9 @@ while True:
         print(" <#> = navigate, <#-#> = navigate range, l = list, n = next, x = exit, sn = toggle Skip_Navigated, " + 
                  "s4 = toggle Skip_4x4")
     
-    if (k == 'sn'):
-        DO_SKIP_NAVIGATED = not(DO_SKIP_NAVIGATED)
-        print("DO_SKIP_NAVIGATED = {}".format(DO_SKIP_NAVIGATED))
+    if (k == 'se'):
+        DO_SKIP_EXISTING = not(DO_SKIP_EXISTING)
+        print("DO_SKIP_EXISTING = {}".format(DO_SKIP_EXISTING))
 
     if (k == 's4'):
         DO_SKIP_4X4 = not(DO_SKIP_4X4)
@@ -146,7 +141,7 @@ while True:
         i = int(k)
         file = files[i]
         file_short = file.split('/')[-1]
-        file_out   = file.replace('.fit', '_opnav.fit')
+        file_out   = dir_out + file_short.replace('.fit', '_objects.txt')
         
         im = hbt.read_lorri(file) # Read the image, and process it a bit I think
 
@@ -158,7 +153,7 @@ while True:
         exptime = header['EXPTIME']
         hdulist.close()           
         
-        is_navigated = os.path.isfile(file_out)
+        file_exists = os.path.isfile(file_out)
 
 # If it's a 4x4 file, it's probably saturated and lots of things don't work. So doing navigation 
 # it hopeless. But we don't want to lose track of the file (for the numbering scheme), 
@@ -169,14 +164,14 @@ while True:
             print("Copying to {}".format(file_out))
             shutil.copyfile(file, file_out)
 
-        elif (is_navigated and DO_SKIP_NAVIGATED):
-            print ("{}/{}: Skipping since already navigated".format(i, np.size(files)))
+        elif (file_exists and DO_SKIP_EXISTING):
+            print ("{}/{}: Skipping since already exists: {}".format(i, np.size(files), file_out))
     
         else:
     
-    # Do the masking call
+    # Do the call to find all objects (stars, satellites, etc)
                     
-            objects = nh_jring_create_maskfile(file, bodies = sats)
+            objects = nh_jring_create_objectfile(file, bodies = sats)
             
             is_success = True
             
