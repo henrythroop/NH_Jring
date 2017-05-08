@@ -83,7 +83,8 @@ import hbt
 # Local NH rings imports
 
 from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
-
+#from  nh_jring_load_objectlist      import nh_jring_load_objectlist
+   
 #pdb.set_trace()
 
 # First we define any general-purpose functions, which are not part of the class/module.
@@ -135,6 +136,11 @@ class App:
         
         (r2d, d2r) = (hbt.r2d, hbt.d2r)
 
+# Set some physical parameters
+
+        self.a_ring_inner_km = 122000
+        self.a_ring_outer_km = 129000
+        
 # Start up SPICE
 
         sp.furnsh(file_tm) # Commented out for testing while SPICE was recopying kernel pool.
@@ -485,6 +491,8 @@ class App:
 
     def unwrap_ring_image(self):
 
+        self.diagnostic('unwrap_ring_image()')
+        
         (numrad, rj_array) = sp.bodvrd('JUPITER', 'RADII', 3) # 71492 km
         rj = rj_array[0]
         r_ring_inner = 1.6 * rj   # Follow same limits as in Throop 2004 J-ring paper fig. 7
@@ -502,36 +510,30 @@ class App:
         if (self.file_backplane_shortname != self.t_group['Shortname'][self.index_image]):
             self.load_backplane()
 
-        if (self.t_group['is_navigated'][self.index_image] == False):
-            print("Image not navigated -- returning")
-            return
+# Grab the already-loaded object mask for the current image and pointing. 
 
-# Create the satellite mask for the current image and pointing. It has already been rolled properly.
-
-        mask_satellites = self.get_mask_satellites()
-        mask_stars      = self.get_mask_stars()
+        mask_objects    = self.objectmask
 
 # Create the masked pixels maps
 
         image_processed_mask = self.image_processed.copy()
-        image_processed_mask[mask_satellites] = np.nan
-        image_processed_mask[mask_stars]      = np.nan 
+        image_processed_mask[mask_objects] = np.nan        # Set pixels with objects to NaN
             
 # Calculate the amount by which to roll image
 
-        dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
-        dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
-
-# Roll the image
-
-        self.image_roll      = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
-        self.image_roll_mask = np.roll(np.roll(image_processed_mask, dx_total, axis=1), dy_total, axis=0)
-                
+#        dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
+#        dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
+#
+## Roll the image
+#
+#        self.image_roll      = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
+#        self.image_roll_mask = np.roll(np.roll(image_processed_mask, dx_total, axis=1), dy_total, axis=0)
+#                
 #==============================================================================
 # Examine backplane to figure out azimuthal limits of the ring image
 #==============================================================================
 
-        # Read in values from the backplane. Note that self. just keeps the backplanes of the *current* image.
+        # Read in values from the backplane. Note that 'self' just keeps the backplanes of the *current* image.
 
         radius  = self.planes['Radius_eq']    # Radius in km
         azimuth = self.planes['Longitude_eq'] # Azimuth in radians
@@ -547,16 +549,18 @@ class App:
         azimuth_all = azimuth[is_ring_all]  # Make a list of all of the azimuth points for all pixels
         phase_all   = phase[is_ring_all]
 
+        dn_all = self.image_processed[is_ring_all]
+        
         # Now apply the satellite mask. 
         # If it is 0, let the value through
         # If it is 1, turn to NaN
         
-        DO_SAT_MASK = True
-        
-        if (DO_SAT_MASK):
-            dn_all = self.image_roll_mask[is_ring_all]
-        else:
-            dn_all = self.image_roll[is_ring_all]          # DN values, from the rolled image
+#        DO_SAT_MASK = True
+#        
+#        if (DO_SAT_MASK):
+#            dn_all = self.image_roll_mask[is_ring_all]
+#        else:
+#            dn_all = self.image_roll[is_ring_all]          # DN values, from the rolled image
         
         phase_mean  = np.mean(phase_all)     # Get the mean phase angle across the ring.
         
@@ -663,6 +667,8 @@ class App:
         
     def extract_profiles(self):
 
+        self.diagnostic('extract_profiles()')
+        
         # Compute additional quantities we need
 
         (vec, lt)        = sp.spkezr('New Horizons', 
@@ -677,6 +683,8 @@ class App:
         ew_edge     = [120000, 130000]  # Integrate over this range. This is wider than the official ring width.
 
         self.unwrap_ring_image()  # creates self.image_unwrapped, etc.
+        self.diagnostic('finished extract_profiles()')
+        
         self.ang_elev   = ang_elev
         
         # Load the unwrapped image. ** I should rename the local vars to be same as the self.vars! Only historical.
@@ -688,7 +696,7 @@ class App:
         # Remove cosmic rays, stars, or anything else that might be left in the unwrapped image.
         # We have already done this, but maybe the unwrapping creates sharp edges -- so do it again.
         
-        dn_grid       = hbt.decosmic(dn_grid)
+        dn_grid       = hbt.decosmic(dn_grid) # XXX crash is here. Fix this.
         
 #==============================================================================
 # Extract radial and azimuthal profiles. Method #1: From the full remapped images.
@@ -817,7 +825,6 @@ class App:
         self.ax3.clear()        
         self.ax3.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower') # aspect='auto'a
 
-
 #        self.ax3.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
 #        self.ax3.hlines(limits_profile_azimuth[1], -10, 10, color='purple')
 #        self.ax3.hlines(limits_profile_azimuth[2], -10, 10, color='purple')
@@ -932,6 +939,10 @@ class App:
 				
     def handle_navigate(self):
         
+        self.diagnostic("handle_navigate()")
+        
+        return True
+    
 #        self.navigate()
 #        self.refresh_statusbar()  # Put the new nav info into the statusbar
 #        self.plot_image()								
@@ -1038,8 +1049,8 @@ class App:
         
 # Get an array of points along the ring
 
-        ra_ring1, dec_ring1 = hbt.get_pos_ring(et, name_body='Jupiter', radius=122000, units='radec', wcs=w)
-        ra_ring2, dec_ring2 = hbt.get_pos_ring(et, name_body='Jupiter', radius=129000, units='radec', wcs=w)
+        ra_ring1, dec_ring1 = hbt.get_pos_ring(et, name_body='Jupiter', radius=self.a_ring_inner_km, units='radec', wcs=w)
+        ra_ring2, dec_ring2 = hbt.get_pos_ring(et, name_body='Jupiter', radius=self.a_ring_outer_km, units='radec', wcs=w)
 
                     # Return as radians              
         x_ring1, y_ring1    = w.wcs_world2pix(ra_ring1*r2d, dec_ring1*r2d, 0) # Convert to pixels
@@ -1203,8 +1214,6 @@ class App:
         if (self.do_autoextract == 1):
             self.extract_profiles()        
 
-
-
 #==============================================================================
 # Load new image from disk
 #==============================================================================
@@ -1215,7 +1224,7 @@ class App:
     
     def load_image(self):
 
-#        print("load_image()")
+        self.diagnostic("load_image()")
 
 # autozoom: if set, and we are loading a 4x4 image, then scale it up to a full 1x1.
 
@@ -1224,16 +1233,17 @@ class App:
         self.image_raw = hbt.read_lorri(file, frac_clip = 1., bg_method = 'None', autozoom=True)
         print("Loaded image: " + file)
 
+# Load info from header
+
+        header = hbt.get_image_header(file)
+        self.et = header['SPCSCET']
+        self.utc = sp.et2utc(self.et, 'C', 0)
+        
 # Load the backplane as well. We need it to flag satellite locations during the extraction.
         
         DO_LOAD_BACKPLANE = True
         if DO_LOAD_BACKPLANE:
             self.load_backplane()
-
-# If we load a backplane, by definition we have navigated the image.
-            
-            i_n = self.t_group['is_navigated'][self.index_image]
-            print("is_navigated = " + ('True' if i_n else 'False'))
             
 # Load the 'objectlist' in this frame as well. This is the precomputed list of stars and satellites.
 # It is used as a mask.
@@ -1241,14 +1251,14 @@ class App:
         DO_LOAD_OBJECTLIST = True
         if DO_LOAD_OBJECTLIST:
             self.load_objectlist()
-        
+              
 #==============================================================================
 # Change Group
 #==============================================================================
 
     def select_group(self, event):
 
-        print("select_group")
+        self.diagnostic("select_group")
 
         index = (self.lbox_groups.curselection())[0]
         name_group = self.groups[index]
@@ -1293,10 +1303,11 @@ class App:
 
     def select_image(self, event):
 
-        print("select_image")
+        self.diagnostic("select_image", False)
         
         index = (self.lbox_files.curselection())[0]
         name = self.t_group['Shortname'][index]
+        print()
         print("selected = " + repr(index) + ' ' + name)
         self.index_image_new = index
         self.index_group_new = self.index_group  # Keep the same group
@@ -1413,7 +1424,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
     def process_image(self):
         
-#        print("process_image()")
+        self.diagnostic("process_image()")
         
         method = self.var_option_bg.get()
         argument = self.entry_bg.get()
@@ -1450,9 +1461,11 @@ the internal state which is already correct. This does *not* refresh the image i
         """
         Plot the image. It has already been loaded and processed.
         This is an internal routine, which does not process.	
-        This plots the image itself, *and* the objects, if navigated.							
+        This plots the image itself, *and* the objects, if they exist.							
         """
-                
+        
+        self.diagnostic("plot_image()")
+        
         # Clear the image
 
         self.ax1.clear()
@@ -1490,15 +1503,27 @@ the internal state which is already correct. This does *not* refresh the image i
         
         self.fig1.tight_layout() # Remove all the extra whitespace -- nice!
         self.canvas1.draw()
-                
-        if (self.t_group['is_navigated'][self.index_image]):
-            self.plot_objects()									
-
+                        
+        self.plot_objects()
         
 #        plt.imshow(stretch(self.image_processed))
 #        plt.show()
         
         return 0
+
+##########
+# Clear all objects from plot
+##########
+        # Remove all of the current 'lines' (aka points) from the plot. This leaves the axis and the image
+        # preserved, but just removes the lines. Awesome. Using ax1.cla() will clear entire 'axis', including image.
+        # Q: Does this remove legend? Not sure.
+
+    def clear_objects(self):
+    		
+            lines = self.ax1.get_lines()
+            for line in lines:
+                line.remove()		# Not vectorized -- have to do it one-by-one
+
 
 ##########
 # Plot Objects
@@ -1508,7 +1533,27 @@ the internal state which is already correct. This does *not* refresh the image i
         """
            Plot rings and stars, etc, if we have them.
       """
+
+        self.diagnostic("plot_objects()")
+        DO_PLOT_STARS      = True
+        DO_PLOT_SATS       = True
+        DO_PLOT_RING_INNER = True
+        DO_PLOT_RING_OUTER = True
+
+        color_stars_phot = 'red'            # Color for stars found photometrically
+        color_stars_cat  = 'lightgreen'     # Color for stars in catalog  
+        alpha_stars_cat  = 0.5
+        color_sats       = 'pink'
+        alpha_sats       = 0.5
         
+        marker_ring      = 'None'           # Must be capitalized
+        linestyle_ring   = 'dotted'             # Ring linestyle
+        alpha_ring       = 0.5
+        linewidth_ring   = 0.8
+        color_ring       = 'blue'
+        
+        num_pts_ring     = 300 
+            
         # If we have them, draw the stars on top
 
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
@@ -1520,123 +1565,105 @@ the internal state which is already correct. This does *not* refresh the image i
          
         filename = self.t_group['Filename'][self.index_image]
         filename = str(filename)
-        
-#        print("is_navigated: " + repr(self.t_group['is_navigated'][self.index_image])  )                      
-								
-        if (self.t_group['is_navigated'][self.index_image]):
-
-            # Remove all of the current 'lines' (aka points) from the plot. This leaves the axis and the image
-            # preserved, but just removes the lines. Awesome. Using ax1.cla() will clear entire 'axis', including image.
-            # Q: Does this remove legend? Not sure.
-		
-            lines = self.ax1.get_lines()
-            for line in lines:
-                line.remove()		# Not vectorized -- have to do it one-by-one
-
-# Get ring position
-												
-            x_pos_ring1 = eval('np.' + t['x_pos_ring1']) # Convert from string (which can go in table) to array
-            y_pos_ring1 = eval('np.' + t['y_pos_ring1'])
-            x_pos_ring2 = eval('np.' + t['x_pos_ring2'])
-            y_pos_ring2 = eval('np.' + t['y_pos_ring2'])           
-
+        							          
 # Get the user offset position
+
+        dx_pix = 0
+        dy_pix = 0
             
-            dx = t['dx_opnav'] + self.slider_offset_dx.get()
-            dy = t['dy_opnav'] + self.slider_offset_dy.get()
+#        dx = t['dx_opnav'] + self.slider_offset_dx.get()
+#        dy = t['dy_opnav'] + self.slider_offset_dy.get()
 
 # Plot the stars -- catalog 
-    
-            color_phot = 'red'            # Color for stars found photometrically
-            color_cat  = 'lightgreen'     # Color for stars in catalog  
 
-            stars = self.objectlist['name'] == 'star'
+        stars = self.objectlist[(self.objectlist['name'] == 'star')]
             
-            self.ax1.plot(stars['x_pix'], stars['y_pix'], 
+        self.ax1.plot(stars['x_pix'], stars['y_pix'], 
                      marker='o', ls='None', 
-                     color=color_cat, alpha = 0.5, ms=12, mew=1, label = 'Stars, Catalog')
+                     color=color_stars_cat, alpha = alpha_stars_cat, ms=12, mew=1, label = 'Stars, Catalog')
                      
 # Get position of satellites and plot them
 
-            sats = self.objectlist['name'] != 'star'
+        sats = self.objectlist[ self.objectlist['name'] != 'star' ]
             
-            for i in range(np.size(sats)):
+        for i in range(np.size(sats)):
                 
 # Plot the sats                
-                self.ax1.plot(sats['x_pix'][i], sats['y_pix'][i], 
+            self.ax1.plot(sats['x_pix'][i], sats['y_pix'][i], 
                      marker='o', ls='None', 
-                     color=color_sat, alpha = 0.5, ms=12, mew=1)
+                     color=color_sats, alpha = alpha_sats, ms=12, mew=1)
 # Label each one
                 
-                self.ax1.text(sats['x_pix'][i], sats['y_pix'][i],
+            self.ax1.text(sats['x_pix'][i], sats['y_pix'][i],
                               sats['name'][i], clip_on = True)
             
 # Plot the ring
-                
-            DO_PLOT_RING_INNER = False
-            DO_PLOT_RING_OUTER = True
+
+# Get the ring pixel locations
             
             if (DO_PLOT_RING_OUTER):
-                self.ax1.plot(x_pos_ring2, y_pos_ring2, marker='o', color = 'blue', ls = '--',
-                              label = 'Ring, OpNav only')
+                
+                x_ring2_pix, y_ring2_pix = hbt.get_pos_ring(self.et, num_pts = num_pts_ring,
+                                                name_body='Jupiter', 
+                                                radius=self.a_ring_outer_km, units='pixels', abcorr='LT', wcs=w)
 
-                self.ax1.plot(x_pos_ring2 + dx, y_pos_ring2 + dy, marker='o', color = 'lightblue', ls = '--',
-                              label = 'Ring, OpNav+User')
+                self.ax1.plot(x_ring2_pix, y_ring2_pix, marker=marker_ring, color = color_ring, ls = linestyle_ring,
+                                                linewidth=linewidth_ring, alpha = alpha_ring)
+
+#                self.ax1.plot(x_pos_ring2 + dx, y_pos_ring2 + dy, marker='o', color = 'lightblue', ls = '--',
+#                              label = 'Ring, OpNav+User')
                     
             if (DO_PLOT_RING_INNER):
-                self.ax1.plot(x_pos_ring1, y_pos_ring1, marker='o', color='green', ls = '-', \
-                    ms=8, label='Ring, LT')
 
-                self.ax1.plot(x_pos_ring1 + dx, y_pos_ring1 + dy, \
-                    marker='o', color='purple', ls = '-', ms=8, label='Ring, LT, Shifted')
+                x_ring1_pix, y_ring1_pix = hbt.get_pos_ring(self.et, num_pts = num_pts_ring, 
+                                                name_body='Jupiter', 
+                                                radius=self.a_ring_inner_km, units='pixels', abcorr='LT', wcs=w)
+
+                self.ax1.plot(x_ring1_pix, y_ring1_pix, marker=marker_ring, color=color_ring, ls = linestyle_ring, \
+                                                linewidth=linewidth_ring, alpha = alpha_ring, ms=8)
 
             self.legend = self.ax1.legend()  # Draw legend. Might be irrel since remove() might keep it; not sure.
 
             self.canvas1.draw()
 
-
 #==============================================================================
 # Generate a mask of all the stars in field
 #==============================================================================
             
-    def get_mask_stars(self):
+    def get_mask_objects(self):
         """
         Returns a boolean image, set to True for pixels close to a satellite or star.
         """
-
-        # XXX This routine needs to be rewritten. It is a bottleneck. I think it can 
-        # be done by calling np.roll() on a boolean mask of one star, rather than taking
-        # sqrt of every pixel.
         
-        mask = nh_jring_mask_from_objectlist(self.objectlist)
+#        mask = nh_jring_mask_from_objectlist(self.file_objectlist)
         
-        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
-                                            # We can reference table['col'][n] or table[n]['col'] - either OK
-                                            
-        r_pix_mask = 15                     # Exclude pixels this distance from the satellite center.
-
-        x_star = eval('np.' + t['x_pos_star_cat']) + t['dx_opnav']
-        y_star = eval('np.' + t['y_pos_star_cat']) + t['dy_opnav']
- 
-        mask = 0 * self.image_processed
-
-        (x_arr, y_arr) = np.meshgrid(range(np.shape(mask)[0]), range(np.shape(mask)[1]))
+#        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
+#                                            # We can reference table['col'][n] or table[n]['col'] - either OK
+#                                            
+#        r_pix_mask = 15                     # Exclude pixels this distance from the satellite center.
+#
+#        x_star = eval('np.' + t['x_pos_star_cat']) + t['dx_opnav']
+#        y_star = eval('np.' + t['y_pos_star_cat']) + t['dy_opnav']
+# 
+#        mask = 0 * self.image_processed
+#
+#        (x_arr, y_arr) = np.meshgrid(range(np.shape(mask)[0]), range(np.shape(mask)[1]))
+#        
+#        for x_i, y_i in zip(x_star, y_star):
+#
+#            d = np.sqrt((x_arr - (x_i))**2 + (y_arr - (y_i))**2)
+#
+#            mask_i = (d < r_pix_mask)
+#        
+#            mask = mask + mask_i
+#            
+##        plt.imshow(mask > 0)
+##        plt.title('Stellar Mask')
+##        plt.show()
+#
+##        print("Masked {} stars.".format(np.size(x_star)))
         
-        for x_i, y_i in zip(x_star, y_star):
-
-            d = np.sqrt((x_arr - (x_i))**2 + (y_arr - (y_i))**2)
-
-            mask_i = (d < r_pix_mask)
-        
-            mask = mask + mask_i
-            
-#        plt.imshow(mask > 0)
-#        plt.title('Stellar Mask')
-#        plt.show()
-
-#        print("Masked {} stars.".format(np.size(x_star)))
-        
-        return mask > 0
+        return mask
         
             
 #==============================================================================
@@ -1687,6 +1714,8 @@ the internal state which is already correct. This does *not* refresh the image i
         
     def load_backplane(self):
 
+        self.diagnostic("load_backplane()")
+        
         dir_backplanes = '/Users/throop/data/NH_Jring/out/'
         file_backplane = dir_backplanes + self.t_group['Shortname'][self.index_image].replace('.fit', '_planes.pkl')
 
@@ -1713,26 +1742,37 @@ the internal state which is already correct. This does *not* refresh the image i
 # Return True if loaded successfully; False if not
 
     def load_objectlist(self):
-        dir_objectlist = '/Users/throop/data/NH_Jring/out/'
+        
+        dir_objectlists = '/Users/throop/data/NH_Jring/out/'
+        
         file_objectlist = dir_objectlists + self.t_group['Shortname'][self.index_image].\
-            replace('.fit', '_opnav_objects.txt')
+            replace('.fit', '_objects.txt')
 
         # Save the shortname associated with the current objectlist.
         # That lets us verify if the objectlist for current image is indeed loaded.
 
+        self.file_objectlist = file_objectlist
+        
         self.file_objectlist_shortname = self.t_group['Shortname'][self.index_image]
 				
         if (os.path.isfile(file_objectlist)):
-            print('load_objectlist: loading ' + file_objectlist) 
+#            print('load_objectlist: loading ' + file_objectlist) 
             t = Table.read(file_objectlist, format='csv')
             self.objectlist = t  # This will load self.t
+
+            # While we are at it, also create the object mask, which is a boolean image
+        
+            self.objectmask = nh_jring_mask_from_objectlist(file_objectlist)
+            
+#            print("Objectmask loaded, with total {}/{} pixels masked".format(np.sum(self.objectmask) , 
+#                                                                            np.size(self.objectmask)))        
             return True
 
         else:
             print("Can't load objectlist " + file_objectlist)
             return False
         
-
+        
 ##########
 # Repoint an image
 ##########
@@ -1919,10 +1959,9 @@ the internal state which is already correct. This does *not* refresh the image i
         self.offset_dx = self.slider_offset_dx.get() #
         self.offset_dy = self.slider_offset_dy.get() #
         
-        self.plot_objects()       
+#        self.plot_objects()       
         
         return 0
-
 
 #==============================================================================
 # Convert from DN to I/F
@@ -1976,7 +2015,23 @@ the internal state which is already correct. This does *not* refresh the image i
         iof = i / (f_solar_jup / math.pi)
         
         return iof
+
+##########
+# Diagnostic message
+##########
+
+    def diagnostic(self, message, flag=True):
+        '''
+        Print a diagnostic message. Can turn this off easily, both globally and for individual messages.
+        '''
         
+        DO_PRINT = True
+   
+        if (DO_PRINT):
+            print(message)
+        
+        return
+    
 ###########
 # Now start the main app
 ###########

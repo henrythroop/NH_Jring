@@ -45,7 +45,7 @@ import warnings
 from   importlib import reload
 from   time import gmtime, strftime
 
-from  nh_jring_create_objectfile import nh_jring_create_objectfile
+#from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
 
 # HBT imports
 
