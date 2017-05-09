@@ -104,7 +104,7 @@ class App:
 
 # Set some default values
 
-        self.filename_save = 'nh_jring_read_params_571.pklXXXXX' # Filename to save parameters 
+        self.filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters 
 
         self.dir_out    = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
         
@@ -573,8 +573,8 @@ class App:
         # _d indicates delta
         
         azimuth_all_3 = np.concatenate((azimuth_all, azimuth_all + 2*math.pi, azimuth_all + 4*math.pi))
-        dn_all_3      = np.concatenate((dn_all, dn_all, dn_all))
-        radius_all_3  = np.concatenate((radius_all, radius_all, radius_all))
+        dn_all_3      = np.concatenate((dn_all,      dn_all,                  dn_all))
+        radius_all_3  = np.concatenate((radius_all, radius_all,               radius_all))
         
         azimuth_all_3_s = np.sort(azimuth_all_3, kind = 'heapsort')
         azimuth_all_3_s_d = azimuth_all_3_s - np.roll(azimuth_all_3_s, 1)
@@ -582,7 +582,7 @@ class App:
         # Look for the indices where the largest gaps (in azimuth) start
         
         index_seg_start_3_s = (np.where(azimuth_all_3_s_d > 0.999* np.max(azimuth_all_3_s_d)))[0][0]
-        index_seg_end_3_s = (np.where(azimuth_all_3_s_d > 0.999* np.max(azimuth_all_3_s_d)))[0][1]-1
+        index_seg_end_3_s   = (np.where(azimuth_all_3_s_d > 0.999* np.max(azimuth_all_3_s_d)))[0][1]-1
         
         # Get proper azimithal limits. We want them to be a single clump of monotonic points.
         # Initial point is in [0, 2pi) and values increase from there.
@@ -626,13 +626,17 @@ class App:
                 
                 dn_grid[i,:] = grid_lin_i
 
-# Save the variables, and return
+# De-NaN the output. This is just for testing -- the proper thing is to keep NaNs there.
 
-# We do *not* plot the unwrapped image for now
+#        dn_grid[np.isnan(dn_grid)] = 0
         
-        self.image_unwrapped = dn_grid
-        self.radius_unwrapped = bins_radius
-        self.azimuth_unwrapped = bins_azimuth
+# Save the variables, and return
+        
+        self.image_unwrapped    = dn_grid     # NB: This has a lot of NaNs in it.
+        self.radius_unwrapped   = bins_radius
+        self.azimuth_unwrapped  = bins_azimuth
+
+        self.diagnostic('unwrap_ring_image() -- finished')
 
         return
         
@@ -682,8 +686,7 @@ class App:
         
         ew_edge     = [120000, 130000]  # Integrate over this range. This is wider than the official ring width.
 
-        self.unwrap_ring_image()  # creates self.image_unwrapped, etc.
-        self.diagnostic('finished extract_profiles()')
+        self.unwrap_ring_image()        # Creates arrays self.{image,radius,azimuth}_unwrapped
         
         self.ang_elev   = ang_elev
         
@@ -696,7 +699,7 @@ class App:
         # Remove cosmic rays, stars, or anything else that might be left in the unwrapped image.
         # We have already done this, but maybe the unwrapping creates sharp edges -- so do it again.
         
-        dn_grid       = hbt.decosmic(dn_grid) # XXX crash is here. Fix this.
+        dn_grid       = hbt.decosmic(dn_grid)
         
 #==============================================================================
 # Extract radial and azimuthal profiles. Method #1: From the full remapped images.
@@ -818,12 +821,15 @@ class App:
         f = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
         aspect = 0.5/f * 2 # Set the aspect ratio
 
-#        stretch = astropy. ization.PercentileInterval(self.stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
+        stretch = astropy.visualization.PercentileInterval(95)  # PI(90) scales array to 5th .. 95th %ile. 
+
+        self.ax3.clear()        
 
         # For now, we are scaling this vertically by hand. Might have to revisit that.
 
-        self.ax3.clear()        
-        self.ax3.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower') # aspect='auto'a
+#        self.ax3.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower')
+
+        self.ax3.imshow(stretch(dn_grid), extent=extent, aspect=aspect, origin='lower')
 
 #        self.ax3.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
 #        self.ax3.hlines(limits_profile_azimuth[1], -10, 10, color='purple')

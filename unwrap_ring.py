@@ -21,7 +21,7 @@ import os.path
 import astropy
 from scipy.interpolate import griddata
 import math
-import cspice
+import spiceypy as sp
 
 #==============================================================================
 # Function for DN to I/F conversion
@@ -79,14 +79,19 @@ def dn2iof(dn, exptime, pixfov, rsolar):
 #==============================================================================
     
 file_pickle       = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
-file_tm           = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
+file_tm           = "/Users/throop/git/NH_Rings/kernels_nh_jupiter.tm"  # SPICE metakernel
 dir_images        = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
 dir_backplanes    = '/Users/throop/data/NH_Jring/out/'
+dir_out           = dir_backplanes
 
 rj                = 71492           # Jupiter radius, km
 
 abcorr            = 'LT+S'
 frame             = 'J2000'
+
+stretch_percent   = 95
+
+stretch = astropy.visualization.PercentileInterval(stretch_percent)  # PI(90) scales array to 5th .. 95th %ile. 
 
 # Define the size of the output array
 
@@ -95,7 +100,7 @@ num_bins_radius  = 400
 
 plt.rcParams['figure.figsize'] = 10,10
 
-lun = open(file_pickle, 'rb')
+lun = open(dir_out + file_pickle, 'rb')
 t = pickle.load(lun)
 lun.close()
 groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
@@ -133,7 +138,7 @@ file_backplane = dir_backplanes + t_group['Shortname'][index_image].replace('.fi
 # need to mess with them than with Tod's 
 				
 if (os.path.isfile(file_backplane)):
-    print 'load_backplane: loading ' + file_backplane 
+    print('load_backplane: loading ' + file_backplane) 
     lun = open(file_backplane, 'rb')
     planes = pickle.load(lun)
     planes = planes # This will load self.t
@@ -151,9 +156,13 @@ image = hbt.read_lorri(t_group['Filename'][index_image])
 image_processed = hbt.remove_brightest(image, 0.97, symmetric=True)
 image_processed = image_processed - hbt.sfit(image_processed, 5)
 image_processed = hbt.remove_brightest(image_processed, 0.97, symmetric=True)
-image_processed -= image_stray 
 
-plt.imshow(image_processed)
+DO_REMOVE_STRAY = False
+
+if (DO_REMOVE_STRAY):
+    image_processed -= image_stray 
+
+plt.imshow(stretch(image_processed))
 
 # Load some fields from the FITS image header
 
@@ -162,13 +171,13 @@ exptime = hdulist['PRIMARY'].header['EXPTIME']
 rsolar  = hdulist['PRIMARY'].header['RSOLAR']
 pixfov = 0.3 * hbt.d2r * 1e6 / 1024  # This keyword is missing. "Plate scale in microrad/pix "
 et      = hdulist['PRIMARY'].header['SPCSCET']
-												
-dx_total =  -(t_group['dx_offset'][index_image] + t_group['dx_opnav'][index_image])
-dy_total =  -(t_group['dy_offset'][index_image] + t_group['dy_opnav'][index_image])
 
 # Roll the image as per the saved navigation offset values
+												
+#dx_total =  -(t_group['dx_offset'][index_image] + t_group['dx_opnav'][index_image])
+#dy_total =  -(t_group['dy_offset'][index_image] + t_group['dy_opnav'][index_image])
 
-image_roll = np.roll(np.roll(image_processed, dx_total, axis=1), dy_total, axis=0)
+#image_roll = np.roll(np.roll(image_processed, dx_total, axis=1), dy_total, axis=0)
 
 # Read in values from the backplane
 
@@ -185,13 +194,13 @@ plt.rc('image', cmap='Greys_r')               # Default color table for imshow
 # Start up SPICE and extract some geometrical quantities
 #==============================================================================
 
-cspice.furnsh(file_tm)
-utc     = cspice.et2utc(et, 'C', 0)
+sp.furnsh(file_tm)
+utc     = sp.et2utc(et, 'C', 0)
 
 # Look up the ring tilt angle (ie, observer latitude)
 
-(vec, lt)        = cspice.spkezr('New Horizons', et, 'IAU_JUPITER', abcorr, 'Jupiter')
-(junk, lon, lat) = cspice.reclat(vec[0:3])
+(vec, lt)        = sp.spkezr('New Horizons', et, 'IAU_JUPITER', abcorr, 'Jupiter')
+(junk, lon, lat) = sp.reclat(vec[0:3])
 elev             = np.abs(lat)          # Elevation angle (aka 'B')  
 emis             = math.pi/2 - elev     # Emission angle (ie, angle down from normal) 
 mu               = abs(math.cos(emis))  # mu. See definitions of all these Throop 2004 @ 63 
@@ -525,7 +534,7 @@ taupp    = iof_norm * 4 * mu  # Radially averaged tau_omega0_P
 plt.plot(bins_radius, iof_norm) # Compare to Throop 2004 @ 65
 plt.title('Phase = {:.2f}'.format(np.mean(phase) * hbt.r2d))
 
-print "Ring mean EW = {}".format()
+print("Ring mean EW = {}".format())
 #print "DN = {}; I/F = {:.2g} .".format(dn_ring, iof_ring)
 
 
