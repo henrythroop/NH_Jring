@@ -153,6 +153,7 @@ if (os.path.isfile(file_backplane)):
 # only apply to the plotted image -- not the internal one
     
 image = hbt.read_lorri(t_group['Filename'][index_image])
+image = hbt.lorri_destripe(image)
 image_processed = hbt.remove_brightest(image, 0.97, symmetric=True)
 image_processed = image_processed - hbt.sfit(image_processed, 5)
 image_processed = hbt.remove_brightest(image_processed, 0.97, symmetric=True)
@@ -163,6 +164,8 @@ if (DO_REMOVE_STRAY):
     image_processed -= image_stray 
 
 plt.imshow(stretch(image_processed))
+plt.title(f_short)
+plt.show()
 
 # Load some fields from the FITS image header
 
