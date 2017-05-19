@@ -87,11 +87,13 @@ sp.furnsh(file_tm) # Start up SPICE
 
 # We can also analyze the LORRI mosaics here
 
-#sequence        = 'D202_LORRI'
-sequence        = 'D305_LORRI'
+sequence        = 'D202_LORRI'
+#sequence        = 'D305_LORRI'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
+DO_PLOT_TITLE  = False   # Plot a title on the radial profile. Turn off for publication.
+#DO_PLOT_TITLE = True
 
 #nbins_radius = 100
 nbins_radius = 1000
@@ -505,13 +507,15 @@ RSOLAR_l11 = 221999.98             # (DN/s/pixel)/(erg/cm^2/s/A/sr) for LORRI 1x
 RSOLAR_l44 = 3800640.0             # (DN/s/pixel)/(erg/cm^2/s/A/sr) for LORRI 4x4. = 221999.98 * 1.07 * 16.
 RSOLAR_mpf = 100190.64             # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. MVIC Pan Frame. 
 
-FSOLAR     = 176.					     # Solar flux at r=1 AU in ergs/cm^2/s/A
-
+FSOLAR_LORRI  = 176.	     	    # Solar flux at r=1 AU in ergs/cm^2/s/A
+FSOLAR_MPF    = 145.                # Solar flux, assuming pivot wavelength 6920 A -- see Hal email 18-May-2017  
 n_sig      = 3                     # Do we do 3sigma? or 4 sigma? Set it here (3 or 4)
 
 if IS_LORRI:
     exptime = 0.4  # Tod's LORRI mosaics have 200ms and 400ms in them, and are normalized to 400 ms.
 
+    FSOLAR  = FSOLAR_LORRI
+    
     if hdulist[0].header['SFORMAT'] == '1X1':
         RSOLAR = RSOLAR_l11
         
@@ -521,6 +525,7 @@ if IS_LORRI:
 if IS_MVIC:
     exptime = 10   # Tod's MVIC Pan Frame mosaics are all 10 sec exposures, and averaged (not summed).
     RSOLAR = RSOLAR_mpf
+    FSOLAR = FSOLAR_MPF
 
 # Convert from DN to irradiance (ergs/cm2/s/sr/A). From Hal's writeup.
  
@@ -538,18 +543,33 @@ iof = math.pi * I * dist_au**2 / FSOLAR
 mu = math.cos(lat_subsc * hbt.d2r)  # mu = cos(lat)
 iof_normal = 4 * mu * iof  # (I/F)_normal = 4 mu I/F
 
-# Calculate the 3sigma iof value
+# Calculate the 3sigma iof value. For this, should we use the inner data points only (yes, most of the time)
+# or take stdev of all data points (which will include some extrema which I think should be tossed.)
+# Only do this for the MVIC frames. The LORRI frames have bad stray light throughout, and we want to take the stdev
+# across the whole frame, not just the inner region.
 
-std_iof_normal = np.nanstd(iof_normal)
+DO_STDEV_INNER_ONLY = True
+
+#DO_STDEV_INNER_ONLY = False
+
+if (DO_STDEV_INNER_ONLY) and (IS_MVIC):
+     x0 = int(np.size(iof_normal)*0.25)
+     x1 = int(np.size(iof_normal)*0.75)
+    
+else:
+    x0 = 0
+    x1 = hbt.sizex(iof_normal)
+     
+std_iof_normal = np.nanstd(iof_normal[x0:x1])   
 
 # Special case: for the O_RINGDEP_A_1 sequence, the edges are bad, but the signal 
 # in the middle is good. So, when we take the SNR, do it *only* of the middle region.
 # We will show the full plot and it will be obvious what we did.
 
-if (sequence == 'O_RINGDEP_A_1'):
-     x0 = int(np.size(iof_normal)*0.25)
-     x1 = int(np.size(iof_normal)*0.75)
-     std_iof_normal = np.nanstd(iof_normal[x0:x1])   
+#if (sequence == 'O_RINGDEP_A_1'):
+#     x0 = int(np.size(iof_normal)*0.25)
+#     x1 = int(np.size(iof_normal)*0.75)
+#     std_iof_normal = np.nanstd(iof_normal[x0:x1])   
     
 #==============================================================================
 # Make plots of radial profile
@@ -628,30 +648,37 @@ if (DO_PLOT_PROFILE_MEDIAN):
 
 # Plot lines for satellite orbits
 
-if (sequence == 'A_RINGDEP_01'):
-    for name_body_i in name_body[1:]: # Loop over moons, excluding Pluto
-      plt.vlines(d_pluto_body[name_body_i]/1000, -1,1, linestyle='--')
-      plt.text(  d_pluto_body[name_body_i]/1000, ylim_dn[1]*0.8, ' ' + name_body_i[0])
+alpha = 0.3
 
+if (sequence == 'O_RINGDEP_A_1'):
+    for rh_i in [1]:
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--', alpha=alpha)
+      plt.text((rh_i + 0.05) * r_h/1000, ylim_dn[0]*0.9, ' ' + repr(rh_i) + ' R$_H$')
+      
 if (sequence == 'D305'):
-    for rh_i in [20, 40, 60, 80]:
-      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
+    for rh_i in [40, 80]:
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--', alpha=alpha)
       plt.text((rh_i + 2) * r_h/1000, ylim_dn[0]*0.9, ' ' + repr(rh_i) + ' R$_H$')
 
+if (sequence == 'D211'):
+    for rh_i in [5, 10]:
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--', alpha=alpha)
+      plt.text((rh_i + 0.5) * r_h/1000, ylim_dn[0]*0.9, ' ' + repr(rh_i) + ' R$_H$')
+      
 if (sequence == 'D202'):
     for rh_i in [1, 2, 4]:
-      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' $R_H$')
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--', alpha=alpha)
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[0]*0.8, ' ' + repr(rh_i) + ' $R_H$')
 
 if (sequence == 'D202_LORRI'):
     for rh_i in [1, 2]:
-      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' $R_H$')
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--', alpha=alpha)
+      plt.text((rh_i + 0.05) * r_h/1000, ylim_dn[0]*0.8, ' ' + repr(rh_i) + ' $R_H$')
       
 if (sequence == 'D305_LORRI'):
     for rh_i in [5, 10, 20, 40]:
-      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--')
-      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[1]*0.9, ' ' + repr(rh_i) + ' $R_H$')
+      plt.vlines(rh_i * r_h/1000, -10,10, linestyle='--', alpha=alpha)
+      plt.text((rh_i + 0.1) * r_h/1000, ylim_dn[0]*0.8, ' ' + repr(rh_i) + ' $R_H$')
             
 ax1.set_ylim(ylim_dn)
 
@@ -669,14 +696,17 @@ ax2 = ax1.twinx() # Yes, twinx means they will share x axis (and have indep y ax
 
 if (IS_LORRI):
     iof_units = 1e-5
+    iof_units_str = r"$\times 10^{-5}$"
     
 if (IS_MVIC):
     iof_units = 1e-6    
+    iof_units_str = r"$\times 10^{-6}$"
 
 ax2.set_ylim(ylim_iof / iof_units)
-ax2.set_ylabel('Normal I/F [{:.1e}]'.format(iof_units))
+ax2.set_ylabel('Normal I/F [{}]'.format(iof_units_str))
 
-ax1.set_title(sequence + ', nbins = ' + repr(nbins_radius) + \
+if (DO_PLOT_TITLE):
+    ax1.set_title(sequence + ', nbins = ' + repr(nbins_radius) + \
 #                     ', $\delta r$ = {:.0f} km'.format(dradius,0) +                     
                      ', {}$\sigma$ I/F $\leq$ {:.1e}'.format(n_sig, n_sig*std_iof_normal))
 
@@ -691,7 +721,9 @@ if (DO_PLOT_PROFILE_MEDIAN and DO_PLOT_PROFILE_MEAN):
 # Plot a text with the final derived I/F limit
 #ax1.text(0.02, 0.8, '3$\sigma$ I/F = {:.1e}'.format(3*std_iof_normal), transform=ax1.transAxes)
 
-file_out = dir_out + '/profile_radial_n' + repr(nbins_radius) + '_' + sequence + '.png'
+file_out = dir_out + '/profile_radial_n' + repr(nbins_radius) + '_' + sequence + \
+    ('' if DO_PLOT_TITLE else '_notitle') + '.png'
+
 fig.savefig(file_out)
 print('Wrote: ' + file_out)
 
@@ -1032,6 +1064,8 @@ plt.show()
 #==============================================================================
 
 r_hill_km = r_hill.to('km').value
+
+nsig = 3   # 3 sigma, 1 sigma, etc.
 
 print("Sequence = {}".format(sequence))
 print("N = {} bins".format(nbins_radius))
