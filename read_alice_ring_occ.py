@@ -239,7 +239,7 @@ if (sequence == 'O_RING_OC2') or (sequence == 'O_RING_OC3'):
     ylim = np.array([15,18])    # Spatial of the star. Was [13,19]
 
 if (sequence == 'O_RING_OC2'): 
-    DO_HICAD = True             # Used hicad since that's where the data was when I grabbed it
+    DO_HICAD = False             # Used hicad since that's where the data was when I grabbed it
     
 if (sequence == 'OCCSTAR1'):
     DO_HICAD = False
