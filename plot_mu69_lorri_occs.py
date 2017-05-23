@@ -261,7 +261,7 @@ maglimit_plot         = 100              # Plot stars brighter than this
           
 # Define the start and end time for the plot. This is the main control to use.
 
-case = 6
+case = 7
 
 if (case == 1): # Outbound, 0.3 .. 96 hour
     et_start  = et_ca + 0.3*hour
@@ -380,6 +380,51 @@ if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project on LORRI O
     DO_UNITS_TITLE_DAYS = True
     DO_UNITS_TICKS_DAYS = True
     DO_PLOT_UNCERTAINTY_MU69 = True
+
+if (case == 7): # Inbound, Outer core. For checking whether it is worth doing a the LORRI 
+                # Using K-40 since it is one that JS did calculations for in his 22-Mar-2017 email.
+
+# This is the routine I am using for search for LORRI inbound stellar occultations that would happen 
+# by serendipity during OpNav. The idea is to use USNO and/or the 'NH_GAIA' catalog. The latter is
+# the special catalog prepared for me by Stephen Gwyn y JJ Kavalers.
+                
+#    et_start         = et_ca - 40*day
+#    et_end           = et_ca - 14*day
+
+    et_start         = et_ca - 14*day
+    et_end           = et_ca -  7*day
+    
+    pad_ra_deg       = 0.003 # 0.019 # Add additional padding at edge of plots, RA = x dir. Degrees.
+    pad_dec_deg      = 0.0035
+    
+    if (DO_PLOT_WIDE):
+        pad_ra_deg = 0.030
+        pad_dec_deg = 0.019
+   
+    # Set the flags for which stars to plot. In general the code just supports one at a time.
+    
+    DO_PLOT_HD       = False
+    DO_LABEL_HD      = DO_PLOT_HD # Plot star IDs on chart
+    DO_PLOT_USNO     = False
+    DO_LABEL_USNO    = DO_PLOT_USNO
+    DO_PLOT_GAIA     = False
+    DO_LABEL_GAIA    = False # DO_PLOT_GAIA
+    DO_PLOT_NH_GAIA  = True
+    DO_LABEL_NH_GAIA = DO_PLOT_NH_GAIA
+    
+    DO_TIMES_OPNAV   = False  # If True, set the plot time limits based on OpNav times.
+                             # If False, uset them based on ET values that are defined in the code header.  
+    
+    plot_tick_every  = 24*60*60
+    hbt.figsize((15,10))
+    mag_limit       = 12 # Plot stars brighter than this.  XXX This parameter is not really used.
+    maglimit_plot = 100  # Plot only stars brighter than this XXX This one is the one to use.
+    
+    DO_PLOT_LORRI   = False
+    DO_SCALEBAR_ARCSEC = True
+    DO_UNITS_TITLE_DAYS = True
+    DO_UNITS_TICKS_DAYS = True
+    DO_PLOT_UNCERTAINTY_MU69 = True
     
 
 #    DO_LABEL_USNO = False
@@ -387,7 +432,7 @@ if (case == 6): # Inbound, K-40d .. K-14 (for Spencer one-off project on LORRI O
     
 fov_lorri = 0.3*hbt.d2r  # Radians. LORRI width.
 
-num_dt = 200 # Number of timesteps. 4000 is way too many -- 200 should be fine.
+num_dt = 21 # Number of timesteps. 4000 is way too many -- 200 should be fine.
 
 # Define plot colors
 
@@ -875,7 +920,7 @@ if (DO_TIMES_OPNAV):
             side_str)
 
 else:
-    title_str = '{} .. {}, {} flybyr'.format(t_start_relative_str, t_end_relative_str, side_str)
+    title_str = '{} .. {}, {} flyby'.format(t_start_relative_str, t_end_relative_str, side_str)
 
 plt.title(title_str)
     
@@ -901,7 +946,7 @@ plt.show()
 # Stars pass from the outside toward the inside... that is, at the end, 
 # more and more stars are inside the ring, which makes sense.
 
-hbt.figsize((12,12)) # Make a large figure here
+hbt.figsize((18,18)) # Make a large figure here
 
 radius_ring = 3000*u.km
 radius_plot = 3400  # Radius, in km
@@ -996,7 +1041,8 @@ plt.figtext(0.02, 0.04, "At {}, LORRI pixel scale = {:.0f} km/pix; plot width = 
 # Write the image to disk
 
 dir_out = os.path.expanduser('~') + '/git/NH_rings/out/'
-file_out = 'LORRI_occs_MU69_inbound_centered_' + name_catalog + '_' + side_str + \
+file_out = 'LORRI_occs_MU69_inbound_centered_' + name_catalog + '_' + side_str + '_' + \
+  t_start_relative_str + '_' + t_end_relative_str + \
   '_maglimit' + repr(maglimit_plot) + '.png'
 
 ax.legend(loc = 'lower right')
@@ -1106,5 +1152,3 @@ if DO_TEST_GAIA:
     plt.show()
     
 #%%
-
-DO_

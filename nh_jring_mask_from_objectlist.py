@@ -38,7 +38,6 @@ from   photutils import DAOStarFinder
 import re # Regexp
 import pickle # For load/save
 
-
 from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
 import warnings
@@ -78,7 +77,7 @@ def nh_jring_mask_from_objectlist(objectfile, do_plot = False):
     
 # Set the directories and paths
     
-    objectfile = 'lor_0034604523_0x630_sci_1_opnav_objects.txt'
+#    objectfile = 'lor_0034604523_0x630_sci_1_opnav_objects.txt'
     
     dir_images = '/Users/throop/Data/NH_Jring/data/jupiter/level2/lor/all/'
     dir_out    = '/Users/throop/Data/NH_Jring/out/'
@@ -136,8 +135,12 @@ def nh_jring_mask_from_objectlist(objectfile, do_plot = False):
         plt.imshow(mask)
         plt.title("{}, N = {}".format(objectfile_base, np.size(t)))
         plt.show()
+
+# Transpose it, which happens to be what it needs for LORRI images
+
+#    mask = np.transpose(mask)
         
-# Return the mask. 
+# Return the mask
 
     return mask
         
@@ -148,10 +151,13 @@ def nh_jring_mask_from_objectlist(objectfile, do_plot = False):
         
 def test():
 
+    from nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
+    
+    dir_out    = '/Users/throop/Data/NH_Jring/out/'
+
     objectfile = 'lor_0034604523_0x630_sci_1_opnav_objects.txt'
     objectfile_base = objectfile.split('/')[-1]
     path_objectfile = dir_out + objectfile_base
-
     
     file_image = objectfile_base.replace('_objects', '').replace('.txt', '.fit')
     dir_images = '/Users/throop/Data/NH_Jring/data/jupiter/level2/lor/all/'
@@ -171,7 +177,8 @@ def test():
     
     hbt.figsize((10,10))
 
-# And 
+# And make some plot to show if it matches up, or not
+
     plt.imshow(stretch(im_masked))
     plt.show()
     plt.imshow(stretch(im)) 
