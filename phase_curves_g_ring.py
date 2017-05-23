@@ -4,6 +4,8 @@
 Created on Thu May 18 11:57:17 2017
 
 This routine read the Hedman & Starck phase cuves in HS16 paper.
+This is for plotting vs. the J-ring phase curve, in Lauer Pluto rings paper.
+It is a one-off routine, and I just grab a screenshot to use in the paper.
 
 @author: throop
 """
