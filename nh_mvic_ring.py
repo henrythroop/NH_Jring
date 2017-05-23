@@ -82,21 +82,22 @@ sp.furnsh(file_tm) # Start up SPICE
 #
 #sequence        = 'D305' # MVIC
 #sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
-#sequence        = 'D202' # MVIC
+sequence        = 'D202' # MVIC
 #sequence        = 'D211'  # MVIC
 
 # We can also analyze the LORRI mosaics here
 
-sequence        = 'D202_LORRI'
+#sequence        = 'D202_LORRI'
 #sequence        = 'D305_LORRI'
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
+
 DO_PLOT_TITLE  = False   # Plot a title on the radial profile. Turn off for publication.
 #DO_PLOT_TITLE = True
 
-#nbins_radius = 100
-nbins_radius = 1000
+nbins_radius = 100
+#nbins_radius = 1000
 
 #PIXSIZE =              13.0000 /Pixel size in microns                           
 #READNOI =              30.0000 /Readnoise in Electrons                          
@@ -504,11 +505,13 @@ dist_au    = hdulist[0].header['SPCTSORN']*u.km.to('AU')  # Heliocentric distanc
 lat_subsc  = hdulist[0].header['SPCTSCLA']                 # Sub-sc Lat, in deg. Roughly 43 deg.
 
 RSOLAR_l11 = 221999.98             # (DN/s/pixel)/(erg/cm^2/s/A/sr) for LORRI 1x1
-RSOLAR_l44 = 3800640.0             # (DN/s/pixel)/(erg/cm^2/s/A/sr) for LORRI 4x4. = 221999.98 * 1.07 * 16.
-RSOLAR_mpf = 100190.64             # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. MVIC Pan Frame. 
-
+#RSOLAR_l44_OLD = 3800640.0             # (DN/s/pixel)/(erg/cm^2/s/A/sr) for LORRI 4x4. = 221999.98 * 1.07 * 16.
+RSOLAR_l44 = 4.09e6                # Revised LORRI 4x4 value, 22-May-2017, Hal Weaver. 
+#RSOLAR_mpf_OLD = 100190.64             # (DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum. MVIC Pan Frame. 
+RSOLAR_mpf = 9.8813e4
 FSOLAR_LORRI  = 176.	     	    # Solar flux at r=1 AU in ergs/cm^2/s/A
 FSOLAR_MPF    = 145.                # Solar flux, assuming pivot wavelength 6920 A -- see Hal email 18-May-2017  
+
 n_sig      = 3                     # Do we do 3sigma? or 4 sigma? Set it here (3 or 4)
 
 if IS_LORRI:
@@ -1065,7 +1068,7 @@ plt.show()
 
 r_hill_km = r_hill.to('km').value
 
-nsig = 3   # 3 sigma, 1 sigma, etc.
+#nsig = 3   # 3 sigma, 1 sigma, etc.
 
 print("Sequence = {}".format(sequence))
 print("N = {} bins".format(nbins_radius))
@@ -1074,4 +1077,4 @@ print("Radius = {:.1f} .. {:.1f} r_pluto".format(np.amin(radius)/r_pluto_km, np.
 print("Radius = {:.1f} .. {:.1f} R_hydra".format(np.amin(radius)/r_h, np.amax(radius)/r_h))
 print("Radius = {:.1f} .. {:.2f} R_hill".format(np.amin(radius)/r_hill_km, np.amax(radius)/r_hill_km))
 print("Radial resolution = {:.1f} km".format( (np.amax(radius)-np.amin(radius)) / nbins_radius  ))
-print("{} sigma I/F = {:.2e}".format(nsig, nsig*std_iof_normal))
+print("{} sigma I/F = {:.2e}".format(n_sig, n_sig*std_iof_normal))
