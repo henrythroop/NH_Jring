@@ -205,8 +205,8 @@ def read_alice_occ_data(file_list, xlim, ylim, verbose=True, short=False, DO_MAS
 ##########
 
 #sequence 	= 'O_RING_OC3'
-sequence 	= 'O_RING_OC2'
-#sequence   = 'OCCSTAR1'
+#sequence 	= 'O_RING_OC2'
+sequence   = 'OCCSTAR1'
 
 DO_ABBREVIATED = False       # For debugging. Just use a subset of the data?
 DO_HICAD       = False
