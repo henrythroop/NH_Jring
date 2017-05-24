@@ -1988,7 +1988,7 @@ the internal state which is already correct. This does *not* refresh the image i
         #    http://rredc.nrel.gov/solar/spectra/am1.5/astmg173/astmg173.html
         # or http://www.pas.rochester.edu/~emamajek/AST453/AST453_stellarprops.pdf
     
-        f_solar_1au_si     = 1.77                 # W/m2/nm. At 600 nm. 
+        f_solar_1au_si     = 1.76                 # W/m2/nm. At 600 nm. 176 is Hal's recommended number. 
         f_solar_1au_cgs    = f_solar_1au_si * 100 # Convert from W/m2/nm to erg/sec/cm2/Angstrom
     
         f_solar_1au        = f_solar_1au_cgs
