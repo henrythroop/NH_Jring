@@ -138,7 +138,7 @@ def nh_jring_mask_from_objectlist(objectfile, do_plot = False):
 
 # Transpose it, which happens to be what it needs for LORRI images
 
-#    mask = np.transpose(mask)
+    mask = np.transpose(mask)
         
 # Return the mask
 

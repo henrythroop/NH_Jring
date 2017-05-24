@@ -29,11 +29,12 @@ import pdb
 import glob
 import math
 
-DO_OVERWRITE = False
+DO_OVERWRITE = True
 
 # Start up SPICE
 
-file_tm = '/Users/throop/gv/dev/gv_kernels_new_horizons.txt'  # SPICE metakernel
+#file_tm = '/Users/throop/gv/dev/gv_kernels_new_horizons.txt'  # SPICE metakernel
+file_tm = 'kernels_nh_jupiter.tm'
 sp.furnsh(file_tm)
         
 # Get the full list of files
@@ -43,7 +44,7 @@ dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 dir_out = '/Users/throop/data/NH_Jring/out/'
 
 #file_list = glob.glob(dir_images + '/*fit')
-file_list = glob.glob(dir_images + '/*_opnav.fit')  # Navigate the opnav'd files
+file_list = glob.glob(dir_images + '/*0034620123*1*opnav.fit')  # Navigate the opnav'd files
 
 files = np.array(file_list)
 

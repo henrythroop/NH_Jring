@@ -305,8 +305,6 @@ aspect = 1/f
 dn_grid = griddata((f*azimuth_all, radius_all), dn_all, 
                    (f*az_arr[None,:], rad_arr[:,None]), method='linear')
 
-
-
 # Method #2: Construct the gridded image line-by-line
 
 dn_grid_2 = np.zeros((num_bins_radius, num_bins_azimuth))  # Row, column
