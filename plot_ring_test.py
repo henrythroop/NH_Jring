@@ -67,21 +67,23 @@ from   matplotlib.figure import Figure
 
 import hbt
 
-from nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
-from nh_jring_unwrap_ring_image    import nh_jring_unwrap_ring_image
+from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
+from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
+from nh_jring_extract_profiles_from_unwrapped  import nh_jring_extract_profiles_from_unwrapped
+
 
 dir_image = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
 file_tm    = "/Users/throop/git/NH_rings/kernels_nh_jupiter.tm"  # SPICE metakernel
 
 #file_image = 'lor_0034961819_0x630_sci_1_opnav.fit' # noise, can't see much
 
-#file_image = 'lor_0034962025_0x630_sci_1_opnav.fit' # Metis on ansa.
+file_image = 'lor_0034962025_0x630_sci_1_opnav.fit' # Metis on ansa.
 
 #file_image + 'lor_0034962461_0x630_sci_1_opnav.fit' # Ring, but not on ansa -- not a good test
 
 #file_image = 'lor_0034616523_0x630_sci_1_opnav.fit' # Adrastea in middle right. dt =40 works. Good test.
 #file_image = 'lor_0034618323_0x630_sci_1_opnav.fit' # Adrastea in on ansa
-file_image = 'lor_0034620123_0x630_sci_1_opnav.fit' # Adrastea in middle left. Fits dt=40 better than dt=0.
+#file_image = 'lor_0034620123_0x630_sci_1_opnav.fit' # Adrastea in middle left. Fits dt=40 better than dt=0.
 #                                                   # dt=0 has cross 5 pix down right. 
 
 #file_image = 'lor_0035103963_0x633_sci_1_opnav.fit' # 4x4, gossamer, Amal in middle. Bad navigation - not useful.
@@ -107,6 +109,8 @@ path_objects = dir_out + file_objects
 dir_images = '/Users/throop/Data/NH_Jring/data/jupiter/level2/lor/all/'
 
 file_backplane = file_image.replace('.fit', '_planes.pkl')
+
+file_short = file_image.replace('.fit', '').replace('_sci', '').replace('_opnav', '')[0:-8]
 
 #==============================================================================
 # Read image and all associated files
@@ -168,25 +172,25 @@ x_ring2, y_ring2 = hbt.get_pos_ring(et, name_body='Jupiter', radius=a_ring_outer
 
 (numrad, rj_array) = sp.bodvrd('JUPITER', 'RADII', 3) # 71492 km
 rj = rj_array[0]
-r_ring_inner = 1.6 * rj   # Follow same limits as in Throop 2004 J-ring paper fig. 7
-r_ring_outer = 1.9 * rj
+r_ring_inner = 126000 # * rj   # Follow same limits as in Throop 2004 J-ring paper fig. 7
+r_ring_outer = 132000 # rj
 
 num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
 num_bins_radius  = 300
 
 limits_radius = (r_ring_inner, r_ring_outer) # Distances in km
 
-# Define an offset in X and Y for the ring
+# Define an offset in X and Y for the ring. This is the residual navigation error, which we want to apply here.
 
-dx = 00
+dx = 0
 dy = 0
 
 # Do the unwrapping
 
 (im_unwrapped, mask_unwrapped, bins_radius, bins_azimuth) = nh_jring_unwrap_ring_image(im, 
-                                                num_bins_radius, limits_radius,
-                                                num_bins_azimuth, 
-                                                planes, dx=dx, dy=dy, mask=mask)
+                                                                   num_bins_radius, limits_radius,
+                                                                   num_bins_azimuth, 
+                                                                   planes, dx=dx, dy=dy, mask=mask)
       
 #==============================================================================
 # Make a plot!
@@ -258,7 +262,7 @@ ax[1].imshow(stretch(im_unwrapped + 10 * mask_unwrapped), extent=extent, aspect=
 
 for i in [0,1]:
     ax[i].set_xlim([bins_azimuth[0], bins_azimuth[-1]])
-    ax[i].set_ylim([124000, 135000])
+    ax[i].set_ylim([bins_radius[0],  bins_radius[-1]])
     ax[i].set_title(titles[i])
 
     ax[i].set_xlabel('Azimuth [radians]')
@@ -266,4 +270,26 @@ for i in [0,1]:
 
 plt.show()
 
-        
+#==============================================================================
+# Extract radial and azimuthal profiles from the unwrapped images
+#==============================================================================
+
+(profile_radius, profile_azimuth) \
+                      = nh_jring_extract_profiles_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
+                                              0.2, # radius_out -- ie, fraction of radius used for az profile
+                                              0.5, # azimuth_out -- ie, fraction of az used for radial profile
+                                              mask_unwrapped=mask_unwrapped)
+
+# Plot the radial and azimuthal profiles
+
+fig, ax = plt.subplots(2, 1, figsize=(10, 10))
+ax[0].plot(bins_azimuth, profile_azimuth)
+ax[0].set_title('Azimuthal Profile, {}'.format(file_short))
+ax[0].set_xlabel('Azimuth [radians]')
+ax[0].set_ylabel('DN')
+
+ax[1].plot(bins_radius, profile_radius)
+ax[1].set_title('Radial Profile, {}'.format(file_short))
+ax[1].set_xlabel('Radius [km]')
+ax[1].set_ylabel('DN')
+plt.show()
