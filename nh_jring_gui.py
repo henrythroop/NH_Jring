@@ -84,7 +84,11 @@ import hbt
 
 from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
 #from  nh_jring_load_objectlist      import nh_jring_load_objectlist
-   
+
+from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
+from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
+from nh_jring_extract_profiles_from_unwrapped  import nh_jring_extract_profiles_from_unwrapped   
+
 #pdb.set_trace()
 
 # First we define any general-purpose functions, which are not part of the class/module.
@@ -135,6 +139,9 @@ class App:
         self.bgcolor = '#ECECEC'    # ECECEC is the 'default' background for a lot of the ttk widgets.
         
         (r2d, d2r) = (hbt.r2d, hbt.d2r)
+
+        stretch_percent = 90    
+        self.stretch = astropy.visualization.PercentileInterval(stretch_percent)  # PI(90) scales to 5th..95th %ile.     
 
 # Set some physical parameters
 
@@ -516,154 +523,38 @@ class App:
 
 # Create the masked pixels maps
 
-        image_processed_mask = self.image_processed.copy()
-        image_processed_mask[mask_objects] = np.nan        # Set pixels with objects to NaN
-            
-# Calculate the amount by which to roll image
+#        image_processed_mask = self.image_processed.copy()
+#        image_processed_mask[mask_objects] = np.nan        # Set pixels with objects to NaN
 
-#        dx_total =  -( self.t_group['dx_opnav'][self.index_image] +  int(self.slider_offset_dx.get()) )
-#        dy_total =  -( self.t_group['dy_opnav'][self.index_image] +  int(self.slider_offset_dy.get()) )
-#
-## Roll the image
-#
-#        self.image_roll      = np.roll(np.roll(self.image_processed, dx_total, axis=1), dy_total, axis=0)
-#        self.image_roll_mask = np.roll(np.roll(image_processed_mask, dx_total, axis=1), dy_total, axis=0)
-#                
-#==============================================================================
-# Examine backplane to figure out azimuthal limits of the ring image
-#==============================================================================
+# Unwrap the ring image
 
-        # Read in values from the backplane. Note that 'self' just keeps the backplanes of the *current* image.
-
-        radius  = self.planes['Radius_eq']    # Radius in km
-        azimuth = self.planes['Longitude_eq'] # Azimuth in radians
-        phase   = self.planes['Phase']        # Phase angle, radians
-
-        bins_radius = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)
-            
-        # Select the ring points -- that is, everything inside the mask
+        dx = 0 # Navigational offset, usually sub-pixel
+        dy = 0
         
-        is_ring_all = ( np.array(radius > r_ring_inner) & np.array(radius < r_ring_outer))
-        
-        radius_all  = radius[is_ring_all]     # Make a list of all of the radius values
-        azimuth_all = azimuth[is_ring_all]  # Make a list of all of the azimuth points for all pixels
-        phase_all   = phase[is_ring_all]
-
-        dn_all = self.image_processed[is_ring_all]
-        
-        # Now apply the satellite mask. 
-        # If it is 0, let the value through
-        # If it is 1, turn to NaN
-        
-#        DO_SAT_MASK = True
-#        
-#        if (DO_SAT_MASK):
-#            dn_all = self.image_roll_mask[is_ring_all]
-#        else:
-#            dn_all = self.image_roll[is_ring_all]          # DN values, from the rolled image
-        
-        phase_mean  = np.mean(phase_all)     # Get the mean phase angle across the ring.
-        
-        # Now take these raw data, and rearrange them so that we can take the longest continuous segment
-        # We do this by appending the timeseries to itself, looking for the largest gap (of no az data), 
-        # and then the data will start immediately after that.
-        
-        # _2 indicates a double-length array (ie, with [azimuth, azimuth + 2pi])
-        # _s indicates sorted
-        # _d indicates delta
-        
-        azimuth_all_3 = np.concatenate((azimuth_all, azimuth_all + 2*math.pi, azimuth_all + 4*math.pi))
-        dn_all_3      = np.concatenate((dn_all,      dn_all,                  dn_all))
-        radius_all_3  = np.concatenate((radius_all, radius_all,               radius_all))
-        
-        azimuth_all_3_s = np.sort(azimuth_all_3, kind = 'heapsort')
-        azimuth_all_3_s_d = azimuth_all_3_s - np.roll(azimuth_all_3_s, 1)
-        
-        # Look for the indices where the largest gaps (in azimuth) start
-        
-        index_seg_start_3_s = (np.where(azimuth_all_3_s_d > 0.999* np.max(azimuth_all_3_s_d)))[0][0]
-        index_seg_end_3_s   = (np.where(azimuth_all_3_s_d > 0.999* np.max(azimuth_all_3_s_d)))[0][1]-1
-        
-        # Get proper azimithal limits. We want them to be a single clump of monotonic points.
-        # Initial point is in [0, 2pi) and values increase from there.
-                                                           
-        azimuth_seg_start = azimuth_all_3_s[index_seg_start_3_s] # Azimuth value at the segment start
-        azimuth_seg_end   = azimuth_all_3_s[index_seg_end_3_s]   # Azimuth value at the segment end
-        
-        indices_3_good = (azimuth_all_3 >= azimuth_seg_start) & (azimuth_all_3 < azimuth_seg_end)
-        
-        azimuth_all_good = azimuth_all_3[indices_3_good]
-        radius_all_good  = radius_all_3[indices_3_good]
-        dn_all_good      = dn_all_3[indices_3_good]
-        
-        # Extract arrays with the proper pixel values, and proper azimuthal values
-        
-        azimuth_all = azimuth_all_good
-        radius_all  = radius_all_good
-        dn_all      = dn_all_good
-        
-#==============================================================================
-#  Now regrid the data from xy position, to an unrolled map in (azimuth, radius)
-#==============================================================================
-
-# Method #1: Construct the gridded image line-by-line
-
-        dn_grid         = np.zeros((num_bins_radius, num_bins_azimuth))  # Row, column
-        bins_azimuth    = hbt.frange(azimuth_seg_start, azimuth_seg_end, num_bins_azimuth)
-        bins_radius     = hbt.frange(r_ring_inner, r_ring_outer, num_bins_radius)        
-        
-        for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer
-            
-            # Select only bins with right radius and azimuth
-            is_ring_i = np.array(radius_all > bins_radius[i]) & np.array(radius_all < bins_radius[i+1]) & \
-                        np.array(azimuth_all > azimuth_seg_start) & np.array(azimuth_all < azimuth_seg_end) 
-            
-            if np.sum(is_ring_i) > 0:
-                dn_i         = dn_all[is_ring_i]  # Get the DN values from the image (adjusted by nav pos error)
-                radius_i     = radius_all[is_ring_i]
-                azimuth_i    = azimuth_all[is_ring_i]
-                grid_lin_i   = griddata(azimuth_i, dn_i, bins_azimuth, method='linear')
-                
-                dn_grid[i,:] = grid_lin_i
-
-# De-NaN the output. This is just for testing -- the proper thing is to keep NaNs there.
-
-#        dn_grid[np.isnan(dn_grid)] = 0
-        
+        (im_unwrapped, mask_unwrapped, bins_radius, bins_azimuth) = \
+                                      nh_jring_unwrap_ring_image(self.image_processed, 
+                                                                 num_bins_radius, (r_ring_inner, r_ring_outer),
+                                                                 num_bins_azimuth, 
+                                                                 self.planes, 
+                                                                 dx=dx, dy=dy, 
+                                                                 mask=mask_objects)
+          
 # Save the variables, and return
         
-        self.image_unwrapped    = dn_grid     # NB: This has a lot of NaNs in it.
-        self.radius_unwrapped   = bins_radius
-        self.azimuth_unwrapped  = bins_azimuth
+        self.image_unwrapped    = im_unwrapped     # NB: This has a lot of NaNs in it.
+        self.radius_unwrapped   = bins_radius      # The bins which define the unwrapped coordinates
+        self.azimuth_unwrapped  = bins_azimuth     # The bins which define the unwrapped coordinates
+        self.mask_unwrapped     = mask_unwrapped   # The object mask, unwrapped. 1 = [object here]
 
+# Plot the unwrapped image
+
+        plt.imshow(stretch(self.image_unwrapped))
+        plt.title('Unwrapped image')
+        plt.show()
+        
         self.diagnostic('unwrap_ring_image() -- finished')
 
         return
-        
-########################3
-
-## Method #2: Construct the gridded image all at once 
-#
-#        az_arr  = np.linspace(azimuth_seg_start, azimuth_seg_end,     num_bins_azimuth)
-#        rad_arr = np.linspace(np.min(radius_all), np.max(radius_all), num_bins_radius)
-#
-## In order for griddata to work, d_radius and d_azimuth values should be basically equal.
-## In Jupiter data, they are not at all. Easy soln: tweak azimuth values by multiplying
-## by a constant to make them large.
-##
-#        f = (np.max(radius_all) - np.min(radius_all)) / (np.max(azimuth_all) - np.min(azimuth_all))
-#        aspect = 1/f
-#
-## NB: griddata() returns an array in opposite row,column order than I would naively think.
-## I want results in order (radius, azimuth) = (y, x)
-#
-#        dn_grid2 = griddata((f*azimuth_all, radius_all), dn_all, 
-#                           (f*az_arr[None,:], rad_arr[:,None]), method='linear')
-#        
-#        plt.imshow(dn_grid2)
-#        plt.title('dn_grid, method 2')
-#        plt.show()
-#        
 
 #==============================================================================
 # Extract ring profiles from the data image
@@ -674,6 +565,7 @@ class App:
         self.diagnostic('extract_profiles()')
         
         # Compute additional quantities we need
+
 
         (vec, lt)        = sp.spkezr('New Horizons', 
                             self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
@@ -695,91 +587,38 @@ class App:
         dn_grid       = self.image_unwrapped # This is only set if this image was navigated, and could be extracted.
         bins_radius   = self.radius_unwrapped
         bins_azimuth  = self.azimuth_unwrapped
-        
-        # Remove cosmic rays, stars, or anything else that might be left in the unwrapped image.
-        # We have already done this, but maybe the unwrapping creates sharp edges -- so do it again.
-        
-        dn_grid       = hbt.decosmic(dn_grid)
-        
-#==============================================================================
-# Extract radial and azimuthal profiles. Method #1: From the full remapped images.
-#==============================================================================
 
-        profile_azimuth_full = np.nanmean(dn_grid, 0)
-        profile_radius_full  = np.nanmean(dn_grid, 1)       
+#==============================================================================
+# Extract radial and azimuthal profiles.
+#==============================================================================
+        
+        (profile_radius, profile_azimuth) \
+                      = nh_jring_extract_profiles_from_unwrapped(self.image_unwrapped, 
+                                              self.radius_unwrapped, # Array defining bins of radius
+                                              self.azimuth_unwrapped,  # Array defining bins of azimuth
+                                              0.5, # radius_out -- ie, fraction of radius used for az profile
+                                              0.5, # azimuth_out -- ie, fraction of az used for radial profile
+                                              mask_unwrapped=self.mask_unwrapped)
+
+# Q&D plot to screen, to make sure it is done right!
+
+        stretch = astropy.visualization.PercentileInterval(95)  # PI(90) scales array to 5th .. 95th %ile. 
+
+        plt.imshow(stretch(self.image_unwrapped))
+        plt.show()
+        
+        plt.plot(profile_radius,  self.radius_unwrapped)
+        plt.plot(profile_azimuth, self.azimuth_unwrapped)
+        plt.show()
+        
+        profile_azimuth_full = profile_azimuth
+        profile_radius_full  = profile_radius       
         
         plt.rcParams['figure.figsize'] = 16,10
-
-# Method 2: from a limited region of the remapped images
-
-        # Set limits for where the extraction should happen
-        
-        # For the radial profile, we take only a portion of the unwrapped frame. 
-        # e.g., the inner 30%. We exclude the region on the edges, since it is smeared, and has contamination.
-        # We are not starved for photons. Take the best portion of the signal and use it.
-        
-        frac_profile_radial = 0.3  # Of the available azimuth range, what fraction 
-                                   # do we use for extracting radial profile?
-                                   # Azimuthal limits, used for radial profile
-                                   
-        # For azimuthal profile, focus on the main ring. Don't focus on the diffuse inner region.
-        # It is harder to do that photometry, more artifacts, fainter, and probalby more spread out anyhow.
-        
-        # Define distances of [outer box, outer ring, inner ring, inner box] in km
-        # These four radii define the position of the inner and outer regions to subtract as bg, 
-        # and the inner region to use for the signal.
-        
-        limits_profile_azimuth = np.array([131e3,130e3,127e3,126e3]) # Radial limits, used for az profile
-        
-        limits_profile_azimuth_bins = limits_profile_azimuth.astype(int).copy() * 0
-
-        # XXX I think ths should be rewritten with hbt.x2bin()
-        
-        for i,r in enumerate(limits_profile_azimuth):
-            limits_profile_azimuth_bins[i] = int(hbt.wheremin(abs(bins_radius - r)))
-        
-        limits_profile_radial_bins = int(np.shape(dn_grid)[1]) * \
-            np.array([0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2])
-
-        limits_profile_radial_bins = limits_profile_radial_bins.astype(int)     
-              
-#        lprb = hbt.x2bin(np.array((0.5-frac_profile_radial/2, 0.5+frac_profile_radial/2)), bins_radius)
-#        lpab = hbt.x2bin(limits_profile_azimuth, bins_azimuth)
-#        
-#        print "limits_profile_radial_bins:"
-#        print limits_profile_radial_bins
-#        print lprb
-#        
-#        print "limits_profile_azimuth_bins:"
-#        print limits_profile_azimuth_bins
-#        print lpab
-        
-        #==============================================================================
-        # Extract radial and azimuthal profiles, using subsections
-        #==============================================================================
-        
-        # I am using the *mean* here along each row and column. That means that the final value
-        # in the profiles is 
-        # Azimuthal
-        
-        #profile_azimuth_bg_inner = 
-        #    np.nansum(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],0)
-        
         plt.rcParams['figure.figsize'] = 10,5
-        
-        profile_azimuth_bg_inner = np.nanmean(dn_grid[limits_profile_azimuth_bins[1]:limits_profile_azimuth_bins[0],:],
-                                              axis=0)
-        profile_azimuth_core     = np.nanmean(dn_grid[limits_profile_azimuth_bins[2]:limits_profile_azimuth_bins[1],:],
-                                              axis=0)
-        profile_azimuth_bg_outer = np.nanmean(dn_grid[limits_profile_azimuth_bins[3]:limits_profile_azimuth_bins[2],:],
-                                              axis=0)
 
-        # Get profile in DN
-        profile_azimuth_central  = profile_azimuth_core - (profile_azimuth_bg_inner + profile_azimuth_bg_outer)/2
-        profile_radius_central   = np.nanmean(dn_grid[:,limits_profile_radial_bins[0]:limits_profile_radial_bins[1]],1)
-        
 #==============================================================================
-# Converted extracted values from DN, into photometric quantities
+# Convert extracted values from DN, into photometric quantities
 #==============================================================================
 
 #        rsolar_i = t_group['RSolar'][self.index_image]
@@ -821,24 +660,9 @@ class App:
         f = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
         aspect = 0.5/f * 2 # Set the aspect ratio
 
-        stretch = astropy.visualization.PercentileInterval(95)  # PI(90) scales array to 5th .. 95th %ile. 
-
         self.ax3.clear()        
 
-        # For now, we are scaling this vertically by hand. Might have to revisit that.
-
-#        self.ax3.imshow(dn_grid, extent=extent, aspect=aspect, vmin=-15, vmax=20, origin='lower')
-
         self.ax3.imshow(stretch(dn_grid), extent=extent, aspect=aspect, origin='lower')
-
-#        self.ax3.hlines(limits_profile_azimuth[0], -10, 10, color='purple')
-#        self.ax3.hlines(limits_profile_azimuth[1], -10, 10, color='purple')
-#        self.ax3.hlines(limits_profile_azimuth[2], -10, 10, color='purple')
-#        self.ax3.hlines(limits_profile_azimuth[3], -10, 10, color='purple')
-#        self.ax3.set_xlim(hbt.mm(bins_azimuth))
-        
-#        self.ax3.vlines(bins_azimuth[limits_profile_radial_bins[0]],-1e10, 1e10)
-#        self.ax3.vlines(bins_azimuth[limits_profile_radial_bins[1]],-1e10, 1e10)
 
         self.ax3.set_ylim([124000, 134000])
         self.ax3.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
@@ -862,20 +686,18 @@ class App:
                           
                 
         self.ax2.plot(bins_azimuth, profile_azimuth_full, label = 'Full')
-        self.ax2.plot(bins_azimuth, profile_azimuth_central, label = 'Central - bg')
-        
-#        self.ax2.plot(bins_azimuth, profile_azimuth_2 + dy, label='Raw')
+
         self.ax2.set_title('Azimuthal Profile')
         self.ax2.set_xlabel('Azimuth [radians]')
         self.ax2.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
         self.ax2.legend(loc = 'upper left')
 
         self.ax2.plot(bins_radius, profile_radius_full)
-        self.ax2.plot(bins_radius, profile_radius_central)
+#        self.ax2.plot(bins_radius, profile_radius_central)
         
         self.canvas2.show()
         
-        dy = 1
+#        dy = 1
 
 #        ylim = [np.amin(0.9 * profile_radius), dy + 1.5 * np.percentile(profile_radius, 90)]
 
@@ -889,8 +711,8 @@ class App:
         
         if (DO_PLOT_IOF == False):
 
-#            self.ax4.plot(bins_radius/1000, profile_radius_full, label = 'Full')
-            self.ax4.plot(bins_radius/1000, profile_radius_central, label = 'Central')
+            self.ax4.plot(bins_radius/1000, profile_radius_full, label = 'Full')
+#            self.ax4.plot(bins_radius/1000, profile_radius_central, label = 'Central')
             
             self.ax4.set_xlabel(r'Radial Profile      Radius [1000 km]    phase = {:.1f} deg'
                                 .format(hbt.r2d * np.mean(self.planes['Phase'])))
@@ -926,10 +748,10 @@ class App:
         # Save the profiles where we can access them later
         
         self.profile_radius_full   = profile_radius_full
-        self.profile_radius_central = profile_radius_central
+#        self.profile_radius_central = profile_radius_central
         
         self.profile_azimuth_full   = profile_azimuth_full
-        self.profile_azimuth_central = profile_azimuth_central
+#        self.profile_azimuth_central = profile_azimuth_central
         
                        
 ##########
