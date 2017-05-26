@@ -124,7 +124,7 @@ class App:
 
 # Set various default values
         
-        option_bg_default   = 'String'
+        option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
         entry_bg_default    = '0-10' # Default polynomial order XXX need to set a longer string length here!
         index_group_default = 5 # Default group to start with
         index_image_default = 5 # Default image number within the group
@@ -140,8 +140,8 @@ class App:
         
         (r2d, d2r) = (hbt.r2d, hbt.d2r)
 
-        stretch_percent = 90    
-        self.stretch = astropy.visualization.PercentileInterval(stretch_percent)  # PI(90) scales to 5th..95th %ile.     
+        self.stretch_percent = 90    
+        self.stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales to 5th..95th %ile.     
 
 # Set some physical parameters
 
@@ -178,14 +178,20 @@ class App:
             t['bg_argument'] = entry_bg_default # A number (if 'Polynomial'). A range (if 'Median')
             t['Comment']  = 'Empty comment'  # Blank -- I'm not sure how to init its length if needed
             t['is_navigated'] = False  # Flag
-            t['x_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr
-            t['y_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr
-            t['x_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
-            t['y_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
+#            t['x_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr
+#            t['y_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr
+#            t['x_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
+#            t['y_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
             t['x_pos_ring1']      = np.array(t['Format'],dtype='U20000')  # 5000 char is not long enough!
             t['y_pos_ring1']      = np.array(t['Format'],dtype='U20000')    # 10,000 char is not long enough!
             t['x_pos_ring2']      = np.array(t['Format'],dtype='U20000')
             t['y_pos_ring2']      = np.array(t['Format'],dtype='U20000')
+
+# Extend the size of these strings. This is really stupid, but Tables pre-allocates width of these fields, and 
+# will quietly truncate any longer string we stick in there. So, need to explicitly make them wider.
+
+            t['bg_argument'] = np.array(t['bg_argument'], dtype = 'U100')
+            t['bg_method']   = np.array(t['bg_method'],   dtype = 'U100')
                       
             self.t = t
             
@@ -241,9 +247,7 @@ class App:
 								
         (dim, radii)            = sp.bodvrd('JUPITER', 'RADII', 3)
         self.rj                 = radii[0]  # Jupiter radius, polar, in km. Usually 71492.
-        
-        self.stretch_percent    = 90            # Image scaling value to use. 90 means plot from 5th to 95th %ile.
-        
+                
 # Now define and startup the widgets
                 
         self.path_settings = "/Users/throop/python/salt_interact_settings/"
@@ -502,8 +506,8 @@ class App:
         
         (numrad, rj_array) = sp.bodvrd('JUPITER', 'RADII', 3) # 71492 km
         rj = rj_array[0]
-        r_ring_inner = 1.6 * rj   # Follow same limits as in Throop 2004 J-ring paper fig. 7
-        r_ring_outer = 1.9 * rj
+        r_ring_inner = 126000   # Follow same limits as in Throop 2004 J-ring paper fig. 7
+        r_ring_outer = 132000
 
         num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
         num_bins_radius  = 300
@@ -526,7 +530,7 @@ class App:
 #        image_processed_mask = self.image_processed.copy()
 #        image_processed_mask[mask_objects] = np.nan        # Set pixels with objects to NaN
 
-# Unwrap the ring image
+# Unwrap the ring image. The input to this is the processed ring (ie, bg-subtracted)
 
         dx = 0 # Navigational offset, usually sub-pixel
         dy = 0
@@ -546,9 +550,9 @@ class App:
         self.azimuth_unwrapped  = bins_azimuth     # The bins which define the unwrapped coordinates
         self.mask_unwrapped     = mask_unwrapped   # The object mask, unwrapped. 1 = [object here]
 
-# Plot the unwrapped image
+# Plot the unwrapped image to console, for diagnostics
 
-        plt.imshow(stretch(self.image_unwrapped))
+        plt.imshow(self.stretch(self.image_unwrapped))
         plt.title('Unwrapped image')
         plt.show()
         
@@ -596,15 +600,14 @@ class App:
                       = nh_jring_extract_profiles_from_unwrapped(self.image_unwrapped, 
                                               self.radius_unwrapped, # Array defining bins of radius
                                               self.azimuth_unwrapped,  # Array defining bins of azimuth
-                                              0.5, # radius_out -- ie, fraction of radius used for az profile
+                                              0.2, # radius_out -- ie, fraction of radius used for az profile
                                               0.5, # azimuth_out -- ie, fraction of az used for radial profile
                                               mask_unwrapped=self.mask_unwrapped)
 
 # Q&D plot to screen, to make sure it is done right!
 
-        stretch = astropy.visualization.PercentileInterval(95)  # PI(90) scales array to 5th .. 95th %ile. 
 
-        plt.imshow(stretch(self.image_unwrapped))
+        plt.imshow(self.stretch(self.image_unwrapped))
         plt.show()
         
         plt.plot(profile_radius,  self.radius_unwrapped)
@@ -658,13 +661,13 @@ class App:
         extent = [bins_azimuth[0], bins_azimuth[-1], bins_radius[0], bins_radius[-1]]
 
         f = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
-        aspect = 0.5/f * 2 # Set the aspect ratio
+        aspect = 0.5 * 1/f  # Set the aspect ratio
 
         self.ax3.clear()        
 
-        self.ax3.imshow(stretch(dn_grid), extent=extent, aspect=aspect, origin='lower')
+        self.ax3.imshow(self.stretch(dn_grid), extent=extent, aspect=aspect, origin='lower')
 
-        self.ax3.set_ylim([124000, 134000])
+        self.ax3.set_ylim([bins_radius[0], bins_radius[-1]])
         self.ax3.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
         
         self.ax3.set_xlabel('Azimuth [radians]')
@@ -780,186 +783,8 @@ class App:
 #########
 
     def navigate(self):        
-
-        t = self.t_group # We use this a lot, so make it shorter
-        d2r = hbt.d2r
-        r2d = hbt.r2d
-        
-        index_image = self.index_image       
-        
-# Now look up positions of stars in this field, from a star catalog
-
-        file = t['Filename'][index_image]
-        
-        with warnings.catch_warnings():  # Without this, we get lots of warnings about a FITS error: 'DEG' vs. 'deg'
-            warnings.simplefilter("ignore")
-            
-            print("Loading WCS for " + file)
-    
-# Look for a file ending in '_opnav.fit'. If it exists, then it is properly navigated. Use WCS from it.
-        
-            if ('opnav' in file):
-                file_opnav = file
-            else:                
-                file_opnav = file.replace('.fit', '_opnav.fit')
-        
-        if not(os.path.isfile(file_opnav)):
-            print("Error: Can't file " + file_opnav)
-            return
-        
-        w = WCS(file_opnav)                  # Look up the WCS coordinates for this frame
-            
-        et = t['ET'][index_image]
-
-        print('ET[i] =  ' + repr(et))
-        print('UTC[i] = ' + repr(t['UTC'][index_image]))
-        print('crval[i] = ' + repr(w.wcs.crval))              # crval is a two-element array of [RA, Dec], in degrees
-        
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            center  = w.wcs.crval  # degrees
-            
-        DO_GSC1     = False    # Stopped working 2-Oct-2016
-        DO_GSC2     = True
-        DO_USNOA2   = False
-
-        radius_search_deg = 0.15
-        
-        if (DO_GSC1):
-            name_cat = u'The HST Guide Star Catalog, Version 1.1 (Lasker+ 1992) 1'      
-            stars = conesearch.conesearch(w.wcs.crval, radius_search_deg, cache=False, catalog_db = name_cat)
-            ra_stars  = np.array(stars.array['RAJ2000'])*d2r # Convert to radians
-            dec_stars = np.array(stars.array['DEJ2000'])*d2r # Convert to radians
-#            table_stars = Table(stars.array.data)
-
-        if (DO_GSC2):
-            name_cat = u'Guide Star Catalog v2 1'# Works on gobi only (no tomato)
-            url_cat = 'http://gsss.stsci.edu/webservices/vo/ConeSearch.aspx?CAT=GSC23&' # Works always
-
-            from astropy.utils import data
-            
-            with data.conf.set_temp('remote_timeout', 30): # This is the very strange syntax to set a timeout delay.
-                                                           # The default is 3 seconds, and that times out often.
-                stars = conesearch.conesearch(w.wcs.crval, radius_search_deg, cache=True, catalog_db = url_cat)
-
-            # NB: the returned value is a Table, but I have to access via .array[] -- not sure why.
-            
-            ra_stars  = np.array(stars.array['ra'])*d2r # Convert to radians
-            dec_stars = np.array(stars.array['dec'])*d2r # Convert to radians
-
-            mag       = np.array(stars.array['Mag'])
-            
-            print("Stars downloaded: {}; mag = {} .. {}".format(np.size(mag), np.nanmin(mag), np.nanmax(mag)))
-            print("RA = {} .. {}".format(np.nanmin(ra_stars)*r2d, np.nanmax(ra_stars)*r2d))
-            
-            # Now sort by magnitude, and keep the 100 brightest
-            # This is because this GSC catalog is huge -- typically 2000 stars in LORRI FOV.
-            # We need to reduce its size to fit in our fixed astropy table string length.
-
-            num_stars_max = 100            
-            order = np.argsort(mag)
-            order = np.array(order)[0:num_stars_max]
-
-            ra_stars = ra_stars[order]
-            dec_stars = dec_stars[order]
-  
-#            table_stars = Table(stars.array.data)
-
-        if (DO_USNOA2):        
-            name_cat = u'The USNO-A2.0 Catalogue (Monet+ 1998) 1' # Works but gives stars down to v=17; I want to v=13 
-            stars = conesearch.conesearch(w.wcs.crval, 0.3, cache=False, catalog_db = name_cat)
-            table_stars = Table(stars.array.data)
-            mask = table_stars['Bmag'] < 13
-            table_stars_m = table_stars[mask]            
-
-            ra_stars  = table_stars_m['RAJ2000']*d2r # Convert to radians
-            dec_stars = table_stars_m['DEJ2000']*d2r # Convert to radians
-        
-# Get an array of points along the ring
-
-        ra_ring1, dec_ring1 = hbt.get_pos_ring(et, name_body='Jupiter', radius=self.a_ring_inner_km, units='radec', wcs=w)
-        ra_ring2, dec_ring2 = hbt.get_pos_ring(et, name_body='Jupiter', radius=self.a_ring_outer_km, units='radec', wcs=w)
-
-                    # Return as radians              
-        x_ring1, y_ring1    = w.wcs_world2pix(ra_ring1*r2d, dec_ring1*r2d, 0) # Convert to pixels
-        x_ring2, y_ring2    = w.wcs_world2pix(ra_ring2*r2d, dec_ring2*r2d, 0) # Convert to pixels
-
-# Get position of Jupiter, in pixels
-
-#        ra_io, dec_io = get_pos_body(et, name_body='Io', units = 'radec', wcs=w)
-        
-# Look up velocity of NH, for stellar aberration
-        
-        abcorr = 'LT+S'
-        frame = 'J2000'
-        st,ltime = sp.spkezr('New Horizons', et, frame, abcorr, 'Sun') # Get velocity of NH 
-        vel_sun_nh_j2k = st[3:6]
-        
-# Correct stellar RA/Dec for stellar aberration
-
-        radec_stars        = np.transpose(np.array((ra_stars,dec_stars)))
-        radec_stars_abcorr = hbt.correct_stellab(radec_stars, vel_sun_nh_j2k) # Store as radians
-
-# Convert ring RA/Dec for stellar aberration
-
-        radec_ring1        = np.transpose(np.array((ra_ring1,dec_ring1)))
-        radec_ring1_abcorr = hbt.correct_stellab(radec_ring1, vel_sun_nh_j2k) # radians
-        radec_ring2        = np.transpose(np.array((ra_ring2,dec_ring2)))
-        radec_ring2_abcorr = hbt.correct_stellab(radec_ring2, vel_sun_nh_j2k) # radians
-        
-# Convert RA/Dec values back into pixels
-        
-        x_stars,        y_stars          = w.wcs_world2pix(radec_stars[:,0]*r2d,   radec_stars[:,1]*r2d, 0)        
-        x_stars_abcorr, y_stars_abcorr   = w.wcs_world2pix(radec_stars_abcorr[:,0]*r2d, radec_stars_abcorr[:,1]*r2d, 0)
-        x_ring1_abcorr, y_ring1_abcorr   = w.wcs_world2pix(radec_ring1_abcorr[:,0]*r2d, radec_ring1_abcorr[:,1]*r2d, 0)
-        x_ring2_abcorr, y_ring2_abcorr   = w.wcs_world2pix(radec_ring2_abcorr[:,0]*r2d, radec_ring2_abcorr[:,1]*r2d, 0)
-
-        points_stars        = np.transpose((x_stars, y_stars))
-        points_stars_abcorr = np.transpose((x_stars_abcorr, y_stars_abcorr))
-
-# Read the image file from disk
-
-        image_polyfit = hbt.read_lorri(t['Filename'][index_image], frac_clip = 1.,  
-                                     bg_method = 'Polynomial', bg_argument = 4)
-        image_raw     = hbt.read_lorri(t['Filename'][index_image], frac_clip = 0.9, 
-                                     bg_method = 'None')
-
-# Use DAOphot to search the image for stars. It works really well.
-
-        points_phot = hbt.find_stars(image_polyfit)
-        
-# Now look up the shift between the photometry and the star catalog. 
-# Do this by making a pair of fake images, and then looking up image registration on them.
-# I call this 'opnav'. It is returned in order (y,x) because that is what imreg_dft uses, even though it is a bit weird.
-#
-# For this, I can use either abcorr stars or normal stars -- whatever I am going to compute the offset from.        
-
-        (dy_opnav, dx_opnav) = hbt.calc_offset_points(points_phot, points_stars, np.shape(image_raw), 
-             do_plot_before=True, do_plot_after=True)
-
-        (dy_opnav, dx_opnav) = (0,0)
-        
-# Save the newly computed values to variables that we can access externally
-# For the star locations, we can't put an array into an element of an astropy table.
-# But we *can* put a string into astropy table! Do that: wrap with repr(), unwrap with eval('np.' + ).
-       
-        self.t_group['dx_opnav'][self.index_image] = dx_opnav
-        self.t_group['dy_opnav'][self.index_image] = dy_opnav
-        
-        self.t_group['x_pos_star_cat'][self.index_image] = hbt.reprfix(x_stars_abcorr)
-        self.t_group['y_pos_star_cat'][self.index_image] = hbt.reprfix(y_stars_abcorr)
-        
-#        self.t_group['x_pos_star_cat'][self.index_image] = repr(x_stars) # For test purposes, ignore the abcorr
-#        self.t_group['y_pos_star_cat'][self.index_image] = repr(y_stars)
-                
-        self.t_group['x_pos_star_image'][self.index_image] = hbt.reprfix(points_phot[:,0]).replace(' ', '') # Shorten it
-        self.t_group['y_pos_star_image'][self.index_image] = hbt.reprfix(points_phot[:,1]).replace(' ', '')
-        self.t_group['is_navigated'][self.index_image] = True             # Set the flag saying we have navigated image
-
-        self.t_group['x_pos_ring1'][self.index_image] = hbt.reprfix(x_ring1_abcorr)
-        self.t_group['y_pos_ring1'][self.index_image] = hbt.reprfix(y_ring1_abcorr)
-        self.t_group['x_pos_ring2'][self.index_image] = hbt.reprfix(x_ring2_abcorr)
-        self.t_group['y_pos_ring2'][self.index_image] = hbt.reprfix(y_ring2_abcorr)
+     
+# Look up positions of stars in this field, from a star catalog
                
         return 0
 
@@ -1308,12 +1133,8 @@ the internal state which is already correct. This does *not* refresh the image i
         # *** In order to get things to plot in main plot window, 
         # use self.ax1.<command>, not plt.<command>
         # ax1 is an instance of Axes, and I can call it with most other methods (legend(), imshow(), plot(), etc)
-
-        stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales to 5th..95th %ile. 
-
-# Get the satellite position mask, and roll it into position
                        
-        self.ax1.imshow(stretch(self.image_processed))
+        self.ax1.imshow(self.stretch(self.image_processed))
         
         # Disable the tickmarks from plotting
 
@@ -1324,18 +1145,13 @@ the internal state which is already correct. This does *not* refresh the image i
 
         self.ax1.set_xlim([0,1023])  # This is an array and not a tuple. Beats me, like so many things with mpl.
         self.ax1.set_ylim([1023,0])
-  
-#        self.ax1.Axes(fig, [0,0,1,1])
-        
+          
         # Draw the figure on the Tk canvas
         
         self.fig1.tight_layout() # Remove all the extra whitespace -- nice!
         self.canvas1.draw()
                         
         self.plot_objects()
-        
-#        plt.imshow(stretch(self.image_processed))
-#        plt.show()
         
         return 0
 
@@ -1463,77 +1279,11 @@ the internal state which is already correct. This does *not* refresh the image i
         Returns a boolean image, set to True for pixels close to a satellite or star.
         """
         
-#        mask = nh_jring_mask_from_objectlist(self.file_objectlist)
+        # Not sure if this works yet
         
-#        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
-#                                            # We can reference table['col'][n] or table[n]['col'] - either OK
-#                                            
-#        r_pix_mask = 15                     # Exclude pixels this distance from the satellite center.
-#
-#        x_star = eval('np.' + t['x_pos_star_cat']) + t['dx_opnav']
-#        y_star = eval('np.' + t['y_pos_star_cat']) + t['dy_opnav']
-# 
-#        mask = 0 * self.image_processed
-#
-#        (x_arr, y_arr) = np.meshgrid(range(np.shape(mask)[0]), range(np.shape(mask)[1]))
-#        
-#        for x_i, y_i in zip(x_star, y_star):
-#
-#            d = np.sqrt((x_arr - (x_i))**2 + (y_arr - (y_i))**2)
-#
-#            mask_i = (d < r_pix_mask)
-#        
-#            mask = mask + mask_i
-#            
-##        plt.imshow(mask > 0)
-##        plt.title('Stellar Mask')
-##        plt.show()
-#
-##        print("Masked {} stars.".format(np.size(x_star)))
+        mask = nh_jring_mask_from_objectlist(self.file_objectlist)
         
         return mask
-        
-            
-#==============================================================================
-# Generate a satellite mask
-#==============================================================================
-
-# The image is 'properly navigated' -- that is, reflects WCS pointing, plus any of 
-# the user's navigation settings, and lines up with the read-in image, with no rolling required.
-
-# *** We should also mask out stars, such as seen in 8/41.
-
-    def get_mask_satellites(self):
-        """
-        Returns a boolean image, set to True at pixels within r_pix_mask of a satellite.
-        """
-    
-        r_pix_mask = 30                     # Exclude pixels this distance from the satellite center.
-
-        t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
-                                            # We can reference table['col'][n] or table[n]['col'] - either OK
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            w = WCS(t['Filename'])  
-                
-        name_bodies = np.array(['Metis', 'Adrastea', 'Thebe', 'Amalthea', 'Io'])        
-        x_bodies,  y_bodies   = hbt.get_pos_bodies(t['ET'], name_bodies, units='pixels', wcs=w)
-
-        dx = t['dx_opnav'] + self.slider_offset_dx.get()
-        dy = t['dy_opnav'] + self.slider_offset_dy.get()
-
-        mask = 0 * self.image_processed
-        for i,body in enumerate(name_bodies):
-            (x_arr, y_arr) = np.meshgrid(range(np.shape(mask)[0]), range(np.shape(mask)[1]))
-            d = np.sqrt((x_arr - (x_bodies[i] + dx))**2 + (y_arr - (y_bodies[i] + dy))**2)
-            mask_i = (d < r_pix_mask)
-            
-            if np.sum(mask_i) > 0:
-                print("Satellite {} masked.".format(body))
-            
-            mask = mask + mask_i
-        
-        return mask > 0  # Return boolean array: True if satellite within r_pix_mask pixels
         
 ##########
 # Load backplane
@@ -1871,7 +1621,7 @@ app  = App(root)
 
 # set the dimensions and position of the window
 
-root.geometry('%dx%d+%d+%d' % (1960, 1050, 2, 2))
+root.geometry('%dx%d+%d+%d' % (2000, 1100, 2, 2))
 root.configure(background='#ECECEC')                # ECECEC is the 'default' background for a lot of ttk widgets, which
                                                     # I figured out using photoshop. Not sure how to change that.
 

@@ -35,7 +35,9 @@ def nh_jring_extract_profiles_from_unwrapped(im_unwrapped, bins_radius, bins_azi
 
     if type(mask_unwrapped) == type(np.array([])):
         DO_MASK = True
-    
+
+    print("NH_J_extract_profiles_from_unwrapped: DO_MASK = {}".format(DO_MASK))
+     
     if (DO_MASK):    
         is_good_unwrapped = (mask_unwrapped == False)
 
@@ -69,6 +71,15 @@ def nh_jring_extract_profiles_from_unwrapped(im_unwrapped, bins_radius, bins_azi
         
     bins_azimuth_out  = bins_azimuth[bin_0:bin_1]
 
+    plt.plot(bins_azimuth, profile_azimuth)
+    plt.title("p_from_unwrapped, Az")
+    plt.show()
+
+    plt.plot(bins_radius, profile_radius)
+    plt.title("p_from_unwrapped, Rad")
+    plt.show()
+
+    
 # Now return everything
 
     return (profile_radius, profile_azimuth)
