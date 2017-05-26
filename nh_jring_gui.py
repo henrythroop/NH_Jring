@@ -531,8 +531,6 @@ class App:
         self.radius_unwrapped   = bins_radius      # The bins which define the unwrapped coordinates
         self.azimuth_unwrapped  = bins_azimuth     # The bins which define the unwrapped coordinates
         self.mask_unwrapped     = mask_unwrapped   # The object mask, unwrapped. 1 = [object here]
-        
-        self.diagnostic('unwrap_ring_image() -- finished')
 
         return
 
