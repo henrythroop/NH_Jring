@@ -129,7 +129,7 @@ class App:
         index_group_default = 5 # Default group to start with
         index_image_default = 5 # Default image number within the group
 
-        self.do_autoextract     = 0             # Flag to extract radial profile when moving to new image. 
+        self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
                                                 
 # Do some general code initialization
@@ -178,14 +178,6 @@ class App:
             t['bg_argument'] = entry_bg_default # A number (if 'Polynomial'). A range (if 'Median')
             t['Comment']  = 'Empty comment'  # Blank -- I'm not sure how to init its length if needed
             t['is_navigated'] = False  # Flag
-#            t['x_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr
-#            t['y_pos_star_cat']   = np.array(t['Format'],dtype='U20000')   # 1 x n array, pixels, with abcorr
-#            t['x_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
-#            t['y_pos_star_image'] = np.array(t['Format'],dtype='U20000') # 1 x n array, pixels, with abcorr
-            t['x_pos_ring1']      = np.array(t['Format'],dtype='U20000')  # 5000 char is not long enough!
-            t['y_pos_ring1']      = np.array(t['Format'],dtype='U20000')    # 10,000 char is not long enough!
-            t['x_pos_ring2']      = np.array(t['Format'],dtype='U20000')
-            t['y_pos_ring2']      = np.array(t['Format'],dtype='U20000')
 
 # Extend the size of these strings. This is really stupid, but Tables pre-allocates width of these fields, and 
 # will quietly truncate any longer string we stick in there. So, need to explicitly make them wider.
@@ -485,8 +477,6 @@ class App:
         master.bind('q', self.quit_e)
         
 # Finally, now that GUI is arranged, load the first image, and its backplane.
-
-#        self.save_gui()  # Small bug: for the first image, t[] is set, but not gui, so plot is not made properly.
                 
         self.refresh_gui()
         self.load_image()
@@ -511,10 +501,7 @@ class App:
 
         num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
         num_bins_radius  = 300
-        
-        # Read the current variables and backplane, and makes a plot / imshow.
-        
-        ####################
+             
  
 # Check if the backplane is loaded already. Load it iff it is not loaded
     
@@ -524,11 +511,6 @@ class App:
 # Grab the already-loaded object mask for the current image and pointing. 
 
         mask_objects    = self.objectmask
-
-# Create the masked pixels maps
-
-#        image_processed_mask = self.image_processed.copy()
-#        image_processed_mask[mask_objects] = np.nan        # Set pixels with objects to NaN
 
 # Unwrap the ring image. The input to this is the processed ring (ie, bg-subtracted)
 
@@ -549,12 +531,6 @@ class App:
         self.radius_unwrapped   = bins_radius      # The bins which define the unwrapped coordinates
         self.azimuth_unwrapped  = bins_azimuth     # The bins which define the unwrapped coordinates
         self.mask_unwrapped     = mask_unwrapped   # The object mask, unwrapped. 1 = [object here]
-
-# Plot the unwrapped image to console, for diagnostics
-
-        plt.imshow(self.stretch(self.image_unwrapped))
-        plt.title('Unwrapped image')
-        plt.show()
         
         self.diagnostic('unwrap_ring_image() -- finished')
 
@@ -569,7 +545,6 @@ class App:
         self.diagnostic('extract_profiles()')
         
         # Compute additional quantities we need
-
 
         (vec, lt)        = sp.spkezr('New Horizons', 
                             self.t_group['ET'][self.index_image], 'IAU_JUPITER', 'LT', 'Jupiter')
@@ -596,26 +571,22 @@ class App:
 # Extract radial and azimuthal profiles.
 #==============================================================================
         
-        (profile_radius, profile_azimuth) \
-                      = nh_jring_extract_profiles_from_unwrapped(self.image_unwrapped, 
-                                              self.radius_unwrapped, # Array defining bins of radius
-                                              self.azimuth_unwrapped,  # Array defining bins of azimuth
-                                              0.2, # radius_out -- ie, fraction of radius used for az profile
-                                              0.5, # azimuth_out -- ie, fraction of az used for radial profile
-                                              mask_unwrapped=self.mask_unwrapped)
+#        We might use a lot of different cases here. Rather than define each as individual variables, do as dict
 
-# Q&D plot to screen, to make sure it is done right!
-
-
-        plt.imshow(self.stretch(self.image_unwrapped))
-        plt.show()
+        profile_radius = {'full' : np.array([0]), 'center' : np.array([0])}
+        profile_azimuth = profile_radius.copy()
         
-        plt.plot(profile_radius,  self.radius_unwrapped)
-        plt.plot(profile_azimuth, self.azimuth_unwrapped)
-        plt.show()
+        frac_of_radius  = {'full' : 1, 'center' : 0.2}
+        frac_of_azimuth = {'full' : 1, 'center' : 0.2}
         
-        profile_azimuth_full = profile_azimuth
-        profile_radius_full  = profile_radius       
+        for key in profile_radius:
+            (profile_radius[key], profile_azimuth[key]) \
+                          = nh_jring_extract_profiles_from_unwrapped(self.image_unwrapped, 
+                                                  self.radius_unwrapped,   # Array defining bins of radius
+                                                  self.azimuth_unwrapped,  # Array defining bins of azimuth
+                                                  frac_of_radius[key],        # ie, frac of radius used for az profile
+                                                  frac_of_azimuth[key],       # ie, frac of az used for radial profile
+                                                  mask_unwrapped = self.mask_unwrapped)   
         
         plt.rcParams['figure.figsize'] = 16,10
         plt.rcParams['figure.figsize'] = 10,5
@@ -624,35 +595,36 @@ class App:
 # Convert extracted values from DN, into photometric quantities
 #==============================================================================
 
-#        rsolar_i = t_group['RSolar'][self.index_image]
 
         rsolar = 266400.  #   RSOLAR  =  266400.000000 / Conv to radiance for solar source. From LORRI FITS file.
-
+                          #   XXX As per HAL, we should not trust the FITS header. Instead, list explicitly.
+                          
         pixfov = 0.3 * hbt.d2r * 1e6 / 1024  # This keyword is missing. "Plate scale in microrad/pix "
 
 # Convert into I/F
-         
-        profile_radius_full_iof = self.dn2iof(profile_radius_full, self.t_group['Exptime'][self.index_image],\
-                                     pixfov, rsolar )
 
-        profile_radius_full_iof_norm = profile_radius_full_iof * mu
+        profile_radius_iof       = profile_radius.copy()
+        profile_radius_iof_norm  = profile_radius.copy()
+        
+        for key in profile_radius:
+            
+            profile_radius_iof[key] = self.dn2iof(profile_radius[key], self.t_group['Exptime'][self.index_image],\
+                                     pixfov, rsolar)
+
+            profile_radius_iof_norm[key] = profile_radius_iof[key] * mu
 
         ew_edge_bin = hbt.x2bin(ew_edge,bins_radius)
             
         dr = np.roll(bins_radius,-1) - bins_radius # Bin width, in km
         dr[-1] = 0
+
+# Convert into equivalent width
         
 #        ioprofile_radius_iof_norm  # Just a shorter alias
-        ew_norm  = np.sum((profile_radius_full_iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) # Normalized EW from top
-        ew_mean  = ew_norm / width_ring                                           # Mean normalized EW
+#        ew_norm  = np.sum((profile_radius_full_iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) # Normalized EW from top
+#        ew_mean  = ew_norm / width_ring                                           # Mean normalized EW
         
-        taupp    = profile_radius_full_iof_norm * 4 * mu  # Radially averaged tau_omega0_P
-
-## Plot it. First just to screen. 
-#        plt.plot([3,4,7])
-#        plt.xlabel('Radius [1000 km]', fontsize=20)
-#        plt.ylabel(r'$\tau \, \varpi_0 \, P$', fontsize=20)
-#        plt.show()
+#        taupp    = profile_radius_full_iof_norm * 4 * mu  # Radially averaged tau_omega0_P
          
 #==============================================================================
 #  Plot the remapped 2D images
@@ -683,26 +655,21 @@ class App:
 
         self.ax2.clear()  # Clear lines from the current plot. 
 
+        alpha_profiles = 0.5 # Opacity to use for curve.
+        
         dy = 2            # Vertical offset between curves
                           # Set the y limit to go from minimum, to a bit more than 90th %ile
                           # The idea here is to clip off flux from a moon, if it is there.
                           
-                
-        self.ax2.plot(bins_azimuth, profile_azimuth_full, label = 'Full')
+        for key in profile_radius:        
+            self.ax2.plot(bins_azimuth, profile_azimuth[key], label = key, alpha = alpha_profiles)
 
         self.ax2.set_title('Azimuthal Profile')
         self.ax2.set_xlabel('Azimuth [radians]')
         self.ax2.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
         self.ax2.legend(loc = 'upper left')
 
-        self.ax2.plot(bins_radius, profile_radius_full)
-#        self.ax2.plot(bins_radius, profile_radius_central)
-        
         self.canvas2.show()
-        
-#        dy = 1
-
-#        ylim = [np.amin(0.9 * profile_radius), dy + 1.5 * np.percentile(profile_radius, 90)]
 
         self.ax4.clear()  # Clear lines from the current plot.
         
@@ -714,13 +681,13 @@ class App:
         
         if (DO_PLOT_IOF == False):
 
-            self.ax4.plot(bins_radius/1000, profile_radius_full, label = 'Full')
-#            self.ax4.plot(bins_radius/1000, profile_radius_central, label = 'Central')
-            
+            for key in profile_radius: 
+                self.ax4.plot(bins_radius/1000, profile_radius[key], label = key, alpha = alpha_profiles)
+
             self.ax4.set_xlabel(r'Radial Profile      Radius [1000 km]    phase = {:.1f} deg'
                                 .format(hbt.r2d * np.mean(self.planes['Phase'])))
-#            self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
-            self.ax4.set_xlim([120,130])
+
+            self.ax4.set_xlim([126,130])
             self.ax4.legend(loc='upper left')
             
             # Plot a second axis, in RJ    
@@ -734,11 +701,8 @@ class App:
             self.ax4.set_xlabel('Radius [1000 km]')
             self.ax4.set_ylabel(r'$\tau \varpi_0 P(\alpha)$')
              
-
-#            self.ax4.plot(bins_radius/1000, profile_radius_1, label = 'Regrid')
-#            self.ax4.plot(bins_radius/1000, profile_radius_2 + dy, label='Raw')
             self.ax4.set_xlabel('Radial Profile      Radius [1000 km]')
-#            self.ax4.set_ylim(ylim)
+
             self.ax4.set_xlim(list(hbt.mm(bins_radius/1000)))
             self.ax4.legend(loc='upper left')
     
@@ -748,15 +712,6 @@ class App:
             
         self.canvas4.show()
         
-        # Save the profiles where we can access them later
-        
-        self.profile_radius_full   = profile_radius_full
-#        self.profile_radius_central = profile_radius_central
-        
-        self.profile_azimuth_full   = profile_azimuth_full
-#        self.profile_azimuth_central = profile_azimuth_central
-        
-                       
 ##########
 # Navigate the image and plot it
 # XXX For now, this does nothing at all. I will remove that button and replace with something else --
@@ -772,21 +727,15 @@ class App:
         
         self.diagnostic("handle_navigate()")
         
-        return True
-    
-#        self.navigate()
-#        self.refresh_statusbar()  # Put the new nav info into the statusbar
-#        self.plot_image()								
+        return True								
 							
 #########
 # Navigate the image
 #########
 
     def navigate(self):        
-     
-# Look up positions of stars in this field, from a star catalog
-               
-        return 0
+                    
+        return True
 
 
 ##########
@@ -1334,7 +1283,6 @@ the internal state which is already correct. This does *not* refresh the image i
         self.file_objectlist_shortname = self.t_group['Shortname'][self.index_image]
 				
         if (os.path.isfile(file_objectlist)):
-#            print('load_objectlist: loading ' + file_objectlist) 
             t = Table.read(file_objectlist, format='csv')
             self.objectlist = t  # This will load self.t
 
@@ -1342,14 +1290,11 @@ the internal state which is already correct. This does *not* refresh the image i
         
             self.objectmask = nh_jring_mask_from_objectlist(file_objectlist)
             
-#            print("Objectmask loaded, with total {}/{} pixels masked".format(np.sum(self.objectmask) , 
-#                                                                            np.size(self.objectmask)))        
             return True
 
         else:
             print("Can't load objectlist " + file_objectlist)
-            return False
-        
+            return False    
         
 ##########
 # Repoint an image
@@ -1464,7 +1409,6 @@ the internal state which is already correct. This does *not* refresh the image i
         
         print("finished")
                
-#        time.sleep(1)
         self.var_label_status_io.set('')  # This one works
 
 ##########
@@ -1532,13 +1476,9 @@ the internal state which is already correct. This does *not* refresh the image i
         
 # Get the slider positions, for the dx and dy nav offset positions, and put them into a variable we can use
 
-#        print("set_offset()")
-
         self.offset_dx = self.slider_offset_dx.get() #
         self.offset_dy = self.slider_offset_dy.get() #
-        
-#        self.plot_objects()       
-        
+                
         return 0
 
 #==============================================================================
