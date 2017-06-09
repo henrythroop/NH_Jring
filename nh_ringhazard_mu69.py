@@ -100,7 +100,7 @@ DO_MIE      = True
 DO_LAMBERT  = True
 do_merged   = True			# Mie and Lambert, mixed and cross-faded
 
-DO_HST = True
+DO_HST = False
 DO_AAT = not(DO_HST)
 
 pi     = math.pi
@@ -161,23 +161,23 @@ num_r    = 500
 
 if (DO_AAT):
     tau_norm  = 0.0035    # This is the input optical depth. Determined from the occultation, from AAT_hbt.pro (part 7).
-    yrange = [1e-10,1e10]
+    ylim = (1e-10, 1e10)
     file_out = 'pluto_dust_limits_aat_v2_rmax' + repr(rmax.to('micron')) + '_bw'
-    title = 'Pluto dust limits, 2006 AAT occultation, $\tau$ < 0.0035'
+    title = r'Pluto dust limits, 2006 AAT occultation, $\tau$ < 0.0035'  # Use 'r' to denote raw string, not escaped
 
 if (DO_HST):
     iof_norm	= 3e-7
     tau_norm	= iof_norm
-    yrange = np.array([1e-10,1e10]) / 1e4
+    ylim = (1e-15, 1e6)
     file_out = 'pluto_dust_limits_hst_v2_rmax' + repr(rmax.to('micron')) + '_bw'
-    title = 'Pluto inner region, HST 2012 imaging, I/F < 3$\\times 10^{-7}$, $r_{max}$ = ' + \
+    title = r'Pluto inner region, HST 2012 imaging, I/F < 3$\times 10^{-7}$, $r_{max}$ = ' + \
         repr(rmax.to('micron').value) + ' $\mu$m'
 
 subobslat_nh  = -49.07*u.deg                 # 2015 Mar 26, Pluto from NH
 
 # Create the plot
 
-q         = np.array([1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7])			# 9 elements long
+q         = np.array([2, 2.5, 3, 3.5, 4, 5, 6, 7])			# 9 elements long
 colors    = np.array(['black', 'black', 'black', 'black', 'black', 'black', 'black', 'black', 'black'])
 linestyle = np.array(['-', ':', '--', '-.', '-:', '__', '-', ':', '--'])
 linethick = np.array([1, 1, 1, 1, 1, 1, 3, 3, 3])
@@ -223,19 +223,30 @@ print('Doing Mie code')
  
 if DO_MIE:
     for i,x_i in enumerate(x):  
-      mie = Mie(x=x_i, m=nm_refract)  # This is only for one x value, not an ensemble
-      qext[i] = mie.qext()
-      qsca[i] = mie.qsca()
-      qbak[i] = mie.qb()
-      (S1, S2)  = mie.S12(np.cos(pi*u.rad - phase_hst)) # Looking at code, S12 returns tuple (S1, S2).
-                                                             # For a sphere, S3 and S4 are zero.
-      k = 2*pi / alam
+        mie = Mie(x=x_i, m=nm_refract)  # This is only for one x value, not an ensemble
+        qext[i] = mie.qext()
+        qsca[i] = mie.qsca()
+        qbak[i] = mie.qb()  
       
-      sigma = pi * r[i]**2 * qsca[i] # Just a guess here
+        (S1, S2)  = mie.S12(np.cos(pi*u.rad - phase_hst)) # Looking at code, S12 returns tuple (S1, S2).
+                                                             # For a sphere, S3 and S4 are zero.
+                                                             # Argument to S12() is scattering angle theta, not phase
+        k = 2*pi / alam
+      
+        sigma = pi * r[i]**2 * qsca[i] # Just a guess here
       
       # Now convert from S1 and S2, to P11: Use p. 2 of http://nit.colorado.edu/atoc5560/week8.pdf
+
+
+#        (S1, S2)  = mie.S12(np.cos(theta_i)) # Looking at code, S12 returns tuple (S1, S2). S3, S4 are zero for sphere.
+#        k = 2*pi / alam
+#        sigma = pi * r**2 * qsca             # For (S1,S2) -> P11: p. 2 of http://nit.colorado.edu/atoc5560/week8.pdf
+                                             # qsca = scattering efficiency. sigma = scattering cross-section 
+#        p11[i]  = 4 * pi / (k**2 * sigma) * ( (np.abs(S1))**2 + (np.abs(S2))**2) / 2
+
+
       
-      p11_mie[i]  = 4 * pi / (k**2 * sigma) * ( (np.abs(S1))**2 + (np.abs(S2))**2) / 2
+        p11_mie[i]  = 4 * pi / (k**2 * sigma) * ( (np.abs(S1))**2 + (np.abs(S2))**2) / 2
       
 #      mie_single, x, nm_refract, dqxt, dqsc, dqbk, dg, xs1, xs2, dph, dqv=dqv 
   							# UK Mie code. m_refract must be neg. x must be < 12,000.
@@ -315,7 +326,7 @@ for q_i in q:		# Loop downward, so that the low q's are plotted on top for visib
     
 # Plot the area between the lines
 
-#   if (DO_HST and DO_LAMBERT and DO_MIE):
+    if (DO_HST and DO_LAMBERT and DO_MIE):
 
 # Plot a filled area between the Lambert and the Mie curves. This was a good idea, but in retrospect there are 
 # more clear ways to do this.
@@ -326,8 +337,8 @@ for q_i in q:		# Loop downward, so that the low q's are plotted on top for visib
 #      p = plot( (transpose([[r/um],[r/um]]))(*), (transpose([[n_cum_sc_hst_lambert], [n_cum_sc_hst_mie]]))[*], /OVER, $
 #        color=colors[i], thick=10, transparency=90)			; 8.1: Do a fake 'polygon fill' by drawing a lot of lines
 
-    if do_merged:
-      plt.plot(r.to('micron'), n_cum_sc_hst_merged, label = 'q = {}'.format(q_i))
+        if do_merged:
+            plt.plot(r.to('micron'), n_cum_sc_hst_merged, label = 'q = {}'.format(q_i))
 
 # Label r_c
 
@@ -340,7 +351,6 @@ plt.axvline(r_danger_1.to('micron').value,linestyle=':')
 plt.axhline(nhits_1, linestyle = ':')
 plt.axhline(nhits_2, linestyle = ':')
 
-
 # Done with plotting the individual lines... now finish and render the plot
 
 plt.yscale('log')
@@ -348,7 +358,7 @@ plt.xscale('log')
 plt.xlabel('Radius [$\mu$m]')
 plt.ylabel('Total number N > r impacting NH during encounter')
 plt.xlim((0.1, 1000))
-plt.ylim((1e-15, 1e6))
+plt.ylim(ylim)
 plt.title(title)
 plt.legend()
 plt.show()
@@ -471,26 +481,50 @@ def other():
 #
 #  print, 'For impactor size ' + st(m_imp) + ' grams, the max ejecta size is ' + st(r_max/um) + ' um.'
 
+                                   
 def test_p11():
     '''
     Test to plot a phase function, and make sure it is normalized properly
     '''
+
+#%%    
     
-    x = 10
+    alam = 500*u.nm
+    r = 10*u.micron
+    x = (2*math.pi * r / alam).to('1').value
     
-    nm_refract = complex(1.5, 0.001)
-    mie = Mie(x=x_i, m=nm_refract)  # This is only for one x value, not an ensemble
-    qext[i] = mie.qext()
-    qsca[i] = mie.qsca()
-    qbak[i] = mie.qb()
-    (S1, S2)  = mie.S12(np.cos(pi*u.rad - phase_hst)) # Looking at code, S12 returns tuple (S1, S2).
-                                                           # For a sphere, S3 and S4 are zero.
-    k = 2*pi / alam
-      
-    sigma = pi * r[i]**2 * qsca[i] # Just a guess here
-      
-    # Now convert from S1 and S2, to P11: Use p. 2 of http://nit.colorado.edu/atoc5560/week8.pdf
-      
-    p11_mie[i]  = 4 * pi / (k**2 * sigma) * ( (np.abs(S1))**2 + (np.abs(S2))**2) / 2
-          
+
+    num_theta = 1000
+    theta = hbt.frange(0,math.pi, num_theta)
+    p11 = np.zeros(num_theta)
     
+    phase = math.pi - theta      # Theta is scattering angle
+    
+    nm_refract = complex(1.5, 0.1)
+    mie = Mie(x=x, m=nm_refract)  # This is only for one x value, not an ensemble
+
+    qext = mie.qext()
+    qsca = mie.qsca()
+    qbak = mie.qb()
+
+    for i,theta_i in enumerate(theta):
+        (S1, S2)  = mie.S12(np.cos(theta_i)) # Looking at code, S12 returns tuple (S1, S2). S3, S4 are zero for sphere.
+        k = 2*pi / alam
+        sigma = pi * r**2 * qsca             # For (S1,S2) -> P11: p. 2 of http://nit.colorado.edu/atoc5560/week8.pdf
+                                             # qsca = scattering efficiency. sigma = scattering cross-section 
+        p11[i]  = 4 * pi / (k**2 * sigma) * ( (np.abs(S1))**2 + (np.abs(S2))**2) / 2
+                   
+    # Check the normalization of the resulting phase function.
+
+    dtheta = theta[1] - theta[0]
+    
+    norm = np.sum(p11 * np.sin(theta) * dtheta)  # This should be 2, as per TPW04 eq. 4
+    
+    print('Normalized integral = {:.2f}'.format(norm))
+    
+    plt.plot(phase*hbt.r2d, p11)
+    plt.yscale('log')
+    plt.title('X = {:.1f}'.format(x))
+    plt.xlabel('Phase angle')
+    plt.ylabel('$P_{11}$')
+    plt.show()
