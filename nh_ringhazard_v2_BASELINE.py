@@ -4,6 +4,9 @@
      
      Adapted from ~/occ/AAT/HBT/nh_ringhazard_v2_bw.pro
      
+     ** This file will create exactly the same plot as in nh_ringhazard_v2.pro (the IDL version). 
+        It is held here as a baseline version, just to compare IDL vs. Python.
+     
       HBT Nov 2011 Original version
 """      
                         
@@ -40,9 +43,6 @@
 # o Cut it off arbitrarily at, say, 
 # o Cut it off at the size where the lifetime (against radiation pressure, drag, etc) is the age of the ring system. 
 #   I could get an estimtae for this from Hamilton.
-
-# Changes to make for MU69:
-# Put in terms of I/F. That is what most of our     
 
 
 import pdb
@@ -103,10 +103,8 @@ DO_MIE      = True
 DO_LAMBERT  = True
 do_merged   = True			# Mie and Lambert, mixed and cross-faded
 
-DO_HST = False
-DO_AAT = False
-
-DO_MU69_INBOUND = True
+DO_HST = True
+DO_AAT = not(DO_HST)
 
 pi     = math.pi
 
@@ -130,10 +128,17 @@ halfwidth_trans	= 3		# transition goes from fraction below r_trans, to this mult
 
 # Set the phase angle of the HST observations
 
-phase_inbound = 10.5*u.deg   # Phase angle, NH, inbound MU69  (from GV)
-phase_outbound = 168.2*u.deg # Phase angle, NH, outbound MU69 (from GV)
-phase_hst      = 2.0 * u.deg
- 
+phase_hst	= 2.0*u.deg	# Phase angle of HST observations, in degrees.
+  					# GV calculates range of 0 .. 2 deg for Earth-Pluto phase angle in summer 2011.
+					# Actual results are insensitive to the precise angle because phase function of both 
+					# small and large grains are flat in this region.
+					# For HST observations, Phase ~ 1 deg -> scattering ~ 179 deg.
+					# MIE_SINGLE requires the scattering angle, not the phase angle.
+
+alpha_hst	= pi*u.rad - phase_hst	    # Alpha = scattering angle, in degrees
+cos_alpha 	= np.cos(alpha_hst)
+dqv		     = cos_alpha.value                 # .value -- take it out of 'units' world
+
 # Define the albedo. This was not used in v1. It is used in v2, as a limiting case.
 
 albedo	= 0.05			# We pick the best-guess, which is Charon's albedo = 0.35. 0.05 is more conservative,
@@ -155,13 +160,9 @@ rmin   = 0.01 * u.micron
 rmax   = 5000 * u.micron   # 900 microns is around the cutoff size of the UK Mie code (X ~ 12,000).
                     # By coincidence, this is also very close to the maximum particle size that 
                     # I calculate for the ring (see code attached, below)
-
-num_r    = 50       # Number of radial bins in Mie calculation
+num_r    = 500
 
 if (DO_AAT):
-    iof = 1
-    phase = phase_inbound
-    # We are detecting not normal I/F, but regular I/F. 
     tau_norm  = 0.0035    # This is the input optical depth. Determined from the occultation, from AAT_hbt.pro (part 7).
     ylim = (1e-10, 1e10)
     file_out = 'pluto_dust_limits_aat_v2_rmax' + repr(rmax.to('micron')) + '_bw'
@@ -170,23 +171,11 @@ if (DO_AAT):
 if (DO_HST):
     iof_norm	= 3e-7
     tau_norm	= iof_norm
-    phase = phase_hst
     ylim = (1e-15, 1e6)
     file_out = 'pluto_dust_limits_hst_v2_rmax' + repr(rmax.to('micron')) + '_bw'
     title = r'Pluto inner region, HST 2012 imaging, I/F < 3$\times 10^{-7}$, $r_{max}$ = ' + \
         repr(rmax.to('micron').value) + ' $\mu$m'
 
-if (DO_MU69_INBOUND):
-    iof_norm = 2e-10
-    tau_norm = iof_norm
-    phase = phase_inbound
-    ylim = (1e-15, 1e6)
-    title = r'MU69 Inbound'
-    
-alpha        = pi*u.rad - phase	    # Alpha = scattering angle, in degrees
-cos_alpha    = np.cos(alpha)
-dqv          = cos_alpha.value              # .value -- take it out of 'units' world
-    
 subobslat_nh  = -49.07*u.deg                 # 2015 Mar 26, Pluto from NH
 
 # Create the plot
@@ -213,8 +202,6 @@ qbak = np.zeros(num_r)
 qabs = np.zeros(num_r)
 p11_mie  = np.zeros(num_r)
 
-bin_r_danger_1 = np.where(r > r_danger_1)[0][0]
-
 # Calculate the transition regime
 
 binstart_trans	= hbt.wheremin(np.abs(r - r_trans/halfwidth_trans))
@@ -238,27 +225,42 @@ print('Doing Mie code')
 # Mie code doesn't compute the phase function unless we ask it to, by passing dqv.
  
 if DO_MIE:
-    for i,x_i in enumerate(x):  # Loop over particle size X, and get Q and P_11 for each size
+    for i,x_i in enumerate(x):  
         mie = Mie(x=x_i, m=nm_refract)  # This is only for one x value, not an ensemble
         qext[i] = mie.qext()
         qsca[i] = mie.qsca()
         qbak[i] = mie.qb()  
       
-        (S1, S2)  = mie.S12(np.cos(pi*u.rad - phase)) # Looking at code, S12 returns tuple (S1, S2).
+        (S1, S2)  = mie.S12(np.cos(pi*u.rad - phase_hst)) # Looking at code, S12 returns tuple (S1, S2).
                                                              # For a sphere, S3 and S4 are zero.
                                                              # Argument to S12() is scattering angle theta, not phase
         k = 2*pi / alam
       
         sigma = pi * r[i]**2 * qsca[i] # Just a guess here
       
-# Now convert from S1 and S2, to P11: Use p. 2 of http://nit.colorado.edu/atoc5560/week8.pdf
+      # Now convert from S1 and S2, to P11: Use p. 2 of http://nit.colorado.edu/atoc5560/week8.pdf
+
+
+#        (S1, S2)  = mie.S12(np.cos(theta_i)) # Looking at code, S12 returns tuple (S1, S2). S3, S4 are zero for sphere.
+#        k = 2*pi / alam
+#        sigma = pi * r**2 * qsca             # For (S1,S2) -> P11: p. 2 of http://nit.colorado.edu/atoc5560/week8.pdf
+                                             # qsca = scattering efficiency. sigma = scattering cross-section 
+#        p11[i]  = 4 * pi / (k**2 * sigma) * ( (np.abs(S1))**2 + (np.abs(S2))**2) / 2
+
+
       
         p11_mie[i]  = 4 * pi / (k**2 * sigma) * ( (np.abs(S1))**2 + (np.abs(S2))**2) / 2
+      
+#      mie_single, x, nm_refract, dqxt, dqsc, dqbk, dg, xs1, xs2, dph, dqv=dqv 
+  							# UK Mie code. m_refract must be neg. x must be < 12,000.
+                              # XXX I don't get this. Is X a scalar, or vector?
        
-# Now assume a I/F = 1. For the current size dist, if I/F = 1, then what # of impacts will we have?
-
-              
-p11_lambert		 = 8/(3 * pi) * (np.sin(phase) + (pi - np.sin(phase)) * np.cos(phase)).value	
+#    qext = dqxt		# Q_ext
+#  qsca = dqsc		# Q_sca
+#  qbak = dqbk		# Q_back (??)
+#  p11_mie  = dph[*]	# Phase function. Computed only if angles dqv is passed.
+ 
+p11_lambert		 = 8/(3 * pi) * (np.sin(phase_hst) + (pi - np.sin(phase_hst)) * np.cos(phase_hst)).value	
   
   			          # But hang on -- how is this phase function right since it doesn't include diffraction! Ugh...
   			          # The real phase function should really be half this, I think. This properly integrates to 
@@ -287,123 +289,82 @@ if (DO_HST):
 
 # Draw a polygon for the filled dangerous area
 
-# Set a large font size
+#  po = polygon([r_danger_1/um,(p.xrange)[1],(p.xrange)[1],r_danger_1/um], $
+#    [nhits_1, nhits_1,(p.yrange)[1],(p.yrange)[1]],/data, $
+#    fill_color='pink',fill_transparency=0,/over, linestyle=' ')
 
-matplotlib.rc('font', size=15)
-
-# Set up the two subplots
-
-hbt.figsize((10,14))
-(fig, axes) = plt.subplots(2, 1)
-
-# Loop over q
-
-for q_i in q:
+for q_i in q:		# Loop downward, so that the low q's are plotted on top for visibility
   
-    q_nominal = 2.5
-    
-    if (q_i == q_nominal):
-        linewidth = 4
-    else:
-        linewidth = 2
-        
     n    = hbt.powerdist(r, 1, q_i, 1).value
   
 # Now normalize this to be number per cm2, in cross-section.
  
-    n_lambert = (n * tau_norm / np.sum(n * pi * r**2 * qsca_lambert * p11_lambert)).to('1/cm^2')    # Added P11 20-Nov-2012
-    n_mie     = (n * tau_norm / np.sum(n * pi * r**2 * qsca_mie     * p11_mie)).to('1/cm^2')        # Added P11 20-Nov-2012
-    n_merged  = (n * tau_norm / np.sum(n * pi * r**2 * qsca_merged  * p11_merged)).to('1/cm^2')
+    n_hst_lambert = n * tau_norm / np.sum(n * pi * r**2 * qsca_lambert * p11_lambert) 	# Added P11 20-Nov-2012
+    n_hst_mie     = n * tau_norm / np.sum(n * pi * r**2 * qsca_mie     * p11_mie) 	# Added P11 20-Nov-2012
+    n_aat         = n * tau_norm / np.sum(n * pi * r**2 * qsca_mie)
+    n_hst_merged  = n * tau_norm / np.sum(n * pi * r**2 * qsca_merged * p11_merged)
 
-# Now convert into total hitting s/c -- that is, N > r, for many different values of r.
+# Now convert into total hitting s/c
 # Also, take out of units system
 
-    n_cum_sc_lambert = (hbt.incr2cum(n_lambert, DO_REVERSE=True) * sarea / np.cos(subobslat_nh)).to('1').value
-    n_cum_sc_mie     = (hbt.incr2cum(n_mie, DO_REVERSE=True)     * sarea / np.cos(subobslat_nh)).to('1').value
-    n_cum_sc_merged  = (hbt.incr2cum(n_merged, DO_REVERSE=True)  * sarea / np.cos(subobslat_nh)).to('1').value
+    n_cum_sc_hst_lambert = (hbt.incr2cum(n_hst_lambert, DO_REVERSE=True) * sarea / np.cos(subobslat_nh)).to('1').value
+    n_cum_sc_hst_mie 	   = (hbt.incr2cum(n_hst_mie, DO_REVERSE=True)     * sarea / np.cos(subobslat_nh)).to('1').value
+    n_cum_sc_hst_merged  = (hbt.incr2cum(n_hst_merged, DO_REVERSE=True)  * sarea / np.cos(subobslat_nh)).to('1').value
+    n_cum_sc_aat         = (hbt.incr2cum(n_aat, DO_REVERSE=True) * sarea / np.cos(subobslat_nh)).to('1').value
 
-# Now assume I/F = 1. Given this, how many particles would we hit (of any size), in surface area of s/c?
+# Now plot the line(s)
 
-    iof_reference = 1 # Define the reference I/F
-    
-    iof_default = np.sum(n_merged * pi * r**2 * qsca_merged * p11_merged) * albedo / 4
-    
-                        # This comes from white paper eq1, or TPW eq1.
-                        
-# Calculate the n (# cm^-2) necessary to achieve iof = 1
-                        
-    n_for_iof_reference = n_merged / iof_reference  # Number cm^-2 of total particles, for I/F = 1
-    
-    num_iof = 100 #  Number of I/F bins to use
-    
-    iof_arr = hbt.frange(1e-10, 1, num_iof, log=True)
+    if DO_AAT:
+        plt.plot(r.to('micron').value, n_cum_sc_aat, label = 'q = ' + repr(q_i))
 
-    n_damaging_for_iof_reference = np.sum(n_for_iof_reference[bin_r_danger_1:]) #  Number cm^-2 damaging, for I/F = 1
-    N_damaging_for_iof_reference = (n_damaging_for_iof_reference * sarea).to('1').value
-                                               #  Total number damaging, that hit sc, for I/F = 1
-    
-    N_damaging_arr = (iof_arr / 1) * N_damaging_for_iof_reference # Total num damaging sc, for all I/F
-    
-# Now plot the line(s), of # vs. radius (original plot)
+    if not(do_merged):
+      if (DO_HST and DO_LAMBERT):
+        plt.plot(r.to('micron').value, n_cum_sc_hst_lambert, label = 'q = ' + repr(q_i))
 
-    if (DO_MU69_INBOUND):
-        axes[0].plot(r.to('micron').value, n_cum_sc_merged, label = 'q = ' + repr(q_i), linewidth=linewidth)
+      if (DO_HST and DO_MIE):
+        plt.plot(r.to('micron').value, n_cum_sc_hst_mie, label = 'q = ' + repr(q_i))
 
-#    if DO_AAT:
-#        axes[0].plot(r.to('micron').value, n_cum_sc_aat, label = 'q = ' + repr(q_i))
+#    plt.plot(r.to('micron').value, n_cum_sc_aat, label = 'q = ' + repr(q_i))
 
-#    if not(do_merged):
-#      if (DO_HST and DO_LAMBERT):
-#        axes[0].plot(r.to('micron').value, n_cum_sc_hst_lambert, label = 'q = ' + repr(q_i))
-
-#      if (DO_HST and DO_MIE):
-#        axes[0].plot(r.to('micron').value, n_cum_sc_hst_mie, label = 'q = ' + repr(q_i))
     
 # Plot the area between the lines
 
-#    if (DO_HST and DO_LAMBERT and DO_MIE):
+    if (DO_HST and DO_LAMBERT and DO_MIE):
 
-#        if do_merged:
-#            axes[0].plot(r.to('micron'), n_cum_sc_hst_merged, label = 'q = {}'.format(q_i))
+# Plot a filled area between the Lambert and the Mie curves. This was a good idea, but in retrospect there are 
+# more clear ways to do this.
+# 
+#      pl = polygon([r/um, reverse(r/um)], [n_cum_sc_hst_lambert, reverse(n_cum_sc_hst_mie)], /FILL_BACKGROUND, $
+#                    FILL_COLOR=colors[i], /DATA, /CLIP, transpar=90); 8.2.1: /CLIP now works!
 
-# Now make the new plot
+#      p = plot( (transpose([[r/um],[r/um]]))(*), (transpose([[n_cum_sc_hst_lambert], [n_cum_sc_hst_mie]]))[*], /OVER, $
+#        color=colors[i], thick=10, transparency=90)			; 8.1: Do a fake 'polygon fill' by drawing a lot of lines
 
-    axes[1].plot(iof_arr, N_damaging_arr, label = 'q = {}'.format(q_i), linewidth=linewidth)
-    axes[1].set_yscale('log')
-    axes[1].set_xscale('log')
-    axes[1].set_ylabel(r'N > $r_c$ during passage')
-    axes[1].set_xlabel(r'Observed I/F limit at $\lambda$ = {} $\mu$m'.format(alam.to('micron').value))
-    axes[1].legend()
-    
+        if do_merged:
+            plt.plot(r.to('micron'), n_cum_sc_hst_merged, label = 'q = {}'.format(q_i))
+
 # Label r_c
 
-axes[0].axvline(r_danger_1.to('micron').value,linestyle=':')
+plt.axvline(r_danger_1.to('micron').value,linestyle=':')
+
+#plt.text(r_danger_1.to('micron').value * 1.3, ((p.yrange)[0])*10, '$r_c$', /DATA, /OVERPLOT)
 
 # Draw dotted lines at the number of hits that SAS specified
 
-axes[0].axhline(nhits_1, linestyle = ':')
-axes[0].axhline(nhits_2, linestyle = ':')
+plt.axhline(nhits_1, linestyle = ':')
+plt.axhline(nhits_2, linestyle = ':')
 
 # Done with plotting the individual lines... now finish and render the plot
 
-axes[0].set_yscale('log')
-axes[0].set_xscale('log')
-axes[0].set_xlabel('Radius [$\mu$m]')
-axes[0].set_ylabel(r'Total N > $r_c$ impacting NH during encounter')
-axes[0].set_xlim((0.1, 1000))
-axes[0].set_ylim(ylim)
-axes[0].set_title(title + ", I/F = {}".format(iof_norm))
-axes[0].legend()
-
-axes[1].set_yscale('log')
-axes[1].set_xscale('log')
-axes[1].set_xlabel('Observed dust I/F limit')
-axes[1].set_ylabel(r'Total N > $r_c$ impacting NH during encounter')
-axes[1].set_title(title + r', $r_c$ = {:.0f} $\mu$m, a = {}'.format(r_danger_1.to('micron').value, albedo))
-axes[1].legend()
-
-
-fig.show()
+plt.yscale('log')
+plt.xscale('log')
+plt.xlabel('Radius [$\mu$m]')
+plt.ylabel('Total number N > r impacting NH during encounter')
+plt.xlim((0.1, 1000))
+plt.ylim(ylim)
+plt.title(title)
+plt.legend()
+plt.show()
 
 # Draw the word 'Danger' in the UR quadrant
 
@@ -466,13 +427,7 @@ fig.show()
 #
 #end
 
-#==============================================================================
-# Make a plot showing I/F vs. # of damaging impacts, for many different q
-#==============================================================================
 
-#for q_i in q:
-
-#     
 #==============================================================================
 #  Verify normalization of phase functions P11, etc.
 #==============================================================================
@@ -534,6 +489,8 @@ def test_p11():
     '''
     Test to plot a phase function, and make sure it is normalized properly
     '''
+
+#%%    
     
     alam = 500*u.nm
     r = 10*u.micron
