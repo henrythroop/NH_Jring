@@ -71,7 +71,6 @@ from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectl
 from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
 from nh_jring_extract_profiles_from_unwrapped  import nh_jring_extract_profiles_from_unwrapped
 
-
 dir_image = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
 file_tm    = "/Users/throop/git/NH_rings/kernels_nh_jupiter.tm"  # SPICE metakernel
 
@@ -91,6 +90,10 @@ file_image = 'lor_0034962025_0x630_sci_1_opnav.fit' # Metis on ansa.
 
 #file_image = 'lor_0034715044_0x630_sci_1_opnav.fit' # 1x1, Metis on LHS. Fits dt = 60. Cross is 10 pix down from o.
 #file_image = 'lor_0034627923_0x630_sci_1_opnav.fit' # 1x1, bright sat Amalthea passing by. Can't tell dt from it.
+
+#file_image = 'lor_0035078888_0x633_sci_1_opnav.fit' # Not sure -- I think ring image off edge?
+
+file_image = 'lor_0035079398_0x633_sci_1_opnav.fit'
 
 # Initialize SPICE
 
@@ -185,12 +188,18 @@ limits_radius = (r_ring_inner, r_ring_outer) # Distances in km
 dx = 0
 dy = 0
 
-# Do the unwrapping
+# Do the unwrapping. If there are no ring points, then we catch the error.
 
-(im_unwrapped, mask_unwrapped, bins_radius, bins_azimuth) = nh_jring_unwrap_ring_image(im, 
+try:
+    (im_unwrapped, mask_unwrapped, bins_radius, bins_azimuth) = nh_jring_unwrap_ring_image(im, 
                                                                    num_bins_radius, limits_radius,
                                                                    num_bins_azimuth, 
                                                                    planes, dx=dx, dy=dy, mask=mask)
+    IS_UNWRAPPED = True
+    
+except ValueError:
+    print("No valid ring points found.")
+    IS_UNWRAPPED = False
       
 #==============================================================================
 # Make a plot!
@@ -251,45 +260,49 @@ plt.show()
 
 # Plot the unwrapped images
 
-extent = [bins_azimuth[0], bins_azimuth[-1], bins_radius[0], bins_radius[-1]]
-f      = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
-aspect = 0.5 * 1/f  # Set the aspect ratio
-
-fig, ax = plt.subplots(1, 2, figsize=(20, 10))
-
-ax[0].imshow(stretch(im_unwrapped),                       extent=extent, aspect=aspect, origin='lower')
-ax[1].imshow(stretch(im_unwrapped + 10 * mask_unwrapped), extent=extent, aspect=aspect, origin='lower')
-
-for i in [0,1]:
-    ax[i].set_xlim([bins_azimuth[0], bins_azimuth[-1]])
-    ax[i].set_ylim([bins_radius[0],  bins_radius[-1]])
-    ax[i].set_title(titles[i])
-
-    ax[i].set_xlabel('Azimuth [radians]')
-    ax[i].set_ylabel('Radius [$R_J$]')
-
-plt.show()
+if (IS_UNWRAPPED):
+    
+    extent = [bins_azimuth[0], bins_azimuth[-1], bins_radius[0], bins_radius[-1]]
+    f      = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
+    aspect = 0.5 * 1/f  # Set the aspect ratio
+    
+    fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+    
+    ax[0].imshow(stretch(im_unwrapped),                       extent=extent, aspect=aspect, origin='lower')
+    ax[1].imshow(stretch(im_unwrapped + 10 * mask_unwrapped), extent=extent, aspect=aspect, origin='lower')
+    
+    for i in [0,1]:
+        ax[i].set_xlim([bins_azimuth[0], bins_azimuth[-1]])
+        ax[i].set_ylim([bins_radius[0],  bins_radius[-1]])
+        ax[i].set_title(titles[i])
+    
+        ax[i].set_xlabel('Azimuth [radians]')
+        ax[i].set_ylabel('Radius [$R_J$]')
+    
+    plt.show()
 
 #==============================================================================
 # Extract radial and azimuthal profiles from the unwrapped images
 #==============================================================================
 
-(profile_radius, profile_azimuth) \
+    (profile_radius, profile_azimuth) \
                       = nh_jring_extract_profiles_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
                                               0.2, # radius_out -- ie, fraction of radius used for az profile
                                               0.5, # azimuth_out -- ie, fraction of az used for radial profile
                                               mask_unwrapped=mask_unwrapped)
 
+    print('No valid ring points found')
+    
 # Plot the radial and azimuthal profiles
 
-fig, ax = plt.subplots(2, 1, figsize=(10, 10))
-ax[0].plot(bins_azimuth, profile_azimuth)
-ax[0].set_title('Azimuthal Profile, {}'.format(file_short))
-ax[0].set_xlabel('Azimuth [radians]')
-ax[0].set_ylabel('DN')
-
-ax[1].plot(bins_radius, profile_radius)
-ax[1].set_title('Radial Profile, {}'.format(file_short))
-ax[1].set_xlabel('Radius [km]')
-ax[1].set_ylabel('DN')
-plt.show()
+    fig, ax = plt.subplots(2, 1, figsize=(10, 10))
+    ax[0].plot(bins_azimuth, profile_azimuth)
+    ax[0].set_title('Azimuthal Profile, {}'.format(file_short))
+    ax[0].set_xlabel('Azimuth [radians]')
+    ax[0].set_ylabel('DN')
+    
+    ax[1].plot(bins_radius, profile_radius)
+    ax[1].set_title('Radial Profile, {}'.format(file_short))
+    ax[1].set_xlabel('Radius [km]')
+    ax[1].set_ylabel('DN')
+    plt.show()

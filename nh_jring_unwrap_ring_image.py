@@ -28,15 +28,9 @@ def nh_jring_unwrap_ring_image(im,
     """  
         
     import hbt
-    import pickle
-    from   astropy.io import fits
-    import matplotlib.pyplot as plt
     import numpy as np
-    import os.path
-    import astropy
     from scipy.interpolate import griddata
     import math
-    import spiceypy as sp
 
 # Process input
 
@@ -45,7 +39,7 @@ def nh_jring_unwrap_ring_image(im,
         
 # Extract fields from the backplane array
     
-    radius  = planes['Radius_eq']
+    radius  = planes['Radius_eq']           # These are properly 4x4 or 1x1, as desired.
     azimuth = planes['Longitude_eq']
     phase   = planes['Phase']
     
@@ -59,6 +53,14 @@ def nh_jring_unwrap_ring_image(im,
     
     is_ring_all = ( np.array(radius > limits_radius[0]) & np.array(radius < limits_radius[1]))
     
+# Make sure there are some valid data points. If not, return an error
+    
+    if (np.sum(is_ring_all) == 0):
+        print("Error: No valid ring points between radius {:,.0f} .. {:,.0f} km".format(limits_radius[0], 
+                                                                                        limits_radius[1]))
+        print("Image radius limits = {:,.0f} .. {:,.0f} km".format(np.amin(radius), np.amax(radius)))
+        raise ValueError('NoValidRingPoints')
+        
     radius_all  = radius[is_ring_all]     # Make a list of all of the radius values
     azimuth_all = azimuth[is_ring_all]  # Make a list of all of the azimuth points for all pixels
     phase_all   = phase[is_ring_all]
@@ -83,6 +85,8 @@ def nh_jring_unwrap_ring_image(im,
     azimuth_all_3_s_d = azimuth_all_3_s - np.roll(azimuth_all_3_s, 1)
     
     # Look for the indices where the largest gaps (in azimuth) start
+    
+    # XXX we get an error here on images if there are no valid ring points.
     
     index_seg_start_3_s = (np.where(azimuth_all_3_s_d > 0.999* np.max(azimuth_all_3_s_d)))[0][0]
     index_seg_end_3_s   = (np.where(azimuth_all_3_s_d > 0.999* np.max(azimuth_all_3_s_d)))[0][1]-1

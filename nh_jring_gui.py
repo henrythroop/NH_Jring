@@ -125,9 +125,9 @@ class App:
 # Set various default values
         
         option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
-        entry_bg_default    = '0-10' # Default polynomial order XXX need to set a longer string length here!
-        index_group_default = 5 # Default group to start with
-        index_image_default = 5 # Default image number within the group
+        entry_bg_default    = '0-10'   # Default polynomial order XXX need to set a longer string length here!
+        index_group_default = 6        # Default group to start with
+        index_image_default = 6       # Default image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -239,6 +239,7 @@ class App:
 								
         (dim, radii)            = sp.bodvrd('JUPITER', 'RADII', 3)
         self.rj                 = radii[0]  # Jupiter radius, polar, in km. Usually 71492.
+        self.is_unwrapped       = False         # Flag: Did we successfully unwrap this image? 
                 
 # Now define and startup the widgets
                 
@@ -517,14 +518,22 @@ class App:
         dx = 0 # Navigational offset, usually sub-pixel
         dy = 0
         
-        (im_unwrapped, mask_unwrapped, bins_radius, bins_azimuth) = \
+        try:
+            (im_unwrapped, mask_unwrapped, bins_radius, bins_azimuth) = \
                                       nh_jring_unwrap_ring_image(self.image_processed, 
                                                                  num_bins_radius, (r_ring_inner, r_ring_outer),
                                                                  num_bins_azimuth, 
                                                                  self.planes, 
                                                                  dx=dx, dy=dy, 
                                                                  mask=mask_objects)
-          
+            self.is_unwrapped = True
+            print('Successfully unwrapped image')
+        
+        except ValueError:
+            self.is_unwrapped = False
+            print('Cannot unwrap ring image -- no valid points')
+            return
+            
 # Save the variables, and return
         
         self.image_unwrapped    = im_unwrapped     # NB: This has a lot of NaNs in it.
@@ -535,11 +544,11 @@ class App:
         return
 
 #==============================================================================
-# Extract ring profiles from the data image
+# Extract ring profiles from the data image. Also plots them.
 #==============================================================================
         
     def extract_profiles(self):
-
+        
         self.diagnostic('extract_profiles()')
         
         # Compute additional quantities we need
@@ -556,6 +565,12 @@ class App:
         ew_edge     = [120000, 130000]  # Integrate over this range. This is wider than the official ring width.
 
         self.unwrap_ring_image()        # Creates arrays self.{image,radius,azimuth}_unwrapped
+                                        # This also sets the is_unwrapped flag
+                                        
+        if (self.is_unwrapped == False):
+#            self.canvas3.delete('all') # Doesn't work
+#            self.canvas4.delete('all')
+            return
         
         self.ang_elev   = ang_elev
         
@@ -830,7 +845,7 @@ class App:
 
         file = self.t_group[self.index_image]['Filename']  
 
-        self.image_raw = hbt.read_lorri(file, frac_clip = 1., bg_method = 'None', autozoom=True)
+        self.image_raw = hbt.read_lorri(file, frac_clip = 1., bg_method = 'None', autozoom=False)
         print("Loaded image: " + file)
 
 # Load info from header
@@ -1090,8 +1105,10 @@ the internal state which is already correct. This does *not* refresh the image i
 
         # Set image size (so off-edge stars are clipped, rather than plot resizing)
 
-        self.ax1.set_xlim([0,1023])  # This is an array and not a tuple. Beats me, like so many things with mpl.
-        self.ax1.set_ylim([1023,0])
+        # Display it and scale spatially, whether it is 1x1 or 4x4
+        
+        self.ax1.set_xlim([0,hbt.sizex(self.image_processed)-1])  # This is an array and not a tuple. Beats me, like so many things with mpl.
+        self.ax1.set_ylim([hbt.sizex(self.image_processed)-1,0])
           
         # Draw the figure on the Tk canvas
         
