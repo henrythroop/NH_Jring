@@ -70,6 +70,8 @@ import hbt
 from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
 from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
 from nh_jring_extract_profiles_from_unwrapped  import nh_jring_extract_profiles_from_unwrapped
+from nh_jring_extract_profile_from_unwrapped   import nh_jring_extract_profile_from_unwrapped
+
 
 dir_image = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all/'
 file_tm    = "/Users/throop/git/NH_rings/kernels_nh_jupiter.tm"  # SPICE metakernel
@@ -80,7 +82,7 @@ file_image = 'lor_0034962025_0x630_sci_1_opnav.fit' # Metis on ansa.
 
 #file_image + 'lor_0034962461_0x630_sci_1_opnav.fit' # Ring, but not on ansa -- not a good test
 
-#file_image = 'lor_0034616523_0x630_sci_1_opnav.fit' # Adrastea in middle right. dt =40 works. Good test.
+file_image = 'lor_0034616523_0x630_sci_1_opnav.fit' # Adrastea in middle right. dt =40 works. Good test.
 #file_image = 'lor_0034618323_0x630_sci_1_opnav.fit' # Adrastea in on ansa
 #file_image = 'lor_0034620123_0x630_sci_1_opnav.fit' # Adrastea in middle left. Fits dt=40 better than dt=0.
 #                                                   # dt=0 has cross 5 pix down right. 
@@ -93,7 +95,7 @@ file_image = 'lor_0034962025_0x630_sci_1_opnav.fit' # Metis on ansa.
 
 #file_image = 'lor_0035078888_0x633_sci_1_opnav.fit' # Not sure -- I think ring image off edge?
 
-file_image = 'lor_0035079398_0x633_sci_1_opnav.fit'
+#file_image = 'lor_0035079398_0x633_sci_1_opnav.fit'
 
 # Initialize SPICE
 
@@ -282,16 +284,14 @@ if (IS_UNWRAPPED):
     plt.show()
 
 #==============================================================================
-# Extract radial and azimuthal profiles from the unwrapped images
+# Extract radial and azimuthal profiles from the unwrapped images -- OLD METHOD
 #==============================================================================
 
     (profile_radius, profile_azimuth) \
                       = nh_jring_extract_profiles_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
-                                              0.2, # radius_out -- ie, fraction of radius used for az profile
+                                              0.5, # radius_out -- ie, fraction of radius used for az profile
                                               0.5, # azimuth_out -- ie, fraction of az used for radial profile
                                               mask_unwrapped=mask_unwrapped)
-
-    print('No valid ring points found')
     
 # Plot the radial and azimuthal profiles
 
@@ -306,3 +306,60 @@ if (IS_UNWRAPPED):
     ax[1].set_xlabel('Radius [km]')
     ax[1].set_ylabel('DN')
     plt.show()
+    
+
+#==============================================================================
+# Extract radial and azimuthal profiles from the unwrapped images -- NEW METHOD
+#==============================================================================
+
+    profile_radius = nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
+                                              0.3, 
+                                              'radial',
+                                              mask_unwrapped=mask_unwrapped)
+
+    profile_az_full = nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
+                                              0.5, 
+                                              'azimuthal',
+                                              mask_unwrapped=mask_unwrapped)
+    
+    profile_az_inner = nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
+                                              (127000,128000), 
+                                              'azimuthal',
+                                              mask_unwrapped=mask_unwrapped)
+
+    profile_az_outer = nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
+                                              (129500,130500), 
+                                              'azimuthal',
+                                              mask_unwrapped=mask_unwrapped)
+
+    profile_az_core = nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
+                                              (128000,129000), 
+                                              'azimuthal',
+                                              mask_unwrapped=mask_unwrapped)
+   
+    profile_az_net = profile_az_core - (profile_az_inner + profile_az_outer)/2
+    profile_az_net_sm = hbt.smooth_boxcar(profile_az_net, 20)
+    
+# Plot the radial and azimuthal profiles
+
+    alpha_1 = 0.3
+    
+    plt.plot(bins_azimuth, profile_az_inner, label='inner', alpha = alpha_1)
+    plt.plot(bins_azimuth, profile_az_outer, label='outer', alpha = alpha_1)
+    plt.plot(bins_azimuth, profile_az_core, label='core', alpha = alpha_1)
+    plt.plot(bins_azimuth, profile_az_net, label='net', alpha = alpha_1)
+    plt.plot(bins_azimuth, profile_az_net_sm, label = 'net, smoothed')
+    plt.legend()
+    
+    plt.title('Azimuthal Profile, {}'.format(file_short))
+    plt.xlabel('Azimuth [radians]')
+    plt.ylabel('DN')
+    
+#    ax[1].plot(bins_radius, profile_radius)
+#    ax[1].set_title('Radial Profile, {}'.format(file_short))
+#    ax[1].set_xlabel('Radius [km]')
+#    ax[1].set_ylabel('DN')
+    plt.show()
+    
+    
+    
