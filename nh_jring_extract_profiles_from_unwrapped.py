@@ -14,6 +14,8 @@ azimuth_out:  Fraction of azimuth range to use, when extracting radial    profil
 Or, if these are single floating values (e.g., 0.5), then use the central fraction of the pixels available
 (e.g., inner 50%)
 
+mask_unwrapped: A boolean mask, indicating whether to use individual pixels in the final output, or not.
+
 
 @author: throop
 """
