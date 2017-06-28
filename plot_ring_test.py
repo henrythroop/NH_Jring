@@ -4,11 +4,16 @@
 Created on Tue May  2 14:56:53 2017
 
 This is a demo routine that incorporates all of my ring image reduction functions.
+It is useful for developing and debugging external functions, which the main NH_JRING_GUI.PY
+code will later call.
+
   o Load an image
   o Read the backplanes
   o Read WCS
+  o Remove stray light
   o Plot ring
   o Extract unwrapped ring image
+  o Generate radial & azimuthal profiles
   
 All of these are in modular functions.
   
@@ -78,11 +83,12 @@ file_tm    = "/Users/throop/git/NH_rings/kernels_nh_jupiter.tm"  # SPICE metaker
 
 #file_image = 'lor_0034961819_0x630_sci_1_opnav.fit' # noise, can't see much
 
-file_image = 'lor_0034962025_0x630_sci_1_opnav.fit' # Metis on ansa.
+#file_image = 'lor_0034962025_0x630_sci_1_opnav.fit' # Metis on ansa.
+file_image = 'lor_0034676524_0x630_sci_1_opnav.fit' # Image 7/0 -- good image, includes Metis.
 
 #file_image + 'lor_0034962461_0x630_sci_1_opnav.fit' # Ring, but not on ansa -- not a good test
 
-file_image = 'lor_0034616523_0x630_sci_1_opnav.fit' # Adrastea in middle right. dt =40 works. Good test.
+#file_image = 'lor_0034616523_0x630_sci_1_opnav.fit' # Adrastea in middle right. dt =40 works. Good test.
 #file_image = 'lor_0034618323_0x630_sci_1_opnav.fit' # Adrastea in on ansa
 #file_image = 'lor_0034620123_0x630_sci_1_opnav.fit' # Adrastea in middle left. Fits dt=40 better than dt=0.
 #                                                   # dt=0 has cross 5 pix down right. 
@@ -323,17 +329,17 @@ if (IS_UNWRAPPED):
                                               mask_unwrapped=mask_unwrapped)
     
     profile_az_inner = nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
-                                              (127000,128000), 
+                                              (126500,127500), 
                                               'azimuthal',
                                               mask_unwrapped=mask_unwrapped)
 
     profile_az_outer = nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
-                                              (129500,130500), 
+                                              (130000,131000), 
                                               'azimuthal',
                                               mask_unwrapped=mask_unwrapped)
 
     profile_az_core = nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth, 
-                                              (128000,129000), 
+                                              (127500,129500), 
                                               'azimuthal',
                                               mask_unwrapped=mask_unwrapped)
    
