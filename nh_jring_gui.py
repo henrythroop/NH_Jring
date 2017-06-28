@@ -87,7 +87,8 @@ from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
 
 from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
 from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
-from nh_jring_extract_profiles_from_unwrapped  import nh_jring_extract_profiles_from_unwrapped   
+#from nh_jring_extract_profiles_from_unwrapped  import nh_jring_extract_profiles_from_unwrapped   
+from nh_jring_extract_profile_from_unwrapped   import nh_jring_extract_profile_from_unwrapped   
 
 #pdb.set_trace()
 
@@ -586,20 +587,39 @@ class App:
         
 #        We might use a lot of different cases here. Rather than define each as individual variables, do as dict
 
-        profile_radius = {'full' : np.array([0]), 'center' : np.array([0])}
-        profile_azimuth = profile_radius.copy()
+        profile_azimuth  = {'inner' : np.array([0]), 'core'   : np.array([0]), 'outer' : np.array([0])}
+        profile_radius   = {'full'  : np.array([0]), 'center' : np.array([0]), 'core' : np.array([0])}
         
-        frac_of_radius  = {'full' : 1, 'center' : 0.2}
-        frac_of_azimuth = {'full' : 1, 'center' : 0.2}
+        range_of_radius  = {'inner' : (126500,127500), 'core' : (127500,129500), 'outer' : (130000,131000)} # for az
+        range_of_azimuth = {'full'  : 1, 'center' : 0.25, 'core' : 0.1}                                    # for radial 
+        
+# Make radial profiles
         
         for key in profile_radius:
-            (profile_radius[key], profile_azimuth[key]) \
-                          = nh_jring_extract_profiles_from_unwrapped(self.image_unwrapped, 
+            
+            profile_radius[key] = nh_jring_extract_profile_from_unwrapped(self.image_unwrapped, 
                                                   self.radius_unwrapped,   # Array defining bins of radius
                                                   self.azimuth_unwrapped,  # Array defining bins of azimuth
-                                                  frac_of_radius[key],        # ie, frac of radius used for az profile
-                                                  frac_of_azimuth[key],       # ie, frac of az used for radial profile
+                                                  range_of_azimuth[key],        # ie, range of az used for rad profile
+                                                  'radius',
                                                   mask_unwrapped = self.mask_unwrapped)   
+
+# Make azimuthal profiles
+
+        for key in profile_azimuth:
+            
+            profile_azimuth[key] = nh_jring_extract_profile_from_unwrapped(self.image_unwrapped, 
+                                                  self.radius_unwrapped,   # Array defining bins of radius
+                                                  self.azimuth_unwrapped,  # Array defining bins of azimuth
+                                                  range_of_radius[key],        # range of rad used for az profile
+                                                  'azimuth',
+                                                  mask_unwrapped = self.mask_unwrapped)   
+
+        
+# Create a final 'net' profile, by subtracting the inner and outer background levels from the core profile
+
+        profile_azimuth['net']  = profile_azimuth['core'] - (profile_azimuth['inner'] + profile_azimuth['outer'])/2
+        range_of_radius['net'] = range_of_radius['core']
         
         plt.rcParams['figure.figsize'] = 16,10
         plt.rcParams['figure.figsize'] = 10,5
@@ -664,23 +684,27 @@ class App:
 # Plot the radial and azimuthal profiles
 #==============================================================================
 
+        alpha_profiles = (0.3, 1) # Opacity to use for curves, depending on which line it is. 
+                             # I match with a boolean test: order = (False, True)
+        
 # Plot azimuthal profile
 
         self.ax2.clear()  # Clear lines from the current plot. 
-
-        alpha_profiles = 0.5 # Opacity to use for curve.
         
         dy = 2            # Vertical offset between curves
                           # Set the y limit to go from minimum, to a bit more than 90th %ile
                           # The idea here is to clip off flux from a moon, if it is there.
                           
-        for key in profile_radius:        
-            self.ax2.plot(bins_azimuth, profile_azimuth[key], label = key, alpha = alpha_profiles)
+        for key in profile_azimuth:      
+            self.ax2.plot(bins_azimuth, profile_azimuth[key], 
+                          label = key + ' ' + repr(range_of_radius[key]), 
+                          alpha = alpha_profiles[key == 'net'])
 
         self.ax2.set_title('Azimuthal Profile')
         self.ax2.set_xlabel('Azimuth [radians]')
         self.ax2.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
         self.ax2.legend(loc = 'upper left')
+        self.ax2.set_ylim((-6,15))
 
         self.canvas2.show()
 
@@ -692,10 +716,13 @@ class App:
 
 # Plot radial profile
         
+        alpha_profiles = (0.5, 0.5) # Opacity to use for curves, depending on which line it is. 
+
         if (DO_PLOT_IOF == False):
 
             for key in profile_radius: 
-                self.ax4.plot(bins_radius/1000, profile_radius[key], label = key, alpha = alpha_profiles)
+                self.ax4.plot(bins_radius/1000, profile_radius[key], label = key + ' ' + repr(range_of_azimuth[key]), 
+                              alpha = alpha_profiles[key == 'core'])
 
             self.ax4.set_xlabel(r'Radial Profile      Radius [1000 km]    phase = {:.1f} deg'
                                 .format(hbt.r2d * np.mean(self.planes['Phase'])))
