@@ -7,6 +7,9 @@ Created on Mon Jun 27 09:01:30 2016
 
 ##########
 # Unwrap the ring image, based on coordinates provided by the backplane
+# Turns it from a plot in (RA, Dec) to one in (Az, Radius)
+#
+# This routine does *not* preserve flux.
 ##########
 
 
@@ -119,7 +122,7 @@ def nh_jring_unwrap_ring_image(im,
 #  Now regrid the data from xy position, to an unrolled map in (azimuth, radius)
 #==============================================================================
 
-# Method #1: Construct the gridded image line-by-line
+# Construct the gridded image line-by-line
 
     dn_grid         = np.zeros((num_bins_radius, num_bins_azimuth))  # Row, column
     bins_azimuth    = hbt.frange(azimuth_seg_start, azimuth_seg_end, num_bins_azimuth)
@@ -128,7 +131,7 @@ def nh_jring_unwrap_ring_image(im,
     if (DO_MASK):
         mask_grid       = dn_grid.copy() 
     
-    for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer
+    for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer. Do one radial output bin at a time.
         
         # Select only bins with right radius and azimuth
         
@@ -140,7 +143,7 @@ def nh_jring_unwrap_ring_image(im,
             radius_i     = radius_all[is_ring_i]
             azimuth_i    = azimuth_all[is_ring_i]
             grid_lin_i   = griddata(azimuth_i, dn_i, bins_azimuth, method='linear')
-            dn_grid[i,:] = grid_lin_i
+            dn_grid[i,:] = grid_lin_i         # Write a row of the output array   
 
             if DO_MASK:
                 mask_i       = mask_all[is_ring_i]  # Get the DN values from the image (adjusted by nav pos error)
