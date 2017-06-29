@@ -1603,7 +1603,7 @@ app  = App(root)
 
 # set the dimensions and position of the window
 
-root.geometry('%dx%d+%d+%d' % (2000, 1100, 2, 2))
+root.geometry('%dx%d+%d+%d' % (1610, 850, 2, 2))
 root.configure(background='#ECECEC')                # ECECEC is the 'default' background for a lot of ttk widgets, which
                                                     # I figured out using photoshop. Not sure how to change that.
 
