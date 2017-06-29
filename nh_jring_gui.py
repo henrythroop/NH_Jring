@@ -128,7 +128,7 @@ class App:
         option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
         entry_bg_default    = '0-10'   # Default polynomial order XXX need to set a longer string length here!
         index_group_default = 7        # Default group to start with
-        index_image_default = 0       # Default image number within the group
+        index_image_default = 27       # Default image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -142,7 +142,7 @@ class App:
         (r2d, d2r) = (hbt.r2d, hbt.d2r)
 
         self.stretch_percent = 90    
-        self.stretch = astropy.visualization.PercentileInterval(self.stretch_percent)  # PI(90) scales to 5th..95th %ile.     
+        self.stretch = astropy.visualization.PercentileInterval(self.stretch_percent) # PI(90) scales to 5th..95th %ile.
 
 # Set some physical parameters
 
@@ -171,13 +171,13 @@ class App:
 # Define new columns for the main table. 
 # For several of these, we want to stick an array into the table cell. We do this by defining it as a string.
          
-            t['dx_opnav']  = 0 # The measured offset between pos_star_cat and pos_star_image
-            t['dy_opnav']  = 0
-            t['dx_offset'] = 0 # Additional user-requested offset between the two
-            t['dy_offset'] = 0
-            t['bg_method'] = option_bg_default # None, Previous, Next, Polynomial, Median, "Grp Num Frac Pow", etc.
-            t['bg_argument'] = entry_bg_default # A number (if 'Polynomial'). A range (if 'Median')
-            t['Comment']  = 'Empty comment'  # Blank -- I'm not sure how to init its length if needed
+            t['dx_opnav']     = 0 # The measured offset between pos_star_cat and pos_star_image
+            t['dy_opnav']     = 0
+            t['dx_offset']    = 0 # Additional user-requested offset between the two
+            t['dy_offset']    = 0
+            t['bg_method']    = option_bg_default # None, Previous, Next, Polynomial, Median, "Grp Num Frac Pow", etc.
+            t['bg_argument']  = entry_bg_default # A number (if 'Polynomial'). A range (if 'Median')
+            t['Comment']      = 'Empty comment'  # Blank -- I'm not sure how to init its length if needed
             t['is_navigated'] = False  # Flag
 
 # Extend the size of these strings. This is really stupid, but Tables pre-allocates width of these fields, and 
@@ -185,6 +185,7 @@ class App:
 
             t['bg_argument'] = np.array(t['bg_argument'], dtype = 'U100')
             t['bg_method']   = np.array(t['bg_method'],   dtype = 'U100')
+            t['Comment']     = np.array(t['Comment'],     dtype = 'U100')
                       
             self.t = t
             
@@ -280,7 +281,8 @@ class App:
         
         self.var_checkbutton_extract = tkinter.IntVar()
         self.var_checkbutton_extract.set(self.do_autoextract)        # Values are in fact 1,0  not  True,False. Ugh. 
-        self.checkbutton_extract = ttk.Checkbutton(master, text = 'Auto-Extract', command = self.handle_checkbutton, 
+        self.checkbutton_extract = ttk.Checkbutton(master, text = 'Auto-Extract + Export', 
+                                                   command = self.handle_checkbutton, 
                                                    var = self.var_checkbutton_extract)
 
         
@@ -528,7 +530,6 @@ class App:
                                                                  dx=dx, dy=dy, 
                                                                  mask=mask_objects)
             self.is_unwrapped = True
-            print('Successfully unwrapped image')
         
         except ValueError:
             self.is_unwrapped = False
@@ -561,7 +562,7 @@ class App:
         ang_emis         = math.pi/2 - ang_elev     # Emission angle (ie, angle down from normal) 
         mu               = abs(math.cos(ang_emis))  # mu. See definitions of all these Throop 2004 @ 63 
 
-        width_ring  = 6500 # in km. This is a constant to normalize by -- not the same as actual boundaries.
+        width_ring  = 6500 # in km. This is a constant to s by -- not the same as actual boundaries.
         
         ew_edge     = [120000, 130000]  # Integrate over this range. This is wider than the official ring width.
 
@@ -615,15 +616,21 @@ class App:
                                                   'azimuth',
                                                   mask_unwrapped = self.mask_unwrapped)   
 
-        
 # Create a final 'net' profile, by subtracting the inner and outer background levels from the core profile
 
-        profile_azimuth['net']  = profile_azimuth['core'] - (profile_azimuth['inner'] + profile_azimuth['outer'])/2
+        profile_azimuth['net'] = profile_azimuth['core'] - (profile_azimuth['inner'] + profile_azimuth['outer'])/2
         range_of_radius['net'] = range_of_radius['core']
         
         plt.rcParams['figure.figsize'] = 16,10
         plt.rcParams['figure.figsize'] = 10,5
 
+# Save the profiles to self.
+
+        self.profile_radius   = profile_radius
+        self.profile_azimuth  = profile_azimuth
+        self.range_of_radius  = range_of_radius
+        self.range_of_azimuth = range_of_azimuth
+        
 #==============================================================================
 # Convert extracted values from DN, into photometric quantities
 #==============================================================================
@@ -654,7 +661,8 @@ class App:
 # Convert into equivalent width
         
 #        ioprofile_radius_iof_norm  # Just a shorter alias
-#        ew_norm  = np.sum((profile_radius_full_iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) # Normalized EW from top
+#        ew_norm  = np.sum((profile_radius_full_iof_norm * dr)[ew_edge_bin[0] : ew_edge_bin[1]]) 
+                                         # Normalized EW from top
 #        ew_mean  = ew_norm / width_ring                                           # Mean normalized EW
         
 #        taupp    = profile_radius_full_iof_norm * 4 * mu  # Radially averaged tau_omega0_P
@@ -851,10 +859,11 @@ class App:
 								
         self.plot_image()
                 
-# Extract radial / azimuthal profiles, if desired
+# Extract radial / azimuthal profiles, and export results, if desired
 
         if (self.do_autoextract == 1):
-            self.extract_profiles()        
+            self.extract_profiles() 
+            self.export_analysis()       # Write results to disk. Otherwise, it is easy to forget.
 
 #==============================================================================
 # Load new image from disk
@@ -873,7 +882,7 @@ class App:
         file = self.t_group[self.index_image]['Filename']  
 
         self.image_raw = hbt.read_lorri(file, frac_clip = 1., bg_method = 'None', autozoom=False)
-        print("Loaded image: " + file)
+        self.diagnostic("Loaded image: " + file)
 
 # Load info from header
 
@@ -950,7 +959,7 @@ class App:
         index = (self.lbox_files.curselection())[0]
         name = self.t_group['Shortname'][index]
         print()
-        print("selected = " + repr(index) + ' ' + name)
+        self.diagnostic("selected = " + repr(index) + ' ' + name)
         self.index_image_new = index
         self.index_group_new = self.index_group  # Keep the same group
         self.change_image()
@@ -1134,7 +1143,8 @@ the internal state which is already correct. This does *not* refresh the image i
 
         # Display it and scale spatially, whether it is 1x1 or 4x4
         
-        self.ax1.set_xlim([0,hbt.sizex(self.image_processed)-1])  # This is an array and not a tuple. Beats me, like so many things with mpl.
+        self.ax1.set_xlim([0,hbt.sizex(self.image_processed)-1])  # This is an array and not a tuple. 
+                                                                  # Beats me, like so many things with mpl.
         self.ax1.set_ylim([hbt.sizex(self.image_processed)-1,0])
           
         # Draw the figure on the Tk canvas
@@ -1294,7 +1304,6 @@ the internal state which is already correct. This does *not* refresh the image i
         self.file_backplane_shortname = self.t_group['Shortname'][self.index_image]
 				
         if (os.path.isfile(file_backplane)):
-            print('load_backplane: loading ' + file_backplane) 
             lun = open(file_backplane, 'rb')
             planes = pickle.load(lun)
             self.planes = planes # This will load self.t
@@ -1396,6 +1405,7 @@ the internal state which is already correct. This does *not* refresh the image i
         self.quit()        
     
     def quit(self):
+#        answer = ttk.messagebox.askquestion
         root.destroy() # Q: How does root. get automatically imported here? Not sure.
         root.quit()
 
@@ -1442,19 +1452,17 @@ the internal state which is already correct. This does *not* refresh the image i
     
         # Write one variable to a file    
     
-        print("Writing to {}".format(self.dir_out + self.filename_save))
+        print("Saving to {}".format(self.dir_out + self.filename_save))
         
         lun = open(self.dir_out + self.filename_save, 'wb')
         t = self.t
         pickle.dump(t, lun)
         lun.close()
         
-        print("finished")
-               
         self.var_label_status_io.set('')  # This one works
 
 ##########
-# Export results disk
+# Export results for this image to a file
 ##########
 
     def export_analysis(self, verbose=True):
@@ -1462,26 +1470,43 @@ the internal state which is already correct. This does *not* refresh the image i
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
 
         dir_export = '/Users/throop/data/NH_Jring/out/'
-        file_export = dir_export + t['Shortname'].replace('.fit', '_export.pkl')
+        file_export = dir_export + t['Shortname'].replace('_opnav', '').replace('.fit', '_analysis.pkl')
         
-        image    = self.image_unwrapped
-        radius   = self.radius_unwrapped
-        azimuth  = self.azimuth_unwrapped
+# Prepare the variable to stuff into the single tuple we pass to write into pickle file.
+# This is simple, but it means we much be careful to unpack in same order as they were packed.
+# Perhaps it's better to write as a dictionary, where we can then extract by name, rather than by order?
         
-        profile_radius_dn  = self.profile_radius_central
-        profile_azimuth_dn = self.profile_azimuth_central
+        image_unwrapped    = self.image_unwrapped
+        mask_unwrapped     = self.mask_unwrapped
+        radius             = self.radius_unwrapped
+        azimuth            = self.azimuth_unwrapped
+        profile_radius_dn  = self.profile_radius
+        profile_azimuth_dn = self.profile_azimuth
+        ang_elev           = self.ang_elev
+        exptime            = t['Exptime']
+        ang_phase          = np.mean(self.planes['Phase'])
+        index_image        = self.index_image
+        index_group        = self.index_group
+        bg_method          = t['bg_method']
+        bg_argument        = t['bg_argument'] 
+        et                 = t['ET']
         
-        ang_elev = self.ang_elev
-        
-        ang_phase = np.mean(self.planes['Phase'])
-        
-        index_image = self.index_image
-        index_group = self.index_group
-        
-        et = t['ET']
-        
-        vals = (image, et, radius, azimuth, profile_radius_dn, profile_azimuth_dn, \
-                ang_elev, ang_phase, index_image, index_group)
+        vals = (image_unwrapped,     # Unwrapped image itself
+                mask_unwrapped,      # Boolean mask
+                radius,              # Axis values for the unwrapped image
+                azimuth,             # Axis values for the unwrapped image
+                profile_radius_dn,   # Radial profile (several, in a dictionary)
+                profile_azimuth_dn,  # Az profile (several, in a dictionary)
+                self.range_of_azimuth,
+                self.range_of_radius,
+                exptime,             # Exposure time
+                et,                  # ET
+                ang_elev,            # Elevation angle above ring
+                ang_phase,           # Phase angle (mean to rings -- not to planet center)
+                bg_method,           # Method of background removal
+                bg_argument,         # Details of background removal
+                index_image,         # Index of image
+                index_group)         # Index of image group
         
         lun = open(file_export, 'wb')
         pickle.dump(vals, lun)
@@ -1585,7 +1610,7 @@ the internal state which is already correct. This does *not* refresh the image i
         Print a diagnostic message. Can turn this off easily, both globally and for individual messages.
         '''
         
-        DO_PRINT = True
+        DO_PRINT = False
    
         if (DO_PRINT):
             print(message)
@@ -1633,8 +1658,3 @@ else:
         except UnicodeDecodeError:  # Fix a TK + py3 bug, which causes Unicode errors on events. 
                     # http://stackoverflow.com/questions/16995969/inertial-scrolling-in-mac-os-x-with-tkinter-and-python
             pass
-    
-    
-
-
-
