@@ -36,6 +36,14 @@ def nh_get_straylight_median(index_group, index_files, do_fft=False, do_sfit=Tru
     This is a user-level routine to get a straylight median image.
     If the image exists, it will load it. If it doesn't exist, it will create it.
     This is the one to call under most circumstances.
+    
+    index_group: Which image group for the median images (typically 3, 5, 7 for Jupiter images). Scalar.
+    Index_files: Indices within the group. Scalar, or a numpy array.
+    do_fft:      Boolean. I don't use this, so typically False.
+    do_sfit:     Boolean. Do we subtract a polynomial from the median image after creating it, or not?
+    power1:      Scalar. The polynomial power to subtract.
+    power2:      Scalar. A second polynomial power to subtract. NOT REALLY USED.
+    
     """
     
     dir_straylight = '/Users/throop/data/NH_Jring/out/'

@@ -351,11 +351,10 @@ class App:
             
              s = '{0:3}.   {1}   {2:.3f}   {3}  {4}'.format( \
                  repr(i), 
-                 files_short[i], 
+                 files_short[i].replace('_opnav.fit', ''),  # Shorten filename a bit
                  self.t_group['Exptime'][i], 
                  self.t_group['Format'][i],
-                 self.t_group['UTC'][i]
-                 
+                 t_group['UTC'][i].split('.')[0]           # Remove fractional seconds                 
                  )
              self.lbox_files.insert("end", s)
                   
@@ -914,7 +913,7 @@ class App:
         index = (self.lbox_groups.curselection())[0]
         name_group = self.groups[index]
 
-# Create the listbox for files, and load it up
+# Create the listbox for files, and load it up. This is the graphic 'data table' in the GUI.
 # NB: We are using a local copy of t_group here -- not self.t_group, 
 # which still reflects the old group, not new one.
 
@@ -929,14 +928,17 @@ class App:
 
         self.lbox_files.delete(0, "end")
  
+# For each line in the GUI table, create it, and then load it.
+
         for i in range(np.size(files_short)):
             
-             s = '{0:3}.   {1}   {2:.3f}   {3}  {4}'.format( \
+             s = '{0:3}.   {1}   {2:.2f}   {3}  {4}'.format( \
                  repr(i), 
-                 files_short[i], 
+                 files_short[i].replace('_opnav.fit', ''),  # Shorten filename a bit
                  t_group['Exptime'][i], 
                  t_group['Format'][i],                 
-                 t_group['UTC'][i])
+                 t_group['UTC'][i].split('.')[0]           # Remove fractional seconds
+                 )
 
              self.lbox_files.insert("end", s)
                  
@@ -1067,7 +1069,7 @@ the internal state which is already correct. This does *not* refresh the image i
         self.process_image()
         self.plot_image()
 
-        self.extract_profiles()	
+        self.extract_profiles()
 
 #==============================================================================
 # Apply image processing to image. Stray light, polynomial subtraction, etc.
@@ -1081,7 +1083,9 @@ the internal state which is already correct. This does *not* refresh the image i
         argument = self.entry_bg.get()
         
         self.image_processed = hbt.nh_jring_process_image(self.image_raw, \
-                                                          method, argument, self.index_group, self.index_image)
+                                                          method, argument, 
+                                                          index_group = self.index_group, 
+                                                          index_image = self.index_image)
 
         # Remove cosmic rays
         
