@@ -354,7 +354,7 @@ class App:
                  files_short[i].replace('_opnav.fit', ''),  # Shorten filename a bit
                  self.t_group['Exptime'][i], 
                  self.t_group['Format'][i],
-                 t_group['UTC'][i].split('.')[0]           # Remove fractional seconds                 
+                 self.t_group['UTC'][i].split('.')[0]           # Remove fractional seconds                 
                  )
              self.lbox_files.insert("end", s)
                   
