@@ -240,9 +240,10 @@ class App:
         self.legend             = False         # Store pointer to plot legend here, so it can be deleted
 								
         (dim, radii)            = sp.bodvrd('JUPITER', 'RADII', 3)
-        self.rj                 = radii[0]  # Jupiter radius, polar, in km. Usually 71492.
+        self.rj                 = radii[0]      # Jupiter radius, polar, in km. Usually 71492.
         self.is_unwrapped       = False         # Flag: Did we successfully unwrap this image? 
-                
+        self.is_loaded          = False         # Flag: Is there a good image loaded?
+        
 # Now define and startup the widgets
                 
         self.path_settings = "/Users/throop/python/salt_interact_settings/"
@@ -517,8 +518,8 @@ class App:
 
 # Unwrap the ring image. The input to this is the processed ring (ie, bg-subtracted)
 
-        dx = 0 # Navigational offset, usually sub-pixel
-        dy = 0
+        dx = self.offset_dx # Navigational offset, usually sub-pixel
+        dy = self.offset_dy
         
         try:
             (im_unwrapped, mask_unwrapped, bins_radius, bins_azimuth) = \
@@ -901,7 +902,11 @@ class App:
         DO_LOAD_OBJECTLIST = True
         if DO_LOAD_OBJECTLIST:
             self.load_objectlist()
-              
+        
+# Set a flag to indicate that a valid image has been loaded
+            
+        self.is_loaded = True
+        
 #==============================================================================
 # Change Group
 #==============================================================================
@@ -1197,8 +1202,8 @@ the internal state which is already correct. This does *not* refresh the image i
         
         marker_ring      = 'None'           # Must be capitalized
         linestyle_ring   = 'dotted'             # Ring linestyle
-        alpha_ring       = 0.5
-        linewidth_ring   = 0.8
+        alpha_ring       = 0.35
+        linewidth_ring   = 0.4
         color_ring       = 'blue'
         
         num_pts_ring     = 300 
@@ -1220,8 +1225,8 @@ the internal state which is already correct. This does *not* refresh the image i
         dx_pix = 0
         dy_pix = 0
             
-#        dx = t['dx_opnav'] + self.slider_offset_dx.get()
-#        dy = t['dy_opnav'] + self.slider_offset_dy.get()
+        dx = t['dx_opnav'] + self.slider_offset_dx.get()
+        dy = t['dy_opnav'] + self.slider_offset_dy.get()
 
 # Plot the stars -- catalog 
 
@@ -1256,7 +1261,8 @@ the internal state which is already correct. This does *not* refresh the image i
                                                 name_body='Jupiter', 
                                                 radius=self.a_ring_outer_km, units='pixels', abcorr='LT', wcs=w)
 
-                self.ax1.plot(x_ring2_pix, y_ring2_pix, marker=marker_ring, color = color_ring, ls = linestyle_ring,
+                self.ax1.plot(x_ring2_pix+dx, y_ring2_pix+dy, marker=marker_ring, color = color_ring, 
+                                                ls = linestyle_ring,
                                                 linewidth=linewidth_ring, alpha = alpha_ring)
 
 #                self.ax1.plot(x_pos_ring2 + dx, y_pos_ring2 + dy, marker='o', color = 'lightblue', ls = '--',
@@ -1268,7 +1274,8 @@ the internal state which is already correct. This does *not* refresh the image i
                                                 name_body='Jupiter', 
                                                 radius=self.a_ring_inner_km, units='pixels', abcorr='LT', wcs=w)
 
-                self.ax1.plot(x_ring1_pix, y_ring1_pix, marker=marker_ring, color=color_ring, ls = linestyle_ring, \
+                self.ax1.plot(x_ring1_pix+dx, y_ring1_pix+dy, marker=marker_ring, color=color_ring, 
+                                                ls = linestyle_ring, 
                                                 linewidth=linewidth_ring, alpha = alpha_ring, ms=8)
 
             self.legend = self.ax1.legend()  # Draw legend. Might be irrel since remove() might keep it; not sure.
@@ -1549,7 +1556,17 @@ the internal state which is already correct. This does *not* refresh the image i
 
         self.offset_dx = self.slider_offset_dx.get() #
         self.offset_dy = self.slider_offset_dy.get() #
-                
+        
+        print("Offset = {}, {}".format(self.offset_dx, self.offset_dy))
+        
+        # Now undraw and redraw the ring, if it is loaded
+        
+        if self.is_loaded:
+
+            self.clear_objects()
+    
+            self.plot_objects()
+        
         return 0
 
 #==============================================================================

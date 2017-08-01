@@ -68,7 +68,9 @@ def nh_jring_unwrap_ring_image(im,
     azimuth_all = azimuth[is_ring_all]  # Make a list of all of the azimuth points for all pixels
     phase_all   = phase[is_ring_all]
 
-    dn_all     = np.roll(np.roll(im, dy, 0), dx, 1)[is_ring_all]   # Axis 0 is y. 1 is x.
+    dn_all     = np.roll(np.roll(im, int(round(dy)), 0), int(round(dx)), 1)[is_ring_all]   
+                                                                # Axis 0 is y. 1 is x.
+                                                                # If a float is passed, round to the closest int
         
 #    phase_mean  = np.mean(phase_all)     # Get the mean phase angle across the ring.
 #    
