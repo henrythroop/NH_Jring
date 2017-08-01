@@ -863,7 +863,7 @@ class App:
 
         if (self.do_autoextract == 1):
             self.extract_profiles() 
-            self.export_analysis()       # Write results to disk. Otherwise, it is easy to forget.
+            self.export_analysis()       # Write results of new image to disk. Otherwise, it is easy to forget.
 
 #==============================================================================
 # Load new image from disk
@@ -1111,7 +1111,9 @@ the internal state which is already correct. This does *not* refresh the image i
         self.plot_image()
 
         if (self.do_autoextract):
-            self.extract_profiles()								
+            self.extract_profiles()
+            self.export_analysis()
+							
 
 #==============================================================================
 # Plot image
@@ -1557,7 +1559,7 @@ the internal state which is already correct. This does *not* refresh the image i
         self.offset_dx = self.slider_offset_dx.get() #
         self.offset_dy = self.slider_offset_dy.get() #
         
-        print("Offset = {}, {}".format(self.offset_dx, self.offset_dy))
+#        print("Offset = {}, {}".format(self.offset_dx, self.offset_dy))
         
         # Now undraw and redraw the ring, if it is loaded
         
@@ -1567,6 +1569,9 @@ the internal state which is already correct. This does *not* refresh the image i
     
             self.plot_objects()
         
+        else:
+            print("Not loaded -- no plotting")
+            
         return 0
 
 #==============================================================================

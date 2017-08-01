@@ -127,11 +127,15 @@ azimuth_arr   = np.array(azimuth_arr)
 #==============================================================================
 
 hbt.figsize((10,5))
-dy = 0.2 # Vertical offset between lines
+dy = 1.5 # Vertical offset between lines
+
+profile_radius_sum = profile_radius_dn_arr[0]['core']*0
 
 for i,profile_radius in enumerate(profile_radius_dn_arr):
     plt.plot(radius, (i * dy*2) + profile_radius['core'], color='green', alpha=0.15)
     plt.text(132000, (i*dy*2 - 3), ang_phase_arr[i] * hbt.r2d)  # Label the phase angle here
+    profile_radius_sum += profile_radius['core']
+    
 plt.xlabel('Radial Distance [km]')
 plt.ylabel('DN')
 plt.show()
