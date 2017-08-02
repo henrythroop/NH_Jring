@@ -747,6 +747,8 @@ class App:
         linestyle_ring   = 'dotted'             # Ring linestyle
         alpha_ring       = 0.35
         linewidth_ring   = 0.4
+        color_ring       = 'blue'
+        
         
         if (DO_PLOT_IOF == False):
 
@@ -767,10 +769,10 @@ class App:
             
             # Draw vertical lines for the ring locations
             
-            self.ax4.axvline(x=self.a_ring_inner_km/1000, linestyle=linestyle_ring, alpha=alpha_ring, 
+            self.ax4.axvline(x=self.a_ring_inner_km/1000, linestyle=linestyle_ring, color=color_ring,# alpha=alpha_ring, 
                              linewidth=linewidth_ring)
             
-            self.ax4.axvline(x=self.a_ring_outer_km/1000, linestyle=linestyle_ring, alpha=alpha_ring, 
+            self.ax4.axvline(x=self.a_ring_outer_km/1000, linestyle=linestyle_ring, color=color_ring,# alpha=alpha_ring, 
                              linewidth=linewidth_ring)
             
 
@@ -1265,7 +1267,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
         stars = self.objectlist[(self.objectlist['name'] == 'star')]
             
-        self.ax1.plot(stars['x_pix'], stars['y_pix'], 
+        self.ax1.plot(stars['x_pix'] + dx, stars['y_pix'] + dy, 
                      marker='o', ls='None', 
                      color=color_stars_cat, alpha = alpha_stars_cat, ms=12, mew=1, label = 'Stars, Catalog')
                      
@@ -1276,12 +1278,12 @@ the internal state which is already correct. This does *not* refresh the image i
         for i in range(np.size(sats)):
                 
 # Plot the sats                
-            self.ax1.plot(sats['x_pix'][i], sats['y_pix'][i], 
+            self.ax1.plot(sats['x_pix'][i] + dx, sats['y_pix'][i] + dy, 
                      marker='o', ls='None', 
                      color=color_sats, alpha = alpha_sats, ms=12, mew=1)
 # Label each one
                 
-            self.ax1.text(sats['x_pix'][i], sats['y_pix'][i],
+            self.ax1.text(sats['x_pix'][i] + dx, sats['y_pix'][i] + dy,
                               sats['name'][i], clip_on = True)
             
 # Plot the ring
