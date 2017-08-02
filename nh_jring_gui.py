@@ -128,7 +128,7 @@ class App:
         option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
         entry_bg_default    = '0-10'   # Default polynomial order XXX need to set a longer string length here!
         index_group_default = 7        # Default group to start with
-        index_image_default = 27       # Default image number within the group
+        index_image_default = 32       # Default image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -146,8 +146,8 @@ class App:
 
 # Set some physical parameters
 
-        self.a_ring_inner_km = 122000
-        self.a_ring_outer_km = 129000
+        self.a_ring_inner_km = 127500  # For clarify, we want to plot inward of the real edge
+        self.a_ring_outer_km = 129000  # 129000 is slightly inside outer edge -- easy to see
         
 # Start up SPICE
 
@@ -518,7 +518,7 @@ class App:
 
 # Unwrap the ring image. The input to this is the processed ring (ie, bg-subtracted)
 
-        dx = self.offset_dx # Navigational offset, usually sub-pixel
+        dx = self.offset_dx # Navigational offset. Ideally this would be sub-pixel, although np.roll() only allow ints.
         dy = self.offset_dy
         
         try:
@@ -527,7 +527,7 @@ class App:
                                                                  num_bins_radius, (r_ring_inner, r_ring_outer),
                                                                  num_bins_azimuth, 
                                                                  self.planes, 
-                                                                 dx=dx, dy=dy, 
+                                                                 dx=-dx, dy=-dy, 
                                                                  mask=mask_objects)
             self.is_unwrapped = True
         
@@ -702,17 +702,35 @@ class App:
         dy = 2            # Vertical offset between curves
                           # Set the y limit to go from minimum, to a bit more than 90th %ile
                           # The idea here is to clip off flux from a moon, if it is there.
-                          
+        
+        frac_edge = 0.1   # How much of the edge of these profiles do we ignore, when setting the range?
+        
+        vals_central = []
+           
         for key in profile_azimuth:      
             self.ax2.plot(bins_azimuth, profile_azimuth[key], 
                           label = key + ' ' + repr(range_of_radius[key]), 
                           alpha = alpha_profiles[key == 'net'])
 
+            bin_left  = int(np.size(bins_azimuth)*frac_edge)
+            bin_right = int(np.size(bins_azimuth)*(1-frac_edge))
+            
+            vals_central_i = profile_azimuth[key][bin_left:bin_right]
+            vals_central.append(vals_central_i)
+            
         self.ax2.set_title('Azimuthal Profile')
         self.ax2.set_xlabel('Azimuth [radians]')
         self.ax2.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
-        self.ax2.legend(loc = 'upper left')
-        self.ax2.set_ylim((-6,15))
+        self.ax2.legend(loc = 'lower left')
+        
+        # Set the vertical scale. This takes some subtlety to do correctly, since there could be some invalid etc.
+        # Also, the values on the extremes of the range (first/last 10%, eg) are most likely to be wrong, since 
+        # they are the ones where the polynomial subtraction could go crazy. So, we want to take the minmax from 
+        # the inner (say) 80% of the range, using all three curves.
+        
+#        profile_azimuth_all
+        
+        self.ax2.set_ylim(hbt.mm(vals_central))
 
         self.canvas2.show()
 
@@ -726,6 +744,10 @@ class App:
         
         alpha_profiles = (0.5, 0.5) # Opacity to use for curves, depending on which line it is. 
 
+        linestyle_ring   = 'dotted'             # Ring linestyle
+        alpha_ring       = 0.35
+        linewidth_ring   = 0.4
+        
         if (DO_PLOT_IOF == False):
 
             for key in profile_radius: 
@@ -742,6 +764,15 @@ class App:
             
             ax41 = self.ax4.twiny()
             ax41.set_xlim(list(hbt.mm(bins_radius/1000/71.4)))
+            
+            # Draw vertical lines for the ring locations
+            
+            self.ax4.axvline(x=self.a_ring_inner_km/1000, linestyle=linestyle_ring, alpha=alpha_ring, 
+                             linewidth=linewidth_ring)
+            
+            self.ax4.axvline(x=self.a_ring_outer_km/1000, linestyle=linestyle_ring, alpha=alpha_ring, 
+                             linewidth=linewidth_ring)
+            
 
         if (DO_PLOT_IOF == True):     
             

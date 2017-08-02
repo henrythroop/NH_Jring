@@ -109,11 +109,16 @@ for file in files_analysis:
                 index_image,         # Index of image
                 index_group) = vals  # Index of image group
 
+    file_short = file.split('/')[-1].replace('_analysis.pkl', '')
+    
     profile_radius_dn_arr.append(profile_radius_dn)
     profile_azimuth_dn_arr.append(profile_azimuth_dn)
     exptime_arr.append(exptime)
     ang_phase_arr.append(ang_phase)
     azimuth_arr.append(azimuth) 
+    
+    print("Read image {}/{}, phase = {:0.1f}°, {}, {}, {}".format(
+            index_group, index_image, ang_phase*hbt.r2d, file_short, bg_method, bg_argument))
 
 #==============================================================================
 # Now put these into arrays (not lists). Ideally we should put these into an astropy table (so we can sort, etc.)
