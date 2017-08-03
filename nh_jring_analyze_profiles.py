@@ -131,7 +131,7 @@ azimuth_arr   = np.array(azimuth_arr)
 # Make a consolidated plot of radial profile
 #==============================================================================
 
-hbt.figsize((10,5))
+hbt.figsize((10,25))
 dy = 1.5 # Vertical offset between lines
 
 profile_radius_sum = profile_radius_dn_arr[0]['core']*0

@@ -271,7 +271,7 @@ class App:
         self.button_next =     ttk.Button(master, text = 'Next',     command=self.select_image_next)
         self.button_plot   =   ttk.Button(master, text = 'Plot',     command=self.handle_plot_image)
         self.button_extract =  ttk.Button(master, text = 'Extract',  command=self.handle_extract_profiles)
-        self.button_navigate = ttk.Button(master, text = 'Navigate', command=self.handle_navigate)
+        self.button_recenter = ttk.Button(master, text = 'Recenter', command=self.handle_recenter)
         self.button_repoint =  ttk.Button(master, text = 'Repoint',  command=self.repoint)
         self.button_ds9 =      ttk.Button(master, text = 'Open in DS9', command=self.open_external)
         self.button_copy =     ttk.Button(master, text = 'Copy name to clipboard', command=self.copy_name_to_clipboard)
@@ -453,7 +453,7 @@ class App:
 
         self.label_status_io.        grid(row=7,   column=11) 
 
-        self.button_navigate.        grid(row=8,  column=11)
+        self.button_recenter.        grid(row=8,  column=11)
         self.button_plot.            grid(row=8,  column=13)
         self.button_extract.         grid(row=8, column=14)
     
@@ -794,19 +794,36 @@ class App:
         self.canvas4.show()
         
 ##########
-# Navigate the image and plot it
-# XXX For now, this does nothing at all. I will remove that button and replace with something else --
-# maybe a mask on/off switch?
+# Recenter the image. That is, this resets the slider positions to (0,0). 
+# Ideally we would have a display and read these out dynamically, but this will do the job.
 ##########
 
     """
-    Handle the 'navigate image' button. Plots image when done.
-    Extracts profile if that is default.
+    Handle the 'Recenter image' button.
+    Plots image when done.
     """
 				
-    def handle_navigate(self):
+    def handle_recenter(self):
         
-        self.diagnostic("handle_navigate()")
+        self.diagnostic("handle_recenter()")
+        
+        dx = 0
+        dy = 0
+
+        # Set the slider position
+        
+        self.slider_offset_dx.set(dx)
+        self.slider_offset_dy.set(dy)
+        
+        # Set the internal position
+        
+        self.t_group['dx_offset'][self.index_image] = dx
+        self.t_group['dy_offset'][self.index_image] = dy
+        
+        # Redraw objects
+        
+        self.clear_objects()
+        self.plot_objects()
         
         return True								
 							
