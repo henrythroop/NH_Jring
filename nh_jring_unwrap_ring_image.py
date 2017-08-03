@@ -24,7 +24,8 @@ def nh_jring_unwrap_ring_image(im,
   azimuth: 1D array of azimuth (radians)
   planes: the table of backplanes
   
-  dx, dy: Pixel values to roll the image by. Also rolls the mask.
+  dx, dy: Pixel values to roll the image by -- that is, an additional offset to be added to nav info in WCS header. 
+          Both the image and the mask are rolled by this amount. Integer.
   
   output: (im_unwrapped, radius, azimuth)
   
@@ -161,4 +162,83 @@ def nh_jring_unwrap_ring_image(im,
         return (image_unwrapped, mask_unwrapped, bins_radius, bins_azimuth)
     
     else:
-        return (image_unwrapped, bins_radius, bins_azimuth)    
+        return (image_unwrapped, bins_radius, bins_azimuth)
+    
+
+# =============================================================================
+# Do a test of the unwrapping. 
+# Specifically, we want to unwrap the backplane, to see if we get what we should.
+# =============================================================================
+        
+def test():
+    
+    import hbt
+    import pickle
+    import astropy
+    
+    file_pickle = '/Users/throop/Data/NH_Jring/out/nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
+
+    stretch_percent = 90    
+    stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+
+    
+    lun = open(file_pickle, 'rb')
+    t = pickle.load(lun)
+    lun.close()
+
+    # Process the group names. Some of this is duplicated logic -- depends on how we want to use it.
+
+    groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
+    
+    index_group = 7
+    index_image = [23,24]
+    num_bins_radius = 50
+    num_bins_azimuth = 360
+    limits_radius = np.array([120000, 135000])
+    
+    groupmask = (t['Desc'] == groups[index_group])
+    t_group = t[groupmask]
+    dir_backplanes = '/Users/throop/data/NH_Jring/out/'
+
+    image = {}  # Set up a dictionary
+    planes = {}
+    
+#    arr1 = nh_jring_process_image(image_raw, method, vars, index_group=-1, index_image=-1):
+
+# Read the images into an array
+    
+    for i in index_image:
+        image[i] = hbt.read_lorri(t_group[i]['Filename'], frac_clip = 1, bg_method = 'None')
+        
+#        image2 = hbt.read_lorri(t_group[index_image[1]]['Filename'], frac_clip = 1, bg_method = 'None')
+    
+        file_backplane = dir_backplanes + t_group['Shortname'][i].replace('.fit', '_planes.pkl')
+
+    # Save the shortname associated with the current backplane. 
+    # That lets us verify if the backplane for current image is indeed loaded.
+
+        file_backplane_shortname = t_group['Shortname'][i]
+				
+        lun = open(file_backplane, 'rb')
+        planes[i] = pickle.load(lun)
+        lun.close()
+
+# Now unwrap the image
+        
+        image_unwrapped = nh_jring_unwrap_ring_image(image[23], num_bins_radius, limits_radius, num_bins_azimuth,
+                                                     planes[23], mask = 0*image[23])
+        plt.imshow(stretch(image_unwrapped[0]))
+        plt.show()
+
+# And unwrap the backplane
+        
+        radius_unwrapped = nh_jring_unwrap_ring_image(planes[23]['Radius_eq'], num_bins_radius, 
+                                                     limits_radius, num_bins_azimuth,
+                                                     planes[23], mask = 0*image[23])
+
+        plt.imshow(stretch(radius_unwrapped[0]))
+        plt.show()
+
+        ## WORK IN PROGRESS -- need to verify if this unwrapping of the backplane is done properly
+        
+        
