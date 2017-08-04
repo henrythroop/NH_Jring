@@ -19,7 +19,7 @@ import astropy
 from   astropy.io import fits
 import numpy as np
 import spiceypy as sp
-import wcsaxes
+from   astropy.visualization import wcsaxes
 import hbt
 from   astropy.wcs import WCS
 import pickle # For load/save
@@ -45,7 +45,7 @@ dir_out = '/Users/throop/data/NH_Jring/out/'
 
 #file_list = glob.glob(dir_images + '/*fit')
 #file_list = glob.glob(dir_images + '/*0034620123*1*opnav.fit')  # Navigate the opnav'd files
-file_list = glob.glob(dir_images + '/`*_sci_?_opnav.fit')  # Navigate the opnav'd files
+file_list = glob.glob(dir_images + '/*_sci_?_opnav.fit')  # Navigate the opnav'd files
 
 files = np.array(file_list)
 
