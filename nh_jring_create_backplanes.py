@@ -28,6 +28,7 @@ import os
 import pdb
 import glob
 import math
+from random import shuffle
 
 DO_OVERWRITE = False
 
@@ -51,10 +52,21 @@ files = np.array(file_list)
 
 DO_TEST = False
 
+DO_RANDOMIZE = True
+
 if DO_TEST:
     files = files[0:3]
+
+# If requested, randomize the file list. This makes it easy to run this job
+# in parallel. Each process much be run from its own python shell (e.g.,
+# 10 separate python console windows in spyder).
     
-for i,file in enumerate(files):
+if DO_RANDOMIZE:  
+    files_shuffled = list(files.copy())
+    shuffle(files_shuffled)
+    files = files_shuffled
+    
+for i,file in enumerate(files_shuffled):
 
     file_short = file.split('/')[-1]
     file_out = dir_out + file_short    
