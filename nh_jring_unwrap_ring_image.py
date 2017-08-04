@@ -165,7 +165,8 @@ def nh_jring_unwrap_ring_image(im,
     
 
 # =============================================================================
-# Do a test of the unwrapping. 
+# Do some tests and validation of the unwrapping functions.
+# These are good to have in general, but I wrote them to track down a specific error in J-ring navigation.
 # Specifically, we want to unwrap the backplane, to see if we get what we should.
 # =============================================================================
 
@@ -341,6 +342,10 @@ def test():
     plt.show() 
      
 # Plot the raw images. For each one, flag the pixels between in a certain radial range, based on backplane
+#
+# *** This turned out to show my problem. In the J-ring GUI when I overlay the ring, it is in the same 
+#     location in E and W ansae. But in the data here, it is *not* -- it's shifted by a few pixels.
+#     This was due to using wrong abcorr when creating the backplanes. 4-Aug-2017.
 
     hbt.figsize((10,10))
     for i in index_image:
