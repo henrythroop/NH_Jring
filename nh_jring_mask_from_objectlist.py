@@ -29,7 +29,7 @@ from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalo
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 from   scipy.stats import mode
-import wcsaxes
+from   astropy.visualization import wcsaxes
 import time
 from   scipy.interpolate import griddata
 from   photutils import DAOStarFinder
