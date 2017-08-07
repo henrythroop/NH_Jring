@@ -212,7 +212,7 @@ class App:
         # If we modify values here, we need to explicitly write the changes back to the original.
         
         self.groupmask = t['Desc'] == self.groups[self.index_group]
-        self.t_group = t[self.groupmask]
+        self.t_group = t[self.groupmask]  # 
         
         self.num_images_group = np.size(self.t_group)
 
@@ -348,16 +348,10 @@ class App:
 
 # Populate the listbox for files
 
-        for i in range(np.size(files_short)):
-            
-             s = '{0:3}.   {1}   {2:.3f}   {3}  {4}'.format( \
-                 repr(i), 
-                 files_short[i].replace('_opnav.fit', ''),  # Shorten filename a bit
-                 self.t_group['Exptime'][i], 
-                 self.t_group['Format'][i],
-                 self.t_group['UTC'][i].split('.')[0]           # Remove fractional seconds                 
-                 )
-             self.lbox_files.insert("end", s)
+        for index_image in range(np.size(files_short)):    
+            line_new = self.make_info_line(self.index_group, index_image)
+            print("Adding line: {}".format(line_new))
+            self.lbox_files.insert("end", line_new)
                   
         self.lbox_files.bind('<<ListboxSelect>>', self.select_image) # Define event handler
 
@@ -489,7 +483,76 @@ class App:
 
         if (self.do_autoextract == 1):
             self.extract_profiles()
+
+# =============================================================================
+# Return a line of info about a file (exptime, mode, filename, time, etc.) 
+# This goes into the large 'listbox' table to click on.
+# =============================================================================
             
+    def make_info_line(self, index_group, index_image):  
+        
+        import humanize
+        import os
+        import datetime
+        
+        # The group is passed, because sometimes it will be current group, and sometimes not
+        
+        # Get the modtime for the output pickle file
+        
+        file_analysis = self.get_export_analysis_filename(index_group, index_image)
+        
+        groupmask = self.t['Desc'] == self.groups[index_group]
+        t_group = self.t[groupmask]
+        
+        print("For index {}, file = {}".format(index_image, file_analysis))
+        
+        if (os.path.isfile(file_analysis)):               # If the analysis file exists
+            time_file = os.path.getmtime(file_analysis)
+            time_now  = time.time()
+            dt        = time_now - time_file
+            timestr   = humanize.naturaltime(dt)
+
+        else:                                               # If no file found
+            timestr   = '--'
+            
+        s = '{:3}.   {}   {:6.2f}   {}  {}    {}'.format( \
+             repr(index_image), 
+             t_group['Shortname'][index_image].
+                 replace('_opnav.fit', '').
+                 replace('0x633_sci_', '').
+                 replace('0x630_sci_','').
+                 replace('lor_',''),       # Shorten filename a bit
+             t_group['Exptime'][index_image], 
+             t_group['Format'][index_image],
+             t_group['UTC'][index_image].split('.')[0],           # Remove fractional seconds                 
+             timestr)
+        return s
+
+# =============================================================================
+# Get the name of the analysis file to export
+# =============================================================================
+
+    def get_export_analysis_filename(self, index_group = None, index_image = None):
+
+        if (index_image is None):
+            index_image = self.index_image  # Use the current image, unless one is passed
+
+        if (index_group is None):
+            index_group = self.index_group
+
+#        else:
+                           # Use the passed-in image name
+        
+        groupmask = self.t['Desc'] == self.groups[index_group]
+        t_group = self.t[groupmask]  # 
+        
+        t = t_group[index_image]  # Grab this, read-only, since we use it a lot.
+
+        dir_export = '/Users/throop/data/NH_Jring/out/'
+        file_export = dir_export + t['Shortname'].replace('_opnav', '').replace('.fit', '_analysis.pkl')
+
+        return(file_export)
+        
 #==============================================================================
 # Unwrap ring image in ra + dec to new image in lon + radius.
 #==============================================================================
@@ -532,7 +595,7 @@ class App:
             self.is_unwrapped = True
         
         except ValueError:
-            self.is_unwrapped = False
+#            self.is_unwrapped = False
             print('Cannot unwrap ring image -- no valid points')
             return
             
@@ -835,7 +898,6 @@ class App:
                     
         return True
 
-
 ##########
 # Save GUI settings. 
 ##########
@@ -965,8 +1027,8 @@ class App:
 
         self.diagnostic("select_group")
 
-        index = (self.lbox_groups.curselection())[0]
-        name_group = self.groups[index]
+        index_group = (self.lbox_groups.curselection())[0]
+        name_group = self.groups[index_group]
 
 # Create the listbox for files, and load it up. This is the graphic 'data table' in the GUI.
 # NB: We are using a local copy of t_group here -- not self.t_group, 
@@ -975,7 +1037,7 @@ class App:
         groupmask = self.t['Desc'] == name_group        
         t_group = self.t[groupmask]
         num_images_group = np.size(t_group)
-        print("Group #{} = {} of size {} hit!".format(index, name_group, self.num_images_group))
+        print("Group #{} = {} of size {} hit!".format(index_group, name_group, self.num_images_group))
 
 # Now look up the new group name. Extract those elements.        
 
@@ -985,22 +1047,15 @@ class App:
  
 # For each line in the GUI table, create it, and then load it.
 
-        for i in range(np.size(files_short)):
-            
-             s = '{0:3}.   {1}   {2:.2f}   {3}  {4}'.format( \
-                 repr(i), 
-                 files_short[i].replace('_opnav.fit', ''),  # Shorten filename a bit
-                 t_group['Exptime'][i], 
-                 t_group['Format'][i],                 
-                 t_group['UTC'][i].split('.')[0]           # Remove fractional seconds
-                 )
-
-             self.lbox_files.insert("end", s)
+        for index_image in range(np.size(files_short)):    
+            line_new = self.make_info_line(index_group, index_image)
+#            print("Adding line: {}".format(line_new))
+            self.lbox_files.insert("end", line_new)
                  
 # Then set the group number, and refresh screen.
 
         self.index_image_new = 0      # Set image number to zero
-        self.index_group_new = index  # Set the new group number
+        self.index_group_new = index_group  # Set the new group number
 #        print(" ** Calling change")
         self.change_image()
 
@@ -1533,9 +1588,9 @@ the internal state which is already correct. This does *not* refresh the image i
     def export_analysis(self, verbose=True):
 
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
-
         dir_export = '/Users/throop/data/NH_Jring/out/'
-        file_export = dir_export + t['Shortname'].replace('_opnav', '').replace('.fit', '_analysis.pkl')
+        
+        file_export = self.get_export_analysis_filename() # With no index passed, take current
         
 # Prepare the variable to stuff into the single tuple we pass to write into pickle file.
 # This is simple, but it means we much be careful to unpack in same order as they were packed.
