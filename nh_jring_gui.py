@@ -1258,6 +1258,8 @@ the internal state which is already correct. This does *not* refresh the image i
         linewidth_ring   = 0.4
         color_ring       = 'blue'
         
+        abcorr           = 'LT+S'           # I have been using LT here. But no reason not to use LT+S I think?
+        
         num_pts_ring     = 300 
             
         # If we have them, draw the stars on top
@@ -1311,7 +1313,7 @@ the internal state which is already correct. This does *not* refresh the image i
                 
                 x_ring2_pix, y_ring2_pix = hbt.get_pos_ring(self.et, num_pts = num_pts_ring,
                                                 name_body='Jupiter', 
-                                                radius=self.a_ring_outer_km, units='pixels', abcorr='LT', wcs=w)
+                                                radius=self.a_ring_outer_km, units='pixels', abcorr=abcorr, wcs=w)
 
                 self.ax1.plot(x_ring2_pix+dx, y_ring2_pix+dy, marker=marker_ring, color = color_ring, 
                                                 ls = linestyle_ring,
@@ -1324,7 +1326,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
                 x_ring1_pix, y_ring1_pix = hbt.get_pos_ring(self.et, num_pts = num_pts_ring, 
                                                 name_body='Jupiter', 
-                                                radius=self.a_ring_inner_km, units='pixels', abcorr='LT', wcs=w)
+                                                radius=self.a_ring_inner_km, units='pixels', abcorr=abcorr, wcs=w)
 
                 self.ax1.plot(x_ring1_pix+dx, y_ring1_pix+dy, marker=marker_ring, color=color_ring, 
                                                 ls = linestyle_ring, 
