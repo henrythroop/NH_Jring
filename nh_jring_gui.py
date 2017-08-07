@@ -510,12 +510,15 @@ class App:
             time_file = os.path.getmtime(file_analysis)
             time_now  = time.time()
             dt        = time_now - time_file
-            timestr   = humanize.naturaltime(dt)
+            timestr   = humanize.naturaltime(dt)          # Create a string like '3 minutes ago'
+                                                          # This doesn't update automatically after each edit -- 
+                                                          # just after a reload of the group. Still, better than
+                                                          # nothing.
 
         else:                                               # If no file found
             timestr   = '--'
             
-        s = '{:3}.   {}   {:6.2f}   {}  {}    {}'.format( \
+        s = '{:3}.   {}   {:6.2f}   {}  {}    {}'.format( \  # Create the output string.
              repr(index_image), 
              t_group['Shortname'][index_image].
                  replace('_opnav.fit', '').
