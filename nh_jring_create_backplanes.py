@@ -13,6 +13,8 @@ Created on Sun Jun  5 22:45:22 2016
 # This routine takes ~ 1 minute per file.
 #
 # I should investigate if I can multi-thread this. It seems like it could be sped up very easily.
+# [A: No, it can't. Python threading will allow for processes to wait in the background for blocks, like 
+#     loading URLs. But they won't speed up CPU waiting. Instead, run multiple python shells.]
 
 import math      
 import astropy
