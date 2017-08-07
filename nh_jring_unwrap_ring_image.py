@@ -38,7 +38,16 @@ def nh_jring_unwrap_ring_image(im,
 
 # Process input
 
-    DO_MASK = (mask != None)  # If we are passed the 'mask' value, then 
+    if (mask is None):    # NB: We need to use 'is' here. '==' will do an element-by-element comparison.
+        DO_MASK = False   # Alternatively, could also do 'if type(mask) is np.ndarray'
+  
+    else:
+        DO_MASK = True
+        
+    # https://stackoverflow.com/questions/36783921/check-if-variable-is-none-or-numpy-array-in-python
+    # https://stackoverflow.com/questions/15008380/double-equals-vs-is-in-python
+    
+#    DO_MASK = (mask != None)  # If we are passed the 'mask' value, then 
         
 # Extract fields from the backplane array
     
