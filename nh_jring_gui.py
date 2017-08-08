@@ -518,7 +518,7 @@ class App:
         else:                                               # If no file found
             timestr   = '--'
             
-        s = '{:3}.   {}   {:6.2f}   {}  {}    {}'.format( \  # Create the output string.
+        s = '{:3}.   {}   {:6.2f}   {}  {}    {}'.format(   # Create the output string.
              repr(index_image), 
              t_group['Shortname'][index_image].
                  replace('_opnav.fit', '').
