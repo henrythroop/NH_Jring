@@ -119,6 +119,8 @@ class App:
     
     def load_profiles(self, index_group, index_images, plot_radial=True, plot_azimuthal=True, **kwargs):
 
+        import humanize
+        
         # Define t_group, since we'll reference it a lot
         
         self.groupmask = self.t['Desc'] == self.groups[index_group]
@@ -136,6 +138,8 @@ class App:
         self.azimuth_arr            = []
         self.index_image_arr        = []
         self.ang_phase_arr          = []
+        self.dt_arr                 = []
+        self.dt_str_arr             = []
 
         for index_image in index_images:
             file = self.get_export_analysis_filename(index_group, index_image)
@@ -161,7 +165,14 @@ class App:
                         bg_argument,
                         index_image,         # Index of image
                         index_group) = vals  # Index of image group
-        
+
+            # Figure out when the analysis file was written, and turn into human readable form ('10 minute ago')
+            
+            time_file = os.path.getmtime(file)
+            time_now  = time.time()
+            dt        = time_now - time_file
+            dt_str    = humanize.naturaltime(dt) 
+            
             file_short = file.split('/')[-1].replace('_analysis.pkl', '')
             
             # Save all these in the ring object. This makes it easy to export them or use in other functions.
@@ -173,6 +184,8 @@ class App:
             self.radius_arr.append(radius)
             self.azimuth_arr.append(azimuth)
             self.index_image_arr.append(index_image)
+            self.dt_arr.append(dt)
+            self.dt_str_arr.append(dt_str)
             
             print("Read image {}/{}, phase = {:0.1f}°, {}, {}, {}".format(
                     index_group, index_image, ang_phase*hbt.r2d, file_short, bg_method, bg_argument))
@@ -194,7 +207,7 @@ class App:
         
         if (plot_radial):
             hbt.figsize((10,8))
-            dy = 1.5 # Vertical offset between lines
+            dy = 3 # Vertical offset between lines
             
             alpha_radial = 0.5
             
@@ -210,8 +223,11 @@ class App:
                 plt.plot(radius, 
                          (i * dy) + profile_radius, 
                          alpha = alpha_radial, 
-                         label = '{}/{}, {:.2f}°'.format(
-                                       index_group, self.index_image_arr[i], self.ang_phase_arr[i]*hbt.r2d),
+                         label = '{}/{}, {:.2f}°, {}'.format(
+                                       index_group, 
+                                       self.index_image_arr[i], 
+                                       self.ang_phase_arr[i]*hbt.r2d,
+                                       self.dt_str_arr[i]),
                          **kwargs)
                 profile_radius_sum += profile_radius
                 
@@ -249,10 +265,13 @@ class App:
 ring = App(0)
 
 # Make a plot
-ring.load_profiles(7, [21,31,34,35])
+ring.load_profiles(7, hbt.frange(16,23))
 ring.plot_profiles()
 
-ring.plot_profiles(7, np.append( hbt.frange(12,23), hbt.frange(24,31)), plot_radial=False)
+ring.load_profiles(7, hbt.frange(19,31))
+ring.plot_profiles()
+
+
 # Get a list of all of the exported analysis files
 
 #files_analysis = glob.glob(dir_out + '*_analysis.pkl')
