@@ -119,9 +119,19 @@ class ring_profile:
 #     Read the profiles from disk
 # =============================================================================
     
-    def load(self, index_group, index_images, plot_radial=True, plot_azimuthal=True, 
+    def load(self, index_group, index_images, 
+                      key_radius = 'core',  # Of the radial profiles, which one to read?
+                      key_azimuth = 'net',  # Of the azimuthal profiles, which one to read?
                       **kwargs):
 
+        # Each file on disk has several different extractions:
+        #
+        #   Radial profile has 'core', 'full', 'half, etc.
+        #   Az     profile has 'inner', 'outer', 'net', etc. 
+        #
+        # Since we usually need just one of these, this routine *only* reads one.
+        # The individual one read can be controlled with key_radius and key_azimuth
+        
         import humanize
         
         # Define t_group, since we'll reference it a lot
@@ -180,8 +190,8 @@ class ring_profile:
             
             # Save all these in the ring object. This makes it easy to export them or use in other functions.
             
-            self.profile_radius_dn_arr.append(profile_radius_dn)
-            self.profile_azimuth_dn_arr.append(profile_azimuth_dn)
+            self.profile_radius_dn_arr.append(profile_radius_dn[key_radius])  # This is now (eg) 8 x 30 array
+            self.profile_azimuth_dn_arr.append(profile_azimuth_dn[key_azimuth])
             self.exptime_arr.append(exptime)
             self.ang_phase_arr.append(ang_phase)
             self.radius_arr.append(radius)
@@ -189,6 +199,9 @@ class ring_profile:
             self.index_image_arr.append(index_image)
             self.dt_arr.append(dt)
             self.dt_str_arr.append(dt_str)
+            
+
+            
             
             print("Read image {}/{}, phase = {:0.1f}°, {}, {}, {}".format(
                     index_group, index_image, ang_phase*hbt.r2d, file_short, bg_method, bg_argument))
@@ -199,9 +212,21 @@ class ring_profile:
         
         self.ang_phase_arr = np.array(self.ang_phase_arr)
         self.azimuth_arr   = np.array(self.azimuth_arr)
+                   # Convert some of these from lists, to NP arrays
+            
+        self.profile_radius_dn_arr = np.array(self.profile_radius_dn_arr)
+        self.profile_azimuth_dn_arr = np.array(self.profile_azimuth_dn_arr) 
         
         return
 
+# =============================================================================
+# Return number of profiles
+# =============================================================================
+        
+    def num_profiles(self):
+        
+        return np.size(self.dt_arr)
+    
 # =============================================================================
 # Smooth the profiles
 # This smooths profiles in place. It doesn't return a new object. It destroys the 
@@ -213,21 +238,22 @@ class ring_profile:
         if (kernel is None):
             kernel = Gaussian1DKernel(width)
                 
-        num_profiles = np.size(self.profile_radius_dn_arr)
+        num_profiles = self.num_profiles()
 
         for i in range(num_profiles):
         
             # First do radial kernels
 
-            for key in self.profile_radius_dn_arr[i]: # Loop over every key ('core', 'edge', etc)
-                profile = convolve(self.profile_radius_dn_arr[i][key], kernel)
-                self.profile_radius_dn_arr[i][key] = profile
+            self.profile_radius_dn_arr[i,:]  = convolve(self.profile_radius_dn_arr[i,:],  kernel)
 
             # Then do azimuthal kernels
+            
+            self.profile_azimuth_dn_arr[i,:] = convolve(self.profile_azimuth_dn_arr[i,:], kernel)
 
-            for key in self.profile_azimuth_dn_arr[i]:
-                profile = convolve(self.profile_azimuth_dn_arr[i][key], kernel)
-                self.profile_azimuth_dn_arr[i][key] = profile
+
+#            for key in self.profile_azimuth_dn_arr[i]:
+#                profile = convolve(self.profile_azimuth_dn_arr[i][key], kernel)
+#                self.profile_azimuth_dn_arr[i][key] = profile
                 
 # =============================================================================
 # Sum the profiles
@@ -245,24 +271,12 @@ class ring_profile:
         profile_out = {}
 
         # First do radial profiles
-        
-        for key in self.profile_radius_dn_arr[0]: # Loop over every key ('core', 'edge', etc)
-            
-            profile_out[key] = np.array(self.profile_radius_dn_arr[0][key] * 0)
-            for i in range(num_profiles):
-                profile_out[key] += np.array(self.profile_radius_dn_arr[i][key])
                 
-            self.profile_radius_dn_arr[0][key] = profile_out[key] # Save the summed profile
+        self.profile_radius_dn_arr[0] = np.sum(self.profile_radius_dn_arr, axis=0) # Save the summed profile
 
         # Then do the azimuthal profiles
         
-        for key in self.profile_azimuth_dn_arr[0]: # Loop over every key ('core', 'edge', etc)
-            
-            profile_out[key] = np.array(self.profile_azimuth_dn_arr[0][key] * 0)
-            for i in range(num_profiles):
-                profile_out[key] += np.array(self.profile_azimuth_dn_arr[i][key])
-                
-            self.profile_azimuth_dn_arr[0][key] = profile_out[key] # Save the summed profile
+        self.profile_azimuth_dn_arr[0] = np.sum(self.profile_azimuth_dn_arr, axis=0) # Save the summed profile
         
         # Then collapse the other fields (from N elements, to 1). This is very rough, and not a good way to do it.
         # We collapse down into a 1-element array. Alternatively, we could collapse to a scalar.
@@ -270,10 +284,11 @@ class ring_profile:
         self.profile_radius_dn_arr = np.array([self.profile_radius_dn_arr[0]])
         self.profile_azimuth_dn_arr = np.array([self.profile_azimuth_dn_arr[0]])
         
-        self.exptime_arr     = np.array([self.exptime_arr[0] * num_profiles])
+        self.exptime_arr     = np.array([np.sum(self.exptime_arr)])
         self.azimuth_arr     = np.array([self.azimuth_arr[0]])
         self.radius_arr      = np.array([self.radius_arr[0]])
         self.index_image_arr = np.array(["{}-{}".format(self.index_image_arr[0], self.index_image_arr[-1])])
+        self.dt_arr          = np.array([self.dt_arr[0]])
  
 # =============================================================================
 # Copy the object
@@ -282,7 +297,7 @@ class ring_profile:
     def copy(self):
         import copy
         
-        return copy.deepcopy(self)   # copy.
+        return copy.deepcopy(self)   # copy.copy() copies by reference, which is def not what we want
 
 # =============================================================================
 # Remove Background
@@ -308,28 +323,20 @@ class ring_profile:
         
         if (plot_radial):
             hbt.figsize((10,8))
-            
-            alpha_radial = 0.5
-            
-            # Set up an empty array to hold a summed profile
-            
-            profile_radius_sum = profile_radius_dn_arr[0]['core']*0
-            
+                                                
             for i,index_image in enumerate(self.index_image_arr):
-#            for i,profile_radius in enumerate(self.profile_radius_dn_arr):
+
                 radius = self.radius_arr[i]
-                profile_radius = self.profile_radius_dn_arr[i]['core']
+                profile_radius = self.profile_radius_dn_arr[i]
                 
                 plt.plot(radius, 
                          (i * dy_radial) + profile_radius, 
-                         alpha = alpha_radial, 
                          label = '{}/{}, {:.2f}°, {}'.format(
                                        index_group, 
                                        self.index_image_arr[i], 
                                        self.ang_phase_arr[i]*hbt.r2d,
                                        self.dt_str_arr[i]),
                          **kwargs)
-                profile_radius_sum += profile_radius
                 
             plt.xlabel('Radial Distance [km]')
             plt.ylabel('DN')
@@ -342,12 +349,10 @@ class ring_profile:
         
         if (plot_azimuthal):
             hbt.figsize((18,2))
-            alpha_azimuthal = 0.5
             
             for i,profile_azimuth in enumerate(self.profile_azimuth_dn_arr):
                 plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
-                         (i * dy_azimuthal) + profile_azimuth['net'], 
-                         alpha = alpha_azimuthal,
+                         (i * dy_azimuthal) + profile_azimuth, 
                          label = '{}/{}, {:.2f}°'.format(
                                  index_group, self.index_image_arr[i], self.ang_phase_arr[i]*hbt.r2d),
                          **kwargs)
@@ -358,20 +363,31 @@ class ring_profile:
             plt.show()
 
         return
+
+# =============================================================================
+# Now do some tests!
+# =============================================================================
     
 # Invoke the class
         
 ring = ring_profile(0)
 
 # Make a plot
+
 ring.load(7, hbt.frange(16,23))
 ring.plot(plot_radial = True, plot_azimuthal=False)
+ring.smooth()
+ring.sum()
+ring.smooth()
+
+ring.plot()
+
 ring_sum = ring.copy()
 ring_sum.sum()
 ring_sum.smooth()
 ring_sum.plot(plot_radial = True, plot_azimuthal=False)
 
-ring.smooth(1)
+ring.smooth(100)
 ring.plot(plot_radial = True, plot_azimuthal=False)
 
 ring2 = ring.copy()
@@ -380,17 +396,10 @@ ring2.smooth(10)
 ring.sum()
 ring.plot(plot_radial = True, plot_azimuthal=False)  # This makes a really nice radial profile
 
-profile = ring.profile_radius_dn_arr[0]['core'] # Extract the data, for testing
+profile = ring.profile_radius_dn_arr[0] # Extract the data, for testing
 radius  = ring.radius_arr[0] 
 
 ring.plot(plot_radial = True, plot_azimuthal=False)
 ring2.plot(plot_radial = True, plot_azimuthal=False)
 ring2.sum()
 ring2.plot(plot_radial = True, plot_azimuthal=False)
-
-
-
-    
-    
-
-       
