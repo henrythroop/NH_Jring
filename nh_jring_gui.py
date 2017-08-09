@@ -211,7 +211,7 @@ class App:
         # NB: This creates an entirely new table -- *not* a view into the original table. 
         # If we modify values here, we need to explicitly write the changes back to the original.
         
-        self.groupmask = t['Desc'] == self.groups[self.index_group]
+        selfQQ
         self.t_group = t[self.groupmask]  # 
         
         self.num_images_group = np.size(self.t_group)
@@ -348,9 +348,8 @@ class App:
 
 # Populate the listbox for files
 
-        for index_image in range(np.size(files_short)):    
+        for index_image in range(num_files):    
             line_new = self.make_info_line(self.index_group, index_image)
-            print("Adding line: {}".format(line_new))
             self.lbox_files.insert("end", line_new)
                   
         self.lbox_files.bind('<<ListboxSelect>>', self.select_image) # Define event handler
@@ -503,8 +502,6 @@ class App:
         
         groupmask = self.t['Desc'] == self.groups[index_group]
         t_group = self.t[groupmask]
-        
-        print("For index {}, file = {}".format(index_image, file_analysis))
         
         if (os.path.isfile(file_analysis)):               # If the analysis file exists
             time_file = os.path.getmtime(file_analysis)
@@ -1052,7 +1049,6 @@ class App:
 
         for index_image in range(np.size(files_short)):    
             line_new = self.make_info_line(index_group, index_image)
-#            print("Adding line: {}".format(line_new))
             self.lbox_files.insert("end", line_new)
                  
 # Then set the group number, and refresh screen.
