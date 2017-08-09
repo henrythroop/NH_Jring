@@ -211,7 +211,7 @@ class App:
         # NB: This creates an entirely new table -- *not* a view into the original table. 
         # If we modify values here, we need to explicitly write the changes back to the original.
         
-        selfQQ
+        self.groupmask = t['Desc'] == self.groups[self.index_group]
         self.t_group = t[self.groupmask]  # 
         
         self.num_images_group = np.size(self.t_group)
