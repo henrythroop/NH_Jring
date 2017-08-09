@@ -48,6 +48,8 @@ from   importlib import reload            # So I can do reload(module)
 
 from astropy.convolution import Box1DKernel, Gaussian1DKernel, convolve
 
+from   scipy.stats import linregress
+
 import re # Regexp
 import pickle # For load/save
 
@@ -74,7 +76,7 @@ class ring_profile:
 #     Init method: load the main table file
 # =============================================================================
     
-    def __init__(self, master):
+    def __init__(self):
 
         file_pickle = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
         dir_out     = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
@@ -88,7 +90,7 @@ class ring_profile:
         self.groups = astropy.table.unique(self.t, keys=(['Desc']))['Desc']
 
         stretch_percent = 90    
-        stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+        self.stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
 # =============================================================================
 # Lookup the analysis filename
@@ -150,6 +152,7 @@ class ring_profile:
         self.radius_arr             = []
         self.azimuth_arr            = []
         self.index_image_arr        = []
+        self.index_group_arr        = []
         self.ang_phase_arr          = []
         self.dt_arr                 = []
         self.dt_str_arr             = []
@@ -197,12 +200,10 @@ class ring_profile:
             self.radius_arr.append(radius)
             self.azimuth_arr.append(azimuth)
             self.index_image_arr.append(index_image)
+            self.index_group_arr.append(index_group)
             self.dt_arr.append(dt)
             self.dt_str_arr.append(dt_str)
-            
 
-            
-            
             print("Read image {}/{}, phase = {:0.1f}°, {}, {}, {}".format(
                     index_group, index_image, ang_phase*hbt.r2d, file_short, bg_method, bg_argument))
         
@@ -217,7 +218,7 @@ class ring_profile:
         self.profile_radius_dn_arr = np.array(self.profile_radius_dn_arr)
         self.profile_azimuth_dn_arr = np.array(self.profile_azimuth_dn_arr) 
         
-        return
+        return self
 
 # =============================================================================
 # Return number of profiles
@@ -250,7 +251,8 @@ class ring_profile:
             
             self.profile_azimuth_dn_arr[i,:] = convolve(self.profile_azimuth_dn_arr[i,:], kernel)
 
-
+        return self
+    
 #            for key in self.profile_azimuth_dn_arr[i]:
 #                profile = convolve(self.profile_azimuth_dn_arr[i][key], kernel)
 #                self.profile_azimuth_dn_arr[i][key] = profile
@@ -289,6 +291,8 @@ class ring_profile:
         self.radius_arr      = np.array([self.radius_arr[0]])
         self.index_image_arr = np.array(["{}-{}".format(self.index_image_arr[0], self.index_image_arr[-1])])
         self.dt_arr          = np.array([self.dt_arr[0]])
+        
+        return self
  
 # =============================================================================
 # Copy the object
@@ -300,13 +304,53 @@ class ring_profile:
         return copy.deepcopy(self)   # copy.copy() copies by reference, which is def not what we want
 
 # =============================================================================
-# Remove Background
+# Remove Background from radial profiles
 # =============================================================================
 
-    def remove_background(self, xvals):
+    def remove_background_radial(self, xranges, do_plot=False):
+
          # Remove background from all the radial profiles
-         pass
-     
+
+        num_ranges = hbt.sizex(xranges)  # Radius_bg has total of (radius_bg) x (2) elements
+
+        radius  = self.radius_arr[0]    # Assume that all profiles share a common radius array 
+
+        is_radius_good = np.zeros((num_ranges, np.size(radius))) # 
+
+        for i in range(num_ranges):  # e.g., if we have three ranges, loop over all of them
+            range_i = xranges[i,:]
+            is_radius_good[i,:] = np.logical_and( (radius > range_i[0]), (radius < range_i[1]) )
+
+        is_radius_good = (np.sum(is_radius_good, axis=0) == 1)
+        
+        # Now we have made our radius flag array. We assume (for now) that all profiles have the same radius values.
+        
+        # Now loop over each profile, and find the right fit coefficients for it.
+        
+        for i in range(self.num_profiles()):  
+            profile = self.profile_radius_dn_arr[i]
+
+            r = linregress(radius[is_radius_good], profile[is_radius_good])
+            m = r[0]
+            b = r[1]
+            profile_fit = radius*m + b
+            
+            if (do_plot):
+                plt.plot(radius, profile_fit)
+                plt.plot(radius,profile, label='Before')
+                plt.plot(radius[is_radius_good], profile[is_radius_good], marker='+', label='Fit Vals')
+                plt.plot(radius, profile-profile_fit, label='After')
+                plt.plot(radius[is_radius_good], (profile-profile_fit)[is_radius_good], marker='+', label='Fit Vals')
+                plt.legend()
+                
+                plt.show()
+         
+            # Save the new subtracted profile
+            
+            self.profile_radius_dn_arr[i] -= profile_fit
+
+        return self 
+
 # =============================================================================
 # Plot the profiles
 # =============================================================================
@@ -315,6 +359,7 @@ class ring_profile:
                       dy_radial=1.5,  # Default vertical offset between plots 
                       dy_azimuthal=3,
                       smooth=None,
+                      title=None,
                       **kwargs):
 
         #==============================================================================
@@ -332,7 +377,7 @@ class ring_profile:
                 plt.plot(radius, 
                          (i * dy_radial) + profile_radius, 
                          label = '{}/{}, {:.2f}°, {}'.format(
-                                       index_group, 
+                                       self.index_group_arr[i], 
                                        self.index_image_arr[i], 
                                        self.ang_phase_arr[i]*hbt.r2d,
                                        self.dt_str_arr[i]),
@@ -341,6 +386,8 @@ class ring_profile:
             plt.xlabel('Radial Distance [km]')
             plt.ylabel('DN')
             plt.legend()
+            if (title is not None):
+                plt.title(title)    
             plt.show()
         
         #==============================================================================
@@ -354,32 +401,103 @@ class ring_profile:
                 plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
                          (i * dy_azimuthal) + profile_azimuth, 
                          label = '{}/{}, {:.2f}°'.format(
-                                 index_group, self.index_image_arr[i], self.ang_phase_arr[i]*hbt.r2d),
+                                 self.index_group_arr[i], 
+                                 self.index_image_arr[i], 
+                                 self.ang_phase_arr[i]*hbt.r2d),
                          **kwargs)
                 
             plt.xlabel('Azimuth [deg]')
             plt.ylabel('DN')
             plt.legend()
+            if (title is not None):
+                plt.title(title)
             plt.show()
 
-        return
+        return self
 
+# =============================================================================
+# Calculate the radial area under a curve
+# =============================================================================
+
+    def get_area_radial(self, limit):
+ 
+        radius = self.radius_arr[0]   
+        
+        dradius = radius - np.roll(radius,1)
+        
+        bin0   = np.where(radius > limit[0])[0][0]
+        bin1   = np.where(radius < limit[1])[0][0]
+        
+        area = []
+        
+        for i in range(self.num_profiles()):
+            area_i = np.sum((self.profile_radius_dn_arr[i] * dradius)[bin0:bin1])
+            area.append(area_i)
+            
+        return area    
+        
+        
 # =============================================================================
 # Now do some tests!
 # =============================================================================
     
 # Invoke the class
         
-ring = ring_profile(0)
+# Q: Why can't I do ring.load().sum().plot()  ?
+        
+        
+ring = ring_profile()
+radius_bg = np.array([[127500,127900], [129200,129700]])
 
 # Make a plot
 
-ring.load(7, hbt.frange(16,23))
-ring.plot(plot_radial = True, plot_azimuthal=False)
+ring.load(7, hbt.frange(16,23)).smooth(1).plot(plot_azimuthal=False)
+ring.remove_background_radial(radius_bg, do_plot=False).plot()
+
+limit = (128000,130000)
+
+area = ring.get_area_radial(limit) # XXX not working yet
+
+ring.plot(plot_azimuthal=False)
+ring.sum().plot()
+
+ring.plot(plot_radial = True, plot_azimuthal=False, title = 'Core')
 ring.smooth()
 ring.sum()
 ring.smooth()
 
+ring_full = ring_profile()
+ring_full.load(7, hbt.frange(16,23), key_radius='full')
+ring_full.plot(plot_azimuthal=False, title='Full')
+
+ring.sum()
+ring.plot(plot_radial = True, plot_azimuthal=False)  # This makes a really nice radial profile
+
+# Try some background subtraction
+
+
+profile = ring.profile_radius_dn_arr[0]
+radius  = ring.radius_arr[0] 
+vals_radius = radius_bg
+bins_x = radius
+num_ranges = hbt.sizex(radius_bg)  # Radius_bg has total of (radius_bg) x (2) elements
+
+
+# Now loop over all of the radius ranges (e.g., three ranges).
+# In each range, flag the x values that are within that range.
+# Then, we'll sum these, to get a list of xvals that match *any* of the specified ranges.
+# And then we'll do the linfit, using just these xvals, and the corresponding yvals.
+
+
+
+#for i in 
+#r = linregress(arr1_filter.flatten(), arr2_filter.flatten())
+#
+#m = r[0] # Multiplier = slope
+#b = r[1] # Offset = intercept
+#
+#arr2_fixed = arr2 * m + b
+#return (m,b)
 ring.plot()
 
 ring_sum = ring.copy()
@@ -387,19 +505,3 @@ ring_sum.sum()
 ring_sum.smooth()
 ring_sum.plot(plot_radial = True, plot_azimuthal=False)
 
-ring.smooth(100)
-ring.plot(plot_radial = True, plot_azimuthal=False)
-
-ring2 = ring.copy()
-ring2.smooth(10)
-
-ring.sum()
-ring.plot(plot_radial = True, plot_azimuthal=False)  # This makes a really nice radial profile
-
-profile = ring.profile_radius_dn_arr[0] # Extract the data, for testing
-radius  = ring.radius_arr[0] 
-
-ring.plot(plot_radial = True, plot_azimuthal=False)
-ring2.plot(plot_radial = True, plot_azimuthal=False)
-ring2.sum()
-ring2.plot(plot_radial = True, plot_azimuthal=False)
