@@ -68,7 +68,7 @@ from nh_jring_extract_profile_from_unwrapped   import nh_jring_extract_profile_f
 # For fun, I'm going to try to do this whole thing as a class. That makes it easier to pass 
 # params back and forth, I guess.
 
-class App:
+class ring_profile:
     
 # =============================================================================
 #     Init method: load the main table file
@@ -119,7 +119,7 @@ class App:
 #     Read the profiles from disk
 # =============================================================================
     
-    def load_profiles(self, index_group, index_images, plot_radial=True, plot_azimuthal=True, 
+    def load(self, index_group, index_images, plot_radial=True, plot_azimuthal=True, 
                       **kwargs):
 
         import humanize
@@ -208,7 +208,7 @@ class App:
 # current state, overwriting it with a new state.
 # =============================================================================
 
-    def smooth_profiles(self, width=1, kernel=None):
+    def smooth(self, width=1, kernel=None):
 
         if (kernel is None):
             kernel = Gaussian1DKernel(width)
@@ -233,14 +233,18 @@ class App:
 # Sum the profiles
 # =============================================================================
 
-    def sum_profiles(self):
+    def sum(self):
+        
+        # Add up all of the radial profiles, to get a merged radial profile
+        # Because of how this is implemented, we can't just do an np.sum(). 
+        # Instead, we have to loop. 
+        # I guess next time we could use AstroPy table, rather than a list of dictionaries.
         
         num_profiles = np.size(self.profile_radius_dn_arr)
 
         profile_out = {}
 
         # First do radial profiles
-        
         
         for key in self.profile_radius_dn_arr[0]: # Loop over every key ('core', 'edge', etc)
             
@@ -261,6 +265,7 @@ class App:
             self.profile_azimuth_dn_arr[0][key] = profile_out[key] # Save the summed profile
         
         # Then collapse the other fields (from N elements, to 1). This is very rough, and not a good way to do it.
+        # We collapse down into a 1-element array. Alternatively, we could collapse to a scalar.
         
         self.profile_radius_dn_arr = np.array([self.profile_radius_dn_arr[0]])
         self.profile_azimuth_dn_arr = np.array([self.profile_azimuth_dn_arr[0]])
@@ -277,13 +282,21 @@ class App:
     def copy(self):
         import copy
         
-        return copy.deepcopy(self)
-    
+        return copy.deepcopy(self)   # copy.
+
+# =============================================================================
+# Remove Background
+# =============================================================================
+
+    def remove_background(self, xvals):
+         # Remove background from all the radial profiles
+         pass
+     
 # =============================================================================
 # Plot the profiles
 # =============================================================================
     
-    def plot_profiles(self, plot_radial=True, plot_azimuthal=True, 
+    def plot(self, plot_radial=True, plot_azimuthal=True, 
                       dy_radial=1.5,  # Default vertical offset between plots 
                       dy_azimuthal=3,
                       smooth=None,
@@ -345,25 +358,35 @@ class App:
             plt.show()
 
         return
-
+    
 # Invoke the class
         
-ring = App(0)
+ring = ring_profile(0)
 
 # Make a plot
-ring.load_profiles(7, hbt.frange(16,23))
-ring.plot_profiles(plot_radial = True, plot_azimuthal=False)
-ring.smooth_profiles(1)
-ring.plot_profiles(plot_radial = True, plot_azimuthal=False)
+ring.load(7, hbt.frange(16,23))
+ring.plot(plot_radial = True, plot_azimuthal=False)
+ring_sum = ring.copy()
+ring_sum.sum()
+ring_sum.smooth()
+ring_sum.plot(plot_radial = True, plot_azimuthal=False)
+
+ring.smooth(1)
+ring.plot(plot_radial = True, plot_azimuthal=False)
 
 ring2 = ring.copy()
-ring2.smooth_profiles(10)
+ring2.smooth(10)
 
-ring.sum_profiles()
-ring.plot_profiles(plot_radial = True, plot_azimuthal=False)
-ring2.plot_profiles(plot_radial = True, plot_azimuthal=False)
-ring2.sum_profiles()
-ring2.plot_profiles(plot_radial = True, plot_azimuthal=False)
+ring.sum()
+ring.plot(plot_radial = True, plot_azimuthal=False)  # This makes a really nice radial profile
+
+profile = ring.profile_radius_dn_arr[0]['core'] # Extract the data, for testing
+radius  = ring.radius_arr[0] 
+
+ring.plot(plot_radial = True, plot_azimuthal=False)
+ring2.plot(plot_radial = True, plot_azimuthal=False)
+ring2.sum()
+ring2.plot(plot_radial = True, plot_azimuthal=False)
 
 
 
