@@ -46,6 +46,8 @@ import time
 from   scipy.interpolate import griddata
 from   importlib import reload            # So I can do reload(module)
 
+from astropy.convolution import Box1DKernel, Gaussian1DKernel, convolve
+
 import re # Regexp
 import pickle # For load/save
 
@@ -114,10 +116,11 @@ class App:
         return(file_export)
         
 # =============================================================================
-#     Plot Profiles. Plot a list of profiles
+#     Read the profiles from disk
 # =============================================================================
     
-    def load_profiles(self, index_group, index_images, plot_radial=True, plot_azimuthal=True, **kwargs):
+    def load_profiles(self, index_group, index_images, plot_radial=True, plot_azimuthal=True, 
+                      **kwargs):
 
         import humanize
         
@@ -198,8 +201,93 @@ class App:
         self.azimuth_arr   = np.array(self.azimuth_arr)
         
         return
+
+# =============================================================================
+# Smooth the profiles
+# This smooths profiles in place. It doesn't return a new object. It destroys the 
+# current state, overwriting it with a new state.
+# =============================================================================
+
+    def smooth_profiles(self, width=1, kernel=None):
+
+        if (kernel is None):
+            kernel = Gaussian1DKernel(width)
+                
+        num_profiles = np.size(self.profile_radius_dn_arr)
+
+        for i in range(num_profiles):
+        
+            # First do radial kernels
+
+            for key in self.profile_radius_dn_arr[i]: # Loop over every key ('core', 'edge', etc)
+                profile = convolve(self.profile_radius_dn_arr[i][key], kernel)
+                self.profile_radius_dn_arr[i][key] = profile
+
+            # Then do azimuthal kernels
+
+            for key in self.profile_azimuth_dn_arr[i]:
+                profile = convolve(self.profile_azimuth_dn_arr[i][key], kernel)
+                self.profile_azimuth_dn_arr[i][key] = profile
+                
+# =============================================================================
+# Sum the profiles
+# =============================================================================
+
+    def sum_profiles(self):
+        
+        num_profiles = np.size(self.profile_radius_dn_arr)
+
+        profile_out = {}
+
+        # First do radial profiles
+        
+        
+        for key in self.profile_radius_dn_arr[0]: # Loop over every key ('core', 'edge', etc)
+            
+            profile_out[key] = np.array(self.profile_radius_dn_arr[0][key] * 0)
+            for i in range(num_profiles):
+                profile_out[key] += np.array(self.profile_radius_dn_arr[i][key])
+                
+            self.profile_radius_dn_arr[0][key] = profile_out[key] # Save the summed profile
+
+        # Then do the azimuthal profiles
+        
+        for key in self.profile_azimuth_dn_arr[0]: # Loop over every key ('core', 'edge', etc)
+            
+            profile_out[key] = np.array(self.profile_azimuth_dn_arr[0][key] * 0)
+            for i in range(num_profiles):
+                profile_out[key] += np.array(self.profile_azimuth_dn_arr[i][key])
+                
+            self.profile_azimuth_dn_arr[0][key] = profile_out[key] # Save the summed profile
+        
+        # Then collapse the other fields (from N elements, to 1). This is very rough, and not a good way to do it.
+        
+        self.profile_radius_dn_arr = np.array([self.profile_radius_dn_arr[0]])
+        self.profile_azimuth_dn_arr = np.array([self.profile_azimuth_dn_arr[0]])
+        
+        self.exptime_arr     = np.array([self.exptime_arr[0] * num_profiles])
+        self.azimuth_arr     = np.array([self.azimuth_arr[0]])
+        self.radius_arr      = np.array([self.radius_arr[0]])
+        self.index_image_arr = np.array(["{}-{}".format(self.index_image_arr[0], self.index_image_arr[-1])])
+ 
+# =============================================================================
+# Copy the object
+# =============================================================================
+
+    def copy(self):
+        import copy
+        
+        return copy.deepcopy(self)
     
-    def plot_profiles(self, plot_radial=True, plot_azimuthal=True, **kwargs):
+# =============================================================================
+# Plot the profiles
+# =============================================================================
+    
+    def plot_profiles(self, plot_radial=True, plot_azimuthal=True, 
+                      dy_radial=1.5,  # Default vertical offset between plots 
+                      dy_azimuthal=3,
+                      smooth=None,
+                      **kwargs):
 
         #==============================================================================
         # Make a consolidated plot of radial profile
@@ -207,7 +295,6 @@ class App:
         
         if (plot_radial):
             hbt.figsize((10,8))
-            dy = 3 # Vertical offset between lines
             
             alpha_radial = 0.5
             
@@ -221,7 +308,7 @@ class App:
                 profile_radius = self.profile_radius_dn_arr[i]['core']
                 
                 plt.plot(radius, 
-                         (i * dy) + profile_radius, 
+                         (i * dy_radial) + profile_radius, 
                          alpha = alpha_radial, 
                          label = '{}/{}, {:.2f}°, {}'.format(
                                        index_group, 
@@ -242,12 +329,11 @@ class App:
         
         if (plot_azimuthal):
             hbt.figsize((18,2))
-            dy = 1.5
             alpha_azimuthal = 0.5
             
             for i,profile_azimuth in enumerate(self.profile_azimuth_dn_arr):
                 plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
-                         (i * dy) + profile_azimuth['net'], 
+                         (i * dy_azimuthal) + profile_azimuth['net'], 
                          alpha = alpha_azimuthal,
                          label = '{}/{}, {:.2f}°'.format(
                                  index_group, self.index_image_arr[i], self.ang_phase_arr[i]*hbt.r2d),
@@ -266,15 +352,19 @@ ring = App(0)
 
 # Make a plot
 ring.load_profiles(7, hbt.frange(16,23))
-ring.plot_profiles()
+ring.plot_profiles(plot_radial = True, plot_azimuthal=False)
+ring.smooth_profiles(1)
+ring.plot_profiles(plot_radial = True, plot_azimuthal=False)
 
-ring.load_profiles(7, hbt.frange(19,31))
-ring.plot_profiles()
+ring2 = ring.copy()
+ring2.smooth_profiles(10)
 
+ring.sum_profiles()
+ring.plot_profiles(plot_radial = True, plot_azimuthal=False)
+ring2.plot_profiles(plot_radial = True, plot_azimuthal=False)
+ring2.sum_profiles()
+ring2.plot_profiles(plot_radial = True, plot_azimuthal=False)
 
-# Get a list of all of the exported analysis files
-
-#files_analysis = glob.glob(dir_out + '*_analysis.pkl')
 
 
     
