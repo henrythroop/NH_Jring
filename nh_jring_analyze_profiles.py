@@ -419,14 +419,14 @@ class ring_profile:
 # Calculate the radial area under a curve
 # =============================================================================
 
-    def get_area_radial(self, limit):
+    def area_radial(self, limit):
  
-        radius = self.radius_arr[0]   
+        radius = self.radius_arr[0]     # Assume that all profiles use the same radius
         
-        dradius = radius - np.roll(radius,1)
+        dradius = radius - np.roll(radius,1)  # Width of each bin, in km
         
         bin0   = np.where(radius > limit[0])[0][0]
-        bin1   = np.where(radius < limit[1])[0][0]
+        bin1   = np.where(radius > limit[1])[0][0]
         
         area = []
         
@@ -451,12 +451,138 @@ radius_bg = np.array([[127500,127900], [129200,129700]])
 
 # Make a plot
 
+limit = (128000,130000)
+
+ring1 = ring_profile()
+ring1.load(7, hbt.frange(0,7)).smooth(1)
+ring11 = ring1.copy().sum()
+ring1.remove_background_radial(radius_bg, do_plot=False)
+area1 = ring1.area_radial(limit)
+ring1.plot(plot_azimuthal=False)
+phase1 = ring1.ang_phase_arr
+plt.plot(phase1*hbt.r2d, area1, marker = '+', linestyle='none')
+plt.plot(ring11.radius_arr[0], ring11.profile_radius_dn_arr[0])
+
+ring2 = ring_profile()
+ring2.load(7, hbt.frange(8,15)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
+ring21 = ring2.copy().sum()
+area2 = ring2.area_radial(limit)
+ring2.plot(plot_azimuthal=False)
+phase2 = ring2.ang_phase_arr
+plt.plot(phase2*hbt.r2d, area2, marker = '+', linestyle='none')
+plt.show()
+plt.plot(ring21.radius_arr[0], ring21.profile_radius_dn_arr[0])
+
+
+ring3 = ring_profile()
+ring3.load(7, hbt.frange(16,23)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
+ring31 = ring3.copy().sum()
+area3 = ring3.area_radial(limit)
+ring3.plot(plot_azimuthal=False)
+phase3 = ring3.ang_phase_arr
+plt.plot(phase3*hbt.r2d, area3, marker = '+', linestyle='none')
+plt.show()
+plt.plot(ring31.radius_arr[0], ring31.profile_radius_dn_arr[0])
+
+ring4 = ring_profile()
+ring4.load(7, hbt.frange(24,31)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
+ring41 = ring4.copy().sum()
+area4 = ring4.area_radial(limit)
+ring4.plot(plot_azimuthal=False)
+phase4 = ring4.ang_phase_arr
+plt.plot(phase4*hbt.r2d, area4, marker = '+', linestyle='none')
+plt.show()
+plt.plot(ring41.radius_arr[0], ring41.profile_radius_dn_arr[0])
+
+
+ring5 = ring_profile()
+ring5.load(7, hbt.frange(32,35)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
+ring51 = ring5.copy().sum()
+area5 = ring5.area_radial(limit)
+ring5.plot(plot_azimuthal=False)
+phase5 = ring5.ang_phase_arr
+plt.plot(phase5*hbt.r2d, area5, marker = '+', linestyle='none')
+plt.show()
+plt.plot(ring51.radius_arr[0], ring51.profile_radius_dn_arr[0])
+
+
+ring6 = ring_profile()
+ring6.load(7, hbt.frange(36,39)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
+ring61 = ring6.copy().sum()
+area6 = ring6.area_radial(limit)
+ring6.plot(plot_azimuthal=False)
+phase6 = ring6.ang_phase_arr
+plt.plot(phase6*hbt.r2d, area6, marker = '+', linestyle='none')
+plt.show()
+plt.plot(ring61.radius_arr[0], ring61.profile_radius_dn_arr[0])
+
+
+ring7 = ring_profile()
+ring7.load(7, hbt.frange(40,42)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
+ring71 = ring7.copy().sum()
+area7 = ring7.area_radial(limit)
+ring7.plot(plot_azimuthal=False)
+phase7 = ring7.ang_phase_arr
+plt.plot(phase7*hbt.r2d, area7, marker = '+', linestyle='none')
+plt.show()
+plt.plot(ring71.radius_arr[0], ring71.profile_radius_dn_arr[0])
+
+ring8 = ring_profile()
+ring8.load(7, hbt.frange(52,55)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
+ring81 = ring8.copy().sum()
+area8 = ring8.area_radial(limit)
+ring8.plot(plot_azimuthal=False)
+phase8 = ring8.ang_phase_arr
+plt.plot(phase8*hbt.r2d, area8, marker = '+', linestyle='none')
+plt.show()
+plt.plot(ring81.radius_arr[0], ring81.profile_radius_dn_arr[0])
+
+ring9 = ring_profile()
+ring9.load(7, hbt.frange(91,93)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
+ring91 = ring9.copy().sum()
+area9 = ring9.area_radial(limit)
+ring9.plot(plot_azimuthal=False)
+phase9 = ring9.ang_phase_arr
+plt.plot(phase9*hbt.r2d, area9, marker = '+', linestyle='none')
+plt.show()
+plt.plot(ring91.radius_arr[0], ring91.profile_radius_dn_arr[0])
+
+plt.plot(ring11.radius_arr[0], ring11.profile_radius_dn_arr[0] / ring1.num_profiles())
+plt.plot(ring21.radius_arr[0], ring21.profile_radius_dn_arr[0] / ring2.num_profiles())
+plt.plot(ring31.radius_arr[0], ring31.profile_radius_dn_arr[0] / ring3.num_profiles())
+plt.plot(ring41.radius_arr[0], ring41.profile_radius_dn_arr[0] / ring4.num_profiles())
+plt.plot(ring51.radius_arr[0], ring51.profile_radius_dn_arr[0] / ring5.num_profiles())
+plt.plot(ring61.radius_arr[0], ring61.profile_radius_dn_arr[0] / ring6.num_profiles())
+plt.plot(ring71.radius_arr[0], ring71.profile_radius_dn_arr[0] / ring7.num_profiles())
+plt.plot(ring81.radius_arr[0], ring81.profile_radius_dn_arr[0] / ring8.num_profiles())
+plt.plot(ring91.radius_arr[0], ring91.profile_radius_dn_arr[0] / ring9.num_profiles())
+plt.ylim((-10,20))
+plt.xlabel('Radius [km]')
+plt.ylabel('DN sum')
+plt.xlim((127000,130000))
+plt.title('NH Radial Profiles, Group 7')
+plt.show()
+
+phase_all = np.concatenate((phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9))
+area_all  = np.concatenate((area1,  area2,  area3,  area4,  area5,  area6,  area7,  area8,  area9))
+
+hbt.set_fontsize(15)
+plt.plot(phase_all*hbt.r2d, area_all, marker = 'o', linestyle='none')
+plt.ylabel('DN')
+plt.xlabel('Phase angle [deg]')
+plt.title('NH Phase Curve, Group 7')
+plt.show()
+
+
 ring.load(7, hbt.frange(16,23)).smooth(1).plot(plot_azimuthal=False)
 ring.remove_background_radial(radius_bg, do_plot=False).plot()
 
-limit = (128000,130000)
 
-area = ring.get_area_radial(limit) # XXX not working yet
+area = ring.area_radial(limit)
+phase = ring.ang_phase_arr
+plt.plot(phase*hbt.r2d, area, marker = '+', linestyle='none')
+
+
 
 ring.plot(plot_azimuthal=False)
 ring.sum().plot()
