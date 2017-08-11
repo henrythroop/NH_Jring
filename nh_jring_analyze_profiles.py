@@ -65,7 +65,6 @@ from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
 
 from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
 from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
-from nh_jring_extract_profile_from_unwrapped   import nh_jring_extract_profile_from_unwrapped   
 
 # For fun, I'm going to try to do this whole thing as a class. That makes it easier to pass 
 # params back and forth, I guess.
@@ -229,6 +228,11 @@ class ring_profile:
         return np.size(self.dt_arr)
     
 # =============================================================================
+# Convert from DN to I/F. Or at least create the I/F curves.
+# =============================================================================
+
+      
+# =============================================================================
 # Smooth the profiles
 # This smooths profiles in place. It doesn't return a new object. It destroys the 
 # current state, overwriting it with a new state.
@@ -355,7 +359,8 @@ class ring_profile:
 # Plot the profiles
 # =============================================================================
     
-    def plot(self, plot_radial=True, plot_azimuthal=True, 
+    def plot(self,    plot_radial=True, 
+                      plot_azimuthal=False, 
                       dy_radial=1.5,  # Default vertical offset between plots 
                       dy_azimuthal=3,
                       smooth=None,
@@ -449,185 +454,74 @@ class ring_profile:
 ring = ring_profile()
 radius_bg = np.array([[127500,127900], [129200,129700]])
 
-# Make a plot
+# Make a plot of all of the data
 
-limit = (128000,130000)
+limit_radial = (128000,130000)
 
-ring1 = ring_profile()
-ring1.load(7, hbt.frange(0,7)).smooth(1)
-ring11 = ring1.copy().sum()
-ring1.remove_background_radial(radius_bg, do_plot=False)
-area1 = ring1.area_radial(limit)
-ring1.plot(plot_azimuthal=False)
-phase1 = ring1.ang_phase_arr
-plt.plot(phase1*hbt.r2d, area1, marker = '+', linestyle='none')
-plt.plot(ring11.radius_arr[0], ring11.profile_radius_dn_arr[0])
+# Set up output arrays
 
-ring2 = ring_profile()
-ring2.load(7, hbt.frange(8,15)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
-ring21 = ring2.copy().sum()
-area2 = ring2.area_radial(limit)
-ring2.plot(plot_azimuthal=False)
-phase2 = ring2.ang_phase_arr
-plt.plot(phase2*hbt.r2d, area2, marker = '+', linestyle='none')
-plt.show()
-plt.plot(ring21.radius_arr[0], ring21.profile_radius_dn_arr[0])
+# Create an astropy table to dump results into
+#phase_all = np.array([])
+#area_all  = np.array([])
 
+t = Table([[], [], [], [], []], 
+          names=('index_group', 'index_image', 'phase', 'area_dn', 'exptime'),
+          dtype = ('int', 'int', 'float64', 'float64', 'float64'))
 
-ring3 = ring_profile()
-ring3.load(7, hbt.frange(16,23)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
-ring31 = ring3.copy().sum()
-area3 = ring3.area_radial(limit)
-ring3.plot(plot_azimuthal=False)
-phase3 = ring3.ang_phase_arr
-plt.plot(phase3*hbt.r2d, area3, marker = '+', linestyle='none')
-plt.show()
-plt.plot(ring31.radius_arr[0], ring31.profile_radius_dn_arr[0])
+params        = [(7, hbt.frange(0,7),   'core'),  # For each plot, we list a tuple: index_group, index_image, key
+                 (7, hbt.frange(8,15),  'core'),
+                 (7, hbt.frange(16,23), 'core'),
+                 (7, hbt.frange(24,31), 'core'),
+                 (7, hbt.frange(32,35), 'core'),
+                 (7, hbt.frange(36,39), 'outer'), # Lots of 
+                 (7, hbt.frange(40,42), 'core'),
+                 (7, hbt.frange(52,54), 'core'),
+                 (7, hbt.frange(61,63), 'core'),
+                 (7, hbt.frange(91,93), 'outer-30')]
 
-ring4 = ring_profile()
-ring4.load(7, hbt.frange(24,31)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
-ring41 = ring4.copy().sum()
-area4 = ring4.area_radial(limit)
-ring4.plot(plot_azimuthal=False)
-phase4 = ring4.ang_phase_arr
-plt.plot(phase4*hbt.r2d, area4, marker = '+', linestyle='none')
-plt.show()
-plt.plot(ring41.radius_arr[0], ring41.profile_radius_dn_arr[0])
+for param_i in params:
 
+    # Unwrap the tuple
+    
+    (index_group, index_images, key_radius) = param_i   # Unwrap the tuple
+    
+    # Load the profile, and make a copy of it.
+    
+    ring = ring_profile()
+    ring.load(index_group, index_images, key_radius = key_radius).smooth(1)
+    
+    # Make a sum of all curves in this file
+    
+    ring_summed = ring.copy().sum()
+    
+    # Remove the background, and measure the area of each curve
+    
+    ring.remove_background_radial(radius_bg, do_plot=False)
+    area = ring.area_radial(limit_radial)
+    
+    # Plot summed radial profile
+    
+#    ring_summed.plot(plot_azimuthal=False)
+    
+    # Make a plot of the phase curve from this just file
+    
+    phase = ring.ang_phase_arr
+#    plt.plot(phase*hbt.r2d, area, marker='+', linestyle='none')
+    plt.show()
 
-ring5 = ring_profile()
-ring5.load(7, hbt.frange(32,35)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
-ring51 = ring5.copy().sum()
-area5 = ring5.area_radial(limit)
-ring5.plot(plot_azimuthal=False)
-phase5 = ring5.ang_phase_arr
-plt.plot(phase5*hbt.r2d, area5, marker = '+', linestyle='none')
-plt.show()
-plt.plot(ring51.radius_arr[0], ring51.profile_radius_dn_arr[0])
+    # Save the area and phase angle for each curve
 
+    for i in range(np.size(index_images)):
+        
+      t.add_row([index_group, index_images[i], phase[i]*u.radian, area[i], ring.exptime_arr[i]])
+      
+#    phase_all = np.concatenate((phase_all, phase))
+#    area_all  = np.concatenate((area_all, area))
 
-ring6 = ring_profile()
-ring6.load(7, hbt.frange(36,39)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
-ring61 = ring6.copy().sum()
-area6 = ring6.area_radial(limit)
-ring6.plot(plot_azimuthal=False)
-phase6 = ring6.ang_phase_arr
-plt.plot(phase6*hbt.r2d, area6, marker = '+', linestyle='none')
-plt.show()
-plt.plot(ring61.radius_arr[0], ring61.profile_radius_dn_arr[0])
+plt.plot(t['phase'] * hbt.r2d, t['area_dn'], marker = 'o', linestyle = 'none')
 
+a = ring_profile()
+a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
 
-ring7 = ring_profile()
-ring7.load(7, hbt.frange(40,42)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
-ring71 = ring7.copy().sum()
-area7 = ring7.area_radial(limit)
-ring7.plot(plot_azimuthal=False)
-phase7 = ring7.ang_phase_arr
-plt.plot(phase7*hbt.r2d, area7, marker = '+', linestyle='none')
-plt.show()
-plt.plot(ring71.radius_arr[0], ring71.profile_radius_dn_arr[0])
-
-ring8 = ring_profile()
-ring8.load(7, hbt.frange(52,55)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
-ring81 = ring8.copy().sum()
-area8 = ring8.area_radial(limit)
-ring8.plot(plot_azimuthal=False)
-phase8 = ring8.ang_phase_arr
-plt.plot(phase8*hbt.r2d, area8, marker = '+', linestyle='none')
-plt.show()
-plt.plot(ring81.radius_arr[0], ring81.profile_radius_dn_arr[0])
-
-ring9 = ring_profile()
-ring9.load(7, hbt.frange(91,93)).smooth(1).remove_background_radial(radius_bg, do_plot=False)
-ring91 = ring9.copy().sum()
-area9 = ring9.area_radial(limit)
-ring9.plot(plot_azimuthal=False)
-phase9 = ring9.ang_phase_arr
-plt.plot(phase9*hbt.r2d, area9, marker = '+', linestyle='none')
-plt.show()
-plt.plot(ring91.radius_arr[0], ring91.profile_radius_dn_arr[0])
-
-plt.plot(ring11.radius_arr[0], ring11.profile_radius_dn_arr[0] / ring1.num_profiles())
-plt.plot(ring21.radius_arr[0], ring21.profile_radius_dn_arr[0] / ring2.num_profiles())
-plt.plot(ring31.radius_arr[0], ring31.profile_radius_dn_arr[0] / ring3.num_profiles())
-plt.plot(ring41.radius_arr[0], ring41.profile_radius_dn_arr[0] / ring4.num_profiles())
-plt.plot(ring51.radius_arr[0], ring51.profile_radius_dn_arr[0] / ring5.num_profiles())
-plt.plot(ring61.radius_arr[0], ring61.profile_radius_dn_arr[0] / ring6.num_profiles())
-plt.plot(ring71.radius_arr[0], ring71.profile_radius_dn_arr[0] / ring7.num_profiles())
-plt.plot(ring81.radius_arr[0], ring81.profile_radius_dn_arr[0] / ring8.num_profiles())
-plt.plot(ring91.radius_arr[0], ring91.profile_radius_dn_arr[0] / ring9.num_profiles())
-plt.ylim((-10,20))
-plt.xlabel('Radius [km]')
-plt.ylabel('DN sum')
-plt.xlim((127000,130000))
-plt.title('NH Radial Profiles, Group 7')
-plt.show()
-
-phase_all = np.concatenate((phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9))
-area_all  = np.concatenate((area1,  area2,  area3,  area4,  area5,  area6,  area7,  area8,  area9))
-
-hbt.set_fontsize(15)
-plt.plot(phase_all*hbt.r2d, area_all, marker = 'o', linestyle='none')
-plt.ylabel('DN')
-plt.xlabel('Phase angle [deg]')
-plt.title('NH Phase Curve, Group 7')
-plt.show()
-
-
-ring.load(7, hbt.frange(16,23)).smooth(1).plot(plot_azimuthal=False)
-ring.remove_background_radial(radius_bg, do_plot=False).plot()
-
-
-area = ring.area_radial(limit)
-phase = ring.ang_phase_arr
-plt.plot(phase*hbt.r2d, area, marker = '+', linestyle='none')
-
-
-
-ring.plot(plot_azimuthal=False)
-ring.sum().plot()
-
-ring.plot(plot_radial = True, plot_azimuthal=False, title = 'Core')
-ring.smooth()
-ring.sum()
-ring.smooth()
-
-ring_full = ring_profile()
-ring_full.load(7, hbt.frange(16,23), key_radius='full')
-ring_full.plot(plot_azimuthal=False, title='Full')
-
-ring.sum()
-ring.plot(plot_radial = True, plot_azimuthal=False)  # This makes a really nice radial profile
-
-# Try some background subtraction
-
-
-profile = ring.profile_radius_dn_arr[0]
-radius  = ring.radius_arr[0] 
-vals_radius = radius_bg
-bins_x = radius
-num_ranges = hbt.sizex(radius_bg)  # Radius_bg has total of (radius_bg) x (2) elements
-
-
-# Now loop over all of the radius ranges (e.g., three ranges).
-# In each range, flag the x values that are within that range.
-# Then, we'll sum these, to get a list of xvals that match *any* of the specified ranges.
-# And then we'll do the linfit, using just these xvals, and the corresponding yvals.
-
-
-
-#for i in 
-#r = linregress(arr1_filter.flatten(), arr2_filter.flatten())
-#
-#m = r[0] # Multiplier = slope
-#b = r[1] # Offset = intercept
-#
-#arr2_fixed = arr2 * m + b
-#return (m,b)
-ring.plot()
-
-ring_sum = ring.copy()
-ring_sum.sum()
-ring_sum.smooth()
-ring_sum.plot(plot_radial = True, plot_azimuthal=False)
-
+a = ring_profile()
+a.load(7, hbt.frange(91,93),key_radius='core').plot()
