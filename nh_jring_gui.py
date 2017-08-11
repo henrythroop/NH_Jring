@@ -85,10 +85,8 @@ import hbt
 from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
 #from  nh_jring_load_objectlist      import nh_jring_load_objectlist
 
-from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
 from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
 #from nh_jring_extract_profiles_from_unwrapped  import nh_jring_extract_profiles_from_unwrapped   
-from nh_jring_extract_profile_from_unwrapped   import nh_jring_extract_profile_from_unwrapped   
 
 #pdb.set_trace()
 
@@ -128,7 +126,7 @@ class App:
         option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
         entry_bg_default    = '0-10'   # Default polynomial order XXX need to set a longer string length here!
         index_group_default = 7        # Default group to start with
-        index_image_default = 32       # Default image number within the group
+        index_image_default = 91       # Default image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -613,6 +611,8 @@ class App:
 #==============================================================================
         
     def extract_profiles(self):
+
+        from nh_jring_extract_profile_from_unwrapped   import nh_jring_extract_profile_from_unwrapped   
         
         self.diagnostic('extract_profiles()')
         
@@ -649,13 +649,22 @@ class App:
 # Extract radial and azimuthal profiles.
 #==============================================================================
         
-#        We might use a lot of different cases here. Rather than define each as individual variables, do as dict
+# We might use a lot of different cases here. Rather than define each as individual variables, do as dict
+# For instance, this lets us extract the 'inner' radial profile, or an 'outer' radial profile, in a std way.
+        
+# We extract *each* of these profiles. Then when doing data analysis, we can choose which one to actually use.        
 
+# For now the 'core' profile is normal radial, and 'net' is the normal azimuthal profile.
+# The 'outer-30' and 'outer-50' are for testing, and they cut out regions immediately surrounding the ansa itself.
+        
         profile_azimuth  = {'inner' : np.array([0]), 'core'   : np.array([0]), 'outer' : np.array([0])}
-        profile_radius   = {'full'  : np.array([0]), 'center' : np.array([0]), 'core' : np.array([0])}
+        profile_radius   = {'full'  : np.array([0]), 'center' : np.array([0]), 'core'  : np.array([0]), 
+                                                     'outer-30'  : np.array([0]), 'outer-50' : np.array([0]) }
         
         range_of_radius  = {'inner' : (126500,127500), 'core' : (127500,129500), 'outer' : (130000,131000)} # for az
-        range_of_azimuth = {'full'  : 1, 'center' : 0.25, 'core' : 0.1}                                    # for radial 
+        range_of_azimuth = {'full'  : 1,               'center' : 0.25,          'core' : 0.1,
+                                                       'outer-30' : (1,-0.3), 'outer-50' : (1,-0.5)}
+                                                                                      # for radial  profile
         
 # Make radial profiles
         
@@ -1395,10 +1404,13 @@ the internal state which is already correct. This does *not* refresh the image i
 #==============================================================================
             
     def get_mask_objects(self):
+                
         """
         Returns a boolean image, set to True for pixels close to a satellite or star.
         """
-        
+ 
+        from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
+       
         # Not sure if this works yet
         
         mask = nh_jring_mask_from_objectlist(self.file_objectlist)
