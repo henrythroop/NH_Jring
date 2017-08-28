@@ -308,19 +308,33 @@ class ring_profile:
         return copy.deepcopy(self)   # copy.copy() copies by reference, which is def not what we want
 
 # =============================================================================
-# Remove Background from radial profiles
+# Remove background slope (trend) from radial profiles
 # =============================================================================
 
     def remove_background_radial(self, xranges, do_plot=False):
 
+        """
+    This routine takes a 1D radial profile, and a list of radii. It fits a linear trend to the brightness
+    at those radii. It then subtracts that linear trend. The object then contains the same radial profile,
+    but with the linear trend removed.
+    
+    This works on all radial profiles in the object.
+    
+    With do_plot=True, then make a one-off plot showing the removed trend.
+    
+    """
+    
          # Remove background from all the radial profiles
-
-        num_ranges = hbt.sizex(xranges)  # Radius_bg has total of (radius_bg) x (2) elements
+      
+        num_ranges = hbt.sizex(xranges)  # The range of radii to use for fitting the bg level. 
+                                         # Total of (radius_bg) x (2) elements.
 
         radius  = self.radius_arr[0]    # Assume that all profiles share a common radius array 
 
         is_radius_good = np.zeros((num_ranges, np.size(radius))) # 
 
+        # For each set of distance ranges, convert from distance, to bins. Assume all radial profiles use same bins.
+        
         for i in range(num_ranges):  # e.g., if we have three ranges, loop over all of them
             range_i = xranges[i,:]
             is_radius_good[i,:] = np.logical_and( (radius > range_i[0]), (radius < range_i[1]) )
@@ -452,6 +466,9 @@ class ring_profile:
         
         
 ring = ring_profile()
+
+# Define the off-ring locations. Pixels in this region are used to set the background level.
+
 radius_bg = np.array([[127500,127900], [129200,129700]])
 
 # Make a plot of all of the data
@@ -464,9 +481,15 @@ limit_radial = (128000,130000)
 #phase_all = np.array([])
 #area_all  = np.array([])
 
-t = Table([[], [], [], [], []], 
-          names=('index_group', 'index_image', 'phase', 'area_dn', 'exptime'),
-          dtype = ('int', 'int', 'float64', 'float64', 'float64'))
+t = Table([[], [], [], [], [], [], []], 
+          names=('index_group', 'index_image', 'phase', 'area_dn', 'exptime', 'label', 'sequence'),
+          dtype = ('int', 'int', 'float64', 'float64', 'float64', 'U30', 'U30'))
+
+# Make a copy of this, which we put the 'summed' profiles in -- that is, one brightness, per image sequence
+
+#t_summed = Table([[], [], [], [],
+#                  names = ('area_dn', 'exptime', 'label', 'area_dn'),
+#                  dtype = ('float64', '))
 
 params        = [(7, hbt.frange(0,7),   'core'),  # For each plot, we list a tuple: index_group, index_image, key
                  (7, hbt.frange(8,15),  'core'),
@@ -477,20 +500,27 @@ params        = [(7, hbt.frange(0,7),   'core'),  # For each plot, we list a tup
                  (7, hbt.frange(40,42), 'core'),
                  (7, hbt.frange(52,54), 'core'),
                  (7, hbt.frange(61,63), 'core'),
+                 (7, hbt.frange(91,93), 'core'),
                  (7, hbt.frange(91,93), 'outer-30')]
+
+# Loop over each of the sets of images
 
 for param_i in params:
 
-    # Unwrap the tuple
+    # Unwrap the tuple, describing this set of files (e.g., 7/12 .. 7/15)
     
     (index_group, index_images, key_radius) = param_i   # Unwrap the tuple
+
+    # Create a string to describe this set of images ("7/0-7 core")
     
-    # Load the profile, and make a copy of it.
+    sequence = ("{}/{}-{} {}".format(index_group, np.amin(index_images), np.amax(index_images), key_radius))
+
+    # Load the profile from disk.
     
     ring = ring_profile()
     ring.load(index_group, index_images, key_radius = key_radius).smooth(1)
     
-    # Make a sum of all curves in this file
+    # Copy the profile, and sum all the individual curves in it.
     
     ring_summed = ring.copy().sum()
     
@@ -503,25 +533,54 @@ for param_i in params:
     
 #    ring_summed.plot(plot_azimuthal=False)
     
-    # Make a plot of the phase curve from this just file
+    # Make a plot of the phase curve from just this file
     
     phase = ring.ang_phase_arr
 #    plt.plot(phase*hbt.r2d, area, marker='+', linestyle='none')
     plt.show()
-
-    # Save the area and phase angle for each curve
+    
+    # Save the area and phase angle for each individual phase curve
 
     for i in range(np.size(index_images)):
         
-      t.add_row([index_group, index_images[i], phase[i]*u.radian, area[i], ring.exptime_arr[i]])
+      label = ("{}/{} {}".format(index_group, index_images[i], key_radius))
+        
+      t.add_row([index_group, index_images[i], phase[i]*u.radian, area[i], ring.exptime_arr[i], label, sequence])
+
+# Aggregate the groups. This merges things and takes means of all numeric columns. Any non-numeric columns are dropped.
+# The argument to groups.aggregate is a function to apply (e.g., numpy)
+      
+t_mean = t.group_by('sequence').groups.aggregate(np.mean)  # Mean
+t_std  = t.group_by('sequence').groups.aggregate(np.std)   # Stdev
       
 #    phase_all = np.concatenate((phase_all, phase))
 #    area_all  = np.concatenate((area_all, area))
 
-plt.plot(t['phase'] * hbt.r2d, t['area_dn'], marker = 'o', linestyle = 'none')
+# Plot the phase curve, with one point per image
+
+hbt.set_fontsize(size=15)
+for i in range(len(t_mean['phase'])):
+    plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_dn'][i], yerr=t_std['area_dn'][i],
+             marker = 'o', ms=10, linestyle = 'none', label=t_mean['sequence'][i])
+plt.xlabel('Angle [deg]')
+plt.ylabel('Ring Area [DN]')
+plt.legend()
+plt.show()
+
+# Plot the phase curve, with one point per sequence
+      
+plt.plot(t['phase'] * hbt.r2d, t['area_dn'], marker = 'o', linestyle = 'none', label=t['label'])
+plt.legend()
+plt.show()
+
+# Now we want to do some astropy table manipulation. Take all thigns 
+# 
+# Plot several individual radial profiles
 
 a = ring_profile()
-a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
+a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=True).plot()
+plt.show()
 
 a = ring_profile()
 a.load(7, hbt.frange(91,93),key_radius='core').plot()
+plt.show()
