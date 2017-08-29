@@ -107,6 +107,7 @@ class App:
 
 # Set some default values
 
+        
         self.filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters 
 
         self.dir_out    = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
@@ -135,6 +136,7 @@ class App:
 
         hbt.set_plot_defaults()
         
+        hbt.set_fontsize(size=8)    # Set a pretty small font here
         self.bgcolor = '#ECECEC'    # ECECEC is the 'default' background for a lot of the ttk widgets.
         
         (r2d, d2r) = (hbt.r2d, hbt.d2r)
@@ -561,11 +563,11 @@ class App:
         
         (numrad, rj_array) = sp.bodvrd('JUPITER', 'RADII', 3) # 71492 km
         rj = rj_array[0]
-        r_ring_inner = 126000   # Follow same limits as in Throop 2004 J-ring paper fig. 7
-        r_ring_outer = 132000
+        r_ring_inner = 114000   # Follow same limits as in Throop 2004 J-ring paper fig. 7
+        r_ring_outer = 135000
 
         num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
-        num_bins_radius  = 300
+        num_bins_radius  = 500
              
  
 # Check if the backplane is loaded already. Load it iff it is not loaded
@@ -831,7 +833,7 @@ class App:
             self.ax4.set_xlabel(r'Radial Profile      Radius [1000 km]    phase = {:.1f} deg'
                                 .format(hbt.r2d * np.mean(self.planes['Phase'])))
 
-            self.ax4.set_xlim([126,130])
+            self.ax4.set_xlim([114,135])
             self.ax4.legend(loc='upper left')
             
             # Plot a second axis, in RJ    
