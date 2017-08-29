@@ -543,6 +543,10 @@ iof = math.pi * I * dist_au**2 / FSOLAR
 # Convert from I/F to 'normal I/F'.
 # This value -- 4 mu I/F -- is exactly the same as tau \varpi P, according to Throop 2004 eq 1
 
+# XXX Uh oh. I think this should be 90-lat_subsc. 
+# I should use the emission angle... that is, from *normal*, not from *equator*.
+# Error discovered 29-Aug-2017.
+
 mu = math.cos(lat_subsc * hbt.d2r)  # mu = cos(lat)
 iof_normal = 4 * mu * iof  # (I/F)_normal = 4 mu I/F
 
