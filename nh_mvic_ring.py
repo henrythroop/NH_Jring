@@ -6,9 +6,11 @@ Created on Wed Sep  7 22:55:34 2016
 """
 
 # This program analyzes the OUTBOUND MVIC and LORRI NH Rings data.
+# (Despite this program's filename, it looks at both MVIC and LORRI.)
 # This is the main program to do this analysis. It reads Tod's mosaic
 # files, and generates and plots radial profiles from them.
-# HBT Nov 2016
+#
+# HBT Nov 2016 thru May 2017.
 
 dir = '/Users/throop/Data/NH_MVIC_Ring/'
 file = 'mvic_d305_sum_mos_v1.fits'
@@ -52,7 +54,7 @@ from   astropy.stats import sigma_clipped_stats
 from   scipy.stats import mode
 from   scipy.stats import linregress
 from   photutils   import daofind
-import wcsaxes
+#import wcsaxes
 import time
 from scipy.interpolate import griddata
 
@@ -547,7 +549,7 @@ iof = math.pi * I * dist_au**2 / FSOLAR
 # I should use the emission angle... that is, from *normal*, not from *equator*.
 # Error discovered 29-Aug-2017.
 
-mu = math.cos(lat_subsc * hbt.d2r)  # mu = cos(lat)
+mu = math.cos(math.pi/2 - lat_subsc * hbt.d2r)  # mu = cos(lat)
 iof_normal = 4 * mu * iof  # (I/F)_normal = 4 mu I/F
 
 # Calculate the 3sigma iof value. For this, should we use the inner data points only (yes, most of the time)
