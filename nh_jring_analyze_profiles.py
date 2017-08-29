@@ -270,7 +270,8 @@ class ring_profile:
 
         # Define the solar flux, from Hal's paper.
         
-        F_solar = 176 # Flux from Hal's paper
+        FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+        F_solar = FSOLAR_LORRI # Flux from Hal's paper
         
         # Calculate the Jupiter-Sun distance, in AU (or look it up). 
         
@@ -288,7 +289,7 @@ class ring_profile:
         
         # Define mu = cos(e), where e = emission angle, and e=0 is face-on.
         
-        e = math.pi/2 - self.ang_elev_arr
+        e = math.pi/2 - self.ang_elev_arr # NB: I made an error in this for the Pluto ring analysis! 
         
         mu = np.cos(e)
         
@@ -667,6 +668,10 @@ plt.show()
 
 a = ring_profile()
 a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
+plt.show()
+
+a = ring_profile()
+a.load(7, hbt.frange(0,7),key_radius='core').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
 plt.show()
 
 a_dn = a.copy()
