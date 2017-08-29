@@ -132,6 +132,9 @@ class ring_profile:
         #
         # Since we usually need just one of these, this routine *only* reads one.
         # The individual one read can be controlled with key_radius and key_azimuth
+        #
+        # Usually the values of the profiles will be read in units of DN. 
+        # But, it is up to the user to keep straight if it is DN, IoF, normal IoF, EW, etc.
         
         import humanize
         
@@ -144,17 +147,21 @@ class ring_profile:
         
         self.index_group            = index_group
 
-        self.profile_radius_dn_arr  = []
-        self.profile_azimuth_dn_arr = []
+        self.profile_radius_arr     = []  # This can be in DN, *or* IoF.
+        self.profile_azimuth_arr    = []  # This can be in DN, *or* IoF.
         self.exptime_arr            = []
         self.ang_phase_arr          = []
         self.radius_arr             = []
+        self.ang_elev_arr           = []
         self.azimuth_arr            = []
         self.index_image_arr        = []
         self.index_group_arr        = []
         self.ang_phase_arr          = []
         self.dt_arr                 = []
         self.dt_str_arr             = []
+        
+        self.profile_azimuth_units  = 'DN per pixel'
+        self.profile_radius_units   = 'DN per pixel'
 
         for index_image in index_images:
             file = self.get_export_analysis_filename(index_group, index_image)
@@ -168,8 +175,8 @@ class ring_profile:
                         mask_unwrapped,      # Boolean mask
                         radius,              # Axis values for the unwrapped image
                         azimuth,             # Axis values for the unwrapped image 
-                        profile_radius_dn,   # Radial profile (several, in a dictionary)
-                        profile_azimuth_dn,  # Az profile (several, in a dictionary)
+                        profile_radius,      # Radial profile (several, in a dictionary)
+                        profile_azimuth,     # Az profile (several, in a dictionary)
                         range_of_azimuth,
                         range_of_radius,
                         exptime,             # Exposure time
@@ -192,10 +199,11 @@ class ring_profile:
             
             # Save all these in the ring object. This makes it easy to export them or use in other functions.
             
-            self.profile_radius_dn_arr.append(profile_radius_dn[key_radius])  # This is now (eg) 8 x 30 array
-            self.profile_azimuth_dn_arr.append(profile_azimuth_dn[key_azimuth])
+            self.profile_radius_arr.append(profile_radius[key_radius])  # This is now (eg) 8 x 30 array
+            self.profile_azimuth_arr.append(profile_azimuth[key_azimuth])
             self.exptime_arr.append(exptime)
             self.ang_phase_arr.append(ang_phase)
+            self.ang_elev_arr.append(ang_elev)
             self.radius_arr.append(radius)
             self.azimuth_arr.append(azimuth)
             self.index_image_arr.append(index_image)
@@ -209,16 +217,34 @@ class ring_profile:
         #==============================================================================
         # Now put these into arrays (not lists). Ideally we'd put these into an astropy table (so we can sort, etc.)
         #==============================================================================
-        
+             
         self.ang_phase_arr = np.array(self.ang_phase_arr)
+        self.ang_elev_arr  = np.array(self.ang_elev_arr)
         self.azimuth_arr   = np.array(self.azimuth_arr)
-                   # Convert some of these from lists, to NP arrays
-            
-        self.profile_radius_dn_arr = np.array(self.profile_radius_dn_arr)
-        self.profile_azimuth_dn_arr = np.array(self.profile_azimuth_dn_arr) 
+                 
+        self.profile_radius_arr  = np.array(self.profile_radius_arr)
+        self.profile_azimuth_arr = np.array(self.profile_azimuth_arr) 
         
         return self
 
+# =============================================================================
+# Return number of radial bins
+# =============================================================================
+        
+    def num_bins_radius(self):
+        
+        return np.shape(self.profile_radius_arr)[1]
+
+ 
+# =============================================================================
+# Return size of azimuthal array
+# =============================================================================
+        
+    def num_bins_azimuth(self):
+        
+        return np.shape(self.profile_azimuth_arr)[1]
+
+ 
 # =============================================================================
 # Return number of profiles
 # =============================================================================
@@ -226,11 +252,80 @@ class ring_profile:
     def num_profiles(self):
         
         return np.size(self.dt_arr)
+
     
 # =============================================================================
 # Convert from DN to I/F. Or at least create the I/F curves.
 # =============================================================================
 
+    def dn2iof(self):
+        
+# The math here follows directly from that in "NH Ring Calibration.pynb", which I used for Pluto rings.
+# That in turn follows from Hal Weaver's writeup.
+# The key constants are RSOLAR and F_solar, which together convert from DN to I/F.
+        
+        RSOLAR =  221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+
+        C = self.profile_radius_arr  # Get the DN values of the ring. Typical value is 1 DN.
+
+        # Define the solar flux, from Hal's paper.
+        
+        F_solar = 176 # Flux from Hal's paper
+        
+        # Calculate the Jupiter-Sun distance, in AU (or look it up). 
+        
+        r = 5.35 # Distance in AU. For the Jupiter encounter, dist = 5.30 AU .. 5.39 AU for the 10d surrounding it.
+        
+        TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_radius(),1)))  # Increase this from 1D to 2D
+        
+        I = C / TEXP_2D / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. All v similar, except for spectrum assumed.
+        
+        # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
+        
+        IoF = math.pi * I * r**2 / F_solar # Equation from Hal's paper
+        
+        # Now convert to 'normal I/F'
+        
+        # Define mu = cos(e), where e = emission angle, and e=0 is face-on.
+        
+        e = math.pi/2 - self.ang_elev_arr
+        
+        mu = np.cos(e)
+        
+        mu_2D = np.transpose(np.tile(mu, (self.num_bins_radius(),1)))
+        
+        # Calculate the normal I/F
+        
+        IoF_normal = 4 * mu_2D * IoF
+        
+        # Save this result into 'self,' replacing the DN values with the normal I/F values
+        
+        self.profile_radius_arr = IoF_normal
+        
+        # Change the units
+        
+        self.profile_radius_units = 'Normal I/F'
+        
+        # Do the same for azimuthal profile
+
+        TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_azimuth(),1)))
+        mu_2D = np.transpose(np.tile(mu, (self.num_bins_radius(),1)))
+        self.profile_azimuth_arr = self.profile_azimuth_arr / TEXP_2D / RSOLAR * math.pi * r**2 / F_solar * 4 * mu_2D
+        
+        self.profile_azimuth_units = 'Normal I/F'
+        
+        return self
+        
+#   From Hal Weaver email 7-Dec-2016
+# These are for 1X1. 4X4 is different, but since they're saturated, I am ignoring.
+# These are intrinsic to detector, and not a function of distance    
+#Diffuse sensitivity keywords
+#Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+#RSOLAR =  221999.98
+#RPLUTO =  214583.33
+#RPHOLUS =  270250.00
+#RCHARON =  219166.66
+#RJUPITER =  195583.33
       
 # =============================================================================
 # Smooth the profiles
@@ -249,17 +344,17 @@ class ring_profile:
         
             # First do radial kernels
 
-            self.profile_radius_dn_arr[i,:]  = convolve(self.profile_radius_dn_arr[i,:],  kernel)
+            self.profile_radius_arr[i,:]  = convolve(self.profile_radius_arr[i,:],  kernel)
 
             # Then do azimuthal kernels
             
-            self.profile_azimuth_dn_arr[i,:] = convolve(self.profile_azimuth_dn_arr[i,:], kernel)
+            self.profile_azimuth_arr[i,:] = convolve(self.profile_azimuth_arr[i,:], kernel)
 
         return self
     
-#            for key in self.profile_azimuth_dn_arr[i]:
-#                profile = convolve(self.profile_azimuth_dn_arr[i][key], kernel)
-#                self.profile_azimuth_dn_arr[i][key] = profile
+#            for key in self.profile_azimuth_arr[i]:
+#                profile = convolve(self.profile_azimuth_arr[i][key], kernel)
+#                self.profile_azimuth_arr[i][key] = profile
                 
 # =============================================================================
 # Sum the profiles
@@ -268,27 +363,20 @@ class ring_profile:
     def sum(self):
         
         # Add up all of the radial profiles, to get a merged radial profile
-        # Because of how this is implemented, we can't just do an np.sum(). 
-        # Instead, we have to loop. 
-        # I guess next time we could use AstroPy table, rather than a list of dictionaries.
-        
-        num_profiles = np.size(self.profile_radius_dn_arr)
-
-        profile_out = {}
 
         # First do radial profiles
                 
-        self.profile_radius_dn_arr[0] = np.sum(self.profile_radius_dn_arr, axis=0) # Save the summed profile
+        self.profile_radius_arr[0] = np.sum(self.profile_radius_arr, axis=0) # Save the summed profile
 
         # Then do the azimuthal profiles
         
-        self.profile_azimuth_dn_arr[0] = np.sum(self.profile_azimuth_dn_arr, axis=0) # Save the summed profile
+        self.profile_azimuth_arr[0] = np.sum(self.profile_azimuth_arr, axis=0) # Save the summed profile
         
         # Then collapse the other fields (from N elements, to 1). This is very rough, and not a good way to do it.
         # We collapse down into a 1-element array. Alternatively, we could collapse to a scalar.
         
-        self.profile_radius_dn_arr = np.array([self.profile_radius_dn_arr[0]])
-        self.profile_azimuth_dn_arr = np.array([self.profile_azimuth_dn_arr[0]])
+        self.profile_radius_arr = np.array([self.profile_radius_arr[0]])
+        self.profile_azimuth_arr = np.array([self.profile_azimuth_arr[0]])
         
         self.exptime_arr     = np.array([np.sum(self.exptime_arr)])
         self.azimuth_arr     = np.array([self.azimuth_arr[0]])
@@ -346,7 +434,7 @@ class ring_profile:
         # Now loop over each profile, and find the right fit coefficients for it.
         
         for i in range(self.num_profiles()):  
-            profile = self.profile_radius_dn_arr[i]
+            profile = self.profile_radius_arr[i]
 
             r = linregress(radius[is_radius_good], profile[is_radius_good])
             m = r[0]
@@ -365,7 +453,7 @@ class ring_profile:
          
             # Save the new subtracted profile
             
-            self.profile_radius_dn_arr[i] -= profile_fit
+            self.profile_radius_arr[i] -= profile_fit
 
         return self 
 
@@ -375,7 +463,7 @@ class ring_profile:
     
     def plot(self,    plot_radial=True, 
                       plot_azimuthal=False, 
-                      dy_radial=1.5,  # Default vertical offset between plots 
+                      dy_radial=0,  # Default vertical offset between plots 
                       dy_azimuthal=3,
                       smooth=None,
                       title=None,
@@ -391,7 +479,7 @@ class ring_profile:
             for i,index_image in enumerate(self.index_image_arr):
 
                 radius = self.radius_arr[i]
-                profile_radius = self.profile_radius_dn_arr[i]
+                profile_radius = self.profile_radius_arr[i]
                 
                 plt.plot(radius, 
                          (i * dy_radial) + profile_radius, 
@@ -403,7 +491,7 @@ class ring_profile:
                          **kwargs)
                 
             plt.xlabel('Radial Distance [km]')
-            plt.ylabel('DN')
+            plt.ylabel(self.profile_radius_units)
             plt.legend()
             if (title is not None):
                 plt.title(title)    
@@ -416,7 +504,7 @@ class ring_profile:
         if (plot_azimuthal):
             hbt.figsize((18,2))
             
-            for i,profile_azimuth in enumerate(self.profile_azimuth_dn_arr):
+            for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
                 plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
                          (i * dy_azimuthal) + profile_azimuth, 
                          label = '{}/{}, {:.2f}°'.format(
@@ -426,7 +514,7 @@ class ring_profile:
                          **kwargs)
                 
             plt.xlabel('Azimuth [deg]')
-            plt.ylabel('DN')
+            plt.ylabel(self.profile_azimuth_units)
             plt.legend()
             if (title is not None):
                 plt.title(title)
@@ -450,7 +538,7 @@ class ring_profile:
         area = []
         
         for i in range(self.num_profiles()):
-            area_i = np.sum((self.profile_radius_dn_arr[i] * dradius)[bin0:bin1])
+            area_i = np.sum((self.profile_radius_arr[i] * dradius)[bin0:bin1])
             area.append(area_i)
             
         return area    
@@ -578,9 +666,18 @@ plt.show()
 # Plot several individual radial profiles
 
 a = ring_profile()
-a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=True).plot()
+a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
+plt.show()
+
+a_dn = a.copy()
+a_dn.dn2iof().plot()
 plt.show()
 
 a = ring_profile()
 a.load(7, hbt.frange(91,93),key_radius='core').plot()
 plt.show()
+
+a_dn = a.copy()
+a_dn.dn2iof().plot()
+plt.show()
+
