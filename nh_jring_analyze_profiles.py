@@ -157,7 +157,7 @@ class ring_profile:
         self.index_image_arr        = []
         self.index_group_arr        = []
         self.ang_phase_arr          = []
-        self.dt_arr                 = []
+        self.dt_arr                 = [] # dt is the time since the datafile was written. 
         self.dt_str_arr             = []
         
         self.profile_azimuth_units  = 'DN per pixel'
@@ -358,28 +358,28 @@ class ring_profile:
 #                self.profile_azimuth_arr[i][key] = profile
                 
 # =============================================================================
-# Sum the profiles
+# Flatten the profiles -- that is, if there are N profiles, flatten to one, with mean value
 # =============================================================================
 
-    def sum(self):
+    def flatten(self):
         
-        # Add up all of the radial profiles, to get a merged radial profile
+        # Use mean() to get a merged radial profile
 
         # First do radial profiles
                 
-        self.profile_radius_arr[0] = np.sum(self.profile_radius_arr, axis=0) # Save the summed profile
+        self.profile_radius_arr[0] = np.mean(self.profile_radius_arr, axis=0) # Save the flattened profile
 
         # Then do the azimuthal profiles
         
-        self.profile_azimuth_arr[0] = np.sum(self.profile_azimuth_arr, axis=0) # Save the summed profile
+        self.profile_azimuth_arr[0] = np.mean(self.profile_azimuth_arr, axis=0) # Save the flattened profile
         
         # Then collapse the other fields (from N elements, to 1). This is very rough, and not a good way to do it.
         # We collapse down into a 1-element array. Alternatively, we could collapse to a scalar.
         
-        self.profile_radius_arr = np.array([self.profile_radius_arr[0]])
+        self.profile_radius_arr  = np.array([self.profile_radius_arr[0]])
         self.profile_azimuth_arr = np.array([self.profile_azimuth_arr[0]])
         
-        self.exptime_arr     = np.array([np.sum(self.exptime_arr)])
+        self.exptime_arr     = np.array([np.mean(self.exptime_arr)])
         self.azimuth_arr     = np.array([self.azimuth_arr[0]])
         self.radius_arr      = np.array([self.radius_arr[0]])
         self.index_image_arr = np.array(["{}-{}".format(self.index_image_arr[0], self.index_image_arr[-1])])
@@ -466,6 +466,7 @@ class ring_profile:
                       plot_azimuthal=False, 
                       dy_radial=0,  # Default vertical offset between plots 
                       dy_azimuthal=3,
+                      plot_sats=True,  # Plot the location of Metis / Adrastea on radial profile?
                       smooth=None,
                       title=None,
                       **kwargs):
@@ -490,6 +491,15 @@ class ring_profile:
                                        self.ang_phase_arr[i]*hbt.r2d,
                                        self.dt_str_arr[i]),
                          **kwargs)
+            
+            # Plot Metis and Adrastea
+            
+            if (plot_sats):
+                a_metis    = 128000
+                a_adrastea = 129000
+            
+                plt.axvline(x=a_metis)
+                plt.axvline(x=a_adrastea)
                 
             plt.xlabel('Radial Distance [km]')
             plt.ylabel(self.profile_radius_units)
@@ -551,9 +561,6 @@ class ring_profile:
     
 # Invoke the class
         
-# Q: Why can't I do ring.load().sum().plot()  ?
-        
-        
 ring = ring_profile()
 
 # Define the off-ring locations. Pixels in this region are used to set the background level.
@@ -611,7 +618,7 @@ for param_i in params:
     
     # Copy the profile, and sum all the individual curves in it.
     
-    ring_summed = ring.copy().sum()
+    ring_flattened = ring.copy().flatten()
     
     # Remove the background, and measure the area of each curve
     
@@ -620,7 +627,7 @@ for param_i in params:
     
     # Plot summed radial profile
     
-#    ring_summed.plot(plot_azimuthal=False)
+    ring_flattened.plot(plot_azimuthal=False)
     
     # Make a plot of the phase curve from just this file
     
