@@ -310,7 +310,7 @@ class ring_profile:
         # Do the same for azimuthal profile
 
         TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_azimuth(),1)))
-        mu_2D = np.transpose(np.tile(mu, (self.num_bins_radius(),1)))
+        mu_2D = np.transpose(np.tile(mu, (self.num_bins_azimuth(),1)))
         self.profile_azimuth_arr = self.profile_azimuth_arr / TEXP_2D / RSOLAR * math.pi * r**2 / F_solar * 4 * mu_2D
         
         self.profile_azimuth_units = 'Normal I/F'
@@ -416,7 +416,7 @@ class ring_profile:
          # Remove background from all the radial profiles
       
         num_ranges = hbt.sizex(xranges)  # The range of radii to use for fitting the bg level. 
-                                         # Total of (radius_bg) x (2) elements.
+                                         # Total of (radius_bg) x (2) elements. Usually 2x2 = 4 elements.
 
         radius  = self.radius_arr[0]    # Assume that all profiles share a common radius array 
 
@@ -445,9 +445,10 @@ class ring_profile:
             if (do_plot):
                 plt.plot(radius, profile_fit)
                 plt.plot(radius,profile, label='Before')
-                plt.plot(radius[is_radius_good], profile[is_radius_good], marker='+', label='Fit Vals')
+                plt.plot(radius[is_radius_good], profile[is_radius_good], marker='+', ls='none', label='Fit Vals')
                 plt.plot(radius, profile-profile_fit, label='After')
-                plt.plot(radius[is_radius_good], (profile-profile_fit)[is_radius_good], marker='+', label='Fit Vals')
+                plt.plot(radius[is_radius_good], (profile-profile_fit)[is_radius_good], ls='none', marker='+', 
+                                                 label='Fit Vals')
                 plt.legend()
                 
                 plt.show()
@@ -455,6 +456,7 @@ class ring_profile:
             # Save the new subtracted profile
             
             self.profile_radius_arr[i] -= profile_fit
+            print("Subtracted fit [y={} x + {}] from profile {}".format(m, b, i))
 
         return self 
 
@@ -498,8 +500,9 @@ class ring_profile:
                 a_metis    = 128000
                 a_adrastea = 129000
             
-                plt.axvline(x=a_metis)
-                plt.axvline(x=a_adrastea)
+#                args = {'linestyle': 'dash', 'alpha':0.5, 'color':'black'}
+                plt.axvline(x=a_metis, linestyle='dashed', alpha=0.2, color='black')
+                plt.axvline(x=a_adrastea, linestyle='dashed', alpha=0.2, color='black')
                 
             plt.xlabel('Radial Distance [km]')
             plt.ylabel(self.profile_radius_units)
@@ -592,7 +595,7 @@ params        = [(7, hbt.frange(0,7),   'core'),  # For each plot, we list a tup
                  (7, hbt.frange(16,23), 'core'),
                  (7, hbt.frange(24,31), 'core'),
                  (7, hbt.frange(32,35), 'core'),
-                 (7, hbt.frange(36,39), 'outer'), # Lots of 
+                 (7, hbt.frange(36,39), 'outer-30'), # Lots of 
                  (7, hbt.frange(40,42), 'core'),
                  (7, hbt.frange(52,54), 'core'),
                  (7, hbt.frange(61,63), 'core'),
@@ -677,9 +680,69 @@ a = ring_profile()
 a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
 plt.show()
 
+radius_bg_full = np.array([[115,117], [130,131]])*1000  # This is in theory the best one to use
+radius_bg_117  = np.array([[117,120], [130,131]])*1000   # This distance range is a bit better - no edge effects
+
+# =============================================================================
+# Now make some customized individual profiles. For a 'best merged set' profile thing.
+# =============================================================================
+
+# This is a good profile for 0-7! Shows moonlet belt really well.
+
 a = ring_profile()
-a.load(7, hbt.frange(0,7),key_radius='core').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
+a.load(7, hbt.frange(0,7),key_radius='outer-30').remove_background_radial(radius_bg_full,do_plot=False).flatten().plot()
 plt.show()
+
+# This is a good profile for 8-15. Shows moonlet belt really well. Looks like 0-7 one. Has an extra bump = stray.
+# We could consider masking they stray. Right now I just use horizontal and vertical regions to remove it.
+# But, that would be a big task.
+# I guess I could just pass an additional argument, like 'c20(120,200)' for a 20-pixel radius circle.
+
+a = ring_profile()
+a.load(7, hbt.frange(8,15),key_radius='outer-30').remove_background_radial(radius_bg_full,do_plot=False).flatten().plot()
+plt.show()
+
+# Decent profile for 16-23.
+
+a = ring_profile()
+a.load(7, hbt.frange(16,23),key_radius='outer-50').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
+plt.show()
+
+
+# Decent profile for 24-31.
+# It is a very narrow moonlet belt between A+M, plus some inner stuff. 
+
+a = ring_profile()
+a.load(7, hbt.frange(24,31),key_radius='outer-50').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
+plt.show()
+
+
+# Marginal profile for 32-35.
+# There is more stray light here. It really needs masking.
+# I did increase the polynomial power from 2 -> 5, which helped (like it should have).
+# The inner region is going to be hard to get. I might do better if I mask it.
+
+a = ring_profile()
+radius_bg_127 = np.array([[125,126], [130, 131]])*1000
+a.load(7, hbt.frange(32,35),key_radius='outer-50').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
+
+# OK profile for 36-39. Similar to previous. Thet moonlet belt is visible but the dust is probably subtracted out here.
+
+a = ring_profile()
+radius_bg_127 = np.array([[125,126], [130, 131]])*1000
+a.load(7, hbt.frange(36,39),key_radius='outer-50').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
+
+# Profile for 40-42. Still working on this one.
+
+a = ring_profile()
+radius_bg_127 = np.array([[125,126], [130, 131]])*1000
+a.load(7, hbt.frange(40,42),key_radius='core').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
+
+
+
+
+plt.show()
+
 
 a_dn = a.copy()
 a_dn.dn2iof().plot()
