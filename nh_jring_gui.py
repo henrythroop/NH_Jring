@@ -515,8 +515,8 @@ class App:
         else:                                               # If no file found
             timestr   = '--'
             
-        s = '{:3}.   {}   {:6.2f}   {}  {}    {}'.format(   # Create the output string.
-             repr(index_image), 
+        s = '{:3d}  {}  {:6.2f}   {}  {}  {}  {}, {}'.format(   # Create the output string.
+             index_image, 
              t_group['Shortname'][index_image].
                  replace('_opnav.fit', '').
                  replace('0x633_sci_', '').
@@ -525,7 +525,9 @@ class App:
              t_group['Exptime'][index_image], 
              t_group['Format'][index_image],
              t_group['UTC'][index_image].split('.')[0],           # Remove fractional seconds                 
-             timestr)
+             timestr,
+             t_group['bg_method'][index_image],
+             t_group['bg_argument'][index_image])
         return s
 
 # =============================================================================
