@@ -234,6 +234,8 @@ class App:
         self.image_bg_raw       = np.zeros((1)) # The 'raw' background image. No processing done to it. 
                                                 # Assume bg is single image; revisit as needed.
         
+        self.mask_stray         = np.zeros((1)) # Stray light mask, for the current image
+        
         self.file_backplane_shortname  = ''     # Shortname for the currently loaded backplane.
         self.file_objectlist_shortname = ''     # Shortname for the currently loaded objectlist.
 								
@@ -579,7 +581,8 @@ class App:
 
 # Grab the already-loaded object mask for the current image and pointing. 
 
-        mask_objects    = self.objectmask
+        mask_objects    = self.mask_objects
+        mask_stray      = self.mask_stray
 
 # Unwrap the ring image. The input to this is the processed ring (ie, bg-subtracted)
 
@@ -593,7 +596,8 @@ class App:
                                                                  num_bins_azimuth, 
                                                                  self.planes, 
                                                                  dx=-dx, dy=-dy, 
-                                                                 mask=mask_objects)
+                                                                 mask_objects=mask_objects,
+                                                                 mask_stray=mask_stray)
             self.is_unwrapped = True
         
         except ValueError:
@@ -606,7 +610,9 @@ class App:
         self.image_unwrapped    = im_unwrapped     # NB: This has a lot of NaNs in it.
         self.radius_unwrapped   = bins_radius      # The bins which define the unwrapped coordinates
         self.azimuth_unwrapped  = bins_azimuth     # The bins which define the unwrapped coordinates
-        self.mask_unwrapped     = mask_unwrapped   # The object mask, unwrapped. 1 = [object here]
+        (self.mask_objects_unwrapped, self.mask_stray_unwrapped)     \
+                                = mask_unwrapped   # The masks, unwrapped. True = good pixel
+        
 
         return
 
@@ -1204,13 +1210,25 @@ the internal state which is already correct. This does *not* refresh the image i
         method = self.var_option_bg.get()
         argument = self.entry_bg.get()
         
-        self.image_processed = hbt.nh_jring_process_image(self.image_raw, \
+        image = hbt.nh_jring_process_image(self.image_raw, \
                                                           method, argument, 
                                                           index_group = self.index_group, 
                                                           index_image = self.index_image)
-
-        # Remove cosmic rays
-        
+    # Read the image and the (optional) stray light mask.
+    # Mask is True for a good pixel, and False for bad (ie, just like Photoshop layer mask)
+    
+        if isinstance(image, tuple):
+            (self.image_processed, self.mask_stray) = image
+            print("Stray mask file read!")
+            plt.imshow(self.mask_stray)
+            plt.show()
+ 
+    # If no mask exists, then create one, and make it all True
+           
+        else:
+            self.image_processed = image
+            self.mask_stray      = np.ones(np.shape(image),dtype=bool)
+            
         self.image_processed = hbt.decosmic(self.image_processed)
         
 #==============================================================================
@@ -1474,7 +1492,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
             # While we are at it, also create the object mask, which is a boolean image
         
-            self.objectmask = nh_jring_mask_from_objectlist(file_objectlist)
+            self.mask_objects = nh_jring_mask_from_objectlist(file_objectlist)
             
             return True
 
@@ -1612,7 +1630,8 @@ the internal state which is already correct. This does *not* refresh the image i
 # Perhaps it's better to write as a dictionary, where we can then extract by name, rather than by order?
         
         image_unwrapped    = self.image_unwrapped
-        mask_unwrapped     = self.mask_unwrapped
+        mask_objects_unwrapped = self.mask_objects_unwrapped
+        mask_stray_unwrapped = self.mask_stray_unwrapped
         radius             = self.radius_unwrapped
         azimuth            = self.azimuth_unwrapped
         profile_radius_dn  = self.profile_radius
@@ -1627,7 +1646,8 @@ the internal state which is already correct. This does *not* refresh the image i
         et                 = t['ET']
         
         vals = (image_unwrapped,     # Unwrapped image itself
-                mask_unwrapped,      # Boolean mask
+                mask_objects_unwrapped,      # Boolean mask
+                mask_stray_unwrapped,        # Boolean mask
                 radius,              # Axis values for the unwrapped image
                 azimuth,             # Axis values for the unwrapped image
                 profile_radius_dn,   # Radial profile (several, in a dictionary)

@@ -16,13 +16,14 @@ Created on Mon Jun 27 09:01:30 2016
 def nh_jring_unwrap_ring_image(im, 
                                num_bins_radius, limits_radius, 
                                num_bins_azimuth, 
-                               planes, dx=0, dy=0, mask=None):
+                               planes, dx=0, dy=0, mask_stray=None, mask_objects=None):
         
     """
-  im: image array
-  radius: 1D array of radius, in km
+  im:      Image array
+  radius:  1D array of radius, in km
   azimuth: 1D array of azimuth (radians)
-  planes: the table of backplanes
+  planes:  The table of backplanes
+  mask_stray and/or mask_objects:    2D array of pixel flags. True = good. 
   
   dx, dy: Pixel values to roll the image by -- that is, an additional offset to be added to nav info in WCS header. 
           Both the image and the mask are rolled by this amount. Integer.
@@ -38,11 +39,18 @@ def nh_jring_unwrap_ring_image(im,
 
 # Process input
 
-    if (mask is None):    # NB: We need to use 'is' here. '==' will do an element-by-element comparison.
-        DO_MASK = False   # Alternatively, could also do 'if type(mask) is np.ndarray'
+    if (mask_objects is None):    # NB: We need to use 'is' here. '==' will do an element-by-element comparison.
+        DO_MASK_OBJECTS = False   # Alternatively, could also do 'if type(mask) is np.ndarray'
   
     else:
-        DO_MASK = True
+        DO_MASK_OBJECTS = True
+
+    if (mask_stray is None):    # NB: We need to use 'is' here. '==' will do an element-by-element comparison.
+        DO_MASK_STRAY = False   # Alternatively, could also do 'if type(mask) is np.ndarray'
+  
+    else:
+        DO_MASK_STRAY = True
+    
         
     # https://stackoverflow.com/questions/36783921/check-if-variable-is-none-or-numpy-array-in-python
     # https://stackoverflow.com/questions/15008380/double-equals-vs-is-in-python
@@ -123,11 +131,18 @@ def nh_jring_unwrap_ring_image(im,
     radius_all  = radius_all_good
     dn_all      = dn_all_good
 
-    if (DO_MASK):
-        mask_all = mask[is_ring_all]
-        mask_all_3 = np.concatenate((mask_all, mask_all, mask_all))
-        mask_all_good    = mask_all_3[indices_3_good]
-        mask_all    = mask_all_good
+    if (DO_MASK_OBJECTS):
+        mask_objects_all = mask_objects[is_ring_all]
+        mask_objects_all_3 = np.concatenate((mask_objects_all, mask_objects_all, mask_objects_all))
+        mask_objects_all_good    = mask_objects_all_3[indices_3_good]
+        mask_objects_all    = mask_objects_all_good
+        
+    if (DO_MASK_STRAY):
+        mask_stray_all = mask_stray[is_ring_all]
+        mask_stray_all_3 = np.concatenate((mask_stray_all, mask_stray_all, mask_stray_all))
+        mask_stray_all_good    = mask_stray_all_3[indices_3_good]
+        mask_stray_all    = mask_stray_all_good
+        
         
 #==============================================================================
 #  Now regrid the data from xy position, to an unrolled map in (azimuth, radius)
@@ -139,8 +154,11 @@ def nh_jring_unwrap_ring_image(im,
     bins_azimuth    = hbt.frange(azimuth_seg_start, azimuth_seg_end, num_bins_azimuth)
     bins_radius     = hbt.frange(limits_radius[0], limits_radius[1], num_bins_radius)        
 
-    if (DO_MASK):
-        mask_grid       = dn_grid.copy() 
+    if (DO_MASK_OBJECTS):
+        mask_objects_grid     = dn_grid.copy() 
+    
+    if (DO_MASK_STRAY):
+        mask_stray_grid       = dn_grid.copy() 
     
     for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer. Do one radial output bin at a time.
         
@@ -156,18 +174,27 @@ def nh_jring_unwrap_ring_image(im,
             grid_lin_i   = griddata(azimuth_i, dn_i, bins_azimuth, method='linear')
             dn_grid[i,:] = grid_lin_i         # Write a row of the output array   
 
-            if DO_MASK:
-                mask_i       = mask_all[is_ring_i]  # Get the DN values from the image (adjusted by nav pos error)
-                grid_lin_i   = griddata(azimuth_i, mask_i, bins_azimuth, method='linear')
-                mask_grid[i,:] = grid_lin_i
+            if DO_MASK_STRAY:
+                mask_stray_i         = mask_stray_all[is_ring_i]  # Get the DN values from the image 
+                                                                  # (adj by nav pos error)
+                grid_lin_i           = griddata(azimuth_i, mask_stray_i, bins_azimuth, method='linear')
+                mask_stray_grid[i,:] = grid_lin_i
+
+            if DO_MASK_OBJECTS:
+                mask_objects_i         = mask_objects_all[is_ring_i]
+                grid_lin_i             = griddata(azimuth_i, mask_objects_i, bins_azimuth, method='linear')
+                mask_objects_grid[i,:] = grid_lin_i
+                
                 
 # Save the variables, and return
 
     image_unwrapped    = dn_grid     # NB: This has a lot of NaNs in it.
     
-    if (DO_MASK):
-        mask_unwrapped = mask_grid
-        return (image_unwrapped, mask_unwrapped, bins_radius, bins_azimuth)
+    if (DO_MASK_OBJECTS and DO_MASK_STRAY):
+        mask_stray_unwrapped   = mask_stray_grid
+        mask_objects_unwrapped = mask_objects_grid
+        
+        return (image_unwrapped, mask_stray_unwrapped, mask_objects_unwrapped, bins_radius, bins_azimuth)
     
     else:
         return (image_unwrapped, bins_radius, bins_azimuth)
@@ -191,13 +218,13 @@ def test():
     import matplotlib.pyplot as plt
     import numpy as np
     from nh_jring_unwrap_ring_image import nh_jring_unwrap_ring_image
+    from skimage.io import imread, imsave   # For PNG reading
     
-    file_pickle = '/Users/throop/Data/NH_Jring/out/nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
+    file_pickle = '/Users/throop/Data/NH_Jring/out/nh_jring_read_params_571.pkl' # Filename to read to get files, etc.
 
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
-    
     lun = open(file_pickle, 'rb')
     t = pickle.load(lun)
     lun.close()
@@ -207,11 +234,12 @@ def test():
     groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
     
     index_group = 7
-    index_image = [23,24]
+    index_image = [91]
     num_bins_radius = 800  # NB: My results are indep of this. That is, E and W ansa are off by 600 km, regardless
                            # of the number of radial bins chosen. So it's not just a fencepost error.
-    num_bins_azimuth = 360
-    limits_radius = np.array([125000, 130000])
+    num_bins_azimuth = 2000
+    limits_radius = np.array([120000, 130000])
+
     
     groupmask = (t['Desc'] == groups[index_group])
     t_group = t[groupmask]
@@ -233,6 +261,8 @@ def test():
         image[i] = hbt.read_lorri(t_group[i]['Filename'], frac_clip = 1, bg_method = 'None')
         file_backplane = dir_backplanes + t_group['Shortname'][i].replace('.fit', '_planes.pkl')
 
+        file_mask = '/Users/throop/Data/NH_Jring/masks/mask_{}_{}.png'.format(index_group, i)
+
     # Save the shortname associated with the current backplane. 
     # That lets us verify if the backplane for current image is indeed loaded.
 
@@ -244,16 +274,21 @@ def test():
         planes[i] = pickle.load(lun)
         lun.close()
 
+# Read the stray light mask and convert to boolean
+        
+        mask_stray = imread(file_mask) > 127
+        
 # Now unwrap the image
 
         hbt.figsize((15,5)) 
         
         aspect = 1/30
         
-        (image_unwrapped[i], bins_radius, bins_azimuth) \
+        (image_unwrapped[i], mask_stray_unwrapped, mask_objects_unwrapped, bins_radius, bins_azimuth) \
                                 = nh_jring_unwrap_ring_image(image[i], num_bins_radius, 
                                                      limits_radius, num_bins_azimuth,
-                                                     planes[i])
+                                                     planes[i], mask_stray = mask_stray,
+                                                     mask_objects = mask_stray)
                                 
         extent = [np.amin(bins_azimuth), np.amax(bins_azimuth), 
                   np.amax(bins_radius)/1000, np.amin(bins_radius)/1000]
@@ -264,6 +299,21 @@ def test():
         plt.title("{}/{}: {}".format(index_group, i, file_short))
         plt.show()
 
+        # Plot the unwrapped image, with mask applied
+
+        im  = image_unwrapped[i]             # Take all the False values in unwrapped image, and set to median
+        im[mask_stray_unwrapped == False] = np.nanmedian(image_unwrapped[i])  
+        
+        plt.imshow(stretch(im), extent=extent, aspect=aspect)
+        plt.title("{}/{}: {} MASKED".format(index_group, i, file_short))
+        plt.show()        
+
+        # Plot the unwrapped image, with mask applied
+      
+        plt.imshow(mask_stray_unwrapped, extent=extent, aspect=aspect)
+        plt.title("{}/{}: {} MASK ONLY".format(index_group, i, file_short))
+        plt.show() 
+        
         # Compute the radial profile
         
 #        hbt.figsize((10,5))
