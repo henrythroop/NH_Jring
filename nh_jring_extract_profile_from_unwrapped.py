@@ -38,10 +38,10 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azim
         DO_MASK = True
 
     if (DO_MASK):    
-        is_good_unwrapped = (mask_unwrapped == False)
+        is_good_unwrapped = (mask_unwrapped == True)     # Keep True values as it
 
         im_unwrapped_masked = im_unwrapped.copy()
-        im_unwrapped_masked[is_good_unwrapped == False] = np.nan
+        im_unwrapped_masked[is_good_unwrapped == False] = np.nan   # Convert False values into NaN in the image array
     
         im2 = im_unwrapped_masked
 
@@ -67,7 +67,7 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azim
     
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)    
-                profile_radius  = np.nanmean(im2[:, bin_0:bin_1],1)
+                profile_radius  = np.nanmean(im2[:, bin_0:bin_1],1)          # Use nanmean() which ignores NaN
         
         # In case of a double range -- e.g., (0.9, -0.3)
         
