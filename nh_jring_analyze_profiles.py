@@ -713,7 +713,7 @@ plt.show()
 # It is a very narrow moonlet belt between A+M, plus some inner stuff. 
 
 a = ring_profile()
-a.load(7, hbt.frange(24,31),key_radius='outer-50').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(24,31),key_radius='full').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
 plt.show()
 
 
