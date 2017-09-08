@@ -36,6 +36,7 @@ def nh_jring_unwrap_ring_image(im,
     import numpy as np
     from   scipy.interpolate import griddata
     import math
+    import matplotlib.pyplot as plt
 
 # Process input
 
@@ -130,20 +131,22 @@ def nh_jring_unwrap_ring_image(im,
     azimuth_all = azimuth_all_good
     radius_all  = radius_all_good
     dn_all      = dn_all_good
-
+    
     if (DO_MASK_OBJECTS):
-        mask_objects_all = mask_objects[is_ring_all]
+        mask_objects_roll = np.roll(np.roll(mask_objects, int(round(dy)), 0), int(round(dx)), 1)
+        mask_objects_all = mask_objects_roll[is_ring_all]
         mask_objects_all_3 = np.concatenate((mask_objects_all, mask_objects_all, mask_objects_all))
         mask_objects_all_good    = mask_objects_all_3[indices_3_good]
         mask_objects_all    = mask_objects_all_good
         
     if (DO_MASK_STRAY):
-        mask_stray_all = mask_stray[is_ring_all]
+
+        mask_stray_roll = np.roll(np.roll(mask_stray, int(round(dy)), 0), int(round(dx)), 1)     
+        mask_stray_all = mask_stray_roll[is_ring_all]
         mask_stray_all_3 = np.concatenate((mask_stray_all, mask_stray_all, mask_stray_all))
         mask_stray_all_good    = mask_stray_all_3[indices_3_good]
         mask_stray_all    = mask_stray_all_good
-        
-        
+    
 #==============================================================================
 #  Now regrid the data from xy position, to an unrolled map in (azimuth, radius)
 #==============================================================================
@@ -246,9 +249,11 @@ def test():
     index_group = 7
     index_image = [32,33,34,35]
     index_image = [24,25]
+    index_image = [0]
 
 #    index_image = [32]
     file_mask = '/Users/throop/Data/NH_Jring/masks/mask_{}_{}.png'.format(index_group, 32)
+    file_mask = '/Users/throop/Data/NH_Jring/masks/mask_{}_{}-{}.png'.format(index_group, 0,7)
 
     num_bins_radius = 800  # NB: My results are indep of this. That is, E and W ansa are off by 600 km, regardless
                            # of the number of radial bins chosen. So it's not just a fencepost error.
@@ -281,7 +286,7 @@ def test():
         
         # Process it: remove sfit, load the stray light mask, etc.
         
-        out = hbt.nh_jring_process_image(image_raw[i], 'String', 'p5 mask_7_24')
+        out = hbt.nh_jring_process_image(image_raw[i], 'String', 'p5 mask_7_0-7')
 #        out = hbt.nh_jring_process_image(image_raw[i], 'String', '7/32-35 p5')
 
         # Grab the mask used during the sfit(), if it was given to us.
