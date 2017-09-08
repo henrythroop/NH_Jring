@@ -172,7 +172,8 @@ class ring_profile:
             lun.close()
         
             (image_unwrapped,     # Unwrapped image itself
-                        mask_unwrapped,      # Boolean mask
+                        mask_objects_unwrapped,  # Boolean mask: True = good pixel
+                        mask_stray_unwrapped,
                         radius,              # Axis values for the unwrapped image
                         azimuth,             # Axis values for the unwrapped image 
                         profile_radius,      # Radial profile (several, in a dictionary)
@@ -713,7 +714,8 @@ plt.show()
 # It is a very narrow moonlet belt between A+M, plus some inner stuff. 
 
 a = ring_profile()
-a.load(7, hbt.frange(24,31),key_radius='full').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(24,31),key_radius='full').plot()
+a.remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
 plt.show()
 
 
