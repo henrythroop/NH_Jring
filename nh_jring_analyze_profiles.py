@@ -591,17 +591,17 @@ t = Table([[], [], [], [], [], [], []],
 #                  names = ('area_dn', 'exptime', 'label', 'area_dn'),
 #                  dtype = ('float64', '))
 
-params        = [(7, hbt.frange(0,7),   'core'),  # For each plot, we list a tuple: index_group, index_image, key
-                 (7, hbt.frange(8,15),  'core'),
-                 (7, hbt.frange(16,23), 'core'),
-                 (7, hbt.frange(24,31), 'core'),
-                 (7, hbt.frange(32,35), 'core'),
-                 (7, hbt.frange(36,39), 'outer-30'), # Lots of 
-                 (7, hbt.frange(40,42), 'core'),
-                 (7, hbt.frange(52,54), 'core'),
-                 (7, hbt.frange(61,63), 'core'),
-                 (7, hbt.frange(91,93), 'core'),
-                 (7, hbt.frange(91,93), 'outer-30')]
+params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tuple: index_group, index_image, key
+                 (7, hbt.frange(8,15),  'full'),
+                 (7, hbt.frange(16,23), 'full'),
+                 (7, hbt.frange(24,31), 'full'),
+                 (7, hbt.frange(32,35), 'full'),
+                 (7, hbt.frange(36,39), 'full'), # Lots of 
+                 (7, hbt.frange(40,42), 'full'),
+                 (7, hbt.frange(52,54), 'full'),
+                 (7, hbt.frange(61,63), 'full')]
+#                 (7, hbt.frange(91,93), 'core'),
+#                 (7, hbt.frange(91,93), 'outer-30')]
 
 # Loop over each of the sets of images
 
@@ -677,9 +677,9 @@ plt.show()
 # 
 # Plot several individual radial profiles
 
-a = ring_profile()
-a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
-plt.show()
+#a = ring_profile()
+#a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
+#plt.show()
 
 radius_bg_full = np.array([[115,117], [130,131]])*1000  # This is in theory the best one to use
 radius_bg_117  = np.array([[117,120], [130,131]])*1000   # This distance range is a bit better - no edge effects
@@ -706,7 +706,7 @@ plt.show()
 # Decent profile for 16-23.
 
 a = ring_profile()
-a.load(7, hbt.frange(16,23),key_radius='outer-50').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(16,23),key_radius='full').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
 plt.show()
 
 
