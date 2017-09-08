@@ -66,6 +66,15 @@ import hbt
 # In theory this program needs to be run once to create the files, and then never again.
 # =============================================================================
 
+# To make the masks in Photoshop:
+#  Load the .png
+#  Image -> 8 bits/channel
+#  Add a layer on top of it (not a layer mask). Dial down transparency.
+#  Paint it all white
+#  Selectively paint black over the stray regions
+#  Put back up the transparency.
+#  Save as PNG
+ 
 file_pickle = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
 dir_out     = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
 
@@ -82,7 +91,17 @@ groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
 stretch_percent = 90    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
-index_images = np.array([0, 8, 16, 24, 32, 36, 40, 52, 61, 91])
+index_imagesets = [hbt.frange(0,7), # First set: take all images 7/0 .. 7/7. Sum them.
+                   hbt.frange(8,15),
+                   hbt.frange(16,23),
+                   hbt.frange(24,31),
+                   hbt.frange(32,35),
+                   hbt.frange(36,39),
+                   hbt.frange(40,42),
+                   hbt.frange(52,57),
+                   hbt.frange(61,63),
+                   hbt.frange(91,93)
+                   ]
 index_group = 7
 
 plt.set_cmap('Greys_r')
@@ -92,24 +111,37 @@ power = 5
 groupmask = t['Desc'] == groups[index_group]       
 t_group = t[groupmask]  # 
 
-for index_image in index_images:
-    t_image = t_group[index_image]  # Grab this, read-only, since we use it a lot.
-    file_in = t_image['Filename']
+for index_imagesets_i in index_imagesets:
+    index_start = np.amin(index_imagesets_i)
+    index_end = np.amax(index_imagesets_i)
     
-    file_out = dir_masks + "mask_{}_{}_image.png".format(index_group, index_image)
+    file_out = dir_masks + "mask_{}_{}-{}_image.png".format(index_group, 
+                                 index_start, index_end)
 
-    image =  hbt.read_lorri(file_in, frac_clip = 1., bg_method = 'None')
-    image_proc = stretch(hbt.remove_sfit(image, power))
-
-    plt.imshow(image)
-    plt.title("{}/{} RAW".format(index_group, index_image))
+    images = []
+    
+    for index_image in index_imagesets_i:
+        t_image = t_group[index_image]  # Grab this, read-only, since we use it a lot.
+        file_in = t_image['Filename']
+        
+        image = hbt.read_lorri(file_in, frac_clip = 1., bg_method = 'None')  # Read the image
+    
+        images.append(image)                                                 # Stuff this image onto the end of a list.
+ 
+    images = np.array(images)                                     # Now we have a 3D Numpy array with all the image data
+    images_sum = np.sum(images,axis=0)                                       # And sum down into a 2D array.
+    
+    images_proc = stretch(hbt.remove_sfit(images_sum, power))
+        
+#    plt.imshow(images_sum)
+#    plt.title("{}/{}-{} RAW".format(index_group, index_start, index_end))
+#    plt.show()
+    
+    plt.imshow(images_proc)
+    plt.title("{}/{}-{} - sfit({})".format(index_group, index_start, index_end, power))
     plt.show()
     
-    plt.imshow(image_proc)
-    plt.title("{}/{} - sfit({})".format(index_group, index_image, power))
-    plt.show()
-    
-    imsave(file_out, image_proc)
+    imsave(file_out, images_proc)
 #    
 #    lun = open(file_out, 'wb')      # binary mode is important
 #    w = png.Writer(1024, 1024, greyscale=True)
