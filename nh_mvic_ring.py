@@ -10,6 +10,10 @@ Created on Wed Sep  7 22:55:34 2016
 # This is the main program to do this analysis. It reads Tod's mosaic
 # files, and generates and plots radial profiles from them.
 #
+# All of the values for MVIC / LORRI I/F in the data table in the Icarus Pluto Ring paper
+# are directly from this code. In order to get these values, set the file (e.g., MVIC 202) and binning (e.g., 1000)
+# and run.
+#
 # HBT Nov 2016 thru May 2017.
 
 dir = '/Users/throop/Data/NH_MVIC_Ring/'
