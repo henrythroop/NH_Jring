@@ -54,8 +54,6 @@ import pickle # For load/save
 
 from   matplotlib.figure import Figure
 
-import png
-
 # HBT imports
 
 import hbt
@@ -100,7 +98,8 @@ index_imagesets = [hbt.frange(0,7), # First set: take all images 7/0 .. 7/7. Sum
                    hbt.frange(40,42),
                    hbt.frange(52,57),
                    hbt.frange(61,63),
-                   hbt.frange(91,93)
+                   hbt.frange(91,93),
+                   hbt.frange(94,96)
                    ]
 index_group = 7
 
@@ -155,7 +154,7 @@ for index_imagesets_i in index_imagesets:
 # This is for testing the subtraction algorithms.
 # =============================================================================
 
-for index_image in index_images:
+for index_imagesets_i in index_imagesets:  # XX Need to rewrite the looping logic here.
 
     power = 5
     
@@ -215,7 +214,4 @@ for index_image in index_images:
     plt.imshow(stretch(image - sfit_image_masked))
     plt.title('Original - sfit(masked)')
     plt.show()
-    
-    
-    
     

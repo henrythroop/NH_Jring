@@ -599,9 +599,9 @@ params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tup
                  (7, hbt.frange(36,39), 'full'), # Lots of 
                  (7, hbt.frange(40,42), 'full'),
                  (7, hbt.frange(52,54), 'full'),
-                 (7, hbt.frange(61,63), 'full')]
-#                 (7, hbt.frange(91,93), 'core'),
-#                 (7, hbt.frange(91,93), 'outer-30')]
+                 (7, hbt.frange(61,63), 'full'),
+                 (7, hbt.frange(91,93), 'full'),
+                 (7, hbt.frange(94,96), 'full')]
 
 # Loop over each of the sets of images
 
@@ -726,13 +726,13 @@ plt.show()
 
 a = ring_profile()
 radius_bg_127 = np.array([[125,126], [130, 131]])*1000
-a.load(7, hbt.frange(32,35),key_radius='outer-50').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(32,35),key_radius='core').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
 
 # OK profile for 36-39. Similar to previous. Thet moonlet belt is visible but the dust is probably subtracted out here.
 
 a = ring_profile()
 radius_bg_127 = np.array([[125,126], [130, 131]])*1000
-a.load(7, hbt.frange(36,39),key_radius='outer-50').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(36,39),key_radius='core').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
 
 # Profile for 40-42. Still working on this one.
 
