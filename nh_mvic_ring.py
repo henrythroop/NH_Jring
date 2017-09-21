@@ -81,25 +81,27 @@ sp.furnsh(file_tm) # Start up SPICE
 #files = ['mvic_d305_sum_mos_v1.fits', 'ringdep_mos_v1.fits']
 
 #file = dir + '/mvic_d305_sum_mos_v1.fits'
-#
+
+# SELECT THE MVIC OR LORRI MOSAIC TO ANALYZE
+
 #sequence        = 'D305' # MVIC
 #sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
-sequence        = 'D202' # MVIC
+#sequence        = 'D202' # MVIC
 #sequence        = 'D211'  # MVIC
 
-# We can also analyze the LORRI mosaics here
-
 #sequence        = 'D202_LORRI'
-#sequence        = 'D305_LORRI'
+sequence        = 'D305_LORRI'
+
+# SELECT THE NUMBER OF RADIAL BINS TO USE
+
+nbins_radius = 100
+#nbins_radius = 1000
  
 DO_FIX_FITS     = False
 DO_ANALYZE      = True
 
 DO_PLOT_TITLE  = False   # Plot a title on the radial profile. Turn off for publication.
 #DO_PLOT_TITLE = True
-
-nbins_radius = 100
-#nbins_radius = 1000
 
 #PIXSIZE =              13.0000 /Pixel size in microns                           
 #READNOI =              30.0000 /Readnoise in Electrons                          
@@ -532,7 +534,20 @@ if IS_MVIC:
     RSOLAR = RSOLAR_mpf
     FSOLAR = FSOLAR_MPF
 
+#==============================================================================
+# Dummy check: Calculate sub-sc latitude using SPICE, rather than from FITS header [concl: working fine]
+#==============================================================================
+
+(vec,ltime) = sp.spkezr('Pluto', et, 'J2000', 'LT+S', 'New Horizons')
+sp.illum('Pluto', et, 'LT+S', 'New Horizons')
+(subpnt_rec, junk, junk) = sp.subpnt('Intercept: ellipsoid', 'Pluto', et, 'IAU_PLUTO', 'LT+S', 'New Horizons')
+(rad_spice, lon_subsc_spice, lat_subsc_spice) = sp.reclat(subpnt_rec)
+
+print("Sub-sc lat = {} [FITS]; {} [SPICE]".format(lat_subsc, hbt.r2d * lat_subsc_spice))
+
+#==============================================================================
 # Convert from DN to irradiance (ergs/cm2/s/sr/A). From Hal's writeup.
+#==============================================================================
  
 dn = dn_median_clean_arr
    
@@ -545,9 +560,15 @@ iof = math.pi * I * dist_au**2 / FSOLAR
 # Convert from I/F to 'normal I/F'.
 # This value -- 4 mu I/F -- is exactly the same as tau \varpi P, according to Throop 2004 eq 1
 
-# XXX Uh oh. I think this should be 90-lat_subsc. 
+# Get ring emission angle. This should use 90-lat_subsc, rather than lat_subsc that I used in original submitted paper.
 # I should use the emission angle... that is, from *normal*, not from *equator*.
-# Error discovered 29-Aug-2017.
+# Error discovered 29-Aug-2017. Fixed 21-Sep-2017.
+# Correct usage is given by TPW04 @ 63: 
+#   I/F = tau pi_0 P / (4 mu)
+#   mu  = |cos(e)|
+#   e   = emission angle. 0 for directly above ring.
+#   B   = elevation angle = 90 - e.  [Same as lat_subsc here.]
+#         So, mu = cos(e) = cos(90-B) = cos(90-lat_subsc)    
 
 mu = math.cos(math.pi/2 - lat_subsc * hbt.d2r)  # mu = cos(lat)
 iof_normal = 4 * mu * iof  # (I/F)_normal = 4 mu I/F
