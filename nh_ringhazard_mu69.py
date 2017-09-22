@@ -324,6 +324,10 @@ for q_i in q:
                                                #  Total number damaging, that hit sc, for I/F = 1
     
     N_damaging_arr = (iof_arr / 1) * N_damaging_for_iof_reference # Total num damaging sc, for all I/F
+
+# XXX Redo calculation above from scratch. I want to get # of fatal hits, for this distribution
+
+    n_fatal = np.sum(n_merged[bin_r_danger_1:])
     
 # Add a line for (radius) vs (# of hits), for this q, on Plot #1
 
