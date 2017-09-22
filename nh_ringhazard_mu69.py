@@ -79,7 +79,7 @@ from   astropy.coordinates import SkyCoord # To define coordinates to use in sta
 #from   photutils import datasets
 from   scipy.stats import mode
 from   scipy.stats import linregress
-import wcsaxes
+#import wcsaxes
 import time
 from   scipy.interpolate import griddata
 from   importlib import reload            # So I can do reload(module)
@@ -296,7 +296,7 @@ matplotlib.rc('font', size=15)
 hbt.figsize((10,14))
 (fig, axes) = plt.subplots(2, 1)
 
-# Loop over q
+# Loop over each value of q
 
 for q_i in q:
   
@@ -349,23 +349,6 @@ for q_i in q:
     if (DO_MU69_INBOUND):
         axes[0].plot(r.to('micron').value, n_cum_sc_merged, label = 'q = ' + repr(q_i), linewidth=linewidth)
 
-#    if DO_AAT:
-#        axes[0].plot(r.to('micron').value, n_cum_sc_aat, label = 'q = ' + repr(q_i))
-
-#    if not(do_merged):
-#      if (DO_HST and DO_LAMBERT):
-#        axes[0].plot(r.to('micron').value, n_cum_sc_hst_lambert, label = 'q = ' + repr(q_i))
-
-#      if (DO_HST and DO_MIE):
-#        axes[0].plot(r.to('micron').value, n_cum_sc_hst_mie, label = 'q = ' + repr(q_i))
-    
-# Plot the area between the lines
-
-#    if (DO_HST and DO_LAMBERT and DO_MIE):
-
-#        if do_merged:
-#            axes[0].plot(r.to('micron'), n_cum_sc_hst_merged, label = 'q = {}'.format(q_i))
-
 # Now make the new plot
 
     axes[1].plot(iof_arr, N_damaging_arr, label = 'q = {}'.format(q_i), linewidth=linewidth)
@@ -384,6 +367,9 @@ axes[0].axvline(r_danger_1.to('micron').value,linestyle=':')
 axes[0].axhline(nhits_1, linestyle = ':')
 axes[0].axhline(nhits_2, linestyle = ':')
 
+axes[1].axhline(nhits_1, linestyle=':')
+axes[1].axhline(nhits_2, linestyle=':')
+
 # Done with plotting the individual lines... now finish and render the plot
 
 axes[0].set_yscale('log')
@@ -395,15 +381,18 @@ axes[0].set_ylim(ylim)
 axes[0].set_title(title + ", I/F = {}".format(iof_norm))
 axes[0].legend()
 
+
 axes[1].set_yscale('log')
 axes[1].set_xscale('log')
+axes[1].set_ylim((1e-24, 10))
 axes[1].set_xlabel('Observed dust I/F limit')
 axes[1].set_ylabel(r'Total N > $r_c$ impacting NH during encounter')
 axes[1].set_title(title + r', $r_c$ = {:.0f} $\mu$m, a = {}'.format(r_danger_1.to('micron').value, albedo))
 axes[1].legend()
 
-
 fig.show()
+
+# Now make a plot showing (# of hits) vs (I/F) for each of these curves
 
 # Draw the word 'Danger' in the UR quadrant
 
@@ -413,66 +402,7 @@ fig.show()
 
 #  pos_legend = [1,5d-3]        ; Upper-left corner of legend is put at this location
   
-    
-# Print HBT and date on image
-
-#==============================================================================
-# Now make a second plot, which is just of our various optical models for backscatter (HST).
-# This is done only for one value of q (the smallest one in the array -- that is, last one calculated, first in array).
-#==============================================================================
-
-#  i++		; re-increment i (since loop was decrementing it!)
-#  		; This puts i at the first index, which is the one for which this calculation is done.
-#
-# ; i = 0         ; For which value of q do we do? Set its index here.
-#  
-#  p = plot([3,4], xtitle = 'Radius [$\mu$m]', $
-#      ytitle = 'Total number N > r impacting NH during encounter', $
-#      xrange=[0.1,1000d],yrange=yrange, /XLOG, /YLOG, /NODATA, $
-#      title = title)
-#
-#  po = polygon([r_danger_1/um,(p.xrange)[1],(p.xrange)[1],r_danger_1/um], $
-#    [nhits_1, nhits_1,(p.yrange)[1],(p.yrange)[1]],/data, $
-#    fill_color='pink',fill_transparency=0,/over, linestyle=' ')
-#
-#
-#  p_arr = replicate(p, 3)
-#  p_arr[0] = plot(r/um, n_cum_sc_hst_mie,     /OVER, name='q = ' + st(q[i]) + $
-#    ', Mie, n = ' + st(n_refract) + ' + ' + st(abs(m_refract)) + 'i', color='blue',  thick=linethick[i], 
-#    linestyle = '-')
-#  p_arr[2] = plot(r/um, n_cum_sc_hst_lambert, /OVER, name='q = ' + st(q[i]) + $
-#    ', Lambertian, albedo = ' + st(albedo), color='green', thick=linethick[i], linestyle = '__')
-#  p_arr[1] = plot(r/um, n_cum_sc_hst_merged,  /OVER, name='q = ' + st(q[i]) + $
-#    ', Mixed Lambertian + Mie, r$_{trans}$ = ' + st(r_trans/um) + ' $\mu$m', color='red',   
-#    thick=linethick[i], linestyle = '-.')
-#
-#  pos_legend = [150,5d-3]        ; Upper-left corner of legend is put at this location
-#                                 ; Except in 8.2.1, where it is the upper-right, ugh...
-#                                 
-#  l = legend(target=p_arr,position=pos_legend, /DATA)
-#
-## Draw the 'danger corner'
-#
-#  te = text(r_danger_1 / 1.3/um, ((p.yrange)[0])*10, '$r_c$', /DATA, /OVERPLOT)
-#  pd = plot([1,1]*r_danger_1/um, [1d-20, 1d20],linestyle=':', /OVER)
-#  te = text(r_danger_1 * 1.3/um, ((p.yrange)[1])/100, 'Danger', /DATA, /OVERPLOT)
-#  pd = plot([1d-9, 1d9], [1,1]*nhits_1, linestyle = ':', /OVER)
-#
-#  fn = file_out + '_mie_vs_lambert_q' + st(q[i]) + '_bw.png' & p.save, fn & print, 'Wrote: ' + fn
-#  fn = file_out + '_mie_vs_lambert_q' + st(q[i]) + '_bw.eps' & p.save, fn & print, 'Wrote: ' + fn
-#  
-#  stop
-#
-#
-#end
-
-#==============================================================================
-# Make a plot showing I/F vs. # of damaging impacts, for many different q
-#==============================================================================
-
-#for q_i in q:
-
-#     
+     
 #==============================================================================
 #  Verify normalization of phase functions P11, etc.
 #==============================================================================
