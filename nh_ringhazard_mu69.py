@@ -158,30 +158,11 @@ rmax   = 5000 * u.micron   # 900 microns is around the cutoff size of the UK Mie
 
 num_r    = 50       # Number of radial bins in Mie calculation
 
-if (DO_AAT):
-    iof = 1
-    phase = phase_inbound
-    # We are detecting not normal I/F, but regular I/F. 
-    tau_norm  = 0.0035    # This is the input optical depth. Determined from the occultation, from AAT_hbt.pro (part 7).
-    ylim = (1e-10, 1e10)
-    file_out = 'pluto_dust_limits_aat_v2_rmax' + repr(rmax.to('micron')) + '_bw'
-    title = r'Pluto dust limits, 2006 AAT occultation, $\tau$ < 0.0035'  # Use 'r' to denote raw string, not escaped
-
-if (DO_HST):
-    iof_norm	= 3e-7
-    tau_norm	= iof_norm
-    phase = phase_hst
-    ylim = (1e-15, 1e6)
-    file_out = 'pluto_dust_limits_hst_v2_rmax' + repr(rmax.to('micron')) + '_bw'
-    title = r'Pluto inner region, HST 2012 imaging, I/F < 3$\times 10^{-7}$, $r_{max}$ = ' + \
-        repr(rmax.to('micron').value) + ' $\mu$m'
-
-if (DO_MU69_INBOUND):
-    iof_norm = 2e-10
-    tau_norm = iof_norm
-    phase = phase_inbound
-    ylim = (1e-15, 1e6)
-    title = r'MU69 Inbound'
+iof_norm = 2e-10
+tau_norm = iof_norm
+phase = phase_inbound
+ylim = (1e-15, 1e6)
+title = r'MU69 Inbound'
     
 alpha        = pi*u.rad - phase	    # Alpha = scattering angle, in degrees
 cos_alpha    = np.cos(alpha)
@@ -319,8 +300,8 @@ for q_i in q:
 # Also, take out of units system
 
     n_cum_sc_lambert = (hbt.incr2cum(n_lambert, DO_REVERSE=True) * sarea / np.cos(subobslat_nh)).to('1').value
-    n_cum_sc_mie     = (hbt.incr2cum(n_mie, DO_REVERSE=True)     * sarea / np.cos(subobslat_nh)).to('1').value
-    n_cum_sc_merged  = (hbt.incr2cum(n_merged, DO_REVERSE=True)  * sarea / np.cos(subobslat_nh)).to('1').value
+    n_cum_sc_mie     = (hbt.incr2cum(n_mie,     DO_REVERSE=True) * sarea / np.cos(subobslat_nh)).to('1').value
+    n_cum_sc_merged  = (hbt.incr2cum(n_merged,  DO_REVERSE=True) * sarea / np.cos(subobslat_nh)).to('1').value
 
 # Now assume I/F = 1. Given this, how many particles would we hit (of any size), in surface area of s/c?
 
@@ -344,12 +325,11 @@ for q_i in q:
     
     N_damaging_arr = (iof_arr / 1) * N_damaging_for_iof_reference # Total num damaging sc, for all I/F
     
-# Now plot the line(s), of # vs. radius (original plot)
+# Add a line for (radius) vs (# of hits), for this q, on Plot #1
 
-    if (DO_MU69_INBOUND):
-        axes[0].plot(r.to('micron').value, n_cum_sc_merged, label = 'q = ' + repr(q_i), linewidth=linewidth)
+    axes[0].plot(r.to('micron').value, n_cum_sc_merged, label = 'q = ' + repr(q_i), linewidth=linewidth)
 
-# Now make the new plot
+# Add a line for (I/F) vs (# of hits), for this q, on Plot #2
 
     axes[1].plot(iof_arr, N_damaging_arr, label = 'q = {}'.format(q_i), linewidth=linewidth)
     axes[1].set_yscale('log')
@@ -370,7 +350,7 @@ axes[0].axhline(nhits_2, linestyle = ':')
 axes[1].axhline(nhits_1, linestyle=':')
 axes[1].axhline(nhits_2, linestyle=':')
 
-# Done with plotting the individual lines... now finish and render the plot
+# Done with plotting the individual lines... now set the axis limits, and finish and render the plots
 
 axes[0].set_yscale('log')
 axes[0].set_xscale('log')
