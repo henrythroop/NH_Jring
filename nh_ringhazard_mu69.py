@@ -90,6 +90,7 @@ import pickle # For load/save
 import cProfile # For profiling
 
 from   matplotlib.figure import Figure
+from   matplotlib.patches import Rectangle
 
 from   pymiecoated import Mie
 
@@ -138,7 +139,6 @@ phase_hst      = 2.0 * u.deg
 
 albedo	= 0.05			# We pick the best-guess, which is Charon's albedo = 0.35. 0.05 is more conservative,
   					# but may be meaninglessly low.
-
 # Set the spacecraft area
 
 sarea = 5*(u.m)**2     # SS07 used 10 m^2. But SAS e-mail 27-Nov-2011 says to use 5.5 m^2 instead. Hersman sayd 3.5 m^2. 
@@ -173,9 +173,8 @@ subobslat_nh  = -49.07*u.deg                 # 2015 Mar 26, Pluto from NH
 # Create the plot
 
 q         = np.array([1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7])			# 9 elements long
-colors    = np.array(['black', 'black', 'black', 'black', 'black', 'black', 'black', 'black', 'black'])
-linestyle = np.array(['-', ':', '--', '-.', '-:', '__', '-', ':', '--'])
-linethick = np.array([1, 1, 1, 1, 1, 1, 3, 3, 3])
+
+q         = np.array([2, 3.5, 5, 7])			# 4 elements long
   
 #p = plot([3,4], xtitle = 'Radius [$\mu$m]' ,$
 #      ytitle = 'Total number N > r impacting NH during encounter',xrange=[0.1,1000d],yrange=yrange, 
@@ -266,7 +265,6 @@ if (DO_AAT):
 if (DO_HST):
     qmie = qsca
 
-# Draw a polygon for the filled dangerous area
 
 # Set a large font size
 
@@ -303,31 +301,40 @@ for q_i in q:
     n_cum_sc_mie     = (hbt.incr2cum(n_mie,     DO_REVERSE=True) * sarea / np.cos(subobslat_nh)).to('1').value
     n_cum_sc_merged  = (hbt.incr2cum(n_merged,  DO_REVERSE=True) * sarea / np.cos(subobslat_nh)).to('1').value
 
+# XXX Sep-2017. Now make a plot showing I/F vs. # of hits.
+# Plot a single point here.
+    
+    xy = hbt.frange(1e-10, 1e10, 20, log=True)  # Make a trivial linear range array, so we can plot a linear relationship
+    
+    axes[1].plot(iof_norm*xy, np.sum(n_cum_sc_merged[bin_r_danger_1:])*xy, label = 'q = {}'.format(q_i))
+    print ("Adding point {}, {}".format(iof_norm, np.sum(n_cum_sc_merged[bin_r_danger_1:])))
+    
+    
 # Now assume I/F = 1. Given this, how many particles would we hit (of any size), in surface area of s/c?
 
-    iof_reference = 1 # Define the reference I/F
-    
-    iof_default = np.sum(n_merged * pi * r**2 * qsca_merged * p11_merged) * albedo / 4
-    
-                        # This comes from white paper eq1, or TPW eq1.
-                        
-# Calculate the n (# cm^-2) necessary to achieve iof = 1
-                        
-    n_for_iof_reference = n_merged / iof_reference  # Number cm^-2 of total particles, for I/F = 1
-    
-    num_iof = 100 #  Number of I/F bins to use
-    
-    iof_arr = hbt.frange(1e-10, 1, num_iof, log=True)
-
-    n_damaging_for_iof_reference = np.sum(n_for_iof_reference[bin_r_danger_1:]) #  Number cm^-2 damaging, for I/F = 1
-    N_damaging_for_iof_reference = (n_damaging_for_iof_reference * sarea).to('1').value
-                                               #  Total number damaging, that hit sc, for I/F = 1
-    
-    N_damaging_arr = (iof_arr / 1) * N_damaging_for_iof_reference # Total num damaging sc, for all I/F
-
-# XXX Redo calculation above from scratch. I want to get # of fatal hits, for this distribution
-
-    n_fatal = np.sum(n_merged[bin_r_danger_1:])
+#    iof_reference = 1 # Define the reference I/F
+#    
+#    iof_default = np.sum(n_merged * pi * r**2 * qsca_merged * p11_merged) * albedo / 4
+#    
+#                        # This comes from white paper eq1, or TPW eq1.
+#                        
+## Calculate the n (# cm^-2) necessary to achieve iof = 1
+#                        
+#    n_for_iof_reference = n_merged / iof_reference  # Number cm^-2 of total particles, for I/F = 1
+#    
+#    num_iof = 100 #  Number of I/F bins to use
+#    
+#    iof_arr = hbt.frange(1e-10, 1, num_iof, log=True)
+#
+#    n_damaging_for_iof_reference = np.sum(n_for_iof_reference[bin_r_danger_1:]) #  Number cm^-2 damaging, for I/F = 1
+#    N_damaging_for_iof_reference = (n_damaging_for_iof_reference * sarea).to('1').value
+#                                               #  Total number damaging, that hit sc, for I/F = 1
+#    
+#    N_damaging_arr = (iof_arr / 1) * N_damaging_for_iof_reference # Total num damaging sc, for all I/F
+#
+## XXX Redo calculation above from scratch. I want to get # of fatal hits, for this distribution
+#
+#    n_fatal = np.sum(n_merged[bin_r_danger_1:])
     
 # Add a line for (radius) vs (# of hits), for this q, on Plot #1
 
@@ -335,12 +342,11 @@ for q_i in q:
 
 # Add a line for (I/F) vs (# of hits), for this q, on Plot #2
 
-    axes[1].plot(iof_arr, N_damaging_arr, label = 'q = {}'.format(q_i), linewidth=linewidth)
+#    axes[1].plot(iof_arr, N_damaging_arr, label = 'q = {}'.format(q_i), linewidth=linewidth)
     axes[1].set_yscale('log')
     axes[1].set_xscale('log')
     axes[1].set_ylabel(r'N > $r_c$ during passage')
     axes[1].set_xlabel(r'Observed I/F limit at $\lambda$ = {} $\mu$m'.format(alam.to('micron').value))
-    axes[1].legend()
     
 # Label r_c
 
@@ -354,6 +360,19 @@ axes[0].axhline(nhits_2, linestyle = ':')
 axes[1].axhline(nhits_1, linestyle=':')
 axes[1].axhline(nhits_2, linestyle=':')
 
+#    p = plt.plot([0,10], [0,10])
+#    currentAxis = plt.gca()
+
+# Draw polygons for the filled dangerous area. Also add a 'Danger' label.
+
+axes[0].add_patch(Rectangle((r_danger_1.to('micron').value, nhits_2), 1e8, 1e8, alpha=0.1, color='red'))
+axes[0].text(250, 1, 'Danger')
+
+axes[1].add_patch(Rectangle((1e-12, nhits_2), 100, 100, alpha=0.1, color='red'))
+axes[1].text(1e-5, 3e-1, 'Danger')
+    
+#class matplotlib.patches.Rectangle(xy, width, height, angle=0.0, **kwargs):
+    
 # Done with plotting the individual lines... now set the axis limits, and finish and render the plots
 
 axes[0].set_yscale('log')
@@ -363,16 +382,17 @@ axes[0].set_ylabel(r'Total N > $r_c$ impacting NH during encounter')
 axes[0].set_xlim((0.1, 1000))
 axes[0].set_ylim(ylim)
 axes[0].set_title(title + ", I/F = {}".format(iof_norm))
-axes[0].legend()
+axes[0].legend(loc = 'lower left')
 
 
 axes[1].set_yscale('log')
 axes[1].set_xscale('log')
-axes[1].set_ylim((1e-24, 10))
+axes[1].set_ylim((1e-10, 10))
+axes[1].set_xlim((1e-12, 1))
 axes[1].set_xlabel('Observed dust I/F limit')
 axes[1].set_ylabel(r'Total N > $r_c$ impacting NH during encounter')
-axes[1].set_title(title + r', $r_c$ = {:.0f} $\mu$m, a = {}'.format(r_danger_1.to('micron').value, albedo))
-axes[1].legend()
+axes[1].set_title(title + r', $r_c$ = {:.0f} $\mu$m, a = {}, $n(r) = r^{{-q}}$'.format(r_danger_1.to('micron').value, albedo))
+axes[1].legend(loc = 'lower right')
 
 fig.show()
 
@@ -488,3 +508,10 @@ def test_p11():
     plt.xlabel('Phase angle')
     plt.ylabel('$P_{11}$')
     plt.show()
+    
+    p = plt.plot([0,10], [0,10])
+    currentAxis = plt.gca()
+    currentAxis.add_patch(Rectangle((0.5, 0.5), 0.7, 0.7,alpha=0.1, color='red'))
+    plt.text(1, 1, 'Danger')
+    plt.show()
+    
