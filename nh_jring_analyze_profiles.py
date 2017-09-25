@@ -123,6 +123,7 @@ class ring_profile:
     def load(self, index_group, index_images, 
                       key_radius = 'core',  # Of the radial profiles, which one to read?
                       key_azimuth = 'net',  # Of the azimuthal profiles, which one to read?
+                      verbose = False,      # Verbose: List the filename as loading?
                       **kwargs):
 
         # Each file on disk has several different extractions:
@@ -165,7 +166,6 @@ class ring_profile:
 
         for index_image in index_images:
             file = self.get_export_analysis_filename(index_group, index_image)
-            print("{}".format(file))
             
             lun = open(file, 'rb')
             vals = pickle.load(lun)
@@ -212,8 +212,10 @@ class ring_profile:
             self.dt_arr.append(dt)
             self.dt_str_arr.append(dt_str)
 
-            print("Read image {}/{}, phase = {:0.1f}°, {}, {}, {}".format(
+            if verbose:
+                print("Read image {}/{}, phase = {:0.1f}°, {}, {}, {}".format(
                     index_group, index_image, ang_phase*hbt.r2d, file_short, bg_method, bg_argument))
+                print("{}".format(file))
         
         #==============================================================================
         # Now put these into arrays (not lists). Ideally we'd put these into an astropy table (so we can sort, etc.)
@@ -401,7 +403,7 @@ class ring_profile:
 # Remove background slope (trend) from radial profiles
 # =============================================================================
 
-    def remove_background_radial(self, xranges, do_plot=False):
+    def remove_background_radial(self, xranges, do_plot=False, verbose=False):
 
         """
     This routine takes a 1D radial profile, and a list of radii. It fits a linear trend to the brightness
@@ -457,7 +459,9 @@ class ring_profile:
             # Save the new subtracted profile
             
             self.profile_radius_arr[i] -= profile_fit
-            print("Subtracted fit [y={} x + {}] from profile {}".format(m, b, i))
+            
+            if verbose:
+                print("Subtracted fit [y={} x + {}] from profile {}".format(m, b, i))
 
         return self 
 
@@ -581,9 +585,9 @@ limit_radial = (128000,130000)
 #phase_all = np.array([])
 #area_all  = np.array([])
 
-t = Table([[], [], [], [], [], [], []], 
-          names=('index_group', 'index_image', 'phase', 'area_dn', 'exptime', 'label', 'sequence'),
-          dtype = ('int', 'int', 'float64', 'float64', 'float64', 'U30', 'U30'))
+t = Table([[], [], [], [], [], [], []],
+    names=('index_group', 'index_image', 'phase', 'area_dn', 'exptime', 'label', 'sequence'),
+    dtype = ('int', 'int', 'float64', 'float64', 'float64', 'U30', 'U30'))
 
 # Make a copy of this, which we put the 'summed' profiles in -- that is, one brightness, per image sequence
 
@@ -604,6 +608,9 @@ params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tup
                  (7, hbt.frange(94,96), 'full')]
 
 # Loop over each of the sets of images
+
+radius = []
+profile_radius = []
 
 for param_i in params:
 
@@ -632,12 +639,13 @@ for param_i in params:
     # Plot summed radial profile
     
     ring_flattened.plot(plot_azimuthal=False)
+    plt.plot(ring_flattened.radius_arr, ring_flattened.profile_radius_arr)
     
     # Make a plot of the phase curve from just this file
     
     phase = ring.ang_phase_arr
 #    plt.plot(phase*hbt.r2d, area, marker='+', linestyle='none')
-    plt.show()
+#    plt.show()
     
     # Save the area and phase angle for each individual phase curve
 
@@ -645,8 +653,14 @@ for param_i in params:
         
       label = ("{}/{} {}".format(index_group, index_images[i], key_radius))
         
-      t.add_row([index_group, index_images[i], phase[i]*u.radian, area[i], ring.exptime_arr[i], label, sequence])
-
+      t.add_row([index_group, index_images[i], phase[i]*u.radian, area[i], ring.exptime_arr[i], 
+                 label, sequence])
+    
+    # Save the radius and the profile. Unfortunately I don't know how to save these into the AstroPy table
+    
+    radius.append(np.ravel(ring_flattened.radius_arr))
+    profile_radius.append(np.ravel(ring_flattened.profile_radius_arr))
+    
 # Aggregate the groups. This merges things and takes means of all numeric columns. Any non-numeric columns are dropped.
 # The argument to groups.aggregate is a function to apply (e.g., numpy)
       
@@ -667,19 +681,18 @@ plt.ylabel('Ring Area [DN]')
 plt.legend()
 plt.show()
 
+# Make a plot of all the phase curves together, superimposed.
+
 # Plot the phase curve, with one point per sequence
       
 plt.plot(t['phase'] * hbt.r2d, t['area_dn'], marker = 'o', linestyle = 'none', label=t['label'])
-plt.legend()
+#plt.legend()
+plt.title('Phase Curve, New Horizons J-Ring')
 plt.show()
 
-# Now we want to do some astropy table manipulation. Take all thigns 
+# Now we want to do some astropy table manipulation. Take all things
 # 
 # Plot several individual radial profiles
-
-#a = ring_profile()
-#a.load(7, hbt.frange(91,93),key_radius='outer-30').smooth(1).remove_background_radial(radius_bg,do_plot=False).plot()
-#plt.show()
 
 radius_bg_full = np.array([[115,117], [130,131]])*1000  # This is in theory the best one to use
 radius_bg_117  = np.array([[117,120], [130,131]])*1000   # This distance range is a bit better - no edge effects
@@ -691,7 +704,7 @@ radius_bg_117  = np.array([[117,120], [130,131]])*1000   # This distance range i
 # This is a good profile for 0-7! Shows moonlet belt really well.
 
 a = ring_profile()
-a.load(7, hbt.frange(0,7),key_radius='outer-30').remove_background_radial(radius_bg_full,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(0,7),key_radius='full').remove_background_radial(radius_bg_full,do_plot=False).flatten().plot()
 plt.show()
 
 # This is a good profile for 8-15. Shows moonlet belt really well. Looks like 0-7 one. Has an extra bump = stray.
@@ -700,7 +713,7 @@ plt.show()
 # I guess I could just pass an additional argument, like 'c20(120,200)' for a 20-pixel radius circle.
 
 a = ring_profile()
-a.load(7, hbt.frange(8,15),key_radius='outer-30').remove_background_radial(radius_bg_full,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(8,15),key_radius='full').remove_background_radial(radius_bg_full,do_plot=False).flatten().plot()
 plt.show()
 
 # Decent profile for 16-23.
@@ -732,13 +745,13 @@ a.load(7, hbt.frange(32,35),key_radius='core').remove_background_radial(radius_b
 
 a = ring_profile()
 radius_bg_127 = np.array([[125,126], [130, 131]])*1000
-a.load(7, hbt.frange(36,39),key_radius='core').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(36,39),key_radius='full').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
 
 # Profile for 40-42. Still working on this one.
 
 a = ring_profile()
 radius_bg_127 = np.array([[125,126], [130, 131]])*1000
-a.load(7, hbt.frange(40,42),key_radius='core').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(40,42),key_radius='full').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
 
 
 
