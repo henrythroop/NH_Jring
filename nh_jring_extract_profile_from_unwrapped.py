@@ -58,7 +58,10 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azim
 #    e.g., if range=0.1, then extract the central 10% of the azimuth angles
 #    e.g., if range=(0.9, -0.4), then extract the central 90% of azimuth angles, but then *exclude* 
 #         the central 40% of angles          
-    
+
+# Take the profile itself. Use mean() along one axis. 
+# We do not want to sum -- we want to use mean to preserve flux.
+         
         # In case of a single range -- e.g., 0.1
         
         if isinstance(range_profile, float) or isinstance(range_profile, int):
@@ -114,6 +117,9 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azim
           
       with warnings.catch_warnings():
          warnings.simplefilter("ignore", category=RuntimeWarning)    
-         profile_azimuth = np.nanmean(im2[bin_0:bin_1, :],0)
+         
+         # Take the profile itself. Use mean() along one axis. 
+         
+         profile_azimuth = np.nanmean(im2[bin_0:bin_1, :],0)           
          
       return(profile_azimuth)

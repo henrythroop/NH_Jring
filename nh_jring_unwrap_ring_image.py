@@ -193,6 +193,14 @@ def nh_jring_unwrap_ring_image(im,
 # There is probably a better way to do this.
 # This kind of means that my output array is shifted 1/2-bin from my input array. Ugh.
                 
+# Also, this routine is quite slow, and I really think it introduces some artifacts. If I was a CS major, 
+# I could write a much better version of this algorithm.               
+#
+# Algorithm uses griddata(), which is just interpolation. So, while it does not preserve 'area*flux', it does preserve
+# the actual DN values ('DN per pixel') -- and it creates new pixels, with the same DN-per-pixel values.
+# So, a radial profile, or azimuthal profile, by taking the mean along one axis, should work as intended, and give
+# a value in DN-per-pixel.
+                
     n                        = num_bins_radius
     dn_grid[n-1,:]           = dn_grid[n-2,:]
     mask_stray_grid[n-1,:]   = mask_stray_grid[n-2,:]

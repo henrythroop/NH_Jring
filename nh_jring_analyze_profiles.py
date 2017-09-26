@@ -662,7 +662,7 @@ for param_i in params:
     radius.append(np.ravel(ring_flattened.radius_arr))
     profile_radius.append(np.ravel(ring_flattened.profile_radius_arr))
 
-# Put the radial profiles into proper order for plotting
+# Put the radial profiles into proper order for plotting. After this, np.shape(radius) = (11,500) for instance
     
 profile_radius = np.transpose(profile_radius)
 radius         = np.transpose(radius)
@@ -670,6 +670,7 @@ radius         = np.transpose(radius)
 hbt.figsize((15,8))
 for i,s in enumerate(t_mean['sequence']):
     plt.plot(radius[:,i]/1000, profile_radius[:,i], label = s)
+    
 plt.ylim((-2,12))
 plt.xlabel('Radius [1000 km]')
 plt.title('J-ring radial profiles')
