@@ -630,6 +630,7 @@ for param_i in params:
     # Copy the profile, and sum all the individual curves in it.
     
     ring_flattened = ring.copy().flatten()
+#    ring_flattened.remove_background_radial(radius_bg, do_plot=False)
     
     # Remove the background, and measure the area of each curve
     
@@ -638,8 +639,8 @@ for param_i in params:
     
     # Plot summed radial profile
     
-    ring_flattened.plot(plot_azimuthal=False)
-    plt.plot(ring_flattened.radius_arr, ring_flattened.profile_radius_arr)
+#    ring_flattened.plot(plot_azimuthal=False)
+#    plt.plot(ring_flattened.radius_arr, ring_flattened.profile_radius_arr)
     
     # Make a plot of the phase curve from just this file
     
@@ -660,7 +661,22 @@ for param_i in params:
     
     radius.append(np.ravel(ring_flattened.radius_arr))
     profile_radius.append(np.ravel(ring_flattened.profile_radius_arr))
+
+# Put the radial profiles into proper order for plotting
     
+profile_radius = np.transpose(profile_radius)
+radius         = np.transpose(radius)
+
+hbt.figsize((15,8))
+for i,s in enumerate(t_mean['sequence']):
+    plt.plot(radius[:,i]/1000, profile_radius[:,i], label = s)
+plt.ylim((-2,12))
+plt.xlabel('Radius [1000 km]')
+plt.title('J-ring radial profiles')
+plt.ylabel('DN')
+plt.legend()
+plt.show()
+
 # Aggregate the groups. This merges things and takes means of all numeric columns. Any non-numeric columns are dropped.
 # The argument to groups.aggregate is a function to apply (e.g., numpy)
       
