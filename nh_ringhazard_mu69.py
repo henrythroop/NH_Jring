@@ -369,7 +369,10 @@ axes[0].add_patch(Rectangle((r_danger_1.to('micron').value, nhits_2), 1e8, 1e8, 
 axes[0].text(250, 1, 'Danger')
 
 axes[1].add_patch(Rectangle((1e-12, nhits_2), 100, 100, alpha=0.1, color='red'))
-axes[1].text(1e-5, 3e-1, 'Danger')
+axes[1].text(5e-12, 3e-1, 'Danger')
+
+axes[1].add_patch(Rectangle((1e-7, 1e-12), 100, 100, alpha=0.1, color='green'))
+axes[1].text(1e-4, 3e-5, 'NH Observable')
     
 #class matplotlib.patches.Rectangle(xy, width, height, angle=0.0, **kwargs):
     
