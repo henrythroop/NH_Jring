@@ -266,6 +266,8 @@ class ring_profile:
 # The math here follows directly from that in "NH Ring Calibration.pynb", which I used for Pluto rings.
 # That in turn follows from Hal Weaver's writeup.
 # The key constants are RSOLAR and F_solar, which together convert from DN to I/F.
+# 
+# How to use: Call ring.dn2iof() once. Then after that, any reference to the profiles is in I/F, not DN.
         
         RSOLAR =  221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
 
@@ -490,7 +492,7 @@ class ring_profile:
                 radius = self.radius_arr[i]
                 profile_radius = self.profile_radius_arr[i]
                 
-                plt.plot(radius, 
+                p = plt.plot(radius, 
                          (i * dy_radial) + profile_radius, 
                          label = '{}/{}, {:.2f}°, {}'.format(
                                        self.index_group_arr[i], 
@@ -511,6 +513,9 @@ class ring_profile:
                 
             plt.xlabel('Radial Distance [km]')
             plt.ylabel(self.profile_radius_units)
+            
+            plt.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2e')) # Not working yet
+            
             plt.legend()
             if (title is not None):
                 plt.title(title)    
@@ -630,6 +635,11 @@ for param_i in params:
     # Copy the profile, and sum all the individual curves in it.
     
     ring_flattened = ring.copy().flatten()
+    
+    # Convert from DN to I/F
+    
+    ring_flattened.dn2iof()
+    
 #    ring_flattened.remove_background_radial(radius_bg, do_plot=False)
     
     # Remove the background, and measure the area of each curve
@@ -667,6 +677,12 @@ for param_i in params:
 profile_radius = np.transpose(profile_radius)
 radius         = np.transpose(radius)
 
+# Aggregate the groups. This merges things and takes means of all numeric columns. Any non-numeric columns are dropped.
+# The argument to groups.aggregate is a function to apply (e.g., numpy)
+      
+t_mean = t.group_by('sequence').groups.aggregate(np.mean)  # Mean
+t_std  = t.group_by('sequence').groups.aggregate(np.std)   # Stdev
+
 hbt.figsize((15,8))
 for i,s in enumerate(t_mean['sequence']):
     plt.plot(radius[:,i]/1000, profile_radius[:,i], label = s)
@@ -678,11 +694,7 @@ plt.ylabel('DN')
 plt.legend()
 plt.show()
 
-# Aggregate the groups. This merges things and takes means of all numeric columns. Any non-numeric columns are dropped.
-# The argument to groups.aggregate is a function to apply (e.g., numpy)
-      
-t_mean = t.group_by('sequence').groups.aggregate(np.mean)  # Mean
-t_std  = t.group_by('sequence').groups.aggregate(np.std)   # Stdev
+
       
 #    phase_all = np.concatenate((phase_all, phase))
 #    area_all  = np.concatenate((area_all, area))
@@ -745,6 +757,7 @@ plt.show()
 
 a = ring_profile()
 a.load(7, hbt.frange(24,31),key_radius='full').plot()
+a.dn2iof()
 a.remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
 plt.show()
 
