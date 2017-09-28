@@ -514,7 +514,7 @@ class ring_profile:
             plt.xlabel('Radial Distance [km]')
             plt.ylabel(self.profile_radius_units)
             
-            plt.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2e')) # Not working yet
+#            plt.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2e')) # Not working yet
             
             plt.legend()
             if (title is not None):

@@ -47,6 +47,7 @@ from   importlib import reload            # So I can do reload(module)
 import re # Regexp
 import pickle # For load/save
 
+import scipy
 
 from   matplotlib.figure import Figure
 
@@ -59,7 +60,7 @@ file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
 dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/'
 files = glob.glob(dir + '*/*.fits')
 
-stretch_percent = 90    
+stretch_percent = 95    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
 plt.set_cmap('Greys_r')
@@ -157,19 +158,19 @@ t.remove_column('visitname')
 
 t.pprint(max_lines = -1, max_width = -1)
  
-for i in range(120,150):
-
-        
-    plt.imshow(stretch(arr))
-    plt.title("{}, exptime {}".format(t['filename_short'][i], t['exptime'][i]))
-    plt.plot(x_pix, y_pix, marker = '+', color='red')
-    
-    plt.ylabel('Y pixels')
-    plt.xlabel('X pixels')
-    
-    plt.show()
-    
-    hdulist.close()
+#for i in range(120,150):
+#
+#        
+#    plt.imshow(stretch(arr))
+#    plt.title("{}, exptime {}".format(t['filename_short'][i], t['exptime'][i]))
+#    plt.plot(x_pix, y_pix, marker = '+', color='red')
+#    
+#    plt.ylabel('Y pixels')
+#    plt.xlabel('X pixels')
+#    
+#    plt.show()
+#    
+#    hdulist.close()
 
 
 plt.plot(t['x_pix'], t['y_pix'], marker = '+', linestyle='none')
@@ -182,20 +183,14 @@ plt.xlabel('RA [deg]')
 plt.ylabel('Dec [deg]')
 plt.show()
 
-# Q: can I please put a numpy array into a table?
-
-t2 = Table(  [ [], [], [] ],
-    names=('filename_short', 'data', 'reqid'),
-    dtype = ('U30', 'float64', 'U30') )
-t2.add_row([filename_short, arr, reqid])
-
-t3 = Table()
 
 #=============================================================================
 # OK! Now time to do some data analysis.
 #=============================================================================
 
-indices_sep17 = t['et'] > sp.utc2et('15 sep 2017')
+indices_sep17 = t['et'] > sp.utc2et('15 sep 2017')  # The positon of MU69 has changed a few pixels.
+                                                    # We can't blindly co-add between sep and pre-sep
+                                                    
 indices_rot0  = t['angle'] < 180   # One rotation angle
 indices_rot90 = t['angle'] > 180   # The other rotation angle
 indices_10sec = t['exptime'] < 10
@@ -211,22 +206,122 @@ indices_20sec_rot90 = np.logical_and(indices_20sec, indices_rot90) # 0
 indices_10sec_rot0  = np.logical_and(indices_10sec, indices_rot0)  # 96
 indices_10sec_rot90 = np.logical_and(indices_10sec, indices_rot90) # 48
 
+indices_30sec_rot0_sep  = np.logical_and(indices_30sec_rot0, indices_sep17)  # 94
+indices_30sec_rot90_sep = np.logical_and(indices_30sec_rot90, indices_sep17) # 0
+
+indices_20sec_rot0_sep  = np.logical_and(indices_20sec_rot0, indices_sep17)  # 93
+indices_20sec_rot90_sep = np.logical_and(indices_20sec_rot90, indices_sep17) # 0
+
+indices_10sec_rot0_sep  = np.logical_and(indices_10sec_rot0, indices_sep17)  # 48
+indices_10sec_rot90_sep = np.logical_and(indices_10sec_rot90, indices_sep17) # 0
 
 # Let's start by trying to co-add all of the 30-sec exposures
 
-indices = indices_10sec_rot0.copy()
+indices = [0,143]
+
+#indices = indices_10sec_rot90
+sequence = '30sec_rot0_sep'       # Which of these image sets defined above do we use?
+indices  = eval('indices_' + sequence)   # Python trick: evaluate 
+
+#indices = indices_30sec_rot0_sep
 
 # Create the output numpy array
 num_planes = np.sum(indices)
+
 arr = np.zeros((num_planes, 1024, 1024))
 w = np.where(indices)[0]  # List of all the indices
+
+# Get the mean offset in X and Y for this set of images
+
+x_pix_mean = np.mean(t['x_pix'][indices])  # x_pix itself is MU69 position, as per SPICE and WCS
+y_pix_mean = np.mean(t['y_pix'][indices])  # This does seem to allow boolean indexing just fine
+
 for j,w_i in enumerate(w):  # Loop over all the indices. 'j' counts from 0 to N. w_i is each individual index.
     im = data[t['filename_short'][w_i]]
-    im_expand = scipy.ndimage.zoom(im,4)   
+    im_expand = scipy.ndimage.zoom(im,4)
+    dx = t['x_pix'][w_i] - x_pix_mean
+    dy = t['y_pix'][w_i] - y_pix_mean
+
+    # Apply the proper roll in X and Y. What I am calling 'x' and 'y' 
+    
+    im_expand = np.roll(im_expand, int(round(-dy*4)), axis=0) # positive roll along axis=0 shifts downward
+    im_expand = np.roll(im_expand, int(round(-dx*4)), axis=1) # positive roll along axis=1 shifts rightward
     arr[j,:,:] = im_expand                 # Stick it into place
 
-arr_flat = np.nanmean(arr,0)
+# Merge all the individual frames, using mean or median
     
+arr_median = np.nanmedian(arr,0)  # Slow -- about 15x longer
+arr_mean   = np.nanmean(arr,0)    # Fast
+
+arr_flat = arr_median.copy()
+
+# Set up a two-component stretch. This is because the second one (Sinh, or Sqrt) requires the data to 
+# already be in range 0 .. 1.
+
+stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+stretch2 = astropy.visualization.SqrtStretch()
+
+plt.imshow(stretch2(stretch(arr_flat)))
+
+plt.plot(x_pix_mean*4, y_pix_mean*4, marker = 'o', linestyle='none', color='red')
+plt.title('{}, N = {}, {:0.2f} deg, {:0.2f} sec, {}'.format(
+          sequence,
+          num_planes, 
+          t['angle'][w[0]]-180,
+          t['exptime'][w[0]], 
+          t['utc'][w[0]]) )
+plt.show()
+
+# Plot the original (ie, one frame, non-summed)
+
+plt.imshow(stretch2(stretch(arr[0,:,:])))
+
+plt.title('N = {}, {:0.2f} deg, {:0.2f} sec, {}'.format(
+          sequence,  
+          1, 
+          t['angle'][w[0]]-180,
+          t['exptime'][w[0]], 
+          t['utc'][w[0]]) )
+plt.show() 
+
+# Make linear plots
+
+row = 512
+
+hbt.figsize((20,8))
+plt.plot((arr_flat[row, :]), 
+                 marker = '.', label = 'Summed, N = {}'.format(num_planes),linestyle='-', ms=1)
+
+plt.plot((arr[0,row,:]), marker = '+', label = 'Individual frame')
+plt.title(sequence)
+plt.yscale('log')
+plt.ylim((10,200))
+plt.legend()
+plt.show()
+
+# Make a histogram plot
+
+plt.plot()
+
+bins = hbt.frange(0, 200) # Get a list of all of the timestep bins, inclusive, for this file.
+
+(hist_flat, junk) = np.histogram(arr_flat, bins)
+
+(hist_single, junk) = np.histogram(arr[0,:,:], bins)
+
+hbt.set_fontsize(16)
+plt.plot(bins[0:-1], hist_single, linestyle = '-', marker = '.', ms=1, label = 'Single')
+plt.plot(bins[0:-1], hist_flat, linestyle = '-', marker = '.', ms=1, 
+         label = 'Flattened, N={}'.format(num_planes))
+plt.yscale('log')
+plt.legend()
+plt.title(sequence)
+plt.ylabel('# of bins')
+plt.xlabel('DN value per pixel')           
+plt.show()
+
+
+# Take some     
 # First get their indices
 
 # Then expand them by 4x4
@@ -234,3 +329,8 @@ arr_flat = np.nanmean(arr,0)
 # Then shift them as per WCS
 
 # Then co-add, and/or median them
+
+# =============================================================================
+# Calculate how many DN MU69 should be at encounter (K-20d, K-10d, etc.)
+# Or alternatively, convert all of my DN values, to I/F values
+# =============================================================================
