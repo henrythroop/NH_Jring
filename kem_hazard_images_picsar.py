@@ -43,6 +43,7 @@ from   astropy.visualization import wcsaxes
 import time
 from   scipy.interpolate import griddata
 from   importlib import reload            # So I can do reload(module)
+import imreg_dft as ird                    # Image translation
 
 import re # Regexp
 import pickle # For load/save
@@ -226,9 +227,15 @@ class image_stack:
         w = np.where(self.indices)[0]  # List of all the indices
 
 # Get the mean offset in X and Y for this set of images
+# Reference this relative to the mean for *all* the images. This assures that any stack of the 
+# same imageset will be centered with any other stack of it.
+        
+#        self.x_pix_mean = np.mean(t['x_pix'][self.indices])  # x_pix itself is MU69 position, as per SPICE and WCS
+#        self.y_pix_mean = np.mean(t['y_pix'][self.indices])  # This does seem to allow boolean indexing just fine
 
-        self.x_pix_mean = np.mean(t['x_pix'][self.indices])  # x_pix itself is MU69 position, as per SPICE and WCS
-        self.y_pix_mean = np.mean(t['y_pix'][self.indices])  # This does seem to allow boolean indexing just fine
+        self.x_pix_mean = np.mean(t['x_pix'])  # x_pix itself is MU69 position, as per SPICE and WCS
+        self.y_pix_mean = np.mean(t['y_pix'])  # This does seem to allow boolean indexing just fine
+
 
         for j,w_i in enumerate(w):  # Loop over all the indices. 'j' counts from 0 to N. w_i is each individual index.
             im = data[t['filename_short'][w_i]]
@@ -358,16 +365,24 @@ hist_single = []
 hist_flattened = [] # Histogram from stacked frames
 hist_single    = [] # Histogram from single frame 
 n              = [] # Number of frames summed
+arr_flattened  = []
 
 sequences = ['30sec_rot0_sep', '20sec_rot0_sep', '10sec_rot0_sep']
-bins = hbt.frange(0, 200) # Get a list of all of the timestep bins, inclusive, for this file.
+dn_min = -50
+dn_max = 200
+bins = hbt.frange(dn_min, dn_max) # Get a list of all of the timestep bins, inclusive, for this file.
+frames_max = 40  # Max frames in a stack. Some stacks have more or less -- we need to force to be the same, to compare.
 
 colors = ['red', 'green', 'blue']
 
 for sequence in sequences:
     
-    indices  = eval('indices_' + sequence)   # Python trick: evaluate 
-
+    indices  = eval('indices_' + sequence).copy()   # Python trick: evaluate a statement
+    w = np.where(indices)[0]
+    indices[w[frames_max]:] = False          # De-activate all frames above frames_max
+    
+# XXX need to limit this to N frames max, for consistency against all the stacks
+    
     images.set_indices(indices)
     
 # Perform the flattening, and get the result back
@@ -379,14 +394,19 @@ for sequence in sequences:
     (h, junk)  = np.histogram(arr_flat, bins)
     (h2, junk) = np.histogram(arr[0,:,:], bins)
 
-    hist_flattened.append(h)
-    hist_single.append(h2)
-    n.append(np.sum(indices))
-
-# Make a nice plot comparing noise from the three sequences
+    # Save the output from this stack calculation
     
+    hist_flattened.append(h)   # Histogram of stacked images
+    hist_single.append(h2)     # Histogram of 0th image in the stack
+    n.append(np.sum(indices))  # Number of images in each stack
+    arr_flattened.append(arr_flat) # The flattened array itself (so we can do stats on it)
+    
+# Make a nice plot comparing noise from the three sequences
+
+hbt.figsize((15,10))
 for i, sequence in enumerate(sequences):    
-    plt.plot(bins[0:-1], hist_flattened[i], label="{}, N={}".format(sequence, n[i]), marker = '.', color=colors[i])
+    plt.plot(bins[0:-1], hist_flattened[i], label="{}, N={}".format(sequence, n[i]), marker = '', color=colors[i],
+             alpha = 0.5)
     plt.plot(bins[0:-1], hist_single[i],    label="{}, N={}".format(sequence, 1),    marker = '.', color=colors[i], 
              linestyle = 'none')
     
@@ -396,8 +416,139 @@ plt.xlabel('DN per pixel')
 plt.ylabel('# of pixels')
 plt.title('Noise Histogram vs. Exposure Stacking, KEM Approach Images September 2017')          
 plt.show()
-   
-#indices = indices_30sec_rot0_sep
+
+# =============================================================================
+# Compare noise: 10 x 30 sec  vs  30 x 10 sec
+# =============================================================================
+
+hist_single = []
+
+hist_flattened = [] # Histogram from stacked frames
+hist_single    = [] # Histogram from single frame 
+n              = [] # Number of frames summed
+arr_flattened  = []
+exptime        = []
+
+sequences = ['30sec_rot0_sep', '10sec_rot0_sep']
+dn_min = -50
+dn_max = 200
+bins = hbt.frange(dn_min, dn_max) # Get a list of all of the timestep bins, inclusive, for this file.
+frames_max = [10, 30]  # Max frames in a stack.
+scaling    = [3, 1]
+
+colors = ['red', 'green', 'blue']
+
+for i,sequence in enumerate(sequences):
+    
+    indices  = eval('indices_' + sequence).copy()   # Python trick: evaluate a statement
+    w = np.where(indices)[0]
+    indices[w[frames_max[i]]:] = False          # De-activate all frames above frames_max
+    
+# XXX need to limit this to N frames max, for consistency against all the stacks
+    
+    images.set_indices(indices)
+    
+# Perform the flattening, and get the result back
+
+    arr_flat = images.flatten()
+    t = images.t
+    
+    arr = images.arr    # Get the raw stack, un-flattened. Only valid after calling flatten().
+    
+    (h, junk)  = np.histogram(arr_flat, bins)
+    (h2, junk) = np.histogram(arr[0,:,:], bins)
+
+    # Save the output from this stack calculation
+    
+    hist_flattened.append(h)   # Histogram of stacked images
+    hist_single.append(h2)     # Histogram of 0th image in the stack
+    n.append(np.sum(indices))  # Number of images in each stack
+    arr_flattened.append(arr_flat) # The flattened array itself (so we can do stats on it)
+    exptime.append(t['exptime'][indices][0])
+    
+# Make a plot comparing noise from the sequences
+# Not really sure about the conversion to DN/sec here.    
+
+hbt.figsize((15,10))
+for i, sequence in enumerate(sequences):    
+    plt.plot(bins[0:-1]/exptime[i], hist_flattened[i]*exptime[i], label="{}, N={}".format(sequence, n[i]), marker = '', color=colors[i],
+             alpha = 0.5)
+    
+plt.yscale('log')
+plt.legend()
+plt.xlabel('DN per pixel per sec')
+plt.ylabel('# of pixels')
+plt.title('Noise Histogram vs. Exposure Stacking, KEM Approach Images September 2017')          
+plt.show()
+
+# =============================================================================
+# Now see how well we can subtract one stack from another. For this, must use median.
+# =============================================================================
+
+hist_single = []
+
+hist_flattened = [] # Histogram from stacked frames
+hist_single    = [] # Histogram from single frame 
+n              = [] # Number of frames summed
+arr_flattened  = []
+
+sequences = ['30sec_rot0_sep', '20sec_rot0_sep']
+bins = hbt.frange(0, 200) # Get a list of all of the timestep bins, inclusive, for this file.
+
+for sequence in sequences:
+    
+    indices  = eval('indices_' + sequence)   # Python trick: evaluate 
+
+    images.set_indices(indices)
+    
+# Perform the flattening, and get the result back
+
+    arr_flat = images.flatten(method='median')
+    
+    arr = images.arr    # Get the raw stack, un-flattened. Only valid after calling flatten().
+    
+    (h, junk)  = np.histogram(arr_flat, bins)
+    (h2, junk) = np.histogram(arr[0,:,:], bins)
+
+    hist_flattened.append(h)
+    hist_single.append(h2)
+    n.append(np.sum(indices))
+    arr_flattened.append(arr_flat)
+
+# Normalize them to each other
+    
+ratio = np.nanmean(arr_flattened[0]) / np.nanmean(arr_flattened[1])
+arr_flattened[1] = arr_flattened[1] * ratio
+
+# Now make a plot showing how well we can subtract one stack from another. To how many DN
+
+diff = (arr_flattened[1] - arr_flattened[0])
+(h, junk) = np.histogram(diff, bins)
+h_cum = np.cumsum(h)
+h_cum_frac = h_cum / np.amax(h_cum)
+
+hbt.figsize((12,10))
+
+plt.plot(bins[0:-1], h_cum_frac*100)
+plt.yscale('linear')
+plt.title("{} - {}".format(sequences[0], sequences[1]))
+plt.xlabel('Per-pixel change in $\Delta$DN after subtraction of two fields')
+plt.ylabel('% of pixels with < $\Delta$DN')
+plt.ylim((90,100))
+plt.show()
+
+plt.imshow(stretch(diff))
+plt.title("{} - {}".format(sequences[0], sequences[1]))
+plt.show()
+
+plt.imshow(stretch(arr_flattened[0]))
+plt.title('{}, N = {}'.format(sequences[0], n[0]))
+plt.show()
+    
+plt.imshow(stretch(arr_flattened[1]))
+plt.title('{}, N = {}'.format(sequences[1], n[1]))
+plt.show()
+
 
 # Create the output numpy array
 
@@ -479,6 +630,136 @@ plt.show()
 # Then co-add, and/or median them
 
 # =============================================================================
-# Calculate how many DN MU69 should be at encounter (K-20d, K-10d, etc.)
+# Calculate how many DN MU69 should be at encounter (K-20d, etc.)
 # Or alternatively, convert all of my DN values, to I/F values
 # =============================================================================
+
+        # Convert DN values in array, to I/F values
+        
+RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+
+C = arr[0] # Get the DN values of the ring. Typical value is 1 DN.
+
+# Define the solar flux, from Hal's paper.
+
+FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+F_solar = FSOLAR_LORRI # Flux from Hal's paper
+
+RSOLAR = RSOLAR_LORRI_4X4
+
+# Calculate the MU69-Sun distance, in AU (or look it up). 
+
+r_sun_mu69 = 43.28 # Solar distance in AU, from GV.
+
+r_nh_mu69 = 0.16671 # NH distance at K-20d, from GV. 0.16 AU = 24.9 M km.
+
+TEXP = t['exptime'][0]   # Look up exposure time, in seconds
+TEXP = 30
+
+I = C / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. All v similar, except for spectrum assumed.
+
+# Apply Hal's conversion formula from p. 7, to compute I/F and print it.
+
+IoF = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+
+# Now convert to 'normal I/F'
+
+# Define mu = cos(e), where e = emission angle, and e=0 is face-on.
+
+e = 0 # Assume ring is face-on. The sunflower orbits are. 
+
+mu = np.cos(e)
+
+#        mu_2D = np.transpose(np.tile(mu, (self.num_bins_radius(),1)))
+
+# Calculate the normal I/F
+
+IoF_normal = 4 * mu * IoF
+
+# Save this result into 'self,' replacing the DN values with the normal I/F values
+
+#        self.profile_radius_arr = IoF_normal
+
+# Change the units
+
+#        self.profile_radius_units = 'Normal I/F'
+
+# Do the same for azimuthal profile
+
+TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_azimuth(),1)))
+mu_2D = np.transpose(np.tile(mu, (self.num_bins_azimuth(),1)))
+self.profile_azimuth_arr = self.profile_azimuth_arr / TEXP_2D / RSOLAR * math.pi * r**2 / F_solar * 4 * mu_2D
+
+self.profile_azimuth_units = 'Normal I/F'
+
+# Calculate how many DN is MU69 at K-10d. It is unresolved, so it is a slightly different calculation than above.
+
+# Caclulate how many DN is I/F = 1e-6 ring. This is large spatial extent, so it should be just the inverse of above.
+
+
+IoF_normal = 1e-6
+TEXP = 30
+IoF = IoF_normal / (4 * mu)     
+I = IoF / math.pi / r_sun_mu69**2 * F_solar
+C = I * TEXP * RSOLAR  # C is the value in DN
+print("I/F_normal = {}, TEXP = {} s -> DN = {}".format(IoF_normal, TEXP, C))
+        
+#        
+
+#;PPLUTO =  8.7249995e+15 * 1.15 = 1.0033749e+16
+        
+# Keywords from Hal Weaver email
+#        
+#;For 1x1:
+#;V = -2.5 * alog10(S/texp) +18.76 + CC – AC
+#;Where “S” is the raw DN integrated over aperture being used,
+#;“texp” is the exposure time in seconds, “CC” is the color correction,
+#;and “AC” is the aperture correction (i.e., the value need to correct
+#;from the photometry aperture used to an “infinite” aperture).
+# 
+#;For early-type stars, e.g., O,B,A --> CC = -0.06
+#;For F and G stars --> CC = 0
+#;For K stars --> CC = +0.4
+#;For M stars --> CC = +0.6
+#;Pluto --> CC = -0.037
+#;Charon --> CC = -0.014
+#;Jupiter --> CC = -0.138
+#;Pholus --> CC =  0.213
+# 
+#;Diffuse sensitivity keywords
+#;Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+#;RSOLAR =  221999.98
+#;RPLUTO =  214583.33
+#;RPHOLUS =  270250.00
+#;RCHARON =  219166.66
+#;RJUPITER =  195583.33
+# 
+#;Point Source sensitivity keywords
+#;Units are (DN/s)/(erg/cm^2/s/A)
+#;PSOLAR =  9.0249987e+15
+#;PPLUTO =  8.7249995e+15
+#;PPHOLUS =  1.0991666e+16
+#;PCHARON =  8.9083329e+15
+#;xPJUPITER =  7.9524992e+15
+# 
+#;For 4x4:
+#;V = -2.5 * alog10(S/texp) +18.91 + CC – AC
+#;with the same definitions as above.
+# 
+#;Diffuse sensitivity keywords
+#;Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+#;RSOLAR =  221999.98 * 1.07 * 16. = 3800640.0
+#;RPLUTO =  214583.33 * 1.07 * 16. = 3673666.8
+#;RPHOLUS =  270250.00  * 1.07 * 16. = 4626680.0
+#;RCHARON =  219166.66  * 1.07 * 16. = 3752133.2
+#;RJUPITER =  195583.33  * 1.07 * 16. = 3348386.8
+# 
+#;Point Source sensitivity keywords
+#;Units are (DN/s)/(erg/cm^2/s/A)
+#;PSOLAR =  9.0249987e+15 * 1.15 = 1.0378749e+16
+#;PPLUTO =  8.7249995e+15 * 1.15 = 1.0033749e+16
+#;PPHOLUS =  1.0991666e+16 * 1.15 = 1.2640416e+16
+#;PCHARON =  8.9083329e+15 * 1.15 = 1.0244583e+16
+#;PJUPITER =  7.9524992e+15 * 1.15 = 9.1453737e+15
+        
