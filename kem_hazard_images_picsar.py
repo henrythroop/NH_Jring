@@ -61,11 +61,36 @@ class image_stack:
 # Init method: load the index and all files
 # =============================================================================
 
+    def load(self):
+        lun = open(self.file_save, 'rb')
+        (self.t, self.data, self.indices) = pickle.load(lun)
+        print("Read: " + self.file_save)
+        lun.close() 
+
+    def save(self):
+
+        lun = open(self.file_save, 'wb')
+        pickle.dump((self.t, self.data, self.indices), lun)
+        lun.close()
+        print("Wrote: " + self.file_save)        
+        
     def __init__(self) :   
         file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
         
-        dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/'
-        files = glob.glob(dir + '*/*.fits')
+        self.dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/'
+        
+        files = glob.glob(self.dir + '*/*.fits')
+        
+        num_files = len(files)
+
+        self.file_save = self.dir + 'kem_hazard_picsar_n{}.pkl'.format(num_files)
+        
+# If a save file was found, then load it, and immediately return
+        
+        if (os.path.isfile(self.file_save)):
+            self.load()
+            return
+        
 #        files = files[0:10]
         
         stretch_percent = 95    
@@ -166,6 +191,12 @@ class image_stack:
         self.t.remove_column('target')
         self.t.remove_column('visitname')
 
+    # Initialize the 'indices' vector, which indicates which planes we use for flattening
+    
+        self.indices = np.ones(len(self.t), dtype=bool)
+        
+    # Return. Looks like an init method should not return anything.
+        
 # =============================================================================
 # Print the table
 # =============================================================================
@@ -182,13 +213,15 @@ class image_stack:
         
 
 # =============================================================================
-# Stack some images as per the currently-set indices
+# Flatten a stack of images as per the currently-set indices
 # =============================================================================
 
-    def stack(self, method='mean'):
+    def flatten(self, method='mean'):
         
         self.num_planes = np.sum(self.indices)
 
+        # Create an output array for all of the images to go into
+        
         self.arr = np.zeros((self.num_planes, 1024, 1024))
         w = np.where(self.indices)[0]  # List of all the indices
 
@@ -211,53 +244,39 @@ class image_stack:
         
         # Merge all the individual frames, using mean or median
         
+        print("Flattening array with dimension {}".format(np.shape(self.arr)))
+        
         if (method == 'mean'):
-            self.arr_flat   = np.nanmean(arr,0)    # Fast
+            self.arr_flat   = np.nanmean(self.arr,0)    # Fast
             
         if (method == 'median'):
-            self.arr_flat = np.nanmedian(arr,0)  # Slow -- about 15x longer
+            self.arr_flat = np.nanmedian(self.arr,0)  # Slow -- about 15x longer
             
         return self.arr_flat
-        
-#for i in range(120,150):
-#
-#        
-#    plt.imshow(stretch(arr))
-#    plt.title("{}, exptime {}".format(t['filename_short'][i], t['exptime'][i]))
-#    plt.plot(x_pix, y_pix, marker = '+', color='red')
-#    
-#    plt.ylabel('Y pixels')
-#    plt.xlabel('X pixels')
-#    
-#    plt.show()
-#    
-#    hdulist.close()
 
 #=============================================================================
 # OK! Now time to do some data analysis.
 #=============================================================================
 
-
-# =============================================================================
-# Now do some tests!
-# =============================================================================
-
-stack = image_stack()
+images = image_stack()
 
 # Extract the data table
 
-t = stack.t
-data = stack.data  # Dictionary with *all* the images
+t = images.t
+data = images.data  # Dictionary with *all* the images
 
-plt.plot(t['x_pix'], t['y_pix'], marker = '+', linestyle='none')
-plt.xlabel('MU69 X pos [pix]')
-plt.ylabel('MU69 Y pos [pix]')
-plt.show()
+DO_PLOT_POSITIONS = False
 
-plt.plot(t['ra'], t['dec'], marker = '+', linestyle = 'none')
-plt.xlabel('RA [deg]')
-plt.ylabel('Dec [deg]')
-plt.show()
+if (DO_PLOT_POSITIONS):
+    plt.plot(t['x_pix'], t['y_pix'], marker = '+', linestyle='none')
+    plt.xlabel('MU69 X pos [pix]')
+    plt.ylabel('MU69 Y pos [pix]')
+    plt.show()
+    
+    plt.plot(t['ra'], t['dec'], marker = '+', linestyle = 'none')
+    plt.xlabel('RA [deg]')
+    plt.ylabel('Dec [deg]')
+    plt.show()
 
 
 indices_sep17 = t['et'] > sp.utc2et('15 sep 2017')  # The positon of MU69 has changed a few pixels.
@@ -291,8 +310,6 @@ indices_10sec_rot0_sep  = np.logical_and(indices_10sec_rot0, indices_sep17)  # 4
 indices_10sec_rot90_sep = np.logical_and(indices_10sec_rot90, indices_sep17) # 0
 
 
-
-
 # =============================================================================
 # Now set some indices, and stack them.
 # =============================================================================
@@ -303,15 +320,15 @@ indices  = eval('indices_' + sequence)   # Python trick: evaluate
 
 # Set the indices
 
-stack.set_indices(indices)
+images.set_indices(indices)
 
 w = np.where(indices)[0]
 
 # Perform the stack, and get the result back
 
-arr_flat_median = stack.stack(method = 'median')
-arr_flat_mean   = stack.stack(method = 'mean')
-arr             = stack.arr   # array, N x 1024 x 1024, with just the most recent stack
+arr_flat_median = images.flatten(method = 'median')
+arr_flat_mean   = images.flatten(method = 'mean')
+arr             = images.arr   # array, N x 1024 x 1024, with just the most recent stack
 
 plt.imshow(stretch(arr_flat))
 plt.title(sequence)
@@ -333,26 +350,56 @@ plt.show()
 
 
 # =============================================================================
-# Now do a different stack ****
+# Now load three stacks, and compare them. For 10 sec, 20 sec, 30 sec
 # =============================================================================
 
-sequence = '30sec_rot0_sep'       # Which of these image sets defined above do we use?
-indices  = eval('indices_' + sequence)   # Python trick: evaluate 
+hist_single = []
 
-stack.set_indices(indices)
+hist_flattened = [] # Histogram from stacked frames
+hist_single    = [] # Histogram from single frame 
+n              = [] # Number of frames summed
 
-# Perform the stack, and get the result back
+sequences = ['30sec_rot0_sep', '20sec_rot0_sep', '10sec_rot0_sep']
+bins = hbt.frange(0, 200) # Get a list of all of the timestep bins, inclusive, for this file.
 
-arr_flat = stack.stack()
-plt.imshow(stretch(arr_flat))
-plt.title(sequence)
+colors = ['red', 'green', 'blue']
+
+for sequence in sequences:
+    
+    indices  = eval('indices_' + sequence)   # Python trick: evaluate 
+
+    images.set_indices(indices)
+    
+# Perform the flattening, and get the result back
+
+    arr_flat = images.flatten()
+    
+    arr = images.arr    # Get the raw stack, un-flattened. Only valid after calling flatten().
+    
+    (h, junk)  = np.histogram(arr_flat, bins)
+    (h2, junk) = np.histogram(arr[0,:,:], bins)
+
+    hist_flattened.append(h)
+    hist_single.append(h2)
+    n.append(np.sum(indices))
+
+# Make a nice plot comparing noise from the three sequences
+    
+for i, sequence in enumerate(sequences):    
+    plt.plot(bins[0:-1], hist_flattened[i], label="{}, N={}".format(sequence, n[i]), marker = '.', color=colors[i])
+    plt.plot(bins[0:-1], hist_single[i],    label="{}, N={}".format(sequence, 1),    marker = '.', color=colors[i], 
+             linestyle = 'none')
+    
+plt.yscale('log')
+plt.legend()
+plt.xlabel('DN per pixel')
+plt.ylabel('# of pixels')
+plt.title('Noise Histogram vs. Exposure Stacking, KEM Approach Images September 2017')          
 plt.show()
-
-
+   
 #indices = indices_30sec_rot0_sep
 
 # Create the output numpy array
-
 
     
 # Set up a two-component stretch. This is because the second one (Sinh, or Sqrt) requires the data to 
