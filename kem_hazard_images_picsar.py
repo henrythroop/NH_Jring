@@ -288,6 +288,7 @@ if (DO_PLOT_POSITIONS):
 
 indices_sep17 = t['et'] > sp.utc2et('15 sep 2017')  # The positon of MU69 has changed a few pixels.
                                                     # We can't blindly co-add between sep and pre-sep
+indices_jan17 = t['et'] < sp.utc2et('1 sep 2017')
                                                     
 indices_rot0  = t['angle'] < 180   # One rotation angle
 indices_rot90 = t['angle'] > 180   # The other rotation angle
@@ -316,6 +317,7 @@ indices_20sec_rot90_sep = np.logical_and(indices_20sec_rot90, indices_sep17) # 0
 indices_10sec_rot0_sep  = np.logical_and(indices_10sec_rot0, indices_sep17)  # 48
 indices_10sec_rot90_sep = np.logical_and(indices_10sec_rot90, indices_sep17) # 0
 
+indices_10sec_rot0_jan = np.logical_and(indices_10sec_rot0, indices_jan17) # 48
 
 # =============================================================================
 # Now set some indices, and stack them.
@@ -418,7 +420,7 @@ plt.title('Noise Histogram vs. Exposure Stacking, KEM Approach Images September 
 plt.show()
 
 # =============================================================================
-# Compare noise: 10 x 30 sec  vs  30 x 10 sec
+# Compare noise: 10 x 30 sec  vs  30 x 10 sec. Also 30 x 30 sec
 # =============================================================================
 
 hist_single = []
@@ -429,12 +431,12 @@ n              = [] # Number of frames summed
 arr_flattened  = []
 exptime        = []
 
-sequences = ['30sec_rot0_sep', '10sec_rot0_sep']
+sequences = ['30sec_rot0_sep', '10sec_rot0_sep', '30sec_rot0_sep']
 dn_min = -50
 dn_max = 200
 bins = hbt.frange(dn_min, dn_max) # Get a list of all of the timestep bins, inclusive, for this file.
-frames_max = [10, 30]  # Max frames in a stack.
-scaling    = [3, 1]
+frames_max = [10, 30, 30]  # Max frames in a stack.
+scaling    = [3, 1, 1]
 
 colors = ['red', 'green', 'blue']
 
@@ -492,7 +494,7 @@ hist_single    = [] # Histogram from single frame
 n              = [] # Number of frames summed
 arr_flattened  = []
 
-sequences = ['30sec_rot0_sep', '20sec_rot0_sep']
+sequences = ['30sec_rot0_sep', '20sec_rot0_sep', '10sec_rot0_jan']
 bins = hbt.frange(0, 200) # Get a list of all of the timestep bins, inclusive, for this file.
 
 for sequence in sequences:
@@ -515,12 +517,17 @@ for sequence in sequences:
     n.append(np.sum(indices))
     arr_flattened.append(arr_flat)
 
-# Normalize them to each other
+# Normalize them to each other -- September
     
 ratio = np.nanmean(arr_flattened[0]) / np.nanmean(arr_flattened[1])
 arr_flattened[1] = arr_flattened[1] * ratio
 
-# Now make a plot showing how well we can subtract one stack from another. To how many DN
+# Normalize them to each other -- September:Jan
+    
+ratio = np.nanmean(arr_flattened[0]) / np.nanmean(arr_flattened[2])
+arr_flattened[2] = arr_flattened[2] * ratio
+
+# Now make a plot showing how well we can subtract one stack from another. To how many DN. Sep-Sep.
 
 diff = (arr_flattened[1] - arr_flattened[0])
 (h, junk) = np.histogram(diff, bins)
@@ -547,6 +554,37 @@ plt.show()
     
 plt.imshow(stretch(arr_flattened[1]))
 plt.title('{}, N = {}'.format(sequences[1], n[1]))
+plt.show()
+
+# Now do again for Jan-Sep
+
+tvec = ird.translation(arr_flattened[2], arr_flattened[0])['tvec']
+
+diff = (arr_flattened[2] - np.roll(np.roll(arr_flattened[0], int(tvec[0]), axis=0), int(tvec[1]), axis=1))
+
+(h, junk) = np.histogram(diff[300:,:], bins)  # Exclude the portion that is not overlapped, of course!
+h_cum = np.cumsum(h)
+h_cum_frac = h_cum / np.amax(h_cum)
+
+
+plt.plot(bins[0:-1], h_cum_frac*100)
+plt.yscale('linear')
+plt.title("{} - {}".format(sequences[0], sequences[2]))
+plt.xlabel('Per-pixel change in $\Delta$DN after subtraction of two fields')
+plt.ylabel('% of pixels with < $\Delta$DN')
+plt.ylim((90,100))
+plt.show()
+
+plt.imshow(stretch(diff))
+plt.title("{} - {}".format(sequences[0], sequences[2]))
+plt.show()
+
+plt.imshow(stretch(arr_flattened[0]))
+plt.title('{}, N = {}'.format(sequences[0], n[0]))
+plt.show()
+    
+plt.imshow(stretch(arr_flattened[2]))
+plt.title('{}, N = {}'.format(sequences[2], n[2]))
 plt.show()
 
 
