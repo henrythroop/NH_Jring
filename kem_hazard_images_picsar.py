@@ -64,7 +64,8 @@ class image_stack:
    
         
     def __init__(self) :   
-        file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
+#        file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
+        file_tm = "kernels_kem.tm"  # SPICE metakernel
         
         self.dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/'
         
@@ -89,8 +90,7 @@ class image_stack:
         
         # Start up SPICE
         
-        #file_tm = 'kernels_nh_jupiter.tm'  # SPICE metakernel
-        sp.furnsh(file_tm) # Commented out for testing while SPICE was recopying kernel pool.
+        sp.furnsh(file_tm)
         
         mode     = []
         exptime  = []
@@ -274,6 +274,10 @@ class image_stack:
 #=============================================================================
 # OK! Now time to do some data analysis.
 #=============================================================================
+
+stretch_percent = 95    
+stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+
 
 images = image_stack()
 
@@ -537,7 +541,9 @@ arr_flattened[1] = arr_flattened[1] * ratio
 ratio = np.nanmean(arr_flattened[0]) / np.nanmean(arr_flattened[2])
 arr_flattened[2] = arr_flattened[2] * ratio
 
+# =============================================================================
 # Now make a plot showing how well we can subtract one stack from another. To how many DN. Sep-Sep.
+# =============================================================================
 
 diff = (arr_flattened[1] - arr_flattened[0])
 (h, junk) = np.histogram(diff, bins)
@@ -566,7 +572,67 @@ plt.imshow(stretch(arr_flattened[1]))
 plt.title('{}, N = {}'.format(sequences[1], n[1]))
 plt.show()
 
+# =============================================================================
+# Make a plot showing the ring, as seen from K-22d
+# =============================================================================
+
+
+utc_ca = '2019 JAN 01 05:33:00'
+utc_km22 = '2018 dec 12 00:00:00'
+
+
+
+day = 86400
+frame = 'J2000'
+abcorr = 'LT+S'
+
+ang_pix = 0.3 / 1024 * hbt.d2r # LORRI 1x1 pixels, in radians
+et_ca = sp.utc2et(utc_ca)
+et_obs = et_ca - 22*day
+
+(vec,lt) = sp.spkezr('MU69', et_obs, frame, abcorr, 'New Horizons')
+dist_km = sp.vnorm(vec[0:3]) # distance in km
+
+scale_pix_km = ang_pix * dist_km
+
+radius_km = np.array([3500, 10000])  # Ring radius in km
+
+radius_pix = radius_km / dist_km / ang_pix
+area_pix = math.pi * radius_pix**2  # Total area covered by each ring
+
+
+# Plot the image (differential, for fun)
+
+hbt.figsize((19,19))
+plt.imshow(stretch(diff))
+# Plot MU69
+
+#plt.plot(images.x_pix_mean*4, images.y_pix_mean*4, marker='.', color='red')
+
+# Now draw a circle at each of these radii
+
+tau = 0.05
+
+circle1=plt.Circle((images.x_pix_mean*4, images.y_pix_mean*4),radius_pix[1]*1,color='red', alpha=tau)
+circle2=plt.Circle((images.x_pix_mean*4, images.y_pix_mean*4),radius_pix[0],color='green', alpha=tau)
+
+plt.gcf().gca().add_artist(circle1)
+plt.gcf().gca().add_artist(circle2)
+#
+plt.title("Simulated Image at K-22d, I/F = {}".format(tau))
+    
+plt.show()
+
+
+# Plot as seen at k-22d
+
+# Plot a ring: 3500 km
+
+# Plot a ring: 10,000 km
+
+# =============================================================================
 # Now do again for Jan-Sep
+# =============================================================================
 
 tvec = ird.translation(arr_flattened[2], arr_flattened[0])['tvec']
 
