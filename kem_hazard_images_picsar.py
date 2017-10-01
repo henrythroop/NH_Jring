@@ -61,19 +61,7 @@ class image_stack:
 # =============================================================================
 # Init method: load the index and all files
 # =============================================================================
-
-    def load(self):
-        lun = open(self.file_save, 'rb')
-        (self.t, self.data, self.indices) = pickle.load(lun)
-        print("Read: " + self.file_save)
-        lun.close() 
-
-    def save(self):
-
-        lun = open(self.file_save, 'wb')
-        pickle.dump((self.t, self.data, self.indices), lun)
-        lun.close()
-        print("Wrote: " + self.file_save)        
+   
         
     def __init__(self) :   
         file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
@@ -197,6 +185,28 @@ class image_stack:
         self.indices = np.ones(len(self.t), dtype=bool)
         
     # Return. Looks like an init method should not return anything.
+
+# =============================================================================
+# Load a pickle file from disk. 
+# Running this is just faster than reading and processing the files explicitly -- it duplicates no functionality
+# =============================================================================
+
+    def load(self):
+        lun = open(self.file_save, 'rb')
+        (self.t, self.data, self.indices) = pickle.load(lun)
+        print("Read: " + self.file_save)
+        lun.close() 
+
+# =============================================================================
+# Save current state into a pickle file.
+# =============================================================================
+
+    def save(self):
+
+        lun = open(self.file_save, 'wb')
+        pickle.dump((self.t, self.data, self.indices), lun)
+        lun.close()
+        print("Wrote: " + self.file_save)     
         
 # =============================================================================
 # Print the table
