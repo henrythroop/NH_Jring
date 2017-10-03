@@ -134,21 +134,7 @@ def nh_iof_2_dn_lorri_extended(mode = '1X1', dist = 43*u.au, exptime = 10):
     
     return factor
 
-#    # Now convert to 'normal I/F'
-#    
-#    # Define mu = cos(e), where e = emission angle, and e=0 is face-on.
-#    
-#    e = 0 # Assume ring is face-on. The sunflower orbits are. 
-#    
-#    mu = np.cos(e)
-#    
-#    #        mu_2D = np.transpose(np.tile(mu, (self.num_bins_radius(),1)))
-#    
-#    # Calculate the normal I/F
-#    
-#    IoF_normal = 4 * mu * IoF
-#    
-#    
+
 # =============================================================================
 # Make a simulated image.
 # For now, this image has zero DN of background readnoise, stray light, etc.
@@ -173,21 +159,21 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
 
     
 
-    a_ring = (1000*u.km, 3000*u.km)
-    exptime = 10
-    mode = '1x1'
-    dist_solar = 40*u.au
-    dist_target = 0.01*u.au
-    do_psf = True
-    albedo_mu69 = 0.5
-    radius_mu69 = 20*u.km
-    iof_ring = 1e-4
-    do_ring_edges_smooth = True
-    pos = (None, None)
-    do_ring = True
-    dist_ring_smoothing = 500*u.km
-    do_mu69 = True
-    
+#    a_ring = (1000*u.km, 3000*u.km)
+#    exptime = 10
+#    mode = '4x4'
+#    dist_solar = 40*u.au
+#    dist_target = 0.3*u.au
+#    do_psf = True
+#    albedo_mu69 = 0.5
+#    radius_mu69 = 20*u.km
+#    iof_ring = 1e-4
+#    do_ring_edges_smooth = True
+#    pos = (None, None)
+#    do_ring = True
+#    dist_ring_smoothing = 500*u.km
+#    do_mu69 = True
+#    
     if (mode.upper() == '1X1'):
         naxis = 1024     # Number of pixels in the output array. Assumed to be square.
     else:
@@ -201,7 +187,7 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
   
     # Compute the image center position, if needed.
     
-    if pos[0] == None:
+    if (pos[0] == None):
         pos = (naxis/2, naxis/2)
         
     # Compute the pixel scale, km/pix at target distance
@@ -228,6 +214,8 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
         
         if (dist_ring_smoothing):
             width_pix = dist_ring_smoothing.to('km').value / scale_pix_km
+            if (width_pix < 1):
+                width_pix = 1
             kernel = Box2DKernel(width_pix) # Use the simplest possible kernel, just to give the ring smooth edges
             print('Smoothing ring edges...')
             is_ring_convolved = convolve_fft(is_ring, kernel)  # Pretty slow... but faster than the non-FFT version!
@@ -264,6 +252,12 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
       
       if ((np.shape(psf)[0] % 2) == 0):
           psf = psf[:-1, :-1]
+      
+      # Make sure the PSF is normalized, with total area 1
+      
+      psf = psf / np.sum(psf)
+      
+      # And do the convolution
       
       print("Convolving with PSF {}...".format(file_psf))
       arr_psf = convolve_fft(arr, psf)
@@ -316,7 +310,7 @@ arr = nh_make_simulated_image_lorri(do_ring=True,
                                     pos = pos,
                                     dist_solar = dist_solar, 
                                     dist_target = dist_target,
-                                    do_mu69 = True,
+                                    do_mu69 = False,
                                     do_psf = True)
 
 # Calculate the max DN value in the array. This is (more-or-less) the ring target, converted to DN.
@@ -335,32 +329,85 @@ plt.show()
 # Do a test of the I/F -> DN conversion. This value can be compared to that from Exposure Time Calculator
 
 iof2dn = nh_iof_2_dn_lorri_extended(mode = mode, dist = dist_solar, exptime = exptime)
-print('For ring: I/F = {} -> {:0.2f} DN/pixel'.format(iof_ring, iof_ring * iof2dn))
+print('For ring: I/F = {}, exptime = {} s -> {:0.2f} DN/pixel'.format(iof_ring, exptime, iof_ring * iof2dn))
 print('For MU69: total signal = {:0.2f} DN, pre-PSF'.format(nh_dn_lorri_mu69(dist = dist_target, exptime = exptime)))
 
 # =============================================================================
-# Load the Buie MU69 frames, and add a ring to them!
+# Load the MU69 frames, and add a ring to them!
 # =============================================================================
+
+iof_ring = 5e-6
 
 stretch_percent = 95    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
-dir_buie = '/Users/throop/Data/NH_KEM_Hazard/Sep17_Buie'
-files = glob.glob(dir_buie + '/*.*')
+dir_buie = '/Users/throop/Data/NH_KEM_Hazard/Buie_Sep17'      # Very optimized WCS coords
+dir_porter = '/Users/throop/Data/NH_KEM_Hazard/Porter_Sep17'  # Basic WCS coords
 
-for file in files:
-      hdu = fits.open(file)
-      im = hdu['PRIMARY'].data
-      header = hdu['PRIMARY'].header
-      w = WCS(file)
-      hdu.close()
+files_porter = glob.glob(dir_porter + '/*/*')
+files_buie   = glob.glob(dir_buie   + '/*.*')
 
-file = '/Users/throop/Data/NH_KEM_Hazard/K1LR_MU69ApprField_115d_L2_2017264/lor_0368310358_0x633_pwcs.fits'
-hdu = fits.open(file)
-im = hdu['PRIMARY'].data
-header = hdu['PRIMARY'].header
-w = WCS(file)
-hdu.close()
+files = files_buie
 
-plt.imshow(stretch(im + arr*50))
+for file in files[0:1]:
+    hdu = fits.open(file)
+    im_data = hdu['PRIMARY'].data
+    header = hdu['PRIMARY'].header
+    
+# Grab the ET
+    
+    et = header['SPCSCET']
+    
+    exptime = header['EXPTIME']
+    
+# Get the image size
+    
+    if (header['NAXIS1'] == 256):
+        mode = '4X4'
+    else:
+        mode = '1X1'
+    
+# Parse the WCS
+    
+    w = WCS(file)
+        
+    hdu.close()
+      
+# Get the XY position of MU69
+# XXX check this for x-y swapping.
+    
+    (vec, lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
+    vec = vec[0:3]
+    vec_sc_targ = vec[0:3]
+    (junk,ra,dec) = sp.recrad(vec_sc_targ) # Get the RA / Dec of the object
+    x_pix, y_pix    = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0) # Convert to pixels. 
+                                            # XXX weird: world2pix returns a zero-dim array. Not an ndarray.
+                                            # Have to do this item() business to extract values. Or float().
+    x_pix = float(x_pix)
+    y_pix = float(y_pix)
+    
+# Make the simulated image
+    
+    
+    im_simulated = nh_make_simulated_image_lorri(do_ring=True, 
+                                    dist_ring_smoothing = 1000*u.km, 
+                                    iof_ring = iof_ring,
+                                    a_ring = (8000*u.km, 10000*u.km), 
+                                    exptime = exptime, 
+                                    mode = mode, 
+                                    pos = (y_pix, x_pix),  # Swap x and y here
+                                    dist_solar = dist_solar, 
+                                    dist_target = dist_target,  # *Not* the distance from FITS header, of course
+                                    do_mu69 = False,
+                                    do_psf = True)
 
+# Merge the two images
+
+    im_out = im_data + im_simulated    
+  
+    plt.imshow(stretch(im_out))
+    plt.plot(x_pix, y_pix, marker = 'o', color='red', ms = 5, alpha=0.5)
+    plt.title('t={} s, I/F = {}'.format(exptime, iof_ring))
+    plt.show()
+    
+# Now write a new file    
