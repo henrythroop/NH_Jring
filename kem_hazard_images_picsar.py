@@ -62,12 +62,11 @@ class image_stack:
 # Init method: load the index and all files
 # =============================================================================
    
-        
     def __init__(self) :   
 #        file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
         file_tm = "kernels_kem.tm"  # SPICE metakernel
         
-        self.dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/'
+        self.dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/Porter_Sep17/'
         
         files = glob.glob(self.dir + '*/*.fits')
         
@@ -222,7 +221,6 @@ class image_stack:
     def set_indices(self, indices):
         self.indices = indices
         
-
 # =============================================================================
 # Flatten a stack of images as per the currently-set indices
 # =============================================================================
@@ -277,7 +275,6 @@ class image_stack:
 
 stretch_percent = 95    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
-
 
 images = image_stack()
 
