@@ -487,7 +487,8 @@ for i,sequence in enumerate(sequences):
 
 hbt.figsize((15,10))
 for i, sequence in enumerate(sequences):    
-    plt.plot(bins[0:-1]/exptime[i], hist_flattened[i]*exptime[i], label="{}, N={}".format(sequence, n[i]), marker = '', color=colors[i],
+    plt.plot(bins[0:-1]/exptime[i], hist_flattened[i]*exptime[i], label="{}, N={}".format(sequence, n[i]), marker = '', 
+             color=colors[i],
              alpha = 0.5)
     
 plt.yscale('log')

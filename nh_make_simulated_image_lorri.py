@@ -57,6 +57,49 @@ from   matplotlib.figure import Figure
 
 import hbt
 
+
+# =============================================================================
+# Compute brightness of MU69, in DN, based on distance to body and exptime.
+# =============================================================================
+
+def nh_dn_lorri_mu69(mode = '1X1', dist = 0.1*u.au, exptime = 10):
+
+#    dist = 0.1*u.au
+#    exptime = 100
+#    mode = '4X4'
+    
+    PPLUTO_LORRI_1X1 = 8.7249995e+15 # Point Source sensitivity. Units are (DN/s)/(erg/cm^2/s/A).
+    PPLUTO_LORRI_4X4 = 1.0033749e+16
+
+    FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+
+    V_MU69_OPP = 26.7 + 0.65                 # MU69 V mag at opposition (ie, from Earth at 1 AU)
+    
+    if (mode.upper() == '1X1'):
+        PPLUTO_LORRI_1X1
+        PHOTZPT = 18.76
+
+    else:
+        PPLUTO = PPLUTO_LORRI_4X4
+        PHOTZPT = 18.91
+
+    CC = 0  # Color correction for solar-type stars
+    AC = 0  # AC (or BC) is aperture correction "in case the flux is not integrated over the entire stellar image"
+    
+    # Convert opposition mag, to mag seen from NH
+
+    V_MU69 = hbt.fac2mag( hbt.mag2fac(V_MU69_OPP) * ((1) / (dist.to('AU').value) )**2 )
+     
+#    V = -2.5 * alog10(S/texp) + PHOTZPT + CC – AC  # S is integrated net signal, in DN. Equation from Hal writeup
+    
+    # Calculate the integrated signal, in DN.
+    
+    S = exptime * 10** ((V_MU69 - PHOTZPT - CC + AC) / (-2.5))  # My inversion of Hal's eq
+
+#    print('{} s, {}, {}, vmag({}) = {:.2f} -> {:.2f} DN'.format(exptime, mode, dist, dist, V_MU69, S))
+    
+    return(S)  # Return the total counts
+    
 # =============================================================================
 # Compute conversion constant from I/F to DN.
 #     mode = {'1X1', '4X4'}
@@ -64,8 +107,8 @@ import hbt
 #     exptime = exposure time in seconds
 #     This ignores any ring-specific geometry
 # =============================================================================
-
-def nh_iof_2_dn_lorri_unresolved(mode = '1X1', dist = 43*u.au, exptime = 10):
+    
+def nh_iof_2_dn_lorri_extended(mode = '1X1', dist = 43*u.au, exptime = 10):
 
     RSOLAR_LORRI_1X1 =  221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
     RSOLAR_LORRI_4X4 = 3800640.0   # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
@@ -130,19 +173,20 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
 
     
 
-#    a_ring = (1000*u.km, 3000*u.km)
-#    exptime = 10
-#    mode = '1x1'
-#    dist_solar = 40*u.au
-#    dist_target = 0.01*u.au
-#    do_psf = True
-#    albedo_mu69 = 0.5
-#    radius_mu69 = 20*u.km
-#    iof_ring = 1e-4
-#    do_ring_edges_smooth = True
-#    pos = (None, None)
-#    do_ring = True
-#    dist_ring_smoothing = 500*u.km
+    a_ring = (1000*u.km, 3000*u.km)
+    exptime = 10
+    mode = '1x1'
+    dist_solar = 40*u.au
+    dist_target = 0.01*u.au
+    do_psf = True
+    albedo_mu69 = 0.5
+    radius_mu69 = 20*u.km
+    iof_ring = 1e-4
+    do_ring_edges_smooth = True
+    pos = (None, None)
+    do_ring = True
+    dist_ring_smoothing = 500*u.km
+    do_mu69 = True
     
     if (mode.upper() == '1X1'):
         naxis = 1024     # Number of pixels in the output array. Assumed to be square.
@@ -192,15 +236,24 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
     
         # Convert from I/F to DN
     
-        arr = is_ring * iof_ring * nh_iof_2_dn_lorri_unresolved(exptime = exptime, dist=dist_solar, mode=mode)
+        arr = is_ring * iof_ring * nh_iof_2_dn_lorri_extended(exptime = exptime, dist=dist_solar, mode=mode)
     
 
-# Convolve with a LORRI PSF, if requested
+    # Create the MU69 image
+    
+    if (do_mu69):
+        dn_mu69 = nh_dn_lorri_mu69(dist = dist_target, exptime = exptime)
+        
+        # Put MU69 DN into a single pixel
+        
+        arr[int(pos[0]), int(pos[1])] = dn_mu69
+        
+# Convolve entire image with a LORRI PSF, if requested
 
     if (do_psf):
-      if (mode == '1X1'):
+      if (mode.upper() == '1X1'):
           file_psf = 'psfs/1x1/lorri_1x1_psf22_v1.fits'
-      if (mode == '4X4'):
+      if (mode.upper() == '4X4'):
           file_psf = 'psfs/4x4/lor_0368314618_psf_v1.fits'
 
       hdu = fits.open(file_psf)
@@ -213,7 +266,7 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
           psf = psf[:-1, :-1]
       
       print("Convolving with PSF {}...".format(file_psf))
-      arr_psf = convolve(arr, psf)
+      arr_psf = convolve_fft(arr, psf)
       
       arr = arr_psf
       
@@ -223,27 +276,91 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
 # Now do some tests on this
 # =============================================================================
 
-iof_ring = 1e-5
+plt.set_cmap('Greys_r')
+
+sp.furnsh('kernels_kem.tm')
+
+hbt.figsize((12,12))
+hbt.set_fontsize(15)
+
+iof_ring = 1e-7
 exptime = 30
 mode = '4X4'
 #mode = '1X1'
 pos = (None, None)
-#pos = (100, 200)  # y, x in normal imshow() coordinates.
-dist_target = 0.01*u.au
-dist_solar  = 40*u.au
-do_psf = True
+#pos = (300, 700)
+pos = (100, 200)  # y, x in normal imshow() coordinates.
+#dist_target = 0.01*u.au
+dist_solar  = 43.2*u.au  # MU69 dist at encounter: 43.2 AU, from KEM Wiki page 
+do_psf = True            # Flag: Do we convolve result with NH LORRI PSF?26.7 + 0.65
 
-arr = nh_make_simulated_image_lorri(do_ring=True, dist_ring_smoothing = 1000*u.km, iof_ring = iof_ring,
-                                    a_ring = (1500*u.km, 2000*u.km), exptime = exptime, mode=mode, pos=pos,
-                                    dist_solar = dist_solar, dist_target = dist_target, do_psf=do_psf)
+dt_obs = -22*u.day        # Time relative to MU69 C/A
 
-dn_mean = np.mean(arr[np.where(arr > 0)])
+utc_ca = '2019 1 Jan 05:33:00'
+et_ca  = sp.utc2et(utc_ca)
+et_obs = et_ca + dt_obs.to('s').value
+ 
+utc_obs = sp.et2utc(et_obs, 'C', 0)
+utc_obs_human = 'K{:+}d'.format(dt_obs.to('day').value)
+
+vec,lt = sp.spkezr('2014 MU69', et_obs, 'J2000', 'LT', 'New Horizons')
+vec_sc_targ = vec[0:3]
+dist_target = np.sqrt(np.sum(vec_sc_targ**2))*u.km.to('AU')*u.au
+            
+arr = nh_make_simulated_image_lorri(do_ring=True, 
+                                    dist_ring_smoothing = 1000*u.km, 
+                                    iof_ring = iof_ring,
+                                    a_ring = (5000*u.km, 10000*u.km), 
+                                    exptime = exptime, 
+                                    mode = mode, 
+                                    pos = pos,
+                                    dist_solar = dist_solar, 
+                                    dist_target = dist_target,
+                                    do_mu69 = True,
+                                    do_psf = True)
+
+# Calculate the max DN value in the array. This is (more-or-less) the ring target, converted to DN.
+# Though it might be diminished a bit due to the PSF.
+
+dn_max = np.amax(arr[arr > 0])
+
 plt.imshow(arr)
-plt.title('I/F = {}, {:0.2f} DN, t = {} s, mode = {}, {}, {}'.format(
-                      iof_ring, dn_mean, exptime, mode,
-                      dist_solar, dist_target))
-
-# Do a test of the I/F -> DN conversion
-
-factor = 
+plt.title('I/F = {}, max = {:0.2f} DN, t = {} s, mode = {}, {}, {:.2f}, {}'.format(
+                      iof_ring, dn_max, exptime, mode,
+                      dist_solar, 
+                      dist_target,
+                      utc_obs_human))
 plt.show()
+
+# Do a test of the I/F -> DN conversion. This value can be compared to that from Exposure Time Calculator
+
+iof2dn = nh_iof_2_dn_lorri_extended(mode = mode, dist = dist_solar, exptime = exptime)
+print('For ring: I/F = {} -> {:0.2f} DN/pixel'.format(iof_ring, iof_ring * iof2dn))
+print('For MU69: total signal = {:0.2f} DN, pre-PSF'.format(nh_dn_lorri_mu69(dist = dist_target, exptime = exptime)))
+
+# =============================================================================
+# Load the Buie MU69 frames, and add a ring to them!
+# =============================================================================
+
+stretch_percent = 95    
+stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+
+dir_buie = '/Users/throop/Data/NH_KEM_Hazard/Sep17_Buie'
+files = glob.glob(dir_buie + '/*.*')
+
+for file in files:
+      hdu = fits.open(file)
+      im = hdu['PRIMARY'].data
+      header = hdu['PRIMARY'].header
+      w = WCS(file)
+      hdu.close()
+
+file = '/Users/throop/Data/NH_KEM_Hazard/K1LR_MU69ApprField_115d_L2_2017264/lor_0368310358_0x633_pwcs.fits'
+hdu = fits.open(file)
+im = hdu['PRIMARY'].data
+header = hdu['PRIMARY'].header
+w = WCS(file)
+hdu.close()
+
+plt.imshow(stretch(im + arr*50))
+
