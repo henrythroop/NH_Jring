@@ -6,6 +6,11 @@ Created on Wed Sep 27 22:00:03 2017
 @author: throop
 """
 
+# This program just does a bunch of misc testing on the various images taken in Sep-2017.
+# Histograms, statistics, stacking, subtraction, navigation, etc. 
+# My goal was to try to find anything interesting. 
+# MU69 wasn't visible. These were images of the right field, so we could prep our exposures
+# for the real hazard search.
 
 import pdb
 import glob
