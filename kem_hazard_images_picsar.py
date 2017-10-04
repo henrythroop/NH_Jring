@@ -65,15 +65,19 @@ class image_stack:
 
 # =============================================================================
 # Init method: load the index and all files
+# Mandatory argument: the directory holding all the files
 # =============================================================================
    
-    def __init__(self) :   
+    def __init__(self, dir) :   
 #        file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
         file_tm = "kernels_kem.tm"  # SPICE metakernel
         
+        self.dir = (dir + '/').replace('//', '/') # Make sure it terminates in exactly one /
+        
         self.dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/Porter_Sep17/'
         
-        files = glob.glob(self.dir + '*/*.fits')
+        files = glob.glob(self.dir + '*/*.fits')     # Look in subdirs
+        files.extend(glob.glob(self.dir + '*.fits')) # And look at root-level files
         
         num_files = len(files)
 
@@ -281,7 +285,9 @@ class image_stack:
 stretch_percent = 95    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
-images = image_stack()
+dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/Porter_Sep17/'
+
+images = image_stack(dir)
 
 # Extract the data table
 
