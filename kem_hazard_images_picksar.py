@@ -74,7 +74,7 @@ class image_stack:
         
         self.dir = (dir + '/').replace('//', '/') # Make sure it terminates in exactly one /
         
-        self.dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/Porter_Sep17/'
+#        self.dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/Porter_Sep17/'
         
         files = glob.glob(self.dir + '*/*.fits')     # Look in subdirs
         files.extend(glob.glob(self.dir + '*.fits')) # And look at root-level files
@@ -589,8 +589,6 @@ plt.show()
 utc_ca = '2019 JAN 01 05:33:00'
 utc_km22 = '2018 dec 12 00:00:00'
 
-
-
 day = 86400
 frame = 'J2000'
 abcorr = 'LT+S'
@@ -828,61 +826,118 @@ I = IoF / math.pi / r_sun_mu69**2 * F_solar
 C = I * TEXP * RSOLAR  # C is the value in DN
 print("I/F_normal = {}, TEXP = {} s -> DN = {}".format(IoF_normal, TEXP, C))
         
-#        
+# =============================================================================
+# Now go thru the synthetic ring images. Load and stack *them*, and see if we can find a ring in them.
+# =============================================================================
 
-#;PPLUTO =  8.7249995e+15 * 1.15 = 1.0033749e+16
+dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/synthetic/'
+
+# Load the images into a table
+
+images = image_stack(dir)
+
+#
+
+data = images.data
+
+# Extend the table a bit, to include I/F and ring size
+
+t = images.t
+
+num_images = (np.shape(t))[0]
+
+# If desired, do a one-time routine to extract the I/F and ring size from the filenames, and append that to the table.
+
+DO_APPEND = False
+if (DO_APPEND):
+
+    iof_ring = np.zeros(num_images, dtype=float)
+    size_ring = np.zeros(num_images, dtype='U30')
+
+    for i in range(num_images):
+        f = t['filename_short'][i]
+        m = re.search('ring_(.*)_iof(.*)_K', f)  # Call regexp to parse it.
+        iof_ring[i] = eval(m.group(2))
+        size_ring[i] = m.group(1)
         
-# Keywords from Hal Weaver email
-#        
-#;For 1x1:
-#;V = -2.5 * alog10(S/texp) +18.76 + CC – AC
-#;Where “S” is the raw DN integrated over aperture being used,
-#;“texp” is the exposure time in seconds, “CC” is the color correction,
-#;and “AC” is the aperture correction (i.e., the value need to correct
-#;from the photometry aperture used to an “infinite” aperture).
-# 
-#;For early-type stars, e.g., O,B,A --> CC = -0.06
-#;For F and G stars --> CC = 0
-#;For K stars --> CC = +0.4
-#;For M stars --> CC = +0.6
-#;Pluto --> CC = -0.037
-#;Charon --> CC = -0.014
-#;Jupiter --> CC = -0.138
-#;Pholus --> CC =  0.213
-# 
-#;Diffuse sensitivity keywords
-#;Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
-#;RSOLAR =  221999.98
-#;RPLUTO =  214583.33
-#;RPHOLUS =  270250.00
-#;RCHARON =  219166.66
-#;RJUPITER =  195583.33
-# 
-#;Point Source sensitivity keywords
-#;Units are (DN/s)/(erg/cm^2/s/A)
-#;PSOLAR =  9.0249987e+15
-#;PPLUTO =  8.7249995e+15
-#;PPHOLUS =  1.0991666e+16
-#;PCHARON =  8.9083329e+15
-#;xPJUPITER =  7.9524992e+15
-# 
-#;For 4x4:
-#;V = -2.5 * alog10(S/texp) +18.91 + CC – AC
-#;with the same definitions as above.
-# 
-#;Diffuse sensitivity keywords
-#;Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
-#;RSOLAR =  221999.98 * 1.07 * 16. = 3800640.0
-#;RPLUTO =  214583.33 * 1.07 * 16. = 3673666.8
-#;RPHOLUS =  270250.00  * 1.07 * 16. = 4626680.0
-#;RCHARON =  219166.66  * 1.07 * 16. = 3752133.2
-#;RJUPITER =  195583.33  * 1.07 * 16. = 3348386.8
-# 
-#;Point Source sensitivity keywords
-#;Units are (DN/s)/(erg/cm^2/s/A)
-#;PSOLAR =  9.0249987e+15 * 1.15 = 1.0378749e+16
-#;PPLUTO =  8.7249995e+15 * 1.15 = 1.0033749e+16
-#;PPHOLUS =  1.0991666e+16 * 1.15 = 1.2640416e+16
-#;PCHARON =  8.9083329e+15 * 1.15 = 1.0244583e+16
-#;PJUPITER =  7.9524992e+15 * 1.15 = 9.1453737e+15
-        
+    t['size_ring'] = size_ring
+    t['iof_ring']  = iof_ring
+    images.t = t
+    images.save()           # Save it back to disk
+    
+  indices_sep17 = t['et'] > sp.utc2et('15 sep 2017')  # The positon of MU69 has changed a few pixels.
+                                                    # We can't blindly co-add between sep and pre-sep
+indices_jan17 = t['et'] < sp.utc2et('1 sep 2017')
+                                                    
+indices_rot0  = t['angle'] < 180   # One rotation angle
+indices_rot90 = t['angle'] > 180   # The other rotation angle
+indices_10sec = np.logical_and( t['exptime'] < 10, t['exptime'] > 5  )
+indices_20sec = np.logical_and( t['exptime'] < 20, t['exptime'] > 10 )
+indices_30sec = np.logical_and( t['exptime'] < 30, t['exptime'] > 20 )
+
+indices_1x1 = t['naxis1'] == 1024
+indices_4x4 = t['naxis1'] == 256
+
+indices_ring_small = t['size_ring'] == 'small'
+indices_ring_large = t['size_ring'] == 'large'
+
+indices_iof_1em7 = t['iof_ring'] == 1e-7
+indices_iof_1em6 = t['iof_ring'] == 1e-6
+indices_iof_1em5 = t['iof_ring'] == 1e-5
+indices_iof_1em4 = t['iof_ring'] == 1e-4
+
+indices_small_1em7 = np.logical_and(indices_iof_1em7, indices_ring_small)
+indices_small_1em6 = np.logical_and(indices_iof_1em7, indices_ring_small)
+indices_small_1em5 = np.logical_and(indices_iof_1em7, indices_ring_small)
+indices_small_1em4 = np.logical_and(indices_iof_1em7, indices_ring_small)
+indices_large_1em7 = np.logical_and(indices_iof_1em7, indices_ring_large)
+indices_large_1em6 = np.logical_and(indices_iof_1em6, indices_ring_large)
+indices_large_1em5 = np.logical_and(indices_iof_1em5, indices_ring_large)
+indices_large_1em4 = np.logical_and(indices_iof_1em4, indices_ring_large)
+
+indices_p1 = hbt.frange(0,num_images-1) < (num_images/2)
+indices_p2 = np.logical_not(indices_p1)
+
+# Now do some stacking!
+
+images.set_indices(indices_large_1em5)
+arr = images.flatten()    
+
+pos = (images.y_pix_mean*4, images.x_pix_mean*4)
+
+(dist_pix_1d, profile_1d) = get_radial_profile_circular(arr, pos)
+
+# Extract a radial profile. This is the simplest possible case: circular
+
+def get_radial_profile_circular(arr, pos = (0,0), width=1, method='mean'):
+  
+    dx = hbt.sizex(arr) 
+    dy = hbt.sizey(arr)
+    
+    xx, yy = np.mgrid[:dx, :dy]  # What is this syntax all about? That is weird.
+                                       # A: mgrid is a generator. np.meshgrid is the normal function version.
+    
+    dist_pix_2d = np.sqrt( ((xx - pos[0]) ** 2) + ((yy - pos[1]) ** 2) )
+
+    dist_pix_1d = hbt.frange(0, int(np.amax(dist_pix_2d)))
+    profile_1d_mean    = 0 * dist_pix_1d.copy()
+    profile_1d_median  = 0 * dist_pix_1d.copy()
+    
+    for i in range(len(dist_pix_1d)-2):
+        is_good = np.logical_and(dist_pix_2d >= dist_pix_1d[i],
+                                 dist_pix_2d <= dist_pix_1d[i+1]) 
+                         
+        profile_1d_median[i] = np.median(arr[is_good])
+            
+        profile_1d_mean[i]   = np.mean(arr[is_good])
+    
+    plt.plot(dist_pix_1d, profile_1d_median, label = 'Median')
+    plt.plot(dist_pix_1d, profile_1d_mean,   label = 'Mean')
+    plt.xlabel('Distance [pixels]')
+    plt.ylabel('DN')
+    plt.legend()
+    plt.show()
+    
+    profile_1d = profile_1d_median
+    
+    return (dist_pix_1d, profile_1d)

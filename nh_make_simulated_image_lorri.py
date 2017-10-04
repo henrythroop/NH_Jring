@@ -351,7 +351,10 @@ print('For ring: I/F = {}, exptime = {} s -> {:0.2f} DN/pixel'.format(iof_ring, 
 print('For MU69: total signal = {:0.2f} DN, pre-PSF'.format(nh_dn_lorri_mu69(dist = dist_target, exptime = exptime)))
 
 # =============================================================================
-# Load the MU69 frames, and add a ring to them!
+# Now that we have the routine set up:
+#   Load all of the KEM MU69 frames.
+#   Add a ring to them, at several sizes and I/F's
+#   Write these to disk.
 # =============================================================================
 
 # First load the pickle file that describes all of the navigation info, header info, etc.
@@ -491,4 +494,7 @@ for file_short in files_short:
 
 # Finally, close this input FITS file
             
-    hdu.close() 
+    hdu.close()
+    
+    
+    
