@@ -73,15 +73,13 @@ class image_stack:
         file_tm = "kernels_kem.tm"  # SPICE metakernel
         
         self.dir = (dir + '/').replace('//', '/') # Make sure it terminates in exactly one /
-        
-#        self.dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/Porter_Sep17/'
-        
+                
         files = glob.glob(self.dir + '*/*.fits')     # Look in subdirs
         files.extend(glob.glob(self.dir + '*.fits')) # And look at root-level files
         
         num_files = len(files)
 
-        self.file_save = self.dir + 'kem_hazard_picsar_n{}.pkl'.format(num_files)
+        self.file_save = self.dir + 'kem_hazard_picksar_n{}.pkl'.format(num_files)
         
 # If a save file was found, then load it, and immediately return
         
@@ -277,6 +275,41 @@ class image_stack:
             self.arr_flat = np.nanmedian(self.arr,0)  # Slow -- about 15x longer
             
         return self.arr_flat
+
+#=============================================================================
+# Extract a radial profile. This is the simplest possible case: circular
+#=============================================================================
+
+def get_radial_profile_circular(arr, pos = (0,0), width=1, method='mean'):
+  
+    dx = hbt.sizex(arr) 
+    dy = hbt.sizey(arr)
+    
+    xx, yy = np.mgrid[:dx, :dy]  # What is this syntax all about? That is weird.
+                                       # A: mgrid is a generator. np.meshgrid is the normal function version.
+    
+    dist_pix_2d = np.sqrt( ((xx - pos[0]) ** 2) + ((yy - pos[1]) ** 2) )
+
+    dist_pix_1d = hbt.frange(0, int(np.amax(dist_pix_2d)/width))*width
+    
+    profile_1d_mean    = 0 * dist_pix_1d.copy()
+    profile_1d_median  = 0 * dist_pix_1d.copy()
+    
+    for i in range(len(dist_pix_1d)-2):
+        is_good = np.logical_and(dist_pix_2d >= dist_pix_1d[i],
+                                 dist_pix_2d <= dist_pix_1d[i+1]) 
+                         
+        profile_1d_median[i] = np.median(arr[is_good])
+            
+        profile_1d_mean[i]   = np.mean(arr[is_good])
+    
+    if (method == 'mean'):
+        profile_1d = profile_1d_mean
+
+    if (method == 'median'):
+        profile_1d = profile_1d_median
+    
+    return (dist_pix_1d, profile_1d)
 
 #=============================================================================
 # OK! Now time to do some data analysis.
@@ -825,28 +858,12 @@ IoF = IoF_normal / (4 * mu)
 I = IoF / math.pi / r_sun_mu69**2 * F_solar
 C = I * TEXP * RSOLAR  # C is the value in DN
 print("I/F_normal = {}, TEXP = {} s -> DN = {}".format(IoF_normal, TEXP, C))
-        
+
+
 # =============================================================================
-# Now go thru the synthetic ring images. Load and stack *them*, and see if we can find a ring in them.
+# If desired, do a one-time routine for the synthetic images:
+#  extract the I/F and ring size from the filenames, and append that to the table.
 # =============================================================================
-
-dir = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/synthetic/'
-
-# Load the images into a table
-
-images = image_stack(dir)
-
-#
-
-data = images.data
-
-# Extend the table a bit, to include I/F and ring size
-
-t = images.t
-
-num_images = (np.shape(t))[0]
-
-# If desired, do a one-time routine to extract the I/F and ring size from the filenames, and append that to the table.
 
 DO_APPEND = False
 if (DO_APPEND):
@@ -864,80 +881,106 @@ if (DO_APPEND):
     t['iof_ring']  = iof_ring
     images.t = t
     images.save()           # Save it back to disk
-    
-  indices_sep17 = t['et'] > sp.utc2et('15 sep 2017')  # The positon of MU69 has changed a few pixels.
-                                                    # We can't blindly co-add between sep and pre-sep
-indices_jan17 = t['et'] < sp.utc2et('1 sep 2017')
+        
+# =============================================================================
+# Now go thru the synthetic ring images. 
+#    Load and stack the synthetic implanted images.
+#    Load and stack the original 'raw' frames
+#    Difference them, and see if we can find a ring in there.
+# =============================================================================
+
+dir_porter = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/Porter_Sep17/'
+dir_synthetic = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/synthetic/'
+
+# Load the images into a table
+
+images_raw = image_stack(dir_porter)
+images_syn = image_stack(dir_synthetic)
+
+data_raw = images_raw.data
+data_syn = images_syn.data
+
+t_raw = images_raw.t
+t_syn = images_syn.t
+
+num_images_raw = (np.shape(t_raw))[0]
+num_images_syn = (np.shape(t_syn))[0]
+
+# Create a bunch of possible image sets, based on various parameters
+
+# Indices for 'raw' images
+  
+indices_sep17_raw = t_raw['et'] > sp.utc2et('15 sep 2017')  # The positon of MU69 has changed a few pixels.
+                                                            # We can't blindly co-add between sep and pre-sep
+indices_jan17_raw = t_raw['et'] < sp.utc2et('1 sep 2017')
                                                     
-indices_rot0  = t['angle'] < 180   # One rotation angle
-indices_rot90 = t['angle'] > 180   # The other rotation angle
-indices_10sec = np.logical_and( t['exptime'] < 10, t['exptime'] > 5  )
-indices_20sec = np.logical_and( t['exptime'] < 20, t['exptime'] > 10 )
-indices_30sec = np.logical_and( t['exptime'] < 30, t['exptime'] > 20 )
+indices_rot0_raw  = t_raw['angle'] < 180   # One rotation angle
+indices_rot90_raw = t_raw['angle'] > 180   # The other rotation angle
+indices_10sec_raw = np.logical_and( t_raw['exptime'] < 10, t_raw['exptime'] > 5  )
+indices_20sec_raw = np.logical_and( t_raw['exptime'] < 20, t_raw['exptime'] > 10 )
 
-indices_1x1 = t['naxis1'] == 1024
-indices_4x4 = t['naxis1'] == 256
+indices_30sec_raw = np.logical_and( t_raw['exptime'] < 30, t_raw['exptime'] > 20 )
 
-indices_ring_small = t['size_ring'] == 'small'
-indices_ring_large = t['size_ring'] == 'large'
+indices_1x1_raw = t_raw['naxis1'] == 1024
+indices_4x4_raw = t_raw['naxis1'] == 256
 
-indices_iof_1em7 = t['iof_ring'] == 1e-7
-indices_iof_1em6 = t['iof_ring'] == 1e-6
-indices_iof_1em5 = t['iof_ring'] == 1e-5
-indices_iof_1em4 = t['iof_ring'] == 1e-4
+indices_30sec_4x4_raw = np.logical_and(indices_4x4_raw, indices_30sec_raw) # 94
 
-indices_small_1em7 = np.logical_and(indices_iof_1em7, indices_ring_small)
-indices_small_1em6 = np.logical_and(indices_iof_1em7, indices_ring_small)
-indices_small_1em5 = np.logical_and(indices_iof_1em7, indices_ring_small)
-indices_small_1em4 = np.logical_and(indices_iof_1em7, indices_ring_small)
-indices_large_1em7 = np.logical_and(indices_iof_1em7, indices_ring_large)
-indices_large_1em6 = np.logical_and(indices_iof_1em6, indices_ring_large)
-indices_large_1em5 = np.logical_and(indices_iof_1em5, indices_ring_large)
-indices_large_1em4 = np.logical_and(indices_iof_1em4, indices_ring_large)
+# Indices for synthetic images
 
-indices_p1 = hbt.frange(0,num_images-1) < (num_images/2)
-indices_p2 = np.logical_not(indices_p1)
+indices_ring_small_syn = t_syn['size_ring'] == 'small'
+indices_ring_large_syn = t_syn['size_ring'] == 'large'
 
-# Now do some stacking!
+indices_iof_1em7_syn = t_syn['iof_ring'] == 1e-7
+indices_iof_1em6_syn = t_syn['iof_ring'] == 1e-6
+indices_iof_1em5_syn = t_syn['iof_ring'] == 1e-5
+indices_iof_1em4_syn = t_syn['iof_ring'] == 1e-4
 
-images.set_indices(indices_large_1em5)
-arr = images.flatten()    
+indices_small_1em7_syn = np.logical_and(indices_iof_1em7_syn, indices_ring_small_syn)
+indices_small_1em6_syn = np.logical_and(indices_iof_1em7_syn, indices_ring_small_syn)
+indices_small_1em5_syn = np.logical_and(indices_iof_1em7_syn, indices_ring_small_syn)
+indices_small_1em4_syn = np.logical_and(indices_iof_1em7_syn, indices_ring_small_syn)
+indices_large_1em7_syn = np.logical_and(indices_iof_1em7_syn, indices_ring_large_syn)
+indices_large_1em6_syn = np.logical_and(indices_iof_1em6_syn, indices_ring_large_syn)
+indices_large_1em5_syn = np.logical_and(indices_iof_1em5_syn, indices_ring_large_syn)
+indices_large_1em4_syn = np.logical_and(indices_iof_1em4_syn, indices_ring_large_syn)
+
+indices_raw = indices_30sec_4x4_raw.copy()   # 94 of 344
+indices_syn = indices_large_1em5_syn.copy()  # 94 of 752
+
+# Now take the first half of the synthetic indices, and the second half of the raw ones
+# This is to assure that we are using different images for the two stacks! Otherwise, the results are trivial.
+
+frames_max = int(np.sum(indices_raw) / 2)         # Total number of frames (94)
+
+w = np.where(indices_raw)[0]
+indices_raw[w[frames_max]:] = False          # De-activate all frames *below* frames_max
+
+w = np.where(indices_syn)[0]
+indices_syn[:w[frames_max]] = False          # De-activate all frames above frames_max
+
+# Set the indices
+
+images_raw.set_indices(indices_raw)
+images_syn.set_indices(indices_syn)
+
+# Do the flattening
+
+arr_raw = images_raw.flatten()    
+arr_syn = images_syn.flatten()
+
+arr_diff = arr_syn - arr_raw
 
 pos = (images.y_pix_mean*4, images.x_pix_mean*4)
 
-(dist_pix_1d, profile_1d) = get_radial_profile_circular(arr, pos)
+(dist_pix_1d, profile_1d) = get_radial_profile_circular(arr_diff, pos)
 
-# Extract a radial profile. This is the simplest possible case: circular
+# Make a plot of the radial profile
 
-def get_radial_profile_circular(arr, pos = (0,0), width=1, method='mean'):
-  
-    dx = hbt.sizex(arr) 
-    dy = hbt.sizey(arr)
-    
-    xx, yy = np.mgrid[:dx, :dy]  # What is this syntax all about? That is weird.
-                                       # A: mgrid is a generator. np.meshgrid is the normal function version.
-    
-    dist_pix_2d = np.sqrt( ((xx - pos[0]) ** 2) + ((yy - pos[1]) ** 2) )
-
-    dist_pix_1d = hbt.frange(0, int(np.amax(dist_pix_2d)))
-    profile_1d_mean    = 0 * dist_pix_1d.copy()
-    profile_1d_median  = 0 * dist_pix_1d.copy()
-    
-    for i in range(len(dist_pix_1d)-2):
-        is_good = np.logical_and(dist_pix_2d >= dist_pix_1d[i],
-                                 dist_pix_2d <= dist_pix_1d[i+1]) 
-                         
-        profile_1d_median[i] = np.median(arr[is_good])
-            
-        profile_1d_mean[i]   = np.mean(arr[is_good])
-    
-    plt.plot(dist_pix_1d, profile_1d_median, label = 'Median')
-    plt.plot(dist_pix_1d, profile_1d_mean,   label = 'Mean')
-    plt.xlabel('Distance [pixels]')
-    plt.ylabel('DN')
-    plt.legend()
-    plt.show()
-    
-    profile_1d = profile_1d_median
-    
-    return (dist_pix_1d, profile_1d)
+plt.plot(dist_pix_1d, profile_1d_median, label = 'Median')
+#    plt.plot(dist_pix_1d, profile_1d_mean,   label = 'Mean')
+plt.xlabel('Distance [km]')
+plt.ylabel('DN')
+plt.title('I/F = 1e-5')
+plt.legend()
+plt.show()

@@ -265,7 +265,7 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
       
       # Get the center-of-mass
       
-      com = ndimage.measurements.center_of_mass(psf)
+      com = scipy.ndimage.measurements.center_of_mass(psf)
       center = (np.shape(psf)[0]-1)/2   # Center pixel of odd-sized PSF
       
       # Roll the PSF to center it
