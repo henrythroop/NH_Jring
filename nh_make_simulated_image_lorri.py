@@ -43,6 +43,7 @@ import time
 from   scipy.interpolate import griddata
 from   importlib import reload            # So I can do reload(module)
 import imreg_dft as ird                    # Image translation
+import scipy.ndimage                        # For  
 
 from astropy.convolution import convolve, convolve_fft, Gaussian2DKernel, Box2DKernel
 
@@ -248,19 +249,36 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
       psf = hdu[0].data
       hdu.close()
       
-      # If the PSF is an even dimension, convert to odd, as per the requirement of convolve()
-      
-      if ((np.shape(psf)[0] % 2) == 0):
-          psf = psf[:-1, :-1]
       
       # Make sure the PSF is normalized, with total area 1
       
       psf = psf / np.sum(psf)
       
+      psf_original = psf.copy()
+      
+      # If the PSF is an even dimension, convert to odd, as per the requirement of convolve()
+      # XXX This truncation causes the PSF to be a bit lop-sided. That causes the final ring to be not quite 
+      # centered on MU69. This is unrealistically wrong
+      
+      if ((np.shape(psf)[0] % 2) == 0):
+          psf = psf[:-1, :-1]
+      
+      # Get the center-of-mass
+      
+      com = ndimage.measurements.center_of_mass(psf)
+      center = (np.shape(psf)[0]-1)/2   # Center pixel of odd-sized PSF
+      
+      # Roll the PSF to center it
+      
+      psf_rolled = np.roll(np.roll(psf, -int(round(com[0]-center)), 0), -int(round(com[1]-center)), 1)
+      print(ndimage.measurements.center_of_mass(psf_rolled))
+      
       # And do the convolution
       
       print("Convolving with PSF {}...".format(file_psf))
-      arr_psf = convolve_fft(arr, psf)
+      arr_psf = convolve_fft(arr, psf_rolled)
+      
+#      arr_psf_fft = scipy.signal.fftconvolve(arr, psf_original, mode='same')
       
       arr = arr_psf
       
@@ -336,28 +354,71 @@ print('For MU69: total signal = {:0.2f} DN, pre-PSF'.format(nh_dn_lorri_mu69(dis
 # Load the MU69 frames, and add a ring to them!
 # =============================================================================
 
-iof_ring = 5e-6
+# First load the pickle file that describes all of the navigation info, header info, etc.
+# for Simon's version of the KEM frames.
+
+dir_buie   = '/Users/throop/Data/NH_KEM_Hazard/Buie_Sep17'      # Very optimized WCS coords
+dir_porter = '/Users/throop/Data/NH_KEM_Hazard/Porter_Sep17'  # Basic WCS coords
+
+dir_out    = '/Users/throop/Data/NH_KEM_Hazard/synthetic/'
+
+file_save = dir_porter + '/kem_hazard_picsar_n344.pkl'
+
+lun = open(file_save, 'rb')
+(t, data, indices) = pickle.load(lun)
+print("Read: " + file_save)
+lun.close() 
 
 stretch_percent = 95    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
-dir_buie = '/Users/throop/Data/NH_KEM_Hazard/Buie_Sep17'      # Very optimized WCS coords
-dir_porter = '/Users/throop/Data/NH_KEM_Hazard/Porter_Sep17'  # Basic WCS coords
+# Set up various indices so we can extract different image sets
+# We don't use all of these -- but just here for reference if we need them.
 
-files_porter = glob.glob(dir_porter + '/*/*')
-files_buie   = glob.glob(dir_buie   + '/*.*')
+indices_sep17 = t['et'] > sp.utc2et('15 sep 2017')  # The positon of MU69 has changed a few pixels.
+                                                    # We can't blindly co-add between sep and pre-sep
+indices_jan17 = t['et'] < sp.utc2et('1 sep 2017')
+                                                    
+indices_rot0  = t['angle'] < 180   # One rotation angle
+indices_rot90 = t['angle'] > 180   # The other rotation angle
+indices_10sec = np.logical_and( t['exptime'] < 10, t['exptime'] > 5  )
+indices_20sec = np.logical_and( t['exptime'] < 20, t['exptime'] > 10 )
+indices_30sec = np.logical_and( t['exptime'] < 30, t['exptime'] > 20 )
 
-files = files_buie
+indices_1x1 = t['naxis1'] == 1024
+indices_4x4 = t['naxis1'] == 256
 
-for file in files[0:1]:
+indices_30sec_rot0  = np.logical_and(indices_30sec, indices_rot0)  # 94
+indices_30sec_rot90 = np.logical_and(indices_30sec, indices_rot90) # 0
+
+# Now go through and extract all of the images we want
+
+indices = indices_30sec_rot0
+files_short = t['filename_short'][indices]
+
+# Set up the iteration parameters. These are the values we will loop over
+
+iof_ring     = [1e-7, 1e-6, 1e-5, 1e-4]
+a_ring       = [(2000*u.km, 3000*u.km), (8000*u.km, 10000*u.km)]
+a_ring_name  = ['small', 'large']
+
+# Loop over the files that we have downselected to
+
+for file_short in files_short:
+
+# Reconstruct the full filename from the short one
+    
+    file = glob.glob(dir_porter + '/*/*{}*'.format(file_short))[0]
+    
+# Load the image
+    
     hdu = fits.open(file)
-    im_data = hdu['PRIMARY'].data
+    im_data = hdu['PRIMARY'].data.copy()
     header = hdu['PRIMARY'].header
+
+# Grab values from the FITS header
     
-# Grab the ET
-    
-    et = header['SPCSCET']
-    
+    et      = header['SPCSCET']
     exptime = header['EXPTIME']
     
 # Get the image size
@@ -370,11 +431,8 @@ for file in files[0:1]:
 # Parse the WCS
     
     w = WCS(file)
-        
-    hdu.close()
       
 # Get the XY position of MU69
-# XXX check this for x-y swapping.
     
     (vec, lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
     vec = vec[0:3]
@@ -382,32 +440,55 @@ for file in files[0:1]:
     (junk,ra,dec) = sp.recrad(vec_sc_targ) # Get the RA / Dec of the object
     x_pix, y_pix    = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0) # Convert to pixels. 
                                             # XXX weird: world2pix returns a zero-dim array. Not an ndarray.
-                                            # Have to do this item() business to extract values. Or float().
+                                            # Have to do this float() business to extract the values. Or float().
     x_pix = float(x_pix)
     y_pix = float(y_pix)
     
 # Make the simulated image
     
-    
-    im_simulated = nh_make_simulated_image_lorri(do_ring=True, 
-                                    dist_ring_smoothing = 1000*u.km, 
-                                    iof_ring = iof_ring,
-                                    a_ring = (8000*u.km, 10000*u.km), 
-                                    exptime = exptime, 
-                                    mode = mode, 
-                                    pos = (y_pix, x_pix),  # Swap x and y here
-                                    dist_solar = dist_solar, 
-                                    dist_target = dist_target,  # *Not* the distance from FITS header, of course
-                                    do_mu69 = False,
-                                    do_psf = True)
+    for iof_ring_i in iof_ring:
+        for i,a_ring_i in enumerate(a_ring):
+        
+            a_ring_name_i = a_ring_name[i]
+            
+            im_simulated = nh_make_simulated_image_lorri(do_ring=True, 
+                                            dist_ring_smoothing = 2000*u.km, 
+                                            iof_ring = iof_ring_i,
+                                            a_ring = a_ring_i, 
+                                            exptime = exptime, 
+                                            mode = mode, 
+                                            pos = (y_pix, x_pix),  # Swap x and y here
+                                            dist_solar = dist_solar, 
+                                            dist_target = dist_target,  # *Not* the distance from FITS header, of course
+                                            do_mu69 = False,
+                                            do_psf = True)  # NB: The slight off-center ring is caused by the PSF.
 
 # Merge the two images
 
-    im_out = im_data + im_simulated    
-  
-    plt.imshow(stretch(im_out))
-    plt.plot(x_pix, y_pix, marker = 'o', color='red', ms = 5, alpha=0.5)
-    plt.title('t={} s, I/F = {}'.format(exptime, iof_ring))
-    plt.show()
-    
-# Now write a new file    
+            im_out = im_data + im_simulated    
+          
+            plt.imshow(stretch(im_out))
+            plt.plot(x_pix, y_pix, marker = 'o', color='red', ms = 5, alpha=0.5)
+            plt.title('{}, t={} s, {}, {}, I/F = {:.0e}, K{}'.format(
+                    file_short, exptime, mode, a_ring_name_i, iof_ring_i, dt_obs))
+            plt.show()
+            
+# Create the output filename
+            
+            file_out = dir_out + (file.split('/')[-1]).replace('.fits', '') + \
+                    '_ring_{}_iof{:.0e}_K{:+.0f}d'.format(a_ring_name_i, iof_ring_i, int(dt_obs.to('d').value)) \
+                    + '.fits'
+
+# Copy the new image into the existing FITS HDU. This does not modify the original -- only the one in memory.
+            
+            hdu['PRIMARY'].data = im_out
+            
+# And write a new FITS file -- same as original, but with the new simulated image array
+            
+            hdu.writeto(file_out, overwrite=True)
+            
+            print("Created: {}".format(file_out))
+
+# Finally, close this input FITS file
+            
+    hdu.close() 
