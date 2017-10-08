@@ -230,7 +230,7 @@ class image_stack:
 # Flatten a stack of images as per the currently-set indices
 # =============================================================================
 
-    def flatten(self, method='mean'):
+    def flatten(self, method='mean', do_subpixel = True):
         
         self.num_planes = np.sum(self.indices)
 
@@ -255,16 +255,22 @@ class image_stack:
             im_expand = scipy.ndimage.zoom(im,4)
             dx = self.t['x_pix'][w_i] - self.x_pix_mean
             dy = self.t['y_pix'][w_i] - self.y_pix_mean
+            
+            shift = (-dy*4, -dx*4)
         
-            # Apply the proper roll in X and Y. What I am calling 'x' and 'y' 
+            # Apply the proper shift in X and Y. What I am calling 'x' and 'y'             
+            # Sub-pixel shifting is in theory better. But in reality it makes a trivial difference over
+            # integer shifting.
             
-#            if (do_subpixel):
-#                im_expand = scipy.ndimage.shift(im_expand, (-dx*4, -dy*4)) # 
-#            else:
+            # Apply the sub-pixel shifting. I tried for hours to get scipy.ndimage.shift() to work, but 
+            # it kept being screwy. fourier_shift works fine, though slightly slower.
             
-            im_expand = np.roll(im_expand, int(round(-dy*4)), axis=0) # positive roll along axis=0 shifts downward
-            im_expand = np.roll(im_expand, int(round(-dx*4)), axis=1) # positive roll along axis=1 shifts rightward
+            if do_subpixel:
+                im_expand = np.fft.ifft2(scipy.ndimage.fourier_shift(np.fft.fft2(im_expand.copy()),shift)).real
             
+            else:
+                im_expand = np.roll(np.roll(im_expand, int(round(shift[0])), axis=0), int(round(shift[1])), axis=1)
+  
             self.arr[j,:,:] = im_expand                 # Stick it into place
         
         # Merge all the individual frames, using mean or median

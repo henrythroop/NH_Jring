@@ -79,6 +79,9 @@ def nh_find_simulated_rings_lorri():
     dir_porter = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/Porter_Sep17/'
     dir_synthetic = '/Users/throop/Dropbox/Data/NH_KEM_Hazard/synthetic/'
     
+    do_subpixel = False  # Flag: Do we use sub-pixel shifting when doing the flattening? 
+                         # It is slower and in theory better, but in reality makes a trivial difference.
+
     # Start up SPICE
     
     file_kernel = 'kernels_kem.tm'
@@ -135,8 +138,6 @@ def nh_find_simulated_rings_lorri():
     
     # Set the pixel scale
     
-
-    
     vec,lt = sp.spkezr('2014 MU69', et_obs, 'J2000', 'LT', 'New Horizons')
     vec_sc_targ = vec[0:3]
     dist_target_km = (sp.vnorm(vec_sc_targ)*u.km).value    
@@ -187,7 +188,11 @@ def nh_find_simulated_rings_lorri():
     # Choose which indiex. ** THIS IS WHERE WE SET THE RING TO USE!!
     
     indices_raw = indices_30sec_4x4_raw.copy()   # 94 of 344
-    indices_syn = indices_large_1em5_syn.copy()  # 94 of 752
+    indices_syn = indices_small_1em6_syn.copy()  # 94 of 752
+    
+    # Set the binning width of the radial profiles
+
+    width_pix = 4
     
     # Now take the first half of the synthetic indices, and the second half of the raw ones
     # This is to assure that we are using different images for the two stacks! Otherwise, the results are trivial.
@@ -206,9 +211,12 @@ def nh_find_simulated_rings_lorri():
     images_syn.set_indices(indices_syn)
     
     # Do the flattening
+        
+    arr_raw = images_raw.flatten(do_subpixel=do_subpixel)
+    arr_syn = images_syn.flatten(do_subpixel=do_subpixel)
     
-    arr_raw = images_raw.flatten()    
-    arr_syn = images_syn.flatten()
+#    arr_raw_sub = images_raw.flatten(do_subpixel=True)    
+#    arr_syn_sub = images_syn.flatten(do_subpixel=True)
     
     # Extract various fields from the data table. We can look up from any of the images -- they should be all the same.
     
@@ -239,9 +247,6 @@ def nh_find_simulated_rings_lorri():
     
     pos = (images_raw.y_pix_mean*4, images_raw.x_pix_mean*4)
     
-    # Set the binning width of the radial profiles
-    width_pix = 4  # 
-    
     (dist_pix_1d, profile_1d_median) = get_radial_profile_circular(arr_diff, pos, method='median', width=width_pix)
     (dist_pix_1d, profile_1d_mean)   = get_radial_profile_circular(arr_diff, pos, method='mean', width=width_pix)
 
@@ -265,8 +270,8 @@ def nh_find_simulated_rings_lorri():
     plt.plot(dist_pix_1d * scale_pix_km, profile_1d_mean,   label = 'Mean',   alpha = 0.2)
     plt.xlabel('Distance [km]')
     plt.ylabel('DN per pixel')
-    plt.title('Simulated ring, I/F = {:.0e}, binning = {}, {}, {} x {:.1f} s'.format(
-            iof_ring, width_pix, size_ring, frames_max, exptime))
+    plt.title('Simulated ring, I/F = {:.0e}, binning = {}, {}, {} x {:.1f} s, sub-pixel = {}'.format(
+            iof_ring, width_pix, size_ring, frames_max, exptime, do_subpixel))
     plt.xlim((0,30000))
     
     # Set the y axis range. This is really stupid. Can't matplotlib figure this out itself?
