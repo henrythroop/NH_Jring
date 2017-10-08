@@ -44,6 +44,7 @@ from   scipy.interpolate import griddata
 from   importlib import reload            # So I can do reload(module)
 import imreg_dft as ird                    # Image translation
 import scipy.ndimage                        # For  
+import skimage.transform as skt  # This 'resize' function is more useful than np's
 
 from astropy.convolution import convolve, convolve_fft, Gaussian2DKernel, Box2DKernel
 
@@ -156,6 +157,7 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
                                   radius_mu69 = 20*u.km,            # Radius of MU69
                                   iof_ring = 1e-4,                  # Default ring I/F
                                   dist_ring_smoothing = None,       # Do we smooth the edges of the ring?
+                                  met = None,                       # Filename so we can get the PSF
                                   pos = (None, None)):              # Center position: x and y
 
     
@@ -174,7 +176,9 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
 #    do_ring = True
 #    dist_ring_smoothing = 500*u.km
 #    do_mu69 = True
-#    
+ 
+    dir_psf = '/Users/throop/Data/NH_KEM_Hazard/psfs/'
+    
     if (mode.upper() == '1X1'):
         naxis = 1024     # Number of pixels in the output array. Assumed to be square.
     else:
@@ -240,29 +244,44 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
 # Convolve entire image with a LORRI PSF, if requested
 
     if (do_psf):
+      dir_psf  
       if (mode.upper() == '1X1'):
-          file_psf = 'psfs/1x1/lorri_1x1_psf22_v1.fits'
+          file_psf = dir_psf + '1x1/lorri_1x1_psf22_v1.fits'
       if (mode.upper() == '4X4'):
-          file_psf = 'psfs/4x4/lor_0368314618_psf_v1.fits'
+ 
+          # If we were passed an MET, then use it to load the proper PSF
+          file_psf_4x4_default = dir_psf + '4x4/lor_0368314618_psf_v1.fits'
+          file_psf_met         = dir_psf + '4x4/lor_{}_psf_v1.fits'.format(met)
+          if os.path.isfile(file_psf_met):
+              file_psf = file_psf_met
+              print("Located PSF file {}".format(file_psf))
+          else:
+              print("Using default PSF {}".format(file_psf_4x4_default))
+              file_psf = file_psf_4x4_default
 
       hdu = fits.open(file_psf)
       psf = hdu[0].data
       hdu.close()
+
+      psf_original = psf.copy()
       
+      # As per Tod, downsample the size by 2x. His PSFs on ixion are oversampled from the originals
       
+      psf = skt.resize(psf, np.array(np.shape(psf))/2, order=1, preserve_range=True)
+      
+      # If the PSF is an even dimension, convert to odd, as per the requirement of convolve()
+      # But, if we are using convolve_fft(), then it deal with even-dimensioned PSFs, and this is unnecessary.
+      
+      CONVERT_PSF_TO_ODD = False
+      
+      if (CONVERT_PSF_TO_ODD):
+          if ((np.shape(psf)[0] % 2) == 0):
+              psf = psf[:-1, :-1]
+ 
       # Make sure the PSF is normalized, with total area 1
       
       psf = psf / np.sum(psf)
-      
-      psf_original = psf.copy()
-      
-      # If the PSF is an even dimension, convert to odd, as per the requirement of convolve()
-      # XXX This truncation causes the PSF to be a bit lop-sided. That causes the final ring to be not quite 
-      # centered on MU69. This is unrealistically wrong
-      
-      if ((np.shape(psf)[0] % 2) == 0):
-          psf = psf[:-1, :-1]
-      
+               
       # Get the center-of-mass
       
       com = scipy.ndimage.measurements.center_of_mass(psf)
@@ -271,14 +290,13 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
       # Roll the PSF to center it
       
       psf_rolled = np.roll(np.roll(psf, -int(round(com[0]-center)), 0), -int(round(com[1]-center)), 1)
-      print(ndimage.measurements.center_of_mass(psf_rolled))
+      print(scipy.ndimage.measurements.center_of_mass(psf_rolled))
       
-      # And do the convolution
+      # And do the convolution. I am using convolve_fft() here, which allows for an even-dim'd PSF.
+      # Tod usually uses FFT convolution.
       
       print("Convolving with PSF {}...".format(file_psf))
-      arr_psf = convolve_fft(arr, psf_rolled)
-      
-#      arr_psf_fft = scipy.signal.fftconvolve(arr, psf_original, mode='same')
+      arr_psf = convolve_fft(arr, psf_rolled) 
       
       arr = arr_psf
       
@@ -365,7 +383,7 @@ dir_porter = '/Users/throop/Data/NH_KEM_Hazard/Porter_Sep17'  # Basic WCS coords
 
 dir_out    = '/Users/throop/Data/NH_KEM_Hazard/synthetic/'
 
-file_save = dir_porter + '/kem_hazard_picsar_n344.pkl'
+file_save = dir_porter + '/kem_hazard_picksar_n344.pkl'
 
 lun = open(file_save, 'rb')
 (t, data, indices) = pickle.load(lun)
@@ -463,6 +481,7 @@ for file_short in files_short:
                                             pos = (y_pix, x_pix),  # Swap x and y here
                                             dist_solar = dist_solar, 
                                             dist_target = dist_target,  # *Not* the distance from FITS header, of course
+                                            met = file_short,
                                             do_mu69 = False,
                                             do_psf = True)  # NB: The slight off-center ring is caused by the PSF.
 

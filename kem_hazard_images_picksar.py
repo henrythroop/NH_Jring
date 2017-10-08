@@ -6,11 +6,13 @@ Created on Wed Sep 27 22:00:03 2017
 @author: throop
 """
 
-# This program just does a bunch of misc testing on the various images taken in Sep-2017.
-# Histograms, statistics, stacking, subtraction, navigation, etc. 
-# My goal was to try to find anything interesting. 
-# MU69 wasn't visible. These were images of the right field, so we could prep our exposures
-# for the real hazard search.
+#=============================================================================
+#  This program just does a bunch of misc testing on the various images taken in Sep-2017.
+#  Histograms, statistics, stacking, subtraction, navigation, etc. 
+#  My goal was to try to find anything interesting. 
+#  MU69 wasn't visible. These were images of the right field, so we could prep our exposures
+#  for the real hazard search.
+#=============================================================================
 
 import pdb
 import glob
@@ -61,255 +63,7 @@ from   matplotlib.figure import Figure
 
 import hbt
 
-class image_stack:
-
-# =============================================================================
-# Init method: load the index and all files
-# Mandatory argument: the directory holding all the files
-# =============================================================================
-   
-    def __init__(self, dir) :   
-#        file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
-        file_tm = "kernels_kem.tm"  # SPICE metakernel
-        
-        self.dir = (dir + '/').replace('//', '/') # Make sure it terminates in exactly one /
-                
-        files = glob.glob(self.dir + '*/*.fits')     # Look in subdirs
-        files.extend(glob.glob(self.dir + '*.fits')) # And look at root-level files
-        
-        num_files = len(files)
-
-        self.file_save = self.dir + 'kem_hazard_picksar_n{}.pkl'.format(num_files)
-        
-# If a save file was found, then load it, and immediately return
-        
-        if (os.path.isfile(self.file_save)):
-            self.load()
-            return
-        
-#        files = files[0:10]
-        
-        stretch_percent = 95    
-        stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
-        
-        plt.set_cmap('Greys_r')
-        
-        # Start up SPICE
-        
-        sp.furnsh(file_tm)
-        
-        mode     = []
-        exptime  = []
-        filename_short = []
-        exptime  = []
-        visitnam = []
-        sapname  = []
-        sapdesc  = []
-        reqid    = []
-        et       = []
-        utc      = []
-        target   = []
-        
-        # Set up a dictionary for the data itself
-        
-        self.data     = {}
-        
-        # Set up the table. "The standard method of representing Python 3 strings in numpy is via the unicode 'U' dtype."
-        # Disadvantage of this is memory space, but not an issue for me.
-        
-        self.t = Table(  [[],              [],          [],         [],        [],       [],       [],      [],   [], 
-                                                    [], [], [], [], [], [] ],
-            names=('filename_short', 'exptime', 'visitname', 'sapname', 'sapdesc', 'target', 'reqid', 'et',  'utc', 
-                                                    'x_pix', 'y_pix', 'ra', 'dec', 'angle', 'naxis1'),
-            dtype = ('U50',           'float64', 'U50',      'U50',     'U50',     'U50',    'U50',   'float64', 'U50', 
-                                                    'float64', 'float64', 'float64', 'float64', 'float64', 'float64'  ))
-        
-        
-        for i,file in enumerate(files):
-        
-            # Read the data
-        
-            hdulist        = fits.open(file)
-            arr            = hdulist[0].data
-            err            = hdulist[1].data
-            quality        = hdulist[2].data
-            
-            filename_short = file.split('/')[-1].replace('.fits', '').replace('lor_', '')\
-                     .replace('_0x633_pwcs','')\
-                     .replace('_0x630_pwcs','')
-            exptime = hdulist[0].header['EXPTIME']
-            visitnam = hdulist[0].header['VISITNAM']
-            sapname = hdulist[0].header['SAPNAME']
-            sapdesc = hdulist[0].header['SAPDESC']
-            target = hdulist[0].header['TARGET']
-            reqid = hdulist[0].header['REQID']
-            et = hdulist[0].header['SPCSCET']
-            utc = sp.et2utc(et, 'C', 1)
-        
-            print("Read {}/{} {}".format(i, len(files), filename_short))
-            hdulist.close()
-        
-            # Read the WCS coords, and grab the location of MU69
-            
-            w = WCS(file)
-            
-            vec,lt = sp.spkezr('2014 MU69', et, 'J2000', 'LT', 'New Horizons')
-            vec_sc_targ = vec[0:3]
-            (junk,ra,dec) = sp.recrad(vec_sc_targ) # Get the RA / Dec of the object
-            x_pix, y_pix    = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0) # Convert to pixels
-            
-        # Put the FITS parameters into an astropy table row
-        
-            self.t.add_row(
-                      [filename_short, exptime, visitnam, sapname, sapdesc, target, reqid, et, utc, x_pix, y_pix,
-                       hdulist[0].header['SPCBRRA'],   # RA (pre-WCS I assume, but not sure)
-                       hdulist[0].header['SPCBRDEC'],  # Dec
-                       hdulist[0].header['SPCEMEN'],  # EME North angle -- ie, boresight rotation angle
-                       hdulist[0].header['NAXIS1']])   # NAXIS1 (and 2) -- either 256 (4x4) or 1024 (1X1)
-        
-        
-        # Save the data into the dictionary. We would save it to the table, but that doesn't seem possible.
-        # The key is the short filename
-            
-            self.data[filename_short] = arr
-        
-        # Sort by ET.
-            
-            self.t.sort('et')
-        
-    # Plot one image. Plot MU69 position on top of it to be sure that WCS is correct.
-    
-    # Finally, remove a few columns that we don't need, or that are wrong.
-        
-        self.t.remove_column('sapdesc')
-        self.t.remove_column('sapname')
-        self.t.remove_column('target')
-        self.t.remove_column('visitname')
-
-    # Initialize the 'indices' vector, which indicates which planes we use for flattening
-    
-        self.indices = np.ones(len(self.t), dtype=bool)
-        
-    # Return. Looks like an init method should not return anything.
-
-# =============================================================================
-# Load a pickle file from disk. 
-# Running this is just faster than reading and processing the files explicitly -- it duplicates no functionality
-# =============================================================================
-
-    def load(self):
-        lun = open(self.file_save, 'rb')
-        (self.t, self.data, self.indices) = pickle.load(lun)
-        print("Read: " + self.file_save)
-        lun.close() 
-
-# =============================================================================
-# Save current state into a pickle file.
-# =============================================================================
-
-    def save(self):
-
-        lun = open(self.file_save, 'wb')
-        pickle.dump((self.t, self.data, self.indices), lun)
-        lun.close()
-        print("Wrote: " + self.file_save)     
-        
-# =============================================================================
-# Print the table
-# =============================================================================
-
-    def print(self):
-        self.t.pprint(max_lines = -1, max_width = -1)
-        
-# =============================================================================
-# Set the indices to extract
-# =============================================================================
-
-    def set_indices(self, indices):
-        self.indices = indices
-        
-# =============================================================================
-# Flatten a stack of images as per the currently-set indices
-# =============================================================================
-
-    def flatten(self, method='mean'):
-        
-        self.num_planes = np.sum(self.indices)
-
-        # Create an output array for all of the images to go into
-        
-        self.arr = np.zeros((self.num_planes, 1024, 1024))
-        w = np.where(self.indices)[0]  # List of all the indices
-
-# Get the mean offset in X and Y for this set of images
-# Reference this relative to the mean for *all* the images. This assures that any stack of the 
-# same imageset will be centered with any other stack of it.
-        
-#        self.x_pix_mean = np.mean(t['x_pix'][self.indices])  # x_pix itself is MU69 position, as per SPICE and WCS
-#        self.y_pix_mean = np.mean(t['y_pix'][self.indices])  # This does seem to allow boolean indexing just fine
-
-        self.x_pix_mean = np.mean(t['x_pix'])  # x_pix itself is MU69 position, as per SPICE and WCS
-        self.y_pix_mean = np.mean(t['y_pix'])  # This does seem to allow boolean indexing just fine
-
-
-        for j,w_i in enumerate(w):  # Loop over all the indices. 'j' counts from 0 to N. w_i is each individual index.
-            im = data[t['filename_short'][w_i]]
-            im_expand = scipy.ndimage.zoom(im,4)
-            dx = self.t['x_pix'][w_i] - self.x_pix_mean
-            dy = self.t['y_pix'][w_i] - self.y_pix_mean
-        
-            # Apply the proper roll in X and Y. What I am calling 'x' and 'y' 
-            
-            im_expand = np.roll(im_expand, int(round(-dy*4)), axis=0) # positive roll along axis=0 shifts downward
-            im_expand = np.roll(im_expand, int(round(-dx*4)), axis=1) # positive roll along axis=1 shifts rightward
-            self.arr[j,:,:] = im_expand                 # Stick it into place
-        
-        # Merge all the individual frames, using mean or median
-        
-        print("Flattening array with dimension {}".format(np.shape(self.arr)))
-        
-        if (method == 'mean'):
-            self.arr_flat   = np.nanmean(self.arr,0)    # Fast
-            
-        if (method == 'median'):
-            self.arr_flat = np.nanmedian(self.arr,0)  # Slow -- about 15x longer
-            
-        return self.arr_flat
-
-#=============================================================================
-# Extract a radial profile. This is the simplest possible case: circular
-#=============================================================================
-
-def get_radial_profile_circular(arr, pos = (0,0), width=1, method='mean'):
-  
-    dx = hbt.sizex(arr) 
-    dy = hbt.sizey(arr)
-    
-    xx, yy = np.mgrid[:dx, :dy]  # What is this syntax all about? That is weird.
-                                       # A: mgrid is a generator. np.meshgrid is the normal function version.
-    
-    dist_pix_2d = np.sqrt( ((xx - pos[0]) ** 2) + ((yy - pos[1]) ** 2) )
-
-    dist_pix_1d = hbt.frange(0, int(np.amax(dist_pix_2d)/width))*width
-    
-    profile_1d_mean    = 0 * dist_pix_1d.copy()
-    profile_1d_median  = 0 * dist_pix_1d.copy()
-    
-    for i in range(len(dist_pix_1d)-2):
-        is_good = np.logical_and(dist_pix_2d >= dist_pix_1d[i],
-                                 dist_pix_2d <= dist_pix_1d[i+1]) 
-                         
-        profile_1d_median[i] = np.median(arr[is_good])
-            
-        profile_1d_mean[i]   = np.mean(arr[is_good])
-    
-    if (method == 'mean'):
-        profile_1d = profile_1d_mean
-
-    if (method == 'median'):
-        profile_1d = profile_1d_median
-    
-    return (dist_pix_1d, profile_1d)
+from import image_stack import image_stack
 
 #=============================================================================
 # OK! Now time to do some data analysis.
@@ -946,7 +700,7 @@ indices_large_1em5_syn = np.logical_and(indices_iof_1em5_syn, indices_ring_large
 indices_large_1em4_syn = np.logical_and(indices_iof_1em4_syn, indices_ring_large_syn)
 
 indices_raw = indices_30sec_4x4_raw.copy()   # 94 of 344
-indices_syn = indices_large_1em5_syn.copy()  # 94 of 752
+indices_syn = indices_small_1em5_syn.copy()  # 94 of 752
 
 # Now take the first half of the synthetic indices, and the second half of the raw ones
 # This is to assure that we are using different images for the two stacks! Otherwise, the results are trivial.
@@ -969,18 +723,32 @@ images_syn.set_indices(indices_syn)
 arr_raw = images_raw.flatten()    
 arr_syn = images_syn.flatten()
 
-arr_diff = arr_syn - arr_raw
+# Look up the I/F from one of the synthetic images (doesn't matter which one -- they will all be the same)
+
+t_syn = images_syn.t
+iof_ring = t_syn[indices_syn]['iof_ring'][0]
+
+# The two flattened images need some offsetting. Do that.
+
+shift = ird.translation(arr_raw, arr_syn)['tvec']
+shift = np.round(shift).astype('int')
+arr_syn_shift = np.roll(np.roll(arr_syn, shift[0], axis=0), shift[1], axis=1)
+
+arr_diff = arr_syn_shift - arr_raw
 
 pos = (images.y_pix_mean*4, images.x_pix_mean*4)
 
-(dist_pix_1d, profile_1d) = get_radial_profile_circular(arr_diff, pos)
+(dist_pix_1d, profile_1d_median) = get_radial_profile_circular(arr_diff, pos, method='median')
+(dist_pix_1d, profile_1d_mean)   = get_radial_profile_circular(arr_diff, pos, method='mean')
 
 # Make a plot of the radial profile
 
 plt.plot(dist_pix_1d, profile_1d_median, label = 'Median')
+plt.plot(dist_pix_1d, profile_1d_mean, label = 'Mean')
+
 #    plt.plot(dist_pix_1d, profile_1d_mean,   label = 'Mean')
 plt.xlabel('Distance [km]')
-plt.ylabel('DN')
-plt.title('I/F = 1e-5')
+plt.ylabel('DN per pixel')
+plt.title('I/F = {:.0e}'.format(iof_ring))
 plt.legend()
 plt.show()
