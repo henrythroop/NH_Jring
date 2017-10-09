@@ -66,7 +66,7 @@ class image_stack:
 # Mandatory argument: the directory holding all the files
 # =============================================================================
    
-    def __init__(self, dir) :   
+    def __init__(self, dir, do_force=False) :   
 #        file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
         file_tm = "kernels_kem.tm"  # SPICE metakernel
         
@@ -81,7 +81,7 @@ class image_stack:
         
 # If a save file was found, then load it, and immediately return
         
-        if (os.path.isfile(self.file_save)):
+        if (os.path.isfile(self.file_save)) and not(do_force):
             self.load()
             return
         
@@ -252,7 +252,7 @@ class image_stack:
 
         for j,w_i in enumerate(w):  # Loop over all the indices. 'j' counts from 0 to N. w_i is each individual index.
             im = self.data[self.t['filename_short'][w_i]]
-            im_expand = scipy.ndimage.zoom(im,4)
+            im_expand = scipy.ndimage.zoom(im,4) # Expand the image. This increases total flux; keeps DN/px fixed.
             dx = self.t['x_pix'][w_i] - self.x_pix_mean
             dy = self.t['y_pix'][w_i] - self.y_pix_mean
             

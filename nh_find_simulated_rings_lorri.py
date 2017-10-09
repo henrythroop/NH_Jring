@@ -90,7 +90,7 @@ def nh_find_simulated_rings_lorri():
     # Load the images into a table
     
     images_raw = image_stack(dir_porter)
-    images_syn = image_stack(dir_synthetic)
+    images_syn = image_stack(dir_synthetic, do_force=False)
     
     stretch = astropy.visualization.PercentileInterval(95)
     plt.set_cmap('Greys_r')
@@ -98,24 +98,28 @@ def nh_find_simulated_rings_lorri():
     # =============================================================================
     # If desired, do a one-time routine for the synthetic images:
     #  extract the I/F and ring size from the filenames, and append that to the table.
+    # This routine should be run after creating new synthetic images (e.g., adding an I/F value) 
     # =============================================================================
     
     DO_APPEND = False
     if (DO_APPEND):
+
+        t_syn = images_syn.t
+        num_images_syn = (np.shape(t_syn))[0]
+
+        iof_ring  = np.zeros(num_images_syn, dtype=float)
+        size_ring = np.zeros(num_images_syn, dtype='U30')
     
-        iof_ring = np.zeros(num_images, dtype=float)
-        size_ring = np.zeros(num_images, dtype='U30')
-    
-        for i in range(num_images):
-            f = t['filename_short'][i]
+        for i in range(num_images_syn):
+            f = t_syn['filename_short'][i]
             m = re.search('ring_(.*)_iof(.*)_K', f)  # Call regexp to parse it.
             iof_ring[i] = eval(m.group(2))
             size_ring[i] = m.group(1)
             
-        t['size_ring'] = size_ring
-        t['iof_ring']  = iof_ring
-        images.t = t
-        images.save()           # Save it back to disk
+        t_syn['size_ring'] = size_ring
+        t_syn['iof_ring']  = iof_ring
+        images_syn.t = t_syn
+        images_syn.save()           # Save the whole pickle archive (including images and table) back to disk
     
     data_raw = images_raw.data
     data_syn = images_syn.data
@@ -146,10 +150,10 @@ def nh_find_simulated_rings_lorri():
     scale_pix_km_dict = {'1X1' : scale_pix_lorri_1x1_rad * dist_target_km,
                          '4X4' : scale_pix_lorri_4x4_rad * dist_target_km}  # We are 
     
-   # Create a bunch of possible image sets, based on various parameters
+    # Create a bunch of possible image sets, based on various parameters
     
     # Indices for 'raw' images
-      
+    
     indices_sep17_raw = t_raw['et'] > sp.utc2et('15 sep 2017')  # The positon of MU69 has changed a few pixels.
                                                                 # We can't blindly co-add between sep and pre-sep
     indices_jan17_raw = t_raw['et'] < sp.utc2et('1 sep 2017')
@@ -172,15 +176,18 @@ def nh_find_simulated_rings_lorri():
     indices_ring_large_syn = t_syn['size_ring'] == 'large'
     
     indices_iof_1em7_syn = t_syn['iof_ring'] == 1e-7
+    indices_iof_3em7_syn = t_syn['iof_ring'] == 3e-7
     indices_iof_1em6_syn = t_syn['iof_ring'] == 1e-6
     indices_iof_1em5_syn = t_syn['iof_ring'] == 1e-5
     indices_iof_1em4_syn = t_syn['iof_ring'] == 1e-4
     
     indices_small_1em7_syn = np.logical_and(indices_iof_1em7_syn, indices_ring_small_syn)
+    indices_small_3em7_syn = np.logical_and(indices_iof_3em7_syn, indices_ring_small_syn)
     indices_small_1em6_syn = np.logical_and(indices_iof_1em6_syn, indices_ring_small_syn)
     indices_small_1em5_syn = np.logical_and(indices_iof_1em5_syn, indices_ring_small_syn)
     indices_small_1em4_syn = np.logical_and(indices_iof_1em4_syn, indices_ring_small_syn)
     indices_large_1em7_syn = np.logical_and(indices_iof_1em7_syn, indices_ring_large_syn)
+    indices_large_3em7_syn = np.logical_and(indices_iof_3em7_syn, indices_ring_large_syn)
     indices_large_1em6_syn = np.logical_and(indices_iof_1em6_syn, indices_ring_large_syn)
     indices_large_1em5_syn = np.logical_and(indices_iof_1em5_syn, indices_ring_large_syn)
     indices_large_1em4_syn = np.logical_and(indices_iof_1em4_syn, indices_ring_large_syn)
@@ -188,12 +195,8 @@ def nh_find_simulated_rings_lorri():
     # Choose which indiex. ** THIS IS WHERE WE SET THE RING TO USE!!
     
     indices_raw = indices_30sec_4x4_raw.copy()   # 94 of 344
-    indices_syn = indices_small_1em6_syn.copy()  # 94 of 752
-    
-    # Set the binning width of the radial profiles
+    indices_syn = indices_small_3em7_syn.copy()  # 94 of 752
 
-    width_pix = 4
-    
     # Now take the first half of the synthetic indices, and the second half of the raw ones
     # This is to assure that we are using different images for the two stacks! Otherwise, the results are trivial.
     
@@ -241,17 +244,26 @@ def nh_find_simulated_rings_lorri():
 #    a_1_15 = scipy.ndimage.shift(arr_syn, (1, 1.5), order=5)
 #    a_1_0 = scipy.ndimage.shift(arr_syn, (1, 0), order=5)
 #    a_05_0 = scipy.ndimage.shift(arr_syn, (0.5, 0), order=5)
-#    
     
     arr_diff  = arr_syn_shift  - arr_raw
     
     pos = (images_raw.y_pix_mean*4, images_raw.x_pix_mean*4)
     
-    (dist_pix_1d, profile_1d_median) = get_radial_profile_circular(arr_diff, pos, method='median', width=width_pix)
-    (dist_pix_1d, profile_1d_mean)   = get_radial_profile_circular(arr_diff, pos, method='mean', width=width_pix)
+    # Set the binning width of the radial profiles
 
+    binning_pix = 5
+    
+    # Extract the radial profiles
+    
+    (dist_pix_1d, profile_1d_median) = get_radial_profile_circular(arr_diff, pos, method='median', width=binning_pix)
+    (dist_pix_1d, profile_1d_mean)   = get_radial_profile_circular(arr_diff, pos, method='mean', width=binning_pix)
+
+    str_title = ('Synthetic ring - raw, I/F = {:.0e}, {}, {} x {:.1f}s'.format(
+            iof_ring, size_ring, frames_max, exptime))
+    
     plt.imshow(stretch(arr_diff))
-    plt.title('I/F = {:.0e}'.format(iof_ring))
+    plt.title(str_title)
+    plt.plot(pos[1], pos[0], marker='.', color='red')
     plt.show()
     
     # Set the scale for the effective mode of these observations. Many are taken as 4x4, but we've rebinned to 1x1
@@ -262,16 +274,15 @@ def nh_find_simulated_rings_lorri():
         scale_mode = '4X4'
     scale_pix_km = scale_pix_km_dict[scale_mode]
     
-    # Make a plot of the radial profile
+    # Make a plot of the radial profile. Don't plot the innermost bin. It is useless, since it has so few pixels in it.
     
     hbt.figsize((12,8))
     
-    plt.plot(dist_pix_1d * scale_pix_km, profile_1d_median, label = 'Median', alpha = 0.7)
-    plt.plot(dist_pix_1d * scale_pix_km, profile_1d_mean,   label = 'Mean',   alpha = 0.2)
+    plt.plot(dist_pix_1d[1:] * scale_pix_km, profile_1d_median[1:], label = 'Annulus median', alpha = 0.7)
+#    plt.plot(dist_pix_1d[1:] * scale_pix_km, profile_1d_mean[1:],   label = 'Mean',   alpha = 0.2)
     plt.xlabel('Distance [km]')
     plt.ylabel('DN per pixel')
-    plt.title('Simulated ring, I/F = {:.0e}, binning = {}, {}, {} x {:.1f} s, sub-pixel = {}'.format(
-            iof_ring, width_pix, size_ring, frames_max, exptime, do_subpixel))
+    plt.title(str_title + ', binning = {}'.format(binning_pix))
     plt.xlim((0,30000))
     
     # Set the y axis range. This is really stupid. Can't matplotlib figure this out itself?
@@ -279,10 +290,11 @@ def nh_find_simulated_rings_lorri():
     ax = plt.gca()
     lims = ax.get_xlim()
     i = np.where( (dist_pix_1d * scale_pix_km > lims[0]) &  (dist_pix_1d*scale_pix_km < lims[1]) )[0]
-    ax.set_ylim( profile_1d_mean[i].min(), profile_1d_mean[i].max() ) 
+    ax.set_ylim( profile_1d_median[i].min(), profile_1d_median[i].max() ) 
     
     plt.legend()
     plt.show()
+    plt.savefig()
     
 nh_find_simulated_rings_lorri()
     

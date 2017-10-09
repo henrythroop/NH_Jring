@@ -308,6 +308,8 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
 
 plt.set_cmap('Greys_r')
 
+do_destripe = True # Flag: Do we run our destripe function on the raw LORRI data?
+
 sp.furnsh('kernels_kem.tm')
 
 hbt.figsize((12,12))
@@ -419,9 +421,13 @@ files_short = t['filename_short'][indices]
 
 # Set up the iteration parameters. These are the values we will loop over
 
-iof_ring     = [1e-7, 1e-6, 1e-5, 1e-4]
-a_ring       = [(2000*u.km, 3000*u.km), (8000*u.km, 10000*u.km)]
+#iof_ring     = [1e-7, 3e-7, 1e-6, 3e-6, 1e-5, 1e-4]
+iof_ring     = [3e-6]
+a_ring       = [(3000*u.km, 4000*u.km), (8000*u.km, 10000*u.km)]
 a_ring_name  = ['small', 'large']
+
+#a_ring       = [(3000*u.km, 4000*u.km)]
+#a_ring_name  = ['small']
 
 # Loop over the files that we have downselected to
 
