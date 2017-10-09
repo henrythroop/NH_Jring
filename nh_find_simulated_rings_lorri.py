@@ -195,7 +195,7 @@ def nh_find_simulated_rings_lorri():
     # Choose which indiex. ** THIS IS WHERE WE SET THE RING TO USE!!
     
     indices_raw = indices_30sec_4x4_raw.copy()   # 94 of 344
-    indices_syn = indices_small_3em7_syn.copy()  # 94 of 752
+    indices_syn = indices_small_1em6_syn.copy()  # 94 of 752
 
     # Now take the first half of the synthetic indices, and the second half of the raw ones
     # This is to assure that we are using different images for the two stacks! Otherwise, the results are trivial.
