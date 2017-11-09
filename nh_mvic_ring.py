@@ -92,9 +92,10 @@ sp.furnsh(file_tm) # Start up SPICE
 #sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
 #sequence        = 'D202' # MVIC
 #sequence        = 'D211'  # MVIC
+sequence        = 'U_TBD_4'   # MVIC
 
 #sequence        = 'D202_LORRI'
-sequence        = 'D305_LORRI'
+#sequence        = 'D305_LORRI'
 
 # SELECT THE NUMBER OF RADIAL BINS TO USE
 
