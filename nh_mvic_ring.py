@@ -89,10 +89,10 @@ sp.furnsh(file_tm) # Start up SPICE
 # SELECT THE MVIC OR LORRI MOSAIC TO ANALYZE
 
 #sequence        = 'D305' # MVIC
-#sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
+sequence        = 'O_RINGDEP_A_1'  # Departure imaging, closest MVIC image of the whole system
 #sequence        = 'D202' # MVIC
 #sequence        = 'D211'  # MVIC
-sequence        = 'U_TBD_4'   # MVIC
+#sequence        = 'U_TBD_4'   # MVIC. This one was not in the rings paper, and has not been navigated yet.
 
 #sequence        = 'D202_LORRI'
 #sequence        = 'D305_LORRI'
@@ -544,7 +544,6 @@ if IS_MVIC:
 #==============================================================================
 
 (vec,ltime) = sp.spkezr('Pluto', et, 'J2000', 'LT+S', 'New Horizons')
-sp.illum('Pluto', et, 'LT+S', 'New Horizons')
 (subpnt_rec, junk, junk) = sp.subpnt('Intercept: ellipsoid', 'Pluto', et, 'IAU_PLUTO', 'LT+S', 'New Horizons')
 (rad_spice, lon_subsc_spice, lat_subsc_spice) = sp.reclat(subpnt_rec)
 
