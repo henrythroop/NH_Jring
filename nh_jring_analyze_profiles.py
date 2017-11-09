@@ -157,7 +157,6 @@ class ring_profile:
         self.azimuth_arr            = []
         self.index_image_arr        = []
         self.index_group_arr        = []
-        self.ang_phase_arr          = []
         self.dt_arr                 = [] # dt is the time since the datafile was written. 
         self.dt_str_arr             = []
         
@@ -368,6 +367,11 @@ class ring_profile:
 
     def flatten(self):
         
+        """ Flatten the profile, from N profile, into one mean profile.
+            Applies to radial and azimuthal and all other quantities.
+            Result is returned, and internal values are changed as well.
+            After flattening, most outputs are as 1-element arrays (not scalars)."""
+            
         # Use mean() to get a merged radial profile
 
         # First do radial profiles
@@ -377,26 +381,38 @@ class ring_profile:
         # Then do the azimuthal profiles
         
         self.profile_azimuth_arr[0] = np.mean(self.profile_azimuth_arr, axis=0) # Save the flattened profile
-        
-        # Then collapse the other fields (from N elements, to 1). This is very rough, and not a good way to do it.
-        # We collapse down into a 1-element array. Alternatively, we could collapse to a scalar.
-        
+
         self.profile_radius_arr  = np.array([self.profile_radius_arr[0]])
         self.profile_azimuth_arr = np.array([self.profile_azimuth_arr[0]])
+
+        # For some quantities, like angles, take the mean and save that.
+        # NB: If we add any new fields to the object, we need to add a corresponding new line to this method!
         
+        self.ang_elev_arr    = np.array([np.mean(self.ang_elev_arr)])
+        self.ang_phase_arr   = np.array([np.mean(self.ang_phase_arr)])
         self.exptime_arr     = np.array([np.mean(self.exptime_arr)])
+        
+        # For other fields, take one entry, and save that.
+        # This is a bit crude, but probably OK.
+                        
         self.azimuth_arr     = np.array([self.azimuth_arr[0]])
         self.radius_arr      = np.array([self.radius_arr[0]])
         self.index_image_arr = np.array(["{}-{}".format(self.index_image_arr[0], self.index_image_arr[-1])])
+        self.index_group_arr = np.array([self.index_group_arr[0]]) 
         self.dt_arr          = np.array([self.dt_arr[0]])
+        self.dt_str_arr      = np.array([self.dt_str_arr[0]])
         
-        return self
+        return self          # The value is returned, so that commands can be chained.
+                             # Also, the value of all quantities (e.g., profile_azimuth_arr) is changed internally.
  
 # =============================================================================
 # Copy the object
 # =============================================================================
 
     def copy(self):
+        
+        """ Copy an object to a new object (not a reference). """
+        
         import copy
         
         return copy.deepcopy(self)   # copy.copy() copies by reference, which is def not what we want
@@ -586,21 +602,20 @@ limit_radial = (128000,130000)
 
 # Set up output arrays
 
-# Create an astropy table to dump results into
-#phase_all = np.array([])
-#area_all  = np.array([])
+# Create an astropy table to dump results into. This is so we can make a phase curve in the end
+
+# First create a table, one entry per image
 
 t = Table([[], [], [], [], [], [], []],
     names=('index_group', 'index_image', 'phase', 'area_dn', 'exptime', 'label', 'sequence'),
     dtype = ('int', 'int', 'float64', 'float64', 'float64', 'U30', 'U30'))
 
-# Make a copy of this, which we put the 'summed' profiles in -- that is, one brightness, per image sequence
+# Then create a table, summed at one entry per phase angle.
+# XXX No, we really don't need this one right now.
 
-#t_summed = Table([[], [], [], [],
-#                  names = ('area_dn', 'exptime', 'label', 'area_dn'),
-#                  dtype = ('float64', '))
+# List all of the data that we want to read in from disk
 
-params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tuple: index_group, index_image, key
+params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tuple: (index_group, index_image, key)
                  (7, hbt.frange(8,15),  'full'),
                  (7, hbt.frange(16,23), 'full'),
                  (7, hbt.frange(24,31), 'full'),
@@ -613,17 +628,18 @@ params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tup
                  (7, hbt.frange(94,96), 'full')]
 
 # Loop over each of the sets of images
+# For each image set, sum the individual profiles, and get one final profile
 
 radius = []
-profile_radius = []
+profile_radius = []  # This is a list.
 
 for param_i in params:
 
-    # Unwrap the tuple, describing this set of files (e.g., 7/12 .. 7/15)
+    # Unwrap the tuple, describing this set of files -- e.g.,  (7, array([94, 95, 96]), 'full')
     
     (index_group, index_images, key_radius) = param_i   # Unwrap the tuple
 
-    # Create a string to describe this set of images ("7/0-7 core")
+    # Create a string to describe this set of images -- e.g.,    '7/94-96 full'
     
     sequence = ("{}/{}-{} {}".format(index_group, np.amin(index_images), np.amax(index_images), key_radius))
 
@@ -638,14 +654,18 @@ for param_i in params:
     
     # Convert from DN to I/F
     
+    ring.dn2iof()
     ring_flattened.dn2iof()
     
-#    ring_flattened.remove_background_radial(radius_bg, do_plot=False)
-    
-    # Remove the background, and measure the area of each curve
+    # Remove the background from the I/F profile curve
     
     ring.remove_background_radial(radius_bg, do_plot=False)
+    ring_flattened.remove_background_radial(radius_bg, do_plot=False)
+    
+    # Measure the area under the curve
+        
     area = ring.area_radial(limit_radial)
+    area_flattened = ring_flattened.area_radial(limit_radial)
     
     # Plot summed radial profile
     
@@ -655,19 +675,25 @@ for param_i in params:
     # Make a plot of the phase curve from just this file
     
     phase = ring.ang_phase_arr
-#    plt.plot(phase*hbt.r2d, area, marker='+', linestyle='none')
-#    plt.show()
+    phase_flattened = ring_flattened.ang_phase_arr  # Since this is a flattened observation, phase is a 1-element array.
     
     # Save the area and phase angle for each individual phase curve
 
-    for i in range(np.size(index_images)):
+    for i in range(np.size(index_images)):  # Loop over each image
         
-      label = ("{}/{} {}".format(index_group, index_images[i], key_radius))
+      label = ("{}/{} {}".format(ring.index_group_arr[0], ring.index_image_arr[i], key_radius))
         
-      t.add_row([index_group, index_images[i], phase[i]*u.radian, area[i], ring.exptime_arr[i], 
-                 label, sequence])
+      t.add_row([ring.index_group_arr[0], 
+                 ring.index_image_arr[i], 
+                 ring.ang_phase_arr[i],
+                 area[i],
+                 ring.exptime_arr[i],
+                 label,
+                 sequence])
     
-    # Save the radius and the profile. Unfortunately I don't know how to save these into the AstroPy table
+    # Save the radius and the profile. 
+    # I wish I could just save these into the AstroPy table, but that's not possible, so I need to make an 
+    # external array to store them. Ugh!
     
     radius.append(np.ravel(ring_flattened.radius_arr))
     profile_radius.append(np.ravel(ring_flattened.profile_radius_arr))
