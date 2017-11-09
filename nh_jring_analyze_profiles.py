@@ -606,12 +606,11 @@ limit_radial = (128000,130000)
 
 # First create a table, one entry per image
 
-t = Table([[], [], [], [], [], [], []],
-    names=('index_group', 'index_image', 'phase', 'area_dn', 'exptime', 'label', 'sequence'),
-    dtype = ('int', 'int', 'float64', 'float64', 'float64', 'U30', 'U30'))
+t = Table([[], [], [], [], [], [], [], [], []],
+    names=('index_group', 'index_image', 'phase', 'area_dn', 'exptime', 'label', 'sequence', 'radius', 'profile_radius'),
+    dtype = ('int', 'int', 'float64', 'float64', 'float64', 'U30', 'U30', 'object', 'object'))
 
-# Then create a table, summed at one entry per phase angle.
-# XXX No, we really don't need this one right now.
+# Then create a table, summed at one entry per phase angle. XXX No, we really don't need this one right now.
 
 # List all of the data that we want to read in from disk
 
@@ -689,43 +688,66 @@ for param_i in params:
                  area[i],
                  ring.exptime_arr[i],
                  label,
-                 sequence])
+                 sequence, 
+                 ring.radius_arr[i],
+                 ring.profile_radius_arr[i]])
     
     # Save the radius and the profile. 
     # I wish I could just save these into the AstroPy table, but that's not possible, so I need to make an 
     # external array to store them. Ugh!
+    # The problem here is then that when I sort one table (by phase angle, etc.) the other one is *not* sorted...
+    # XXX Also, they really are not ordered the same. This is a big problem. I am not doing it right.
     
-    radius.append(np.ravel(ring_flattened.radius_arr))
-    profile_radius.append(np.ravel(ring_flattened.profile_radius_arr))
+#    radius.append(np.ravel(ring_flattened.radius_arr))
+#    profile_radius.append(np.ravel(ring_flattened.profile_radius_arr))
 
 # Put the radial profiles into proper order for plotting. After this, np.shape(radius) = (11,500) for instance
     
-profile_radius = np.transpose(profile_radius)
-radius         = np.transpose(radius)
+#profile_radius = np.transpose(profile_radius)
+#radius         = np.transpose(radius)
 
 # Aggregate the groups. This merges things and takes means of all numeric columns. Any non-numeric columns are dropped.
 # The argument to groups.aggregate is a function to apply (e.g., numpy)
+# XXX Not clear what .aggregate() will do with 2D NumPy arrays?
+# XXX A: I have tested it and it looks to actually properly do the job.
       
 t_mean = t.group_by('sequence').groups.aggregate(np.mean)  # Mean
 t_std  = t.group_by('sequence').groups.aggregate(np.std)   # Stdev
 
+# Remove any columns that don't make any sense because they cannot be merged!
+
+t_mean.remove_column('index_image')
+t_std.remove_column('index_image')
+
+# Sort by phase angle
+
+t_mean.sort('phase')
+
+# =============================================================================
+# Make a plot: Radial Profile (Summed, I/F) vs. Sequence
+# =============================================================================
+
 hbt.figsize((15,8))
-for i,s in enumerate(t_mean['sequence']):
-    plt.plot(radius[:,i]/1000, profile_radius[:,i], label = s)
+
+for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e.g., '7/0-7 full')
     
-plt.ylim((-2,12))
+    plt.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i], label = r'{}, {:.1f}$^{{\circ}}$'.format(
+            s, t_mean['phase'][i]*hbt.r2d))
+        
+plt.ylim((-1e-6,2e-6))
+plt.xlim((126, 131))
 plt.xlabel('Radius [1000 km]')
-plt.title('J-ring radial profiles')
-plt.ylabel('DN')
+plt.title('J-ring radial profiles, summed per sequence')
+plt.ylabel('I/F')
 plt.legend()
 plt.show()
-
-
       
 #    phase_all = np.concatenate((phase_all, phase))
 #    area_all  = np.concatenate((area_all, area))
 
+# =============================================================================
 # Plot the phase curve, with one point per image
+# =============================================================================
 
 hbt.set_fontsize(size=15)
 for i in range(len(t_mean['phase'])):
@@ -810,8 +832,6 @@ radius_bg_127 = np.array([[125,126], [130, 131]])*1000
 a.load(7, hbt.frange(40,42),key_radius='full').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
 
 
-
-
 plt.show()
 
 
@@ -826,4 +846,23 @@ plt.show()
 a_dn = a.copy()
 a_dn.dn2iof().plot()
 plt.show()
+
+### Do some testing on dataframes instead of AstroPy Tables.
+
+df = pd.DataFrame(columns = ['animal', 'sound', 'picture'])
+df.loc[len(df)] = ['cow', 'moo', hbt.dist_center(5)]
+df.loc[len(df)] = ['piggie', 'oink', hbt.dist_center(10)]
+
+t2 = Table()
+
+a = ['cow', 'piggy', 'goatie']
+b = ['moo', 'oink', 'bababa']
+c = [hbt.dist_center(1), hbt.dist_center(10), hbt.dist_center(5)]
+t2 = Table([a, b, c], names=('animal', 'sound', 'picture'))
+t2.add_row(['mouse', 'squeak', hbt.dist_center(1)])
+
+t2[3]['picture'] = np.array([[1,1,1,1,1]])
+
+t3 = Table(names = ('animal', 'sound', 'picture'), dtype = ('U30', 'U30', 'object'))
+t3.add_row(['mouse', 'squeak', hbt.dist_center(10)])
 
