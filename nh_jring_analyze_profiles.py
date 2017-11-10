@@ -594,7 +594,10 @@ ring = ring_profile()
 
 # Define the off-ring locations. Pixels in this region are used to set the background level.
 
-radius_bg = np.array([[127500,127900], [129200,129700]])
+radius_bg_core      = np.array([[127.5,127.9], [129.0,129.7]])*1000  # Core only
+radius_bg_halo_core = np.array([[115,117],     [130,131]])*1000  # Cover full width of halo and core
+radius_bg_117       = np.array([[117,120],     [130,131]])*1000   # This distance range is a bit better - no edge effects
+radius_bg_127       = np.array([[125,126],     [130, 131]])*1000
 
 # Make a plot of all of the data
 
@@ -606,9 +609,9 @@ limit_radial = (128000,130000)
 
 # First create a table, one entry per image
 
-t = Table([[], [], [], [], [], [], [], [], []],
-    names=('index_group', 'index_image', 'phase', 'area_dn', 'exptime', 'label', 'sequence', 'radius', 'profile_radius'),
-    dtype = ('int', 'int', 'float64', 'float64', 'float64', 'U30', 'U30', 'object', 'object'))
+t = Table([[], [], [], [], [], [], [], [], [], []],
+    names=('index_group', 'index_image', 'phase', 'elev', 'area_dn', 'exptime', 'label', 'sequence', 'radius', 'profile_radius'),
+    dtype = ('int', 'int', 'float64', 'float64', 'float64', 'float64', 'U30', 'U30', 'object', 'object'))
 
 # Then create a table, summed at one entry per phase angle. XXX No, we really don't need this one right now.
 
@@ -626,11 +629,15 @@ params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tup
                  (7, hbt.frange(91,93), 'full'),
                  (7, hbt.frange(94,96), 'full')]
 
+
+
 # Loop over each of the sets of images
 # For each image set, sum the individual profiles, and get one final profile
 
 radius = []
 profile_radius = []  # This is a list.
+
+radius_bg = radius_bg_halo_core
 
 for param_i in params:
 
@@ -682,9 +689,10 @@ for param_i in params:
         
       label = ("{}/{} {}".format(ring.index_group_arr[0], ring.index_image_arr[i], key_radius))
         
-      t.add_row([ring.index_group_arr[0], 
+      t.add_row([ring.index_group_arr[0],   # XXX this is slow, now that we are including arrays into it!
                  ring.index_image_arr[i], 
                  ring.ang_phase_arr[i],
+                 ring.ang_elev_arr[i],
                  area[i],
                  ring.exptime_arr[i],
                  label,
@@ -727,15 +735,16 @@ t_mean.sort('phase')
 # Make a plot: Radial Profile (Summed, I/F) vs. Sequence
 # =============================================================================
 
-hbt.figsize((15,8))
+hbt.figsize((12,8))
 
 for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e.g., '7/0-7 full')
     
-    plt.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i], label = r'{}, {:.1f}$^{{\circ}}$'.format(
+    plt.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i], 
+             label = r'{}, {:.1f}$^{{\circ}}$, {:.1f}$^{{\circ}}$'.format(
             s, t_mean['phase'][i]*hbt.r2d))
         
-plt.ylim((-1e-6,2e-6))
-plt.xlim((126, 131))
+plt.ylim((-1e-6,3e-6))
+plt.xlim((117, 131))
 plt.xlabel('Radius [1000 km]')
 plt.title('J-ring radial profiles, summed per sequence')
 plt.ylabel('I/F')
@@ -745,8 +754,9 @@ plt.show()
 #    phase_all = np.concatenate((phase_all, phase))
 #    area_all  = np.concatenate((area_all, area))
 
+
 # =============================================================================
-# Plot the phase curve, with one point per image
+# Plot the phase curve, with one point per sequence
 # =============================================================================
 
 hbt.set_fontsize(size=15)
@@ -758,21 +768,15 @@ plt.ylabel('Ring Area [DN]')
 plt.legend()
 plt.show()
 
-# Make a plot of all the phase curves together, superimposed.
-
-# Plot the phase curve, with one point per sequence
+# =============================================================================
+# Plot the phase curve, with one point per image
+# =============================================================================
       
 plt.plot(t['phase'] * hbt.r2d, t['area_dn'], marker = 'o', linestyle = 'none', label=t['label'])
-#plt.legend()
 plt.title('Phase Curve, New Horizons J-Ring')
 plt.show()
-
-# Now we want to do some astropy table manipulation. Take all things
-# 
+ 
 # Plot several individual radial profiles
-
-radius_bg_full = np.array([[115,117], [130,131]])*1000  # This is in theory the best one to use
-radius_bg_117  = np.array([[117,120], [130,131]])*1000   # This distance range is a bit better - no edge effects
 
 # =============================================================================
 # Now make some customized individual profiles. For a 'best merged set' profile thing.
@@ -816,7 +820,6 @@ plt.show()
 # The inner region is going to be hard to get. I might do better if I mask it.
 
 a = ring_profile()
-radius_bg_127 = np.array([[125,126], [130, 131]])*1000
 a.load(7, hbt.frange(32,35),key_radius='core').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
 
 # OK profile for 36-39. Similar to previous. Thet moonlet belt is visible but the dust is probably subtracted out here.
