@@ -25,10 +25,44 @@ mask_unwrapped: A boolean mask, indicating whether to use individual pixels in t
 @author: throop
 """
 
-def nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azimuth,
-                                            range_profile, type_profile,
+def nh_jring_extract_profile_from_unwrapped(im_unwrapped, 
+                                            bins_radius, 
+                                            bins_azimuth,
+                                            range_profile, 
+                                            type_profile,    # String: either 'radial' or 'azimuthal'
                                             mask_unwrapped=False):
 
+    """ Extract a radial or azimuthal profile, as specified.
+    
+        :im_unwrapped:   The unwrapped image, N x M pixels
+        :bins_radius:    Array defining the radial bins. M elements long.
+        :bins_azimuth:   Array defining the azimuthal bins. N elements long.
+        :range_profile:  Range of azimuth to use (for radial profile), or v/v
+        :type_profile:   String: either 'radial' or 'azimuthal'. Case insensitive.
+        :mask_unwrapped: 
+            
+            
+    Parameters
+    ----------
+    im_unwrapped : 
+        The unwrapped image, N x M pixels
+    bins_radius :
+        Array defining the radial bins. M elements long.
+    third : 
+        Array defining the azimuthal bins. N elements long.
+    range_profile :
+        Range of azimuth to use (for radial profile), or v/v
+    type_profile :
+        String: either 'radial' or 'azimuthal'. Case insensitive. 
+    mask_unwrapped :
+        
+    Returns
+    -------
+    Array:
+        The profile itself, either radial or azimuthal. The length is as specified in the input parameters.    
+    
+    """
+        
     import hbt
     import numpy as np
     from   scipy.interpolate import griddata
@@ -71,6 +105,7 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped, bins_radius, bins_azim
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)    
                 profile_radius  = np.nanmean(im2[:, bin_0:bin_1],1)          # Use nanmean() which ignores NaN
+                                                                             # Problem happening here        
         
         # In case of a double range -- e.g., (0.9, -0.3)
         

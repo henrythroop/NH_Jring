@@ -432,6 +432,15 @@ class ring_profile:
     
     With do_plot=True, then make a one-off plot showing the removed trend.
     
+    Parameters
+    -----
+    
+    xranges: 
+        Range of radii to use for fitting the background level. Total of (radius_bg) x (2) elements. 
+        Usually 2x2 = 4 elements.    
+    
+    XXX Warning: If the input radial range is not within the data's radial range, then array returned will be empty!
+                 Needs better error handling.  
     """
     
          # Remove background from all the radial profiles
@@ -497,11 +506,11 @@ class ring_profile:
                       **kwargs):
 
         #==============================================================================
-        # Make a consolidated plot of radial profile
+        # Make plot of radial profile. Plot one line per profile (or one, if flattened)
         #==============================================================================
         
         if (plot_radial):
-            hbt.figsize((10,8))
+#            hbt.figsize((10,8))
                                                 
             for i,index_image in enumerate(self.index_image_arr):
 
@@ -510,10 +519,11 @@ class ring_profile:
                 
                 p = plt.plot(radius, 
                          (i * dy_radial) + profile_radius, 
-                         label = '{}/{}, {:.2f}°, {}'.format(
+                         label = r'{}/{}, $\alpha$={:.2f}°, e={:.2f}°, {}'.format(
                                        self.index_group_arr[i], 
                                        self.index_image_arr[i], 
                                        self.ang_phase_arr[i]*hbt.r2d,
+                                       self.ang_elev_arr[i]*hbt.r2d,
                                        self.dt_str_arr[i]),
                          **kwargs)
             
@@ -529,8 +539,13 @@ class ring_profile:
                 
             plt.xlabel('Radial Distance [km]')
             plt.ylabel(self.profile_radius_units)
+ 
+            # Set scientific notation on the Y axis, if appropriate
             
-#            plt.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2e')) # Not working yet
+            axes = plt.gca()
+            
+            if ('I/F' in self.profile_radius_units):       
+                axes.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
             
             plt.legend()
             if (title is not None):
@@ -595,7 +610,7 @@ ring = ring_profile()
 # Define the off-ring locations. Pixels in this region are used to set the background level.
 
 radius_bg_core      = np.array([[127.5,127.9], [129.0,129.7]])*1000  # Core only
-radius_bg_halo_core = np.array([[115,117],     [130,131]])*1000  # Cover full width of halo and core
+radius_bg_halo_core = np.array([[120,120.5],     [130,131]])*1000  # Cover full width of halo and core
 radius_bg_117       = np.array([[117,120],     [130,131]])*1000   # This distance range is a bit better - no edge effects
 radius_bg_127       = np.array([[125,126],     [130, 131]])*1000
 
@@ -665,8 +680,8 @@ for param_i in params:
     
     # Remove the background from the I/F profile curve
     
-    ring.remove_background_radial(radius_bg, do_plot=False)
-    ring_flattened.remove_background_radial(radius_bg, do_plot=False)
+    ring.remove_background_radial(radius_bg)
+    ring_flattened.remove_background_radial(radius_bg)
     
     # Measure the area under the curve
         
@@ -741,7 +756,7 @@ for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e
     
     plt.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i], 
              label = r'{}, {:.1f}$^{{\circ}}$, {:.1f}$^{{\circ}}$'.format(
-            s, t_mean['phase'][i]*hbt.r2d))
+            s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d))
         
 plt.ylim((-1e-6,3e-6))
 plt.xlim((117, 131))
@@ -773,7 +788,9 @@ plt.show()
 # =============================================================================
       
 plt.plot(t['phase'] * hbt.r2d, t['area_dn'], marker = 'o', linestyle = 'none', label=t['label'])
+#plt.yscale('log')
 plt.title('Phase Curve, New Horizons J-Ring')
+plt.ylim((1e-5, 1e-2))
 plt.show()
  
 # Plot several individual radial profiles
@@ -785,7 +802,7 @@ plt.show()
 # This is a good profile for 0-7! Shows moonlet belt really well.
 
 a = ring_profile()
-a.load(7, hbt.frange(0,7),key_radius='full').remove_background_radial(radius_bg_full,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(0,7),key_radius='full').remove_background_radial(radius_bg_halo_core,do_plot=False).flatten().plot()
 plt.show()
 
 # This is a good profile for 8-15. Shows moonlet belt really well. Looks like 0-7 one. Has an extra bump = stray.
@@ -794,7 +811,7 @@ plt.show()
 # I guess I could just pass an additional argument, like 'c20(120,200)' for a 20-pixel radius circle.
 
 a = ring_profile()
-a.load(7, hbt.frange(8,15),key_radius='full').remove_background_radial(radius_bg_full,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(8,15),key_radius='full').remove_background_radial(radius_bg_halo_core,do_plot=False).flatten().plot()
 plt.show()
 
 # Decent profile for 16-23.
@@ -808,11 +825,13 @@ plt.show()
 # It is a very narrow moonlet belt between A+M, plus some inner stuff. 
 
 a = ring_profile()
-a.load(7, hbt.frange(24,31),key_radius='full').plot()
-a.dn2iof()
-a.remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
-plt.show()
+a.load(7, hbt.frange(91,93),key_radius='full').plot()
 
+a.dn2iof()
+a.plot()
+a.remove_background_radial(radius_bg_halo_core).flatten().plot()
+
+plt.show()
 
 # Marginal profile for 32-35.
 # There is more stray light here. It really needs masking.
@@ -849,23 +868,3 @@ plt.show()
 a_dn = a.copy()
 a_dn.dn2iof().plot()
 plt.show()
-
-### Do some testing on dataframes instead of AstroPy Tables.
-
-df = pd.DataFrame(columns = ['animal', 'sound', 'picture'])
-df.loc[len(df)] = ['cow', 'moo', hbt.dist_center(5)]
-df.loc[len(df)] = ['piggie', 'oink', hbt.dist_center(10)]
-
-t2 = Table()
-
-a = ['cow', 'piggy', 'goatie']
-b = ['moo', 'oink', 'bababa']
-c = [hbt.dist_center(1), hbt.dist_center(10), hbt.dist_center(5)]
-t2 = Table([a, b, c], names=('animal', 'sound', 'picture'))
-t2.add_row(['mouse', 'squeak', hbt.dist_center(1)])
-
-t2[3]['picture'] = np.array([[1,1,1,1,1]])
-
-t3 = Table(names = ('animal', 'sound', 'picture'), dtype = ('U30', 'U30', 'object'))
-t3.add_row(['mouse', 'squeak', hbt.dist_center(10)])
-

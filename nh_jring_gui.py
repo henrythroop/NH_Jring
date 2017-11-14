@@ -106,7 +106,6 @@ class App:
     def __init__(self, master):
 
 # Set some default values
-
         
         self.filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters 
 
@@ -127,7 +126,7 @@ class App:
         option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
         entry_bg_default    = '0-10'   # Default polynomial order XXX need to set a longer string length here!
         index_group_default = 7        # Default group to start with
-        index_image_default = 61       # Default image number within the group
+        index_image_default = 32       # Default image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -656,7 +655,9 @@ class App:
 
 # For now the 'core' profile is normal radial, and 'net' is the normal azimuthal profile.
 # The 'outer-30' and 'outer-50' are for testing, and they cut out regions immediately surrounding the ansa itself.
-# These 'outer' ones are not really needed when masking the stray light (in fact, none of these are).        
+# These 'outer' ones are not really needed when masking the stray light (in fact, none of these are).
+# [Update: As of mid-2017, I've added image-by-image masking. That pretty much eliminates the need for these 
+#  'named profiles' like 'core', 'outer-30', etc. Much much better.]    
         
         profile_azimuth  = {'inner' : np.array([0]), 'core'   : np.array([0]), 'outer' : np.array([0])}
         profile_radius   = {'full'  : np.array([0]), 'center' : np.array([0]), 'core'  : np.array([0])}
@@ -675,7 +676,8 @@ class App:
         
         for key in profile_radius:
             
-            profile_radius[key] = nh_jring_extract_profile_from_unwrapped(self.image_unwrapped, 
+            profile_radius[key] = nh_jring_extract_profile_from_unwrapped(
+                                                  self.image_unwrapped, 
                                                   self.radius_unwrapped,   # Array defining bins of radius
                                                   self.azimuth_unwrapped,  # Array defining bins of azimuth
                                                   range_of_azimuth[key],        # ie, range of az used for rad profile
