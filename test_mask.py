@@ -6,7 +6,6 @@ Created on Tue Sep 27 10:55:04 2016
 @author: throop
 """
 
-
 # General python imports
 
 import pdb
@@ -31,8 +30,7 @@ import astropy.modeling
 from   scipy.optimize import curve_fit
 #from   pylab import *  # So I can change plot size.
                        # Pylab defines the 'plot' command
-import cspice
-from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
+import spiceypy as py
 from   astropy.wcs import WCS
 from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
@@ -40,19 +38,13 @@ from   astropy.coordinates import SkyCoord # To define coordinates to use in sta
 #from   photutils import datasets
 from   scipy.stats import mode
 from   scipy.stats import linregress
-import wcsaxes
+#import wcsaxes
 import time
-from scipy.interpolate import griddata
+from   scipy.interpolate import griddata
 
 import re # Regexp
 import pickle # For load/save
 
-# Imports for Tk
-
-import Tkinter
-import ttk
-import tkMessageBox
-from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
 
 # HBT imports
@@ -73,11 +65,13 @@ index_image_default = 20 # Image number within the group
 # Load pickle file
 
 #if os.path.exists(self.filename_save):
-print "Loading file: " + filename_save
+
+print("Loading file: {}".format(filename_save))
+
 #    self.load(verbose=False) # This will load self.t
 #    t = self.t
     
-lun = open(filename_save, 'rb')
+lun = open(dir_out + filename_save, 'rb')
 t = pickle.load(lun)
 lun.close()
         
@@ -106,7 +100,6 @@ stretch = astropy.visualization.PercentileInterval(10)  # PI(90) scales array to
 planes = hbt.create_backplane(dir_images + '/' + file)
 
 am = planes['Ang_Metis']
-
 
 dx_total =  ( t_group['dx_opnav'][index_image] )
 dy_total =  ( t_group['dy_opnav'][index_image])
