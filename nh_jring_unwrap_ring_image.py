@@ -19,16 +19,35 @@ def nh_jring_unwrap_ring_image(im,
                                planes, dx=0, dy=0, mask_stray=None, mask_objects=None):
         
     """
-  im:      Image array
-  radius:  1D array of radius, in km
-  azimuth: 1D array of azimuth (radians)
-  planes:  The table of backplanes
-  mask_stray and/or mask_objects:    2D array of pixel flags. True = good. 
+    Unwrap a 2D ring image from (RA, Dec) into (radius, azimuth).
+    
+    Parameters:
+    -----    
+    
+    All of these parameters are mandatory.
+    
+    im:      
+        Image array
+    radius:  
+        1D array of radius, in km
+        
+    azimuth: 
+        1D array of azimuth (radians)
+        
+    planes:  
+        The table of backplanes
+    mask_stray:    
+        2D array of pixel flags. True = good. 
+    mask_objects:
+        2D array of pixel flags. True = good. 
   
-  dx, dy: Pixel values to roll the image by -- that is, an additional offset to be added to nav info in WCS header. 
+    dx, dy: 
+        Pixel values to roll the image by -- that is, an additional offset to be added to nav info in WCS header. 
           Both the image and the mask are rolled by this amount. Integer.
   
-  output: (im_unwrapped, bins_radius, bins_azimuth)
+    Output
+    ------
+    (im_unwrapped, bins_radius, bins_azimuth)
   
     """  
         
