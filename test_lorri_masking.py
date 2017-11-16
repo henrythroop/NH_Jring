@@ -48,6 +48,10 @@ import pickle # For load/save
 
 from skimage.io import imread, imsave
 
+from nh_jring_extract_profile_from_unwrapped import nh_jring_extract_profile_from_unwrapped
+
+from nh_jring_unwrap_ring_image import nh_jring_unwrap_ring_image
+
 # HBT imports
 
 import hbt
@@ -58,6 +62,7 @@ dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
 
 dir_jring = '/Users/throop/data/NH_Jring/'
 dir_out = dir_jring + 'out/'
+dir_backplanes = dir_out
 
 filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
 
@@ -89,7 +94,17 @@ t_group = t[groupmask]
 num_images_group = np.size(t_group)
 
 file = t_group[index_image]['Filename']
-        
+
+# Load the backplanes
+
+dir_backplanes = '/Users/throop/data/NH_Jring/out/'
+    
+file_backplane = dir_backplanes + t_group['Shortname'][index_image].replace('.fit', '_planes.pkl')
+				
+lun = open(file_backplane, 'rb')
+planes = pickle.load(lun)
+lun.close()
+       
 # Read the image
 
 hdulist = fits.open(file)
@@ -127,15 +142,46 @@ for style in styles:
 
     stretch_mm = astropy.visualization.ManualInterval(vmin=mm[0], vmax=mm[1])
 
-    # Plot the image, using these properly calculated robust min and maxes, in the masked area only
-    
+    # Plot the image, using these properly calculated robust min and maxes, in the masked area only.
+                
     plt.imshow(stretch_mm(out*mask))
         
     plt.title(style)
     plt.show()
-
-# Now I need to take a radial profile of each of these...
+        
+    # Unwrap the images
     
+    dx = 0
+    dy = 0
+    
+    r_ring_inner = 114000   # Follow same limits as in Throop 2004 J-ring paper fig. 7
+    r_ring_outer = 135000
 
+    num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
+    num_bins_radius  = 500
+    
+    image_processed = out
+    mask_stray = mask
+    mask_objects = np.ones(np.shape(mask_stray), dtype=bool)
+    range_of_azimuth = {'full'  : 1}
+    
+    (image_unwrapped,                                     # NB: This has a lot of NaNs in it.  
+     mask_stray_unwrapped, mask_objects_unwrapped,        # The masks, unwrapped. True = good pixel
+     radius_unwrapped, azimuth_unwrapped                  # The bins which define the unwrapped coordinates
+    ) = \
+     nh_jring_unwrap_ring_image(image_processed, 
+                                 num_bins_radius, 
+                                 (r_ring_inner, r_ring_outer),
+                                 num_bins_azimuth, 
+                                 planes, 
+                                 dx=-dx, dy=-dy,
+                                 mask_objects=mask_objects,
+                                 mask_stray=mask_stray)
 
-# OK. We want to scale it to the min and max *within the masked region*.
+            profile_radius = nh_jring_extract_profile_from_unwrapped(
+                                                  image_unwrapped, 
+                                                  radius_unwrapped,   # Array defining bins of radius
+                                                  azimuth_unwrapped,  # Array defining bins of azimuth
+                                                  range_of_azimuth,        # ie, range of az used for rad profile
+                                                  'radius',
+                                                  mask_unwrapped = mask_unwrapped)   
