@@ -47,6 +47,7 @@ from   scipy.interpolate import griddata
 from   importlib import reload            # So I can do reload(module)
 
 from astropy.convolution import Box1DKernel, Gaussian1DKernel, convolve
+from   pymiecoated import Mie
 
 from   scipy.stats import linregress
 
@@ -610,13 +611,15 @@ ring = ring_profile()
 # Define the off-ring locations. Pixels in this region are used to set the background level.
 
 radius_bg_core      = np.array([[127.5,127.9], [129.0,129.7]])*1000  # Core only
-radius_bg_halo_core = np.array([[120,120.5],     [130,131]])*1000  # Cover full width of halo and core
-radius_bg_117       = np.array([[117,120],     [130,131]])*1000   # This distance range is a bit better - no edge effects
+radius_bg_halo_core = np.array([[122,122.5],     [130,131]])*1000  # Cover full width of halo and core
+radius_bg_117       = np.array([[117,120],     [130,131]])*1000  # This distance range is a bit better - no edge effects
 radius_bg_127       = np.array([[125,126],     [130, 131]])*1000
 
 # Make a plot of all of the data
 
-limit_radial = (128000,130000)
+# Define the limits used for the I/F 'area under the curve' total equivalent width
+
+limit_radial = (122000,130000)  
 
 # Set up output arrays
 
@@ -625,7 +628,8 @@ limit_radial = (128000,130000)
 # First create a table, one entry per image
 
 t = Table([[], [], [], [], [], [], [], [], [], []],
-    names=('index_group', 'index_image', 'phase', 'elev', 'area_dn', 'exptime', 'label', 'sequence', 'radius', 'profile_radius'),
+    names=('index_group', 'index_image', 'phase', 'elev', 'area_dn', 'exptime', 'label', 'sequence', 'radius', 
+           'profile_radius'),
     dtype = ('int', 'int', 'float64', 'float64', 'float64', 'float64', 'U30', 'U30', 'object', 'object'))
 
 # Then create a table, summed at one entry per phase angle. XXX No, we really don't need this one right now.
@@ -764,10 +768,55 @@ plt.xlabel('Radius [1000 km]')
 plt.title('J-ring radial profiles, summed per sequence')
 plt.ylabel('I/F')
 plt.legend()
+plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
 plt.show()
       
 #    phase_all = np.concatenate((phase_all, phase))
 #    area_all  = np.concatenate((area_all, area))
+
+# =============================================================================
+# Do some Mie calculations
+# =============================================================================
+
+alam		= 500 * u.nm
+rmin   = 0.01 * u.micron
+rmax   = 5000 * u.micron   # 900 microns is around the cutoff size of the UK Mie code (X ~ 12,000).
+                    # By coincidence, this is also very close to the maximum particle size that 
+                    # I calculate for the ring (see code attached, below)
+num_r    = 500
+r    =  hbt.frange(rmin, rmax, num_r, log=True)*u.micron  # Astropy bug? When I run frange(), it drops the units.
+qmie = np.zeros(num_r)
+qsca = np.zeros(num_r)
+qext = np.zeros(num_r)
+qbak = np.zeros(num_r)
+qabs = np.zeros(num_r)
+p11_mie  = np.zeros(num_r)
+
+# Calc Q_ext *or* Q_sca, based on whether it's reflected or transmitted light
+ 
+n_refract = 1.33
+m_refract = -0.001
+nm_refract = complex(n_refract,m_refract)
+x = (2*math.pi * r/alam).to('1').value
+
+phase_hst = 10
+   
+for i,x_i in enumerate(x):  
+    mie = Mie(x=x_i, m=nm_refract)  # This is only for one x value, not an ensemble
+    qext[i] = mie.qext()
+    qsca[i] = mie.qsca()
+    qbak[i] = mie.qb()  
+  
+    (S1, S2)  = mie.S12(np.cos(math.pi*u.rad - phase_hst)) # Looking at code, S12 returns tuple (S1, S2).
+                                                         # For a sphere, S3 and S4 are zero.
+                                                         # Argument to S12() is scattering angle theta, not phase
+    k = 2*math.pi / alam
+  
+    sigma = math.pi * r[i]**2 * qsca[i] # Just a guess here
+  
+  # Now convert from S1 and S2, to P11: Use p. 2 of http://nit.colorado.edu/atoc5560/week8.pdf
+  
+    p11_mie[i]  = 4 * math.pi / (k**2 * sigma) * ( (np.abs(S1))**2 + (np.abs(S2))**2) / 2
 
 
 # =============================================================================
@@ -778,6 +827,7 @@ hbt.set_fontsize(size=15)
 for i in range(len(t_mean['phase'])):
     plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_dn'][i], yerr=t_std['area_dn'][i],
              marker = 'o', ms=10, linestyle = 'none', label=t_mean['sequence'][i])
+
 plt.xlabel('Angle [deg]')
 plt.ylabel('Ring Area [DN]')
 plt.legend()
@@ -811,7 +861,8 @@ plt.show()
 # I guess I could just pass an additional argument, like 'c20(120,200)' for a 20-pixel radius circle.
 
 a = ring_profile()
-a.load(7, hbt.frange(8,15),key_radius='full').remove_background_radial(radius_bg_halo_core,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(8,15),key_radius='full').\
+    remove_background_radial(radius_bg_halo_core,do_plot=False).flatten().plot()
 plt.show()
 
 # Decent profile for 16-23.
@@ -852,7 +903,6 @@ a.load(7, hbt.frange(36,39),key_radius='full').remove_background_radial(radius_b
 a = ring_profile()
 radius_bg_127 = np.array([[125,126], [130, 131]])*1000
 a.load(7, hbt.frange(40,42),key_radius='full').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
-
 
 plt.show()
 

@@ -76,6 +76,8 @@ tkinter.messagebox
 from   matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from   matplotlib.figure import Figure
 
+from   astropy.stats import sigma_clip
+
 # HBT imports
 
 import hbt
@@ -757,7 +759,15 @@ class App:
 
         self.ax3.clear()        
 
-        self.ax3.imshow(self.stretch(dn_grid), extent=extent, aspect=aspect, origin='lower', cmap=plt.cm.Greys_r) 
+        # Compute the proper stretch, for only the visible data
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mm = hbt.mm(sigma_clip(dn_grid[mask_unwrapped], sigma_lower=1000, sigma_upper=3, iters=10))
+            
+        stretch_mm = astropy.visualization.ManualInterval(vmin=mm[0], vmax=mm[1])        
+        
+        self.ax3.imshow(stretch_mm(dn_grid), extent=extent, aspect=aspect, origin='lower', cmap=plt.cm.Greys_r) 
                                                                # Plot the main image
         self.ax3.imshow(mask_unwrapped, extent=extent, aspect=aspect, origin='lower',
                          cmap=plt.cm.Reds_r, alpha=0.1, vmin=-0.5,vmax=0.5)
@@ -1219,10 +1229,10 @@ the internal state which is already correct. This does *not* refresh the image i
     
         if isinstance(image, tuple):
             (self.image_processed, self.mask_stray) = image
-            print("Stray mask file read!")
-            plt.imshow(self.mask_stray)
-            plt.show()
-            print("Mask mean = {}".format(np.nanmean(self.mask_stray * 1.0)))
+#            print("Stray mask file read!")
+#            plt.imshow(self.mask_stray)
+#            plt.show()
+#            print("Mask mean = {}".format(np.nanmean(self.mask_stray * 1.0)))
  
     # If no mask exists, then create one, and make it all True
            
@@ -1278,12 +1288,21 @@ the internal state which is already correct. This does *not* refresh the image i
         # *** In order to get things to plot in main plot window, 
         # use self.ax1.<command>, not plt.<command>
         # ax1 is an instance of Axes, and I can call it with most other methods (legend(), imshow(), plot(), etc)
-                       
-        self.ax1.imshow(self.stretch(self.image_processed))
+
+        # Compute the mask
+        
+        mask = np.logical_and(self.mask_stray, self.mask_objects)
+        
+        # Compute the proper stretch, based only on the datapoints that show thru the mask. 
+        # And, remove outliers like CR's from this stretch.
+        
+        mm = hbt.mm(sigma_clip(self.image_processed[mask], sigma_lower=1000, sigma_upper=3, iters=10))
+
+        stretch_mm = astropy.visualization.ManualInterval(vmin=mm[0], vmax=mm[1])
+        
+        self.ax1.imshow(stretch_mm(self.image_processed))
         
         # Draw the mask on top of it
-
-        mask = np.logical_and(self.mask_stray, self.mask_objects)
         
         self.ax1.imshow(mask, cmap=plt.cm.Reds_r, alpha=0.1, vmin=-0.5,vmax=0.5)
                          

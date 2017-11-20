@@ -30,16 +30,9 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped,
                                             bins_azimuth,
                                             range_profile, 
                                             type_profile,    # String: either 'radial' or 'azimuthal'
-                                            mask_unwrapped=False):
+                                            mask_unwrapped=None):
 
     """ Extract a radial or azimuthal profile, as specified.
-    
-        :im_unwrapped:   The unwrapped image, N x M pixels
-        :bins_radius:    Array defining the radial bins. M elements long.
-        :bins_azimuth:   Array defining the azimuthal bins. N elements long.
-        :range_profile:  Range of azimuth to use (for radial profile), or v/v
-        :type_profile:   String: either 'radial' or 'azimuthal'. Case insensitive.
-        :mask_unwrapped: 
             
             
     Parameters
@@ -51,10 +44,13 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped,
     third : 
         Array defining the azimuthal bins. N elements long.
     range_profile :
-        Range of azimuth to use (for radial profile), or v/v
+        Range of azimuth to use (for radial profile), or v/v. Can be float or tuple. If a float, then it is the fraction
+        of the central range to use (e.g., 1.0 = use entire azimuth range). If a tuple -- e.g., (0.3, 0.2) -- then it
+        refers to how much of the edge to use. **Usually, set this to 1, and just use masking instead.**
     type_profile :
         String: either 'radial' or 'azimuthal'. Case insensitive. 
-    mask_unwrapped :
+    mask_unwrapped (optional, but usually recommended):
+        Boolean mask. Pixels that are True are good.
         
     Returns
     -------
@@ -68,8 +64,7 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped,
     from   scipy.interpolate import griddata
     import warnings
 
-    if type(mask_unwrapped) == type(np.array([])):
-        DO_MASK = True
+    DO_MASK = not(mask_unwrapped is None)
 
     if (DO_MASK):    
         is_good_unwrapped = (mask_unwrapped == True)     # Keep True values as it

@@ -1,7 +1,22 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Tue Sep 27 10:55:04 2016
+Created on Nov 17 10:55:04 2017
+
+TEST_LORRI_MASKING.PY
+
+This program reads in one LORRI Jupiter-ring image. It then applies several different masks, and
+extract a radial profile using each one.
+
+The goals here are:
+    o To compare the sensitivity between the amount of stray light, and the radial profile.
+    o To investigate the importance of applying the sfit() *after* doing masking, vs. before.
+    
+Results:
+    o In general, it is better to over-mask than under-mask. Here, I am throwing away 90% of the ring
+      pixels, and that results in a much better profile. I have remove anything that is questionable.    
+
+    o 
 
 @author: throop
 """
@@ -41,7 +56,7 @@ from   scipy.stats import linregress
 #import wcsaxes
 import time
 from   scipy.interpolate import griddata
-from astropy.stats import sigma_clip
+from   astropy.stats import sigma_clip
 
 import re # Regexp
 import pickle # For load/save
@@ -91,7 +106,7 @@ groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
 groupmask = t['Desc'] == groups[index_group]
 t_group = t[groupmask]
 
-num_images_group = np.size(t_group)
+num_images_group = np.size(t_group)     
 
 file = t_group[index_image]['Filename']
 
@@ -118,7 +133,17 @@ stretch = astropy.visualization.PercentileInterval(90)  # PI(90) scales array to
 
 styles = ['', 'aggressive', 'nominal', 'ring_broad_only', 'ring_narrow_only']
 
+# Set up plotting parameters
+
+n_cols = 3
+n_rows = len(styles)
+
+imagenum = 1
+
+hbt.figsize((20,30))
+
 for style in styles:
+    
     if (style):
         file_mask = dir_jring + '/masks/mask_7_32-35_{}.png'.format(style)
         mask = (imread(file_mask)[:,:,0])   # Flatten to 2D
@@ -128,12 +153,21 @@ for style in styles:
         mask = np.ones(np.shape(data))
         mask = (mask > 0)
 
-    # Remove the sfit from the masked image
+    # Remove the sfit from the masked image.
+    # We have two different ways of doing this -- a flag chooses.
+    # Concl: sfit() should be subtracted based on the masked data.
     
-    out = hbt.remove_sfit(data, mask = mask)
+    DO_SFIT_TO_MASKED = False
     
+    if (DO_SFIT_TO_MASKED):      
+        out = hbt.remove_sfit(data, mask = mask)      # Remove sfit using just masked data
+    else:
+        out = hbt.remove_sfit(data)                   # Remove sfit using *all* data
+        
     # Calculate the min and max values. But do this of the data, where it is masked True.
     # And, exclude outliers (like CRs) when we do this.
+    # I am doing this carefully, and it looks good in the end. 
+    # There is no need to do an a second stretch on top of this.
     
     out_masked = out[mask]
     out_masked_clipped = sigma_clip(out_masked, sigma_lower=1000, sigma_upper=3, iters=10)
@@ -141,18 +175,9 @@ for style in styles:
     mm = hbt.mm(out_masked_clipped)
 
     stretch_mm = astropy.visualization.ManualInterval(vmin=mm[0], vmax=mm[1])
-
-    # Plot the image, using these properly calculated robust min and maxes, in the masked area only.
                 
-    plt.imshow(stretch_mm(out*mask))
-        
-    plt.title(style)
-    plt.show()
-        
-    # Unwrap the images
-    
-    dx = 0
-    dy = 0
+    # Set the defaults for unwrapping the images
+    dx = dy = 0
     
     r_ring_inner = 114000   # Follow same limits as in Throop 2004 J-ring paper fig. 7
     r_ring_outer = 135000
@@ -163,7 +188,9 @@ for style in styles:
     image_processed = out
     mask_stray = mask
     mask_objects = np.ones(np.shape(mask_stray), dtype=bool)
-    range_of_azimuth = {'full'  : 1}
+    range_of_azimuth = 1
+    
+    # Do the unwrapping
     
     (image_unwrapped,                                     # NB: This has a lot of NaNs in it.  
      mask_stray_unwrapped, mask_objects_unwrapped,        # The masks, unwrapped. True = good pixel
@@ -178,10 +205,39 @@ for style in styles:
                                  mask_objects=mask_objects,
                                  mask_stray=mask_stray)
 
-            profile_radius = nh_jring_extract_profile_from_unwrapped(
-                                                  image_unwrapped, 
-                                                  radius_unwrapped,   # Array defining bins of radius
-                                                  azimuth_unwrapped,  # Array defining bins of azimuth
-                                                  range_of_azimuth,        # ie, range of az used for rad profile
-                                                  'radius',
-                                                  mask_unwrapped = mask_unwrapped)   
+    # Take the radial profile
+    
+    profile_radius = nh_jring_extract_profile_from_unwrapped(
+                                          image_unwrapped, 
+                                          radius_unwrapped,   # Array defining bins of radius
+                                          azimuth_unwrapped,  # Array defining bins of azimuth
+                                          range_of_azimuth,        # ie, range of az used for rad profile
+                                          'radius',
+                                          mask_unwrapped = mask_stray_unwrapped)   
+
+    # Now plot everything
+
+    # Plot the image, using these properly calculated robust min and maxes, in the masked area only.
+    
+    ax = plt.subplot(n_rows, n_cols, imagenum);     imagenum += 1
+    plt.imshow(stretch_mm(out*mask))
+    plt.title(style)
+
+    ax = plt.subplot(n_rows, n_cols, imagenum);     imagenum += 1
+    plt.imshow(stretch_mm(image_unwrapped * mask_stray_unwrapped))   
+    ax.set_aspect(3/5.)
+
+    plt.title('Mask = {}'.format(file_mask.split('/')[-1]))
+    
+#    ax.set_aspect('equal')
+
+    plt.subplot(n_rows, n_cols, imagenum);     imagenum += 1
+    plt.plot(radius_unwrapped, profile_radius)
+    plt.title(file.split('/')[-1])
+    plt.xlim((119000, 135000))
+    plt.ylim((-3,10))
+    plt.xlabel('Radius [km]')
+    plt.ylabel('DN')
+    
+plt.show()
+    
