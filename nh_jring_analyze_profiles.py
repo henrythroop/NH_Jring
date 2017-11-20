@@ -67,8 +67,10 @@ from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
 from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
 from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
 
+from scatter_mie_ensemble                      import scatter_mie_ensemble
+
 # For fun, I'm going to try to do this whole thing as a class. That makes it easier to pass 
-# params back and forth, I guess.
+# params back and forth, I guess. [A: Yes, this is a great place for a class -- very clean.]
 
 class ring_profile:
     
@@ -778,58 +780,57 @@ plt.show()
 # Do some Mie calculations
 # =============================================================================
 
-alam		= 500 * u.nm
-rmin   = 0.01 * u.micron
-rmax   = 5000 * u.micron   # 900 microns is around the cutoff size of the UK Mie code (X ~ 12,000).
-                    # By coincidence, this is also very close to the maximum particle size that 
-                    # I calculate for the ring (see code attached, below)
-num_r    = 500
-r    =  hbt.frange(rmin, rmax, num_r, log=True)*u.micron  # Astropy bug? When I run frange(), it drops the units.
-qmie = np.zeros(num_r)
-qsca = np.zeros(num_r)
-qext = np.zeros(num_r)
-qbak = np.zeros(num_r)
-qabs = np.zeros(num_r)
-p11_mie  = np.zeros(num_r)
+# Set up the size distribution
 
-# Calc Q_ext *or* Q_sca, based on whether it's reflected or transmitted light
- 
+alam   = 500  * u.nm
+rmin   = 0.01 * u.micron
+rmax   = 50  * u.micron     
+num_r  = 50
+q      = 3.5
+r      =  hbt.frange(rmin, rmax, num_r, log=True)*u.micron  # Astropy bug? When I run frange(), it drops the units.
+n      = r.value**-q                                        # Power law 
+
+# Set up the index of refraction
 n_refract = 1.33
 m_refract = -0.001
 nm_refract = complex(n_refract,m_refract)
-x = (2*math.pi * r/alam).to('1').value
 
-phase_hst = 10
-   
-for i,x_i in enumerate(x):  
-    mie = Mie(x=x_i, m=nm_refract)  # This is only for one x value, not an ensemble
-    qext[i] = mie.qext()
-    qsca[i] = mie.qsca()
-    qbak[i] = mie.qb()  
-  
-    (S1, S2)  = mie.S12(np.cos(math.pi*u.rad - phase_hst)) # Looking at code, S12 returns tuple (S1, S2).
-                                                         # For a sphere, S3 and S4 are zero.
-                                                         # Argument to S12() is scattering angle theta, not phase
-    k = 2*math.pi / alam
-  
-    sigma = math.pi * r[i]**2 * qsca[i] # Just a guess here
-  
-  # Now convert from S1 and S2, to P11: Use p. 2 of http://nit.colorado.edu/atoc5560/week8.pdf
-  
-    p11_mie[i]  = 4 * math.pi / (k**2 * sigma) * ( (np.abs(S1))**2 + (np.abs(S2))**2) / 2
+# Set up the angular distribution    
+#num_ang = 100
+#ang_phase = hbt.frange(0, pi, num_ang)*u.rad # Phase angle
 
+# Call the Mie scattering routine
+
+ang_data = t_mean['phase']*u.rad
+ang_model = hbt.frange(0,math.pi, 50)*u.rad # Phase angle, in radians
+
+(p11_mie_data,  p11_mie_raw, qsca) = scatter_mie_ensemble(nm_refract, n, r, ang_data,  alam)  
+(p11_mie_model, p11_mie_raw, qsca) = scatter_mie_ensemble(nm_refract, n, r, ang_model, alam)   
+
+p11_lambert = scatter_lambert(ang_phase)
+
+ratio_lambert_mie = 0.1  # Ratio of Lambertian:Mie
+
+p11_merged = p11_mie + p11_lambert * ratio_lambert_mie
 
 # =============================================================================
 # Plot the phase curve, with one point per sequence
 # =============================================================================
 
 hbt.set_fontsize(size=15)
+
 for i in range(len(t_mean['phase'])):
     plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_dn'][i], yerr=t_std['area_dn'][i],
              marker = 'o', ms=10, linestyle = 'none', label=t_mean['sequence'][i])
 
+plt.plot(ang_phase.to('deg'), p11_mie * 8e-9, label = 'q = {}, {}'.format(q, nm_refract))
+plt.plot(ang_phase.to('deg'), p11_lambert*5e-3, label = 'Lambert')
+plt.plot(ang_phase.to('deg'), p11_merged*5e-3, label = 'Merged')
+
 plt.xlabel('Angle [deg]')
 plt.ylabel('Ring Area [DN]')
+plt.yscale('log')
+plt.ylim((1e-4,1))
 plt.legend()
 plt.show()
 
