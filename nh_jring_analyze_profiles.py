@@ -32,6 +32,7 @@ from   matplotlib.figure import Figure
 import numpy as np
 import astropy.modeling
 
+
 import spiceypy as sp
 #from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
 from   astropy.wcs import WCS
@@ -786,33 +787,56 @@ alam   = 500  * u.nm
 rmin   = 0.01 * u.micron
 rmax   = 50  * u.micron     
 num_r  = 50
+
+pi     = math.pi
+
+# Define the exponent of the size distribution
+
 q      = 3.5
-r      =  hbt.frange(rmin, rmax, num_r, log=True)*u.micron  # Astropy bug? When I run frange(), it drops the units.
-n      = r.value**-q                                        # Power law 
+q_1    = 2
+q_2    = 5
+r_break=15*u.micron  
+
+# Define ratio of small:large bodies
+
+ratio_lambert_mie = 0.6  # Ratio of Lambertian:Mie
+
+r      = hbt.frange(rmin, rmax, num_r, log=True)*u.micron  # Astropy bug? When I run frange(), it drops the units.
+#n      = hbt.powerdist(r, q)                                       # Power law 
+n      = hbt.powerdist_broken(r, r_break, q_1, q_2)
 
 # Set up the index of refraction
 n_refract = 1.33
 m_refract = -0.001
 nm_refract = complex(n_refract,m_refract)
 
-# Set up the angular distribution    
-#num_ang = 100
-#ang_phase = hbt.frange(0, pi, num_ang)*u.rad # Phase angle
+# Set up the angular distribution. We actually have two sets of angles we deal with here:
+#   ang_model: A smooth set of phase angles, evenly spaced, for making a plot
+#   ang_data:  The actual phase angles that the actual data were observed at.
 
-# Call the Mie scattering routine
+num_ang_model = 100
+ang_model = hbt.frange(0, pi, num_ang_model)*u.rad # Phase angle
+ang_data  = t_mean['phase']*u.rad
 
-ang_data = t_mean['phase']*u.rad
-ang_model = hbt.frange(0,math.pi, 50)*u.rad # Phase angle, in radians
+# Compute the Mie and Lambert values at the 'data' and 'model' angles.
 
-(p11_mie_data,  p11_mie_raw, qsca) = scatter_mie_ensemble(nm_refract, n, r, ang_data,  alam)  
-(p11_mie_model, p11_mie_raw, qsca) = scatter_mie_ensemble(nm_refract, n, r, ang_model, alam)   
+(p11_mie_data,  p11_mie_raw, qsca) = hbt.scatter_mie_ensemble(nm_refract, n, r, ang_data,  alam)  # Model at observed angles
+(p11_mie_model, p11_mie_raw, qsca) = hbt.scatter_mie_ensemble(nm_refract, n, r, ang_model, alam)  # Model at all angles 
 
-p11_lambert = scatter_lambert(ang_phase)
+p11_lambert_data  = hbt.scatter_lambert(ang_data)
+p11_lambert_model = hbt.scatter_lambert(ang_model)
 
-ratio_lambert_mie = 0.1  # Ratio of Lambertian:Mie
+# Merge Mie + Lambertian in the specified ratios
 
-p11_merged = p11_mie + p11_lambert * ratio_lambert_mie
+p11_merged_model = p11_mie_model * (1-ratio_lambert_mie) + p11_lambert_model * ratio_lambert_mie
+p11_merged_data  = p11_mie_data  * (1-ratio_lambert_mie) + p11_lambert_data  * ratio_lambert_mie
 
+# Do a linfit to compute proper magnitude of model, to fit data
+
+DO_FIT_LOGSPACE = True
+(scalefac_merged_log, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_dn'], log=DO_FIT_LOGSPACE)
+(scalefac_merged_lin, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_dn'])
+    
 # =============================================================================
 # Plot the phase curve, with one point per sequence
 # =============================================================================
@@ -821,17 +845,40 @@ hbt.set_fontsize(size=15)
 
 for i in range(len(t_mean['phase'])):
     plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_dn'][i], yerr=t_std['area_dn'][i],
-             marker = 'o', ms=10, linestyle = 'none', label=t_mean['sequence'][i])
+             marker = 'o', ms=10, linestyle = 'none')
 
-plt.plot(ang_phase.to('deg'), p11_mie * 8e-9, label = 'q = {}, {}'.format(q, nm_refract))
-plt.plot(ang_phase.to('deg'), p11_lambert*5e-3, label = 'Lambert')
-plt.plot(ang_phase.to('deg'), p11_merged*5e-3, label = 'Merged')
+plt.plot(ang_model.to('deg'), p11_mie_model        * scalefac_merged_log * (1-ratio_lambert_mie), 
+         label = 'q1 = ({},{}), {}'.format(q_1, q_2, nm_refract), color = 'black', linestyle = 'dotted')
+
+plt.plot(ang_model.to('deg'), p11_lambert_model    * scalefac_merged_log * ratio_lambert_mie, label = 'Lambert', 
+         color='black', linestyle='dashed')
+
+plt.plot(ang_model.to('deg'), p11_merged_model     * scalefac_merged_log, label = 'Merged Log', 
+         color='black', linestyle = 'dashdot')
+
+
+plt.plot(ang_model.to('deg'), 
+         ((p11_mie_model * (1-ratio_lambert_mie) + p11_lambert_model * ratio_lambert_mie) * scalefac_merged_log), 
+         label = 'Merged Test',
+         color='red', linestyle = 'dashdot')
+
+
+#plt.plot(ang_model.to('deg'), p11_merged_model     * scalefac_merged_lin, label = 'Merged Lin',
+#         color='lightgrey', linestyle = 'dashdot')
+
+#plt.plot(ang_phase.to('deg'), p11_lambert * scalefac, label = 'Lambert')
+#plt.plot(ang_phase.to('deg'), p11_merged * scalefac, label = 'Merged')
 
 plt.xlabel('Angle [deg]')
 plt.ylabel('Ring Area [DN]')
 plt.yscale('log')
 plt.ylim((1e-4,1))
 plt.legend()
+plt.show()
+
+plt.plot(r,n)
+plt.yscale('log')
+plt.xscale('log')
 plt.show()
 
 # =============================================================================
