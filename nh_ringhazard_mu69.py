@@ -286,7 +286,7 @@ for q_i in q:
     else:
         linewidth = 2
         
-    n    = hbt.powerdist(r, 1, q_i, 1).value
+    n    = hbt.powerdist(r, q_i, rho=1, mass=1).value
   
 # Now normalize this to be number per cm2, in cross-section.
  

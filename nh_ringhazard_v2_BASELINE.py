@@ -295,7 +295,7 @@ if (DO_HST):
 
 for q_i in q:		# Loop downward, so that the low q's are plotted on top for visibility
   
-    n    = hbt.powerdist(r, 1, q_i, 1).value
+    n    = hbt.powerdist(r, q_i, mass=1, rho=1).value
   
 # Now normalize this to be number per cm2, in cross-section.
  
@@ -490,7 +490,7 @@ def test_p11():
     Test to plot a phase function, and make sure it is normalized properly
     '''
 
-#%%    
+# 
     
     alam = 500*u.nm
     r = 10*u.micron
