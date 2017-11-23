@@ -743,6 +743,12 @@ for param_i in params:
 t_mean = t.group_by('sequence').groups.aggregate(np.mean)  # Mean
 t_std  = t.group_by('sequence').groups.aggregate(np.std)   # Stdev
 
+# Add some columns to the table
+
+t_mean.add_column(Table.Column(np.tile((128,129.5), (11,1)), name='radius_core'))   # Core radii, used for subtraction
+                                                                                    # Units of 1000*u.km
+t_mean.add_column(Table.Column(np.tile((0,0), (11,1)), name='bin_core'))      # Same, but in bins
+
 # Remove any columns that don't make any sense because they cannot be merged!
 
 t_mean.remove_column('index_image')
@@ -752,19 +758,26 @@ t_std.remove_column('index_image')
 
 t_mean.sort('phase')
 
+# Calculate the radii of the inner core
+
+for sequence in t_mean['sequence']:
+    
 # =============================================================================
 # Make a plot: Radial Profile (Summed, I/F) vs. Sequence
 # =============================================================================
 
-hbt.figsize((12,8))
+hbt.figsize((12,20))
+
+dy = 8e-7
 
 for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e.g., '7/0-7 full')
     
-    plt.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i], 
+    plt.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i] + i * dy,
+             linewidth=4,
              label = r'{}, {:.1f}$^{{\circ}}$, {:.1f}$^{{\circ}}$'.format(
             s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d))
         
-plt.ylim((-1e-6,3e-6))
+plt.ylim((-1e-6,3e-6 + dy*i))
 plt.xlim((117, 131))
 plt.xlabel('Radius [1000 km]')
 plt.title('J-ring radial profiles, summed per sequence')
@@ -772,7 +785,22 @@ plt.ylabel('I/F')
 plt.legend()
 plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
 plt.show()
-      
+
+# =============================================================================
+# Extract the brightness of the core from the brightness of the halo
+# =============================================================================
+
+edges_core = {'7/8-15'  : (128,129.5),
+              '7/0-7'   : (128,129.5),
+              '7/24-31' : (128,129.5),                 
+              '7/16-23' : (128,129.5),                 
+              '7/36-39' : (128,129.5),                 
+              '7/32-35' : (128,129.5),                 
+              '7/40-42' : (128,129.5),                 
+              '7/61-63' : (128,129.5) }
+
+t_mean.add_column('radius_core' : np.tile((128,129.5),(11,1)))
+
 #    phase_all = np.concatenate((phase_all, phase))
 #    area_all  = np.concatenate((area_all, area))
 
@@ -819,12 +847,9 @@ ang_data  = t_mean['phase']*u.rad
 
 (p11_mie_data,  p11_mie_raw, qsca) = hbt.scatter_mie_ensemble(nm_refract, n, r, ang_data,  alam)  
               # Model at observed angles
-(p11_mie_model, p11_mie_raw, qsca) = hbt.scatter_mie_ensemble(nm_refract, n, r, ang_model, alam, do_plot=True)  
+(p11_mie_model, p11_mie_raw, qsca) = hbt.scatter_mie_ensemble(nm_refract, n, r, ang_model, alam)  
               # Model at all angles 
 
-plt.plot(ang_model, p11_mie_model)
-plt.yscale('log')
-plt.show()
 
 p11_lambert_data  = hbt.scatter_lambert(ang_data)
 p11_lambert_model = hbt.scatter_lambert(ang_model)
