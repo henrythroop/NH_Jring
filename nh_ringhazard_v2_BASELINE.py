@@ -260,8 +260,11 @@ if DO_MIE:
 #  qbak = dqbk		# Q_back (??)
 #  p11_mie  = dph[*]	# Phase function. Computed only if angles dqv is passed.
  
-p11_lambert		 = 8/(3 * pi) * (np.sin(phase_hst) + (pi - np.sin(phase_hst)) * np.cos(phase_hst)).value	
+p11_lambert		 = 8/(3 * pi) * (np.sin(phase_hst) + (pi - phase_hst) * np.cos(phase_hst)).value	
   
+                        # Nov-2017. Corrected lambertian calculation. Was using "(pi-np.sin(phase_hst))".
+                        # Shouldn't make any difference since we are at backscatter and second term is ~0.
+                        
   			          # But hang on -- how is this phase function right since it doesn't include diffraction! Ugh...
   			          # The real phase function should really be half this, I think. This properly integrates to 
   			          # 2 over 0 .. 2 pi -- but what *should* integrate to 2 is the phase function including 
