@@ -804,7 +804,7 @@ n      = hbt.powerdist_broken(r, r_break, q_1, q_2)        # Power law
 
 # Set up the index of refraction
 n_refract = 1.5
-m_refract = 0.001
+m_refract = 0.001 # Must be positive, not negative.
 nm_refract = complex(n_refract,m_refract)
 
 # Set up the angular distribution. We actually have two sets of angles we deal with here:
@@ -892,9 +892,10 @@ plt.show()
 # =============================================================================
 
 # This is a good profile for 0-7! Shows moonlet belt really well.
+# Background subtration needed: None.
 
 a = ring_profile()
-a.load(7, hbt.frange(0,7),key_radius='full').remove_background_radial(radius_bg_halo_core,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(0,7),key_radius='full').flatten().plot()
 plt.show()
 
 # This is a good profile for 8-15. Shows moonlet belt really well. Looks like 0-7 one. Has an extra bump = stray.
@@ -903,8 +904,9 @@ plt.show()
 # I guess I could just pass an additional argument, like 'c20(120,200)' for a 20-pixel radius circle.
 
 a = ring_profile()
-a.load(7, hbt.frange(8,15),key_radius='full').\
-    remove_background_radial(radius_bg_halo_core,do_plot=False).flatten().plot()
+# a.load(7, hbt.frange(8,15),key_radius='full').\
+#     remove_background_radial(radius_bg_halo_core,do_plot=False).flatten().plot()
+a.load(7, hbt.frange(8,15),key_radius='full').flatten().plot()
 plt.show()
 
 # Decent profile for 16-23.
