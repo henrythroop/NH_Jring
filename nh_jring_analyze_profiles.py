@@ -743,11 +743,21 @@ for param_i in params:
 t_mean = t.group_by('sequence').groups.aggregate(np.mean)  # Mean
 t_std  = t.group_by('sequence').groups.aggregate(np.std)   # Stdev
 
+num_sequences = len(t_mean)
+
 # Add some columns to the table
 
-t_mean.add_column(Table.Column(np.tile((128,129.5), (11,1)), name='radius_core'))   # Core radii, used for subtraction
-                                                                                    # Units of 1000*u.km
-t_mean.add_column(Table.Column(np.tile((0,0), (11,1)), name='bin_core'))      # Same, but in bins
+radius_core_default = np.array([127.5, 129.5])*1000   # Radius, in units of 1000 km.
+radius_halo_default = np.array([118.0, 130.0])*1000
+
+t_mean.add_column(Table.Column(np.tile(radius_core_default, (num_sequences,1)),name='radius_core'))
+t_mean.add_column(Table.Column(np.tile(radius_halo_default, (num_sequences,1)),name='radius_halo'))
+
+# Core radii, used
+t_mean.add_column(Table.Column(np.tile((0,0), (num_sequences,1)), name='bin_core'))
+t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_core'))
+t_mean.add_column(Table.Column(np.tile((0,0), (num_sequences,1)), name='bin_halo'))
+t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_halo'))
 
 # Remove any columns that don't make any sense because they cannot be merged!
 
@@ -758,9 +768,77 @@ t_std.remove_column('index_image')
 
 t_mean.sort('phase')
 
-# Calculate the radii of the inner core
+# Set the radial position of the ring core. Inner and outer limits of it.
+# Do this manually for each profile. This is just more accurate than trying to do it automated.
 
-for sequence in t_mean['sequence']:
+#%%%
+
+# =============================================================================
+# Extract the brightness of the core from the brightness of the halo
+# =============================================================================
+
+t_mean['radius_core'][t_mean['sequence'] == '7/8-15 full'] = np.array((127.85, 129.5))*1000
+t_mean['radius_core'][t_mean['sequence'] == '7/0-7 full']  = np.array((127.65, 129.35))*1000
+t_mean['radius_core'][t_mean['sequence'] == '7/24-31 full'] = np.array((127.8, 129.5))*1000
+t_mean['radius_core'][t_mean['sequence'] == '7/16-23 full'] = np.array((127.65, 129.55))*1000 # Red
+t_mean['radius_core'][t_mean['sequence'] == '7/36-39 full'] = np.array((127.75, 129.25))*1000 # Purple
+t_mean['radius_core'][t_mean['sequence'] == '7/32-35 full'] = np.array((127.8, 129.6))*1000   # Brown
+t_mean['radius_core'][t_mean['sequence'] == '7/40-42 full'] = np.array((128.0, 129.70))*1000 # pink
+t_mean['radius_core'][t_mean['sequence'] == '7/61-63 full'] = np.array((127.8, 129.50))*1000 # grey
+t_mean['radius_core'][t_mean['sequence'] == '7/52-54 full'] = np.array((127.5, 129.50))*1000 # olive
+t_mean['radius_core'][t_mean['sequence'] == '7/91-93 full'] = np.array((128.0, 129.55))*1000 # lt blue
+t_mean['radius_core'][t_mean['sequence'] == '7/94-96 full'] = np.array((127.5, 129.3))*1000 # dk blue top
+
+t_mean['radius_halo'][t_mean['sequence'] == '7/8-15 full'] = np.array((127.85, 129.5))*1000
+t_mean['radius_halo'][t_mean['sequence'] == '7/0-7 full']  = np.array((127.65, 129.35))*1000
+t_mean['radius_halo'][t_mean['sequence'] == '7/24-31 full'] = np.array((127.8, 129.5))*1000
+t_mean['radius_halo'][t_mean['sequence'] == '7/16-23 full'] = np.array((127.65, 129.55))*1000 # Red
+t_mean['radius_halo'][t_mean['sequence'] == '7/36-39 full'] = np.array((127.75, 129.25))*1000 # Purple
+t_mean['radius_halo'][t_mean['sequence'] == '7/32-35 full'] = np.array((127.8, 129.6))*1000   # Brown
+t_mean['radius_halo'][t_mean['sequence'] == '7/40-42 full'] = np.array((128.0, 129.70))*1000 # pink
+t_mean['radius_halo'][t_mean['sequence'] == '7/61-63 full'] = np.array((127.8, 129.50))*1000 # grey
+t_mean['radius_halo'][t_mean['sequence'] == '7/52-54 full'] = np.array((127.5, 129.50))*1000 # olive
+t_mean['radius_halo'][t_mean['sequence'] == '7/91-93 full'] = np.array((128.0, 129.55))*1000 # lt blue
+t_mean['radius_halo'][t_mean['sequence'] == '7/94-96 full'] = np.array((127.5, 129.3))*1000 # dk blue top
+
+# Now that we have the radii of the inner core calculated, look up the bin limits for the inner core
+
+for i in range(num_sequences):
+    radii       = t_mean['radius'][i]
+    radius_core = t_mean['radius_core'][i]
+    radius_halo = t_mean['radius_halo'][i]
+
+    # Look up bin limits of the core and store them
+    
+    bins = [ np.argmin(np.abs(radii - t_mean['radius_core'][i][0])),
+             np.argmin(np.abs(radii - t_mean['radius_core'][i][1])) ]
+            
+    t_mean['bin_core'][i] = bins
+
+    # Look up bin limits of the halo, and store them
+    
+    bins = [ np.argmin(np.abs(radii - t_mean['radius_halo'][i][0])),
+             np.argmin(np.abs(radii - t_mean['radius_halo'][i][1])) ]
+            
+    t_mean['bin_halo'][i] = bins
+
+# Calculate the area under the curve for the core
+
+    (area_i, line, bins) = area_between_line_curve(t_mean['radius'][i],
+                                     t_mean['profile_radius'][i],
+                                     t_mean['radius_core'][i])
+    t_mean['area_core'][i] = area_i
+    
+# Calculate the area under the curve for the halo
+
+    (area_i, line, bins) = area_between_line_curve(t_mean['radius'][i],
+                                     t_mean['profile_radius'][i],
+                                     t_mean['radius_halo'][i])
+    t_mean['area_halo'][i] = area_i
+    
+
+#    def area_between_line_curve(data_x, data_y, limits, bins=True, binning=None):
+
     
 # =============================================================================
 # Make a plot: Radial Profile (Summed, I/F) vs. Sequence
@@ -768,17 +846,34 @@ for sequence in t_mean['sequence']:
 
 hbt.figsize((12,20))
 
+DO_PLOT_CORE_LIMITS = True
+DO_PLOT_HALO_LIMITS = True
+
 dy = 8e-7
+
+#colors = iter(cm.rainbow(np.linspace(0, 1, 100)))
 
 for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e.g., '7/0-7 full')
     
     plt.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i] + i * dy,
              linewidth=4,
              label = r'{}, {:.1f}$^{{\circ}}$, {:.1f}$^{{\circ}}$'.format(
-            s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d))
-        
+            s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d) )
+    
+    if (DO_PLOT_CORE_LIMITS):
+        bins = t_mean['bin_core'][i]
+        plt.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
+                  np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
+                  color = 'red')
+                         
+    if (DO_PLOT_CORE_LIMITS):
+        bins = t_mean['bin_halo'][i]
+        plt.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
+                  np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
+                  color = 'grey', linestyle='dotted')
+                         
 plt.ylim((-1e-6,3e-6 + dy*i))
-plt.xlim((117, 131))
+plt.xlim((115, 133))
 plt.xlabel('Radius [1000 km]')
 plt.title('J-ring radial profiles, summed per sequence')
 plt.ylabel('I/F')
@@ -786,20 +881,8 @@ plt.legend()
 plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
 plt.show()
 
-# =============================================================================
-# Extract the brightness of the core from the brightness of the halo
-# =============================================================================
+#%%%
 
-edges_core = {'7/8-15'  : (128,129.5),
-              '7/0-7'   : (128,129.5),
-              '7/24-31' : (128,129.5),                 
-              '7/16-23' : (128,129.5),                 
-              '7/36-39' : (128,129.5),                 
-              '7/32-35' : (128,129.5),                 
-              '7/40-42' : (128,129.5),                 
-              '7/61-63' : (128,129.5) }
-
-t_mean.add_column('radius_core' : np.tile((128,129.5),(11,1)))
 
 #    phase_all = np.concatenate((phase_all, phase))
 #    area_all  = np.concatenate((area_all, area))
@@ -850,7 +933,6 @@ ang_data  = t_mean['phase']*u.rad
 (p11_mie_model, p11_mie_raw, qsca) = hbt.scatter_mie_ensemble(nm_refract, n, r, ang_model, alam)  
               # Model at all angles 
 
-
 p11_lambert_data  = hbt.scatter_lambert(ang_data)
 p11_lambert_model = hbt.scatter_lambert(ang_model)
 
@@ -869,11 +951,16 @@ DO_FIT_LOGSPACE = True
 # Plot the phase curve, with one point per sequence
 # =============================================================================
 
+hbt.figsize((12,8))
+
 hbt.set_fontsize(size=15)
 
 for i in range(len(t_mean['phase'])):
     plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_dn'][i], yerr=t_std['area_dn'][i],
              marker = 'o', ms=10, linestyle = 'none')
+
+    plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_core'][i] * 100,
+             marker = '+', ms=10, lw=3, linestyle = 'none')
 
 plt.plot(ang_model.to('deg'), p11_mie_model        * scalefac_merged_log * (1-ratio_lambert_mie), 
          label = 'q = ({},{}), rb={}, n={}'.format(q_1, q_2, r_break, nm_refract), color = 'black', 
@@ -889,7 +976,7 @@ plt.plot(ang_model.to('deg'), p11_merged_model     * scalefac_merged_log,
 plt.xlabel('Angle [deg]')
 plt.ylabel('Ring Area [DN]')
 plt.yscale('log')
-plt.ylim((1e-6,1))
+plt.ylim((1e-5,1))
 plt.legend()
 plt.show()
 
