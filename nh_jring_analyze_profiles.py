@@ -68,6 +68,7 @@ from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectl
 from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
 
 from scatter_mie_ensemble                      import scatter_mie_ensemble
+#from area_between_line_curve                    import area_between_line_curve
 
 # For fun, I'm going to try to do this whole thing as a class. That makes it easier to pass 
 # params back and forth, I guess. [A: Yes, this is a great place for a class -- very clean.]
@@ -586,6 +587,12 @@ class ring_profile:
 
     def area_radial(self, limit):
  
+        """
+        Calculate the radial area under a ring curve. 
+        
+        This routine is not very flexible -- recommend using area_between_line_curve() instead.
+        """
+        
         radius = self.radius_arr[0]     # Assume that all profiles use the same radius
         
         dradius = radius - np.roll(radius,1)  # Width of each bin, in km
@@ -629,10 +636,10 @@ limit_radial = (122000,130000)
 
 # First create a table, one entry per image
 
-t = Table([[], [], [], [], [], [], [], [], [], []],
+t = Table([[], [], [], [], [], [], [], [], [], [], []],
     names=('index_group', 'index_image', 'phase', 'elev', 'area_dn', 'exptime', 'label', 'sequence', 'radius', 
-           'profile_radius'),
-    dtype = ('int', 'int', 'float64', 'float64', 'float64', 'float64', 'U30', 'U30', 'object', 'object'))
+           'profile_radius', 'profile_radius_units'),
+    dtype = ('int', 'int', 'float64', 'float64', 'float64', 'float64', 'U30', 'U30', 'object', 'object', 'U30'))
 
 # Then create a table, summed at one entry per phase angle. XXX No, we really don't need this one right now.
 
@@ -649,8 +656,6 @@ params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tup
                  (7, hbt.frange(61,63), 'full'),
                  (7, hbt.frange(91,93), 'full'),
                  (7, hbt.frange(94,96), 'full')]
-
-
 
 # Loop over each of the sets of images
 # For each image set, sum the individual profiles, and get one final profile
@@ -690,8 +695,9 @@ for param_i in params:
     ring_flattened.remove_background_radial(radius_bg)
     
     # Measure the area under the curve
+    # XXX Also we have the function area_between_line_curve which is similar but not identical 
         
-    area = ring.area_radial(limit_radial)
+    area           = ring.area_radial(limit_radial)
     area_flattened = ring_flattened.area_radial(limit_radial)
     
     # Plot summed radial profile
@@ -714,32 +720,26 @@ for param_i in params:
                  ring.index_image_arr[i], 
                  ring.ang_phase_arr[i],
                  ring.ang_elev_arr[i],
-                 area[i],
+                 area[i],                  # This goes into 'area_dn'
                  ring.exptime_arr[i],
                  label,
-                 sequence, 
+                 sequence,
                  ring.radius_arr[i],
-                 ring.profile_radius_arr[i]])
+                 ring.profile_radius_arr[i],
+                 ring.profile_radius_units])
     
-    # Save the radius and the profile. 
-    # I wish I could just save these into the AstroPy table, but that's not possible, so I need to make an 
-    # external array to store them. Ugh!
-    # The problem here is then that when I sort one table (by phase angle, etc.) the other one is *not* sorted...
-    # XXX Also, they really are not ordered the same. This is a big problem. I am not doing it right.
-    
-#    radius.append(np.ravel(ring_flattened.radius_arr))
-#    profile_radius.append(np.ravel(ring_flattened.profile_radius_arr))
-
-# Put the radial profiles into proper order for plotting. After this, np.shape(radius) = (11,500) for instance
-    
-#profile_radius = np.transpose(profile_radius)
-#radius         = np.transpose(radius)
-
-# Aggregate the groups. This merges things and takes means of all numeric columns. Any non-numeric columns are dropped.
+# Aggregate the groups. This merges things and takes means of all numeric columns. 
+# Any non-numeric columns are dropped -- even if they are all identical.
+#    
 # The argument to groups.aggregate is a function to apply (e.g., numpy)
-# XXX Not clear what .aggregate() will do with 2D NumPy arrays?
-# XXX A: I have tested it and it looks to actually properly do the job.
-      
+# Q: What does .aggregate() will do with 2D NumPy arrays?
+# A: I have tested it and it looks to actually properly do the job. 
+#        For instance, it takes all of the radial profiles from that sequence, and averages them, resulting in one
+#        mean radial profile.
+# 
+#        For np.std, it actually takes the stdev of the area, based on (e.g.) five individual curves that have been
+#        summed for the final curve. So, it's a pretty decent way to get an error bar!      
+
 t_mean = t.group_by('sequence').groups.aggregate(np.mean)  # Mean
 t_std  = t.group_by('sequence').groups.aggregate(np.std)   # Stdev
 
@@ -747,17 +747,22 @@ num_sequences = len(t_mean)
 
 # Add some columns to the table
 
+# Set the core and halo positions. I have individually measured each of these.
+
 radius_core_default = np.array([127.5, 129.5])*1000   # Radius, in units of 1000 km.
 radius_halo_default = np.array([118.0, 130.0])*1000
 
 t_mean.add_column(Table.Column(np.tile(radius_core_default, (num_sequences,1)),name='radius_core'))
 t_mean.add_column(Table.Column(np.tile(radius_halo_default, (num_sequences,1)),name='radius_halo'))
-
-# Core radii, used
 t_mean.add_column(Table.Column(np.tile((0,0), (num_sequences,1)), name='bin_core'))
+# Core radii, used
 t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_core'))
 t_mean.add_column(Table.Column(np.tile((0,0), (num_sequences,1)), name='bin_halo'))
 t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_halo'))
+
+# Copy the units over (which don't get aggregated properly, since they are a string)
+
+t_mean.add_column(Table.Column(np.tile(ring.profile_radius_units, num_sequences),name='profile_radius_units'))
 
 # Remove any columns that don't make any sense because they cannot be merged!
 
@@ -789,17 +794,17 @@ t_mean['radius_core'][t_mean['sequence'] == '7/52-54 full'] = np.array((127.5, 1
 t_mean['radius_core'][t_mean['sequence'] == '7/91-93 full'] = np.array((128.0, 129.55))*1000 # lt blue
 t_mean['radius_core'][t_mean['sequence'] == '7/94-96 full'] = np.array((127.5, 129.3))*1000 # dk blue top
 
-t_mean['radius_halo'][t_mean['sequence'] == '7/8-15 full'] = np.array((127.85, 129.5))*1000
-t_mean['radius_halo'][t_mean['sequence'] == '7/0-7 full']  = np.array((127.65, 129.35))*1000
-t_mean['radius_halo'][t_mean['sequence'] == '7/24-31 full'] = np.array((127.8, 129.5))*1000
-t_mean['radius_halo'][t_mean['sequence'] == '7/16-23 full'] = np.array((127.65, 129.55))*1000 # Red
-t_mean['radius_halo'][t_mean['sequence'] == '7/36-39 full'] = np.array((127.75, 129.25))*1000 # Purple
-t_mean['radius_halo'][t_mean['sequence'] == '7/32-35 full'] = np.array((127.8, 129.6))*1000   # Brown
-t_mean['radius_halo'][t_mean['sequence'] == '7/40-42 full'] = np.array((128.0, 129.70))*1000 # pink
-t_mean['radius_halo'][t_mean['sequence'] == '7/61-63 full'] = np.array((127.8, 129.50))*1000 # grey
-t_mean['radius_halo'][t_mean['sequence'] == '7/52-54 full'] = np.array((127.5, 129.50))*1000 # olive
-t_mean['radius_halo'][t_mean['sequence'] == '7/91-93 full'] = np.array((128.0, 129.55))*1000 # lt blue
-t_mean['radius_halo'][t_mean['sequence'] == '7/94-96 full'] = np.array((127.5, 129.3))*1000 # dk blue top
+t_mean['radius_halo'][t_mean['sequence'] == '7/8-15 full'] = np.array((118, 129.5))*1000
+t_mean['radius_halo'][t_mean['sequence'] == '7/0-7 full']  = np.array((118, 129.5))*1000
+t_mean['radius_halo'][t_mean['sequence'] == '7/24-31 full'] = np.array((118, 129.5))*1000
+t_mean['radius_halo'][t_mean['sequence'] == '7/16-23 full'] = np.array((118, 129.5))*1000 # Red
+t_mean['radius_halo'][t_mean['sequence'] == '7/36-39 full'] = np.array((118, 129.25))*1000 # Purple
+t_mean['radius_halo'][t_mean['sequence'] == '7/32-35 full'] = np.array((118.7, 129.6))*1000   # Brown
+t_mean['radius_halo'][t_mean['sequence'] == '7/40-42 full'] = np.array((118.5, 129.70))*1000 # pink
+t_mean['radius_halo'][t_mean['sequence'] == '7/61-63 full'] = np.array((119.2, 129.50))*1000 # grey
+t_mean['radius_halo'][t_mean['sequence'] == '7/52-54 full'] = np.array((118.5, 129.50))*1000 # olive
+t_mean['radius_halo'][t_mean['sequence'] == '7/91-93 full'] = np.array((118.5, 129.55))*1000 # lt blue
+t_mean['radius_halo'][t_mean['sequence'] == '7/94-96 full'] = np.array((120.5, 130.5))*1000 # dk blue top
 
 # Now that we have the radii of the inner core calculated, look up the bin limits for the inner core
 
@@ -822,23 +827,23 @@ for i in range(num_sequences):
             
     t_mean['bin_halo'][i] = bins
 
-# Calculate the area under the curve for the core
-
-    (area_i, line, bins) = area_between_line_curve(t_mean['radius'][i],
+# Calculate the area under the curve for the core. 
+# XXX We should probably write a method for this.
+#     We should also improve things so that we can get an stdev from the component curves that make this up.
+    
+    (area_i_core, line, bins) = area_between_line_curve(t_mean['radius'][i],
                                      t_mean['profile_radius'][i],
                                      t_mean['radius_core'][i])
-    t_mean['area_core'][i] = area_i
+    t_mean['area_core'][i] = area_i_core
     
-# Calculate the area under the curve for the halo
+# Calculate the area under the curve for the halo.
+# For the halo, we subtract off the area already measured for the core
 
-    (area_i, line, bins) = area_between_line_curve(t_mean['radius'][i],
+    (area_i_halo, line, bins) = area_between_line_curve(t_mean['radius'][i],
                                      t_mean['profile_radius'][i],
                                      t_mean['radius_halo'][i])
-    t_mean['area_halo'][i] = area_i
+    t_mean['area_halo'][i] = area_i_halo - area_i_core
     
-
-#    def area_between_line_curve(data_x, data_y, limits, bins=True, binning=None):
-
     
 # =============================================================================
 # Make a plot: Radial Profile (Summed, I/F) vs. Sequence
@@ -849,7 +854,7 @@ hbt.figsize((12,20))
 DO_PLOT_CORE_LIMITS = True
 DO_PLOT_HALO_LIMITS = True
 
-dy = 8e-7
+dy = 13e-7
 
 #colors = iter(cm.rainbow(np.linspace(0, 1, 100)))
 
@@ -908,7 +913,7 @@ r_break=15*u.micron
 
 # Define ratio of small:large bodies
 
-ratio_lambert_mie = 0.68  # Ratio of Lambertian:Mie (or actually, Lambertian:Total)
+ratio_lambert_mie = 0.20  # Ratio of Lambertian:Mie (or actually, Lambertian:Total)
 
 r      = hbt.frange(rmin, rmax, num_r, log=True)*u.micron  # Astropy bug? When I run frange(), it drops the units.
 n      = hbt.powerdist_broken(r, r_break, q_1, q_2)        # Power law  
@@ -944,8 +949,8 @@ p11_merged_data  = p11_mie_data  * (1-ratio_lambert_mie) + p11_lambert_data  * r
 # Do a linfit to compute proper magnitude of model, to fit data
 
 DO_FIT_LOGSPACE = True
-(scalefac_merged_log, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_dn'], log=DO_FIT_LOGSPACE)
-(scalefac_merged_lin, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_dn'])
+(scalefac_merged_log, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_halo'], log=DO_FIT_LOGSPACE)
+(scalefac_merged_lin, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_halo'])
     
 # =============================================================================
 # Plot the phase curve, with one point per sequence
@@ -956,11 +961,11 @@ hbt.figsize((12,8))
 hbt.set_fontsize(size=15)
 
 for i in range(len(t_mean['phase'])):
-    plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_dn'][i], yerr=t_std['area_dn'][i],
-             marker = 'o', ms=10, linestyle = 'none')
+    plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_halo'][i], #yerr=t_std['area_dn'][i],
+             marker = 'o', ms=10, linestyle = 'none', alpha=0.5)
 
-    plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_core'][i] * 100,
-             marker = '+', ms=10, lw=3, linestyle = 'none')
+    plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_core'][i],
+             marker = '+', ms=12, markeredgewidth=3, lw=3, linestyle = 'none')
 
 plt.plot(ang_model.to('deg'), p11_mie_model        * scalefac_merged_log * (1-ratio_lambert_mie), 
          label = 'q = ({},{}), rb={}, n={}'.format(q_1, q_2, r_break, nm_refract), color = 'black', 
@@ -974,15 +979,10 @@ plt.plot(ang_model.to('deg'), p11_merged_model     * scalefac_merged_log,
          color='black', linestyle = 'dashdot')
 
 plt.xlabel('Angle [deg]')
-plt.ylabel('Ring Area [DN]')
+plt.ylabel(t_mean['profile_radius_units'][0][0])
 plt.yscale('log')
-plt.ylim((1e-5,1))
+plt.ylim((1e-6,1e-3))
 plt.legend()
-plt.show()
-
-plt.plot(r,n*r**2)
-plt.yscale('log')
-plt.xscale('log')
 plt.show()
 
 
