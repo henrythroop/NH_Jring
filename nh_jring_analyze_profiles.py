@@ -858,33 +858,84 @@ dy = 13e-7
 
 #colors = iter(cm.rainbow(np.linspace(0, 1, 100)))
 
+#hbt.figsize((10,10))
+#plt.axes([0.2,0.4,0.7,0.9])
+
+fig, ax1 = plt.subplots() # This returns a FIGURE object, plus 1 or more AXES objects.
+ax2      = ax1.twiny()    # Create a second AXES
+
+ax2.locator_params(axis='x', numticks=3)
+ax1.locator_params(axis='x', numticks=20)
+
 for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e.g., '7/0-7 full')
     
-    plt.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i] + i * dy,
+    ax1.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i] + i * dy,
              linewidth=4,
              label = r'{}, {:.1f}$^{{\circ}}$, {:.1f}$^{{\circ}}$'.format(
             s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d) )
     
     if (DO_PLOT_CORE_LIMITS):
         bins = t_mean['bin_core'][i]
-        plt.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
+        ax1.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
                   np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
                   color = 'red')
                          
     if (DO_PLOT_CORE_LIMITS):
         bins = t_mean['bin_halo'][i]
-        plt.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
+        ax1.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
                   np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
                   color = 'grey', linestyle='dotted')
                          
-plt.ylim((-1e-6,3e-6 + dy*i))
-plt.xlim((115, 133))
-plt.xlabel('Radius [1000 km]')
-plt.title('J-ring radial profiles, summed per sequence')
-plt.ylabel('I/F')
-plt.legend()
+ax1.set_ylim((-1e-6,3e-6 + dy*i))
+xlim_kkm = np.array((115,133))
+ax1.set_xlim(xlim_kkm)
+ax1.set_xlabel('Radius [1000 km]')
+ax1.set_title('J-ring radial profiles, summed per sequence', y=1.04) # Bump up the y axis
+ax1.set_ylabel('I/F')
+ax1.legend()
 plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+
+
+# Mark position of Metis + Adrastea
+_metis = 127980    # SCW07
+a_adrastea = 128981 # SCW07
+
+ax1.axvline(a_metis/1000, linestyle='dashed', color='grey', alpha=0.3)
+ax1.axvline(a_adrastea/1000, linestyle='dashed', color='grey', alpha=0.3)
+
+ax1.text(a_metis/1000, -5e-7, 'M')
+ax1.text(a_adrastea/1000, -5e-7, 'A')
+
+# Put the second axis on the top
+
+ax2.plot([1,1])
+ax2.set_xlabel('Radius [R_J]')
+ax2.set_xlim(xlim_kkm * 1000 / 71492)
+plt.gca().xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))
+
 plt.show()
+
+
+
+#        ax2.plot(t_skip, ang_target_center_radii, linestyle = 'dashed', linewidth=2,
+#                 label = 'Sep from Pluto Center', color='blue') 
+#        
+#        ax1.plot(t, 1/dt * count_rate_target_3000 /f_norm(dec), label='Count Rate, Fixed', color='darkblue')
+#        
+#        ax1.set_ylabel('Counts/sec')
+#        ax1.set_ylabel('Counts/sec')
+#        ax1.set_title(sequence + ', dt = ' + repr(dt) + ' sec, smoothed x ' + repr(binning) + ' = ' + 
+#                  repr(int(dt * binning)) + ' sec', fontsize=fs)
+#    
+#        ax1.text(100, 1080, 'HD 42545, v = {:4.2f} km/sec'.format(vel))
+#        ax2.set_ylabel('Pluto-Star Separation [$r_P$]')
+#        ax1.legend(framealpha=0.8, loc='upper left', fontsize=fs*0.7)
+#        ax2.legend(framealpha=0.8, loc='lower right',fontsize=fs*0.7)
+#        ax1.set_xlim(np.array(hbt.mm(t)))
+#        ax2.set_ylim([0, 10])
+#        ax1.set_ylim([1000, 1400])
+#        ax1.axes.get_xaxis().set_ticks([])
+#        plt.show()
 
 #%%%
 
@@ -984,8 +1035,6 @@ plt.yscale('log')
 plt.ylim((1e-6,1e-3))
 plt.legend()
 plt.show()
-
-
 
 # =============================================================================
 # Plot the phase curve, with one point per image
