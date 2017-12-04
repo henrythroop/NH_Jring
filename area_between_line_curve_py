@@ -10,7 +10,7 @@ Modified from calc_area_curve in salt_analyze_spectra.py
 
 import numpy as np
 
-def area_between_line_curve(data_x, data_y, limits_x, bins=False, binning=None):
+def area_between_line_curve(data_x, data_y, limits_x, bins=False, binning=None, mean=False):
     """ Calculate the area between a curve, and a straight line.
     
     The line is determined by specifiying the x positions of the start and end points.
@@ -76,6 +76,11 @@ def area_between_line_curve(data_x, data_y, limits_x, bins=False, binning=None):
     
     area = sum(data_y_use - line)
     
+    # Take the mean, if requested
+    
+    if mean:
+        area = area / len(data_x)
+        
     # Create the output line
     
     line_out = m * data_x + b    # A fit to the line, covering the whole input data range
