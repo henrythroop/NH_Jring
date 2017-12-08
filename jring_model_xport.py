@@ -7,6 +7,7 @@ Created on Fri Dec  1 19:52:42 2017
 """
 
 
+import matplotlib.pyplot as plt
 import numpy as np
 import astropy
 import astropy.constants as c
