@@ -86,6 +86,7 @@ phase     = []
 mean_dn   = []
 median_dn = []
 stdev_dn  = []
+max_dn    = []
 sequence  = []
 et        = []
 utc       = [] 
@@ -99,10 +100,17 @@ ang_roll  = []
 
 sp.furnsh(file_tm)
 
+plt.set_cmap('Greys_r')
+
+stretch_percent = 90    
+stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+
 utc_pl = '2015 Jul 14 05:00:00'
 et_pl = sp.utc2et(utc_pl)
 
 for file in files:
+    
+    file_short = file.split('/')[-1].replace('.fit', '')
     hdulist = fits.open(file)
     shape = np.shape(hdulist['PRIMARY'].data)
     nframes = np.shape(hdulist['PRIMARY'])[0]
@@ -114,10 +122,11 @@ for file in files:
     
     # Extract various quantities from the header
 
-    et_i = header['SPCSCET']
+    et_i       = header['SPCSCET']
     delta_et_i = et_i - et_pl
-    utc_i = sp.et2utc(et_i, 'C', 0)
+    utc_i      = sp.et2utc(et_i, 'C', 0)
     name_sap_i = header['SAPNAME']
+    exptime_i  = header['EXPTIME']
     
     # Make sure the SAP name has 'RING' or 'ring' in it somewhere
     
@@ -133,7 +142,7 @@ for file in files:
         delta_et.append(delta_et_i)
         et.append(et_i)
         utc.append(utc_i)
-        exptime.append(header['EXPTIME'])
+        exptime.append(exptime_i)
         name_sap.append(name_sap_i)
         ang_roll.append(ang_roll_i)
         
@@ -159,15 +168,43 @@ for file in files:
         phase_i = np.around(phase_i,decimals=1)   # Round the angle (55.61987 -> 55.6)
         ang_phase.append(phase_i)
 
+        # View the image on the screen
+        
+        ratio_aspect = 3
+        
+        hbt.set_fontsize(18)
+        hbt.figsize((15,9))
+        plt.subplot(3,1,1)
+        plt.imshow(stretch(data), aspect=ratio_aspect)
+        plt.ylabel('Y [pix]')
+#        plt.xlabel('X [pix]')
+        plt.title("{}, {}, Raw".format(name_sap_i, file_short))
+        plt.show()
+
+        plt.subplot(3,1,2)
+        plt.imshow(stretch(hbt.remove_sfit(data)), aspect=ratio_aspect)
+        plt.ylabel('Y [pix]')
+#        plt.xlabel('X [pix]')
+        plt.title('Raw - Polynomial')
+        plt.show()
+
+        plt.subplot(3,1,2)        
+        cols = np.median(data, axis=0)/exptime_i
+        plt.plot(cols)
+        plt.title('Raw, Column Median')
+        plt.ylabel('DN/sec')
+        plt.xlabel('X [pix]')
+        plt.show()
+        
 # Ideally we'd put all these values into a table, or at least some NP arrays. Haven't done that yet, though.
 
 # Make some plots
 
-ang_roll = np.array(ang_roll)
-exptime  = np.array(exptime)
+ang_roll  = np.array(ang_roll)
+exptime   = np.array(exptime)
 median_dn = np.array(median_dn)
-mean_dn = np.array(mean_dn)
-stdev_dn = np.array(stdev_dn)
+mean_dn   = np.array(mean_dn)
+stdev_dn  = np.array(stdev_dn)
         
 plt.plot(ang_phase, median_dn, marker = '.', linestyle = 'none', label = 'DN Median')
 plt.plot(ang_phase, mean_dn, marker = '.', linestyle = 'none', label = 'DN Mean')
@@ -177,15 +214,20 @@ plt.ylabel('DN')
 plt.xlabel('Phase angle')
 plt.show()
 
-plt.plot(et)
+#plt.plot(et)
+plt.show()
+
+ms = 16
+alpha = 0.4
 
 hbt.set_fontsize(20)
-plt.plot(ang_roll, median_dn/exptime, marker = '.', linestyle = 'none', label = 'DN Median')
-plt.plot(ang_roll, mean_dn/exptime, marker = '.', linestyle = 'none', label = 'DN Mean')
-plt.plot(ang_roll, stdev_dn/exptime, marker = '.', linestyle = 'none', label = 'DN Stdev')
+plt.plot(ang_roll, median_dn/exptime, marker = '.', linestyle = 'none', label = 'DN/sec Median', ms=ms, alpha=alpha)
+plt.plot(ang_roll, mean_dn/exptime, marker = '.', linestyle = 'none', label = 'DN/sec Mean', ms=ms, alpha=alpha)
+#plt.plot(ang_roll, stdev_dn/exptime, marker = '.', linestyle = 'none', label = 'DN Stdev')
 plt.ylabel('DN/sec')
 plt.legend()
 plt.xlabel('Roll Angle from SC +Y [deg]')
+plt.show()
 
     # Compute the roll angle and phase angle
    
