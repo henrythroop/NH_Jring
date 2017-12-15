@@ -62,13 +62,13 @@ import hbt
 
 # Local NH rings imports
 
-from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
+from  nh_jring_mask_from_objectlist            import nh_jring_mask_from_objectlist
 
 from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
 from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
 
 from scatter_mie_ensemble                      import scatter_mie_ensemble
-#from area_between_line_curve                    import area_between_line_curve
+from area_between_line_curve                   import area_between_line_curve
 
 # For fun, I'm going to try to do this whole thing as a class. That makes it easier to pass 
 # params back and forth, I guess. [A: Yes, this is a great place for a class -- very clean.]
@@ -90,11 +90,26 @@ class ring_profile:
         
         # Process the group names. Some of this is duplicated logic -- depends on how we want to use it.
         
-        self.groups = astropy.table.unique(self.t, keys=(['Desc']))['Desc']
+        self.groups = astropy.table.unique(self.t, keys=(['Desc']))['Desc'
 
         stretch_percent = 90    
         self.stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
+        # Define a few constsants within the method. We're going to keep using these in many places,
+        # so best to set them up here. As per PEP-8, constants can be ALL_CAPS.
+        
+        self.A_METIS    = 127980        # Orbital distance, in km. From SCW07
+        self.A_ADRASTEA = 128981        # Orbital distance, in km. From SCW07
+
+# =============================================================================
+# Define an __iter__ function so we can iterate over our individual radial profile
+# =============================================================================
+
+    def __iter__(self):
+        
+        # NOT WORKING YET (obviously)
+        return(True)
+        
 # =============================================================================
 # Lookup the analysis filename
 # =============================================================================
@@ -344,6 +359,9 @@ class ring_profile:
 
     def smooth(self, width=1, kernel=None):
 
+        if not width:     # If missing, None, 0, etc.
+            return self
+        
         if (kernel is None):
             kernel = Gaussian1DKernel(width)
                 
@@ -534,12 +552,10 @@ class ring_profile:
             # Plot Metis and Adrastea
             
             if (plot_sats):
-                a_metis    = 128000
-                a_adrastea = 129000
-            
+
 #                args = {'linestyle': 'dash', 'alpha':0.5, 'color':'black'}
-                plt.axvline(x=a_metis, linestyle='dashed', alpha=0.2, color='black')
-                plt.axvline(x=a_adrastea, linestyle='dashed', alpha=0.2, color='black')
+                plt.axvline(x=self.A_METIS,    linestyle='dashed', alpha=0.2, color='black')
+                plt.axvline(x=self.A_ADRASTEA, linestyle='dashed', alpha=0.2, color='black')
                 
             plt.xlabel('Radial Distance [km]')
             plt.ylabel(self.profile_radius_units)
@@ -590,27 +606,26 @@ class ring_profile:
         """
         Calculate the radial area under a ring curve. 
         
-        This routine is not very flexible -- recommend using area_between_line_curve() instead.
+        Parameters
+        -----
+        
+        limit:
+            (r_inner, r_outer): Tuple defining the x values of the radial limits
+            
         """
-        
-        radius = self.radius_arr[0]     # Assume that all profiles use the same radius
-        
-        dradius = radius - np.roll(radius,1)  # Width of each bin, in km
-        
-        bin0   = np.where(radius > limit[0])[0][0]
-        bin1   = np.where(radius > limit[1])[0][0]
         
         area = []
         
-        for i in range(self.num_profiles()):
-            area_i = np.sum((self.profile_radius_arr[i] * dradius)[bin0:bin1])
-            area.append(area_i)
+        for i in range(self.num_profiles()):  # I guess this is where I should use __iter__
+        
+            (area_out, _, _) = area_between_line_curve(self.radius_arr[i], self.profile_radius_arr[i], limit)
+            area.append(area_out)                 
             
-        return area    
+        return area
         
         
 # =============================================================================
-# Now do some tests!
+# Now read in the data and plot it
 # =============================================================================
     
 # Invoke the class
@@ -618,17 +633,21 @@ class ring_profile:
 ring = ring_profile()
 
 # Define the off-ring locations. Pixels in this region are used to set the background level.
+# XXX THESE VALUE ARE NOT VERY USEFUL. 
+# We do much better when we define them individually for each profile.
 
 radius_bg_core      = np.array([[127.5,127.9], [129.0,129.7]])*1000  # Core only
-radius_bg_halo_core = np.array([[122,122.5],     [130,131]])*1000  # Cover full width of halo and core
-radius_bg_117       = np.array([[117,120],     [130,131]])*1000  # This distance range is a bit better - no edge effects
+radius_bg_main_core = np.array([[122,122.5],   [130,131]])*1000  # Cover full width of main ring and core
+radius_bg_117       = np.array([[117,120],     [130,131]])*1000  # This range is a bit better - no edge effects
 radius_bg_127       = np.array([[125,126],     [130, 131]])*1000
+
+BINS_SMOOTH = 0
 
 # Make a plot of all of the data
 
 # Define the limits used for the I/F 'area under the curve' total equivalent width
 
-limit_radial = (122000,130000)  
+limit_radial = (118000,1295000)  
 
 # Set up output arrays
 
@@ -640,8 +659,6 @@ t = Table([[], [], [], [], [], [], [], [], [], [], []],
     names=('index_group', 'index_image', 'phase', 'elev', 'area_dn', 'exptime', 'label', 'sequence', 'radius', 
            'profile_radius', 'profile_radius_units'),
     dtype = ('int', 'int', 'float64', 'float64', 'float64', 'float64', 'U30', 'U30', 'object', 'object', 'U30'))
-
-# Then create a table, summed at one entry per phase angle. XXX No, we really don't need this one right now.
 
 # List all of the data that we want to read in from disk
 
@@ -663,7 +680,7 @@ params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tup
 radius = []
 profile_radius = []  # This is a list.
 
-radius_bg = radius_bg_halo_core
+radius_bg = radius_bg_main_core
 
 for param_i in params:
 
@@ -678,7 +695,7 @@ for param_i in params:
     # Load the profile from disk.
     
     ring = ring_profile()
-    ring.load(index_group, index_images, key_radius = key_radius).smooth(1)
+    ring.load(index_group, index_images, key_radius = key_radius).smooth(BINS_SMOOTH)
     
     # Copy the profile, and sum all the individual curves in it.
     
@@ -747,18 +764,18 @@ num_sequences = len(t_mean)
 
 # Add some columns to the table
 
-# Set the core and halo positions. I have individually measured each of these.
+# Set the core and main ring positions. I have individually measured each of these.
 
 radius_core_default = np.array([127.5, 129.5])*1000   # Radius, in units of 1000 km.
-radius_halo_default = np.array([118.0, 130.0])*1000
+radius_main_default = np.array([118.0, 130.0])*1000
 
 t_mean.add_column(Table.Column(np.tile(radius_core_default, (num_sequences,1)),name='radius_core'))
-t_mean.add_column(Table.Column(np.tile(radius_halo_default, (num_sequences,1)),name='radius_halo'))
+t_mean.add_column(Table.Column(np.tile(radius_main_default, (num_sequences,1)),name='radius_main'))
 t_mean.add_column(Table.Column(np.tile((0,0), (num_sequences,1)), name='bin_core'))
 # Core radii, used
 t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_core'))
-t_mean.add_column(Table.Column(np.tile((0,0), (num_sequences,1)), name='bin_halo'))
-t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_halo'))
+t_mean.add_column(Table.Column(np.tile((0,0), (num_sequences,1)), name='bin_main'))
+t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_main'))
 
 # Copy the units over (which don't get aggregated properly, since they are a string)
 
@@ -779,39 +796,39 @@ t_mean.sort('phase')
 #%%%
 
 # =============================================================================
-# Extract the brightness of the core from the brightness of the halo
+# Extract separately the brightness of the moonlet core vs the brightness of the main ring
 # =============================================================================
-
-t_mean['radius_core'][t_mean['sequence'] == '7/8-15 full'] = np.array((127.85, 129.5))*1000
-t_mean['radius_core'][t_mean['sequence'] == '7/0-7 full']  = np.array((127.65, 129.35))*1000
-t_mean['radius_core'][t_mean['sequence'] == '7/24-31 full'] = np.array((127.8, 129.5))*1000
+# These radial limits have been set individually for each profile. I think they are very good.
+t_mean['radius_core'][t_mean['sequence'] == '7/8-15 full']  = np.array((127.85, 129.5))*1000
+t_mean['radius_core'][t_mean['sequence'] == '7/0-7 full']   = np.array((127.65, 129.35))*1000
+t_mean['radius_core'][t_mean['sequence'] == '7/24-31 full'] = np.array((127.8,  129.5))*1000
 t_mean['radius_core'][t_mean['sequence'] == '7/16-23 full'] = np.array((127.65, 129.55))*1000 # Red
 t_mean['radius_core'][t_mean['sequence'] == '7/36-39 full'] = np.array((127.75, 129.25))*1000 # Purple
-t_mean['radius_core'][t_mean['sequence'] == '7/32-35 full'] = np.array((127.8, 129.6))*1000   # Brown
-t_mean['radius_core'][t_mean['sequence'] == '7/40-42 full'] = np.array((128.0, 129.70))*1000 # pink
-t_mean['radius_core'][t_mean['sequence'] == '7/61-63 full'] = np.array((127.8, 129.50))*1000 # grey
-t_mean['radius_core'][t_mean['sequence'] == '7/52-54 full'] = np.array((127.5, 129.50))*1000 # olive
-t_mean['radius_core'][t_mean['sequence'] == '7/91-93 full'] = np.array((128.0, 129.55))*1000 # lt blue
-t_mean['radius_core'][t_mean['sequence'] == '7/94-96 full'] = np.array((127.5, 129.3))*1000 # dk blue top
+t_mean['radius_core'][t_mean['sequence'] == '7/32-35 full'] = np.array((127.8,  129.6))*1000   # Brown
+t_mean['radius_core'][t_mean['sequence'] == '7/40-42 full'] = np.array((128.0,  129.70))*1000 # pink
+t_mean['radius_core'][t_mean['sequence'] == '7/61-63 full'] = np.array((127.8,  129.50))*1000 # grey
+t_mean['radius_core'][t_mean['sequence'] == '7/52-54 full'] = np.array((127.5,  129.50))*1000 # olive
+t_mean['radius_core'][t_mean['sequence'] == '7/91-93 full'] = np.array((128.0,  129.55))*1000 # lt blue
+t_mean['radius_core'][t_mean['sequence'] == '7/94-96 full'] = np.array((127.5,  129.3))*1000 # dk blue top
 
-t_mean['radius_halo'][t_mean['sequence'] == '7/8-15 full'] = np.array((118, 129.5))*1000
-t_mean['radius_halo'][t_mean['sequence'] == '7/0-7 full']  = np.array((118, 129.5))*1000
-t_mean['radius_halo'][t_mean['sequence'] == '7/24-31 full'] = np.array((118, 129.5))*1000
-t_mean['radius_halo'][t_mean['sequence'] == '7/16-23 full'] = np.array((118, 129.5))*1000 # Red
-t_mean['radius_halo'][t_mean['sequence'] == '7/36-39 full'] = np.array((118, 129.25))*1000 # Purple
-t_mean['radius_halo'][t_mean['sequence'] == '7/32-35 full'] = np.array((118.7, 129.6))*1000   # Brown
-t_mean['radius_halo'][t_mean['sequence'] == '7/40-42 full'] = np.array((118.5, 129.70))*1000 # pink
-t_mean['radius_halo'][t_mean['sequence'] == '7/61-63 full'] = np.array((119.2, 129.50))*1000 # grey
-t_mean['radius_halo'][t_mean['sequence'] == '7/52-54 full'] = np.array((118.5, 129.50))*1000 # olive
-t_mean['radius_halo'][t_mean['sequence'] == '7/91-93 full'] = np.array((118.5, 129.55))*1000 # lt blue
-t_mean['radius_halo'][t_mean['sequence'] == '7/94-96 full'] = np.array((120.5, 130.5))*1000 # dk blue top
+t_mean['radius_main'][t_mean['sequence'] == '7/8-15 full']  = np.array((118,    129.5))*1000
+t_mean['radius_main'][t_mean['sequence'] == '7/0-7 full']   = np.array((118,    129.5))*1000
+t_mean['radius_main'][t_mean['sequence'] == '7/24-31 full'] = np.array((118,    129.5))*1000
+t_mean['radius_main'][t_mean['sequence'] == '7/16-23 full'] = np.array((118,    129.5))*1000 # Red
+t_mean['radius_main'][t_mean['sequence'] == '7/36-39 full'] = np.array((118,    129.25))*1000 # Purple
+t_mean['radius_main'][t_mean['sequence'] == '7/32-35 full'] = np.array((118.7,  129.6))*1000   # Brown
+t_mean['radius_main'][t_mean['sequence'] == '7/40-42 full'] = np.array((118.5,  129.70))*1000 # pink
+t_mean['radius_main'][t_mean['sequence'] == '7/61-63 full'] = np.array((119.2,  129.50))*1000 # grey
+t_mean['radius_main'][t_mean['sequence'] == '7/52-54 full'] = np.array((118.5,  129.50))*1000 # olive
+t_mean['radius_main'][t_mean['sequence'] == '7/91-93 full'] = np.array((118.5,  129.55))*1000 # lt blue
+t_mean['radius_main'][t_mean['sequence'] == '7/94-96 full'] = np.array((120.5,  130.5))*1000 # dk blue top
 
 # Now that we have the radii of the inner core calculated, look up the bin limits for the inner core
 
 for i in range(num_sequences):
     radii       = t_mean['radius'][i]
     radius_core = t_mean['radius_core'][i]
-    radius_halo = t_mean['radius_halo'][i]
+    radius_main = t_mean['radius_main'][i]
 
     # Look up bin limits of the core and store them
     
@@ -820,12 +837,12 @@ for i in range(num_sequences):
             
     t_mean['bin_core'][i] = bins
 
-    # Look up bin limits of the halo, and store them
+    # Look up bin limits of the main ring, and store them
     
-    bins = [ np.argmin(np.abs(radii - t_mean['radius_halo'][i][0])),
-             np.argmin(np.abs(radii - t_mean['radius_halo'][i][1])) ]
+    bins = [ np.argmin(np.abs(radii - t_mean['radius_main'][i][0])),
+             np.argmin(np.abs(radii - t_mean['radius_main'][i][1])) ]
             
-    t_mean['bin_halo'][i] = bins
+    t_mean['bin_main'][i] = bins
 
 # Calculate the area under the curve for the core. 
 # XXX We should probably write a method for this.
@@ -836,113 +853,14 @@ for i in range(num_sequences):
                                      t_mean['radius_core'][i])
     t_mean['area_core'][i] = area_i_core
     
-# Calculate the area under the curve for the halo.
-# For the halo, we subtract off the area already measured for the core
+# Calculate the area under the curve for the main ring.
+# For the main ring, we subtract off the area already measured for the core
 
-    (area_i_halo, line, bins) = area_between_line_curve(t_mean['radius'][i],
+    (area_i_main, line, bins) = area_between_line_curve(t_mean['radius'][i],
                                      t_mean['profile_radius'][i],
-                                     t_mean['radius_halo'][i])
-    t_mean['area_halo'][i] = area_i_halo - area_i_core
+                                     t_mean['radius_main'][i])
+    t_mean['area_main'][i] = area_i_main - area_i_core
     
-    
-# =============================================================================
-# Make a plot: Radial Profile (Summed, I/F) vs. Sequence
-# =============================================================================
-
-hbt.figsize((12,20))
-
-DO_PLOT_CORE_LIMITS = True
-DO_PLOT_HALO_LIMITS = True
-
-dy = 13e-7
-
-#colors = iter(cm.rainbow(np.linspace(0, 1, 100)))
-
-#hbt.figsize((10,10))
-#plt.axes([0.2,0.4,0.7,0.9])
-
-fig, ax1 = plt.subplots() # This returns a FIGURE object, plus 1 or more AXES objects.
-ax2      = ax1.twiny()    # Create a second AXES
-
-ax2.locator_params(axis='x', numticks=3)
-ax1.locator_params(axis='x', numticks=20)
-
-for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e.g., '7/0-7 full')
-    
-    ax1.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i] + i * dy,
-             linewidth=4,
-             label = r'{}, {:.1f}$^{{\circ}}$, {:.1f}$^{{\circ}}$'.format(
-            s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d) )
-    
-    if (DO_PLOT_CORE_LIMITS):
-        bins = t_mean['bin_core'][i]
-        ax1.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
-                  np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
-                  color = 'red')
-                         
-    if (DO_PLOT_CORE_LIMITS):
-        bins = t_mean['bin_halo'][i]
-        ax1.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
-                  np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
-                  color = 'grey', linestyle='dotted')
-                         
-ax1.set_ylim((-1e-6,3e-6 + dy*i))
-xlim_kkm = np.array((115,133))
-ax1.set_xlim(xlim_kkm)
-ax1.set_xlabel('Radius [1000 km]')
-ax1.set_title('J-ring radial profiles, summed per sequence', y=1.04) # Bump up the y axis
-ax1.set_ylabel('I/F')
-ax1.legend()
-plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
-
-
-# Mark position of Metis + Adrastea
-_metis = 127980    # SCW07
-a_adrastea = 128981 # SCW07
-
-ax1.axvline(a_metis/1000, linestyle='dashed', color='grey', alpha=0.3)
-ax1.axvline(a_adrastea/1000, linestyle='dashed', color='grey', alpha=0.3)
-
-ax1.text(a_metis/1000, -5e-7, 'M')
-ax1.text(a_adrastea/1000, -5e-7, 'A')
-
-# Put the second axis on the top
-
-ax2.plot([1,1])
-ax2.set_xlabel('Radius [R_J]')
-ax2.set_xlim(xlim_kkm * 1000 / 71492)
-plt.gca().xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))
-
-plt.show()
-
-
-
-#        ax2.plot(t_skip, ang_target_center_radii, linestyle = 'dashed', linewidth=2,
-#                 label = 'Sep from Pluto Center', color='blue') 
-#        
-#        ax1.plot(t, 1/dt * count_rate_target_3000 /f_norm(dec), label='Count Rate, Fixed', color='darkblue')
-#        
-#        ax1.set_ylabel('Counts/sec')
-#        ax1.set_ylabel('Counts/sec')
-#        ax1.set_title(sequence + ', dt = ' + repr(dt) + ' sec, smoothed x ' + repr(binning) + ' = ' + 
-#                  repr(int(dt * binning)) + ' sec', fontsize=fs)
-#    
-#        ax1.text(100, 1080, 'HD 42545, v = {:4.2f} km/sec'.format(vel))
-#        ax2.set_ylabel('Pluto-Star Separation [$r_P$]')
-#        ax1.legend(framealpha=0.8, loc='upper left', fontsize=fs*0.7)
-#        ax2.legend(framealpha=0.8, loc='lower right',fontsize=fs*0.7)
-#        ax1.set_xlim(np.array(hbt.mm(t)))
-#        ax2.set_ylim([0, 10])
-#        ax1.set_ylim([1000, 1400])
-#        ax1.axes.get_xaxis().set_ticks([])
-#        plt.show()
-
-#%%%
-
-
-#    phase_all = np.concatenate((phase_all, phase))
-#    area_all  = np.concatenate((area_all, area))
-
 # =============================================================================
 # Do some Mie calculations
 # =============================================================================
@@ -1000,11 +918,88 @@ p11_merged_data  = p11_mie_data  * (1-ratio_lambert_mie) + p11_lambert_data  * r
 # Do a linfit to compute proper magnitude of model, to fit data
 
 DO_FIT_LOGSPACE = True
-(scalefac_merged_log, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_halo'], log=DO_FIT_LOGSPACE)
-(scalefac_merged_lin, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_halo'])
+(scalefac_merged_log, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_main'], log=DO_FIT_LOGSPACE)
+(scalefac_merged_lin, _) = hbt.linfit_origin(p11_merged_data.value, t_mean['area_main'])
     
 # =============================================================================
-# Plot the phase curve, with one point per sequence
+# Make a tall plot of Radial Profile (Summed, I/F) vs. Sequence
+# =============================================================================
+
+hbt.figsize((12,20))
+
+DO_PLOT_CORE_LIMITS = True
+DO_PLOT_MAIN_LIMITS = True
+
+dy = 13e-7 # Set the y separation between adjacent lines
+
+#hbt.figsize((10,10))
+#plt.axes([0.2,0.4,0.7,0.9])
+
+fig, ax1 = plt.subplots() # This returns a FIGURE object, plus 1 or more AXES objects.
+ax2      = ax1.twiny()    # Create a second AXES, which is for the top (so we can plot both R_J and km)
+
+ax2.locator_params(axis='x', numticks=3)
+ax1.locator_params(axis='x', numticks=20)
+
+for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e.g., '7/0-7 full')
+    
+    # Plot the radial profile itself
+    
+    ax1.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i] + i * dy,
+             linewidth=3,
+             label = r'{}, {:.1f}°, {:.1f}°'.format(
+                  s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d) )
+    
+    # Plot the line denoting limits for main ring core
+    
+    if (DO_PLOT_CORE_LIMITS):
+        bins = t_mean['bin_core'][i]
+        ax1.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
+                  np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
+                  color = 'red')
+    
+    # Plot the line denoting limits for main ring full
+                     
+    if (DO_PLOT_CORE_LIMITS):
+        bins = t_mean['bin_main'][i]
+        ax1.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
+                  np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
+                  color = 'grey', linestyle='dotted')
+                         
+ax1.set_ylim((-1e-6,3e-6 + dy*i))
+
+# Set the x axis, in 1000 km.
+
+xlim_kkm = np.array((115,133))
+ax1.set_xlim(xlim_kkm)
+ax1.set_xlabel('Radius [1000 km]')
+ax1.set_title('J-ring radial profiles, summed per sequence, binning={}'.format(BINS_SMOOTH), y=1.04) 
+                                                            # Bump up the y axis
+ax1.set_ylabel('I/F')
+ax1.legend()
+plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+
+# Mark position of Metis + Adrastea
+
+ax1.axvline(ring.A_METIS/1000, linestyle='dashed', color='grey', alpha=0.3)
+ax1.axvline(ring.A_ADRASTEA/1000, linestyle='dashed', color='grey', alpha=0.3)
+
+ax1.text(ring.A_METIS/1000, -5e-7, 'M')
+ax1.text(ring.A_ADRASTEA/1000, -5e-7, 'A')
+
+# Put the second axis on the top
+
+ax2.plot([1,1])
+ax2.set_xlabel('Radius [R_J]')
+ax2.set_xlim(xlim_kkm * 1000 / 71492) # Create these automatically from values on the other X axis.
+plt.gca().xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))
+
+plt.show()
+
+#%%%
+    
+# =============================================================================
+# Plot the main phase curve, separated into contributions of Main ring + Core
 # =============================================================================
 
 hbt.figsize((12,8))
@@ -1012,7 +1007,7 @@ hbt.figsize((12,8))
 hbt.set_fontsize(size=15)
 
 for i in range(len(t_mean['phase'])):
-    plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_halo'][i], #yerr=t_std['area_dn'][i],
+    plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_main'][i], #yerr=t_std['area_dn'][i],
              marker = 'o', ms=10, linestyle = 'none', alpha=0.5)
 
     plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_core'][i],
@@ -1028,7 +1023,15 @@ plt.plot(ang_model.to('deg'), p11_lambert_model    * scalefac_merged_log * ratio
 plt.plot(ang_model.to('deg'), p11_merged_model     * scalefac_merged_log, 
          label = 'Merged, ratio = {}'.format(ratio_lambert_mie), 
          color='black', linestyle = 'dashdot')
+import matplotlib.lines as mlines
 
+#symbol_plus = mlines.Line2D([], [], color='black', marker='+', ms=12, mew=3, linestyle='none')
+#symbol_circle = mlines.Line2D([], [], color = 'black', marker = 'o', ms=10, ls='none')
+
+plt.plot([], [], marker = 'o', ms = 10,              linestyle='none', color='black', label='Main Ring, everything')
+plt.plot([], [], marker = '+', ms = 10, lw=3, mew=3, linestyle='none', color='black', label='Main Ring, core only')
+
+plt.title('Jupiter ring, by sequence')
 plt.xlabel('Angle [deg]')
 plt.ylabel(t_mean['profile_radius_units'][0][0])
 plt.yscale('log')
@@ -1037,17 +1040,18 @@ plt.legend()
 plt.show()
 
 # =============================================================================
-# Plot the phase curve, with one point per image
+# Plot the phase curve, with one point per image XXX DO NOT PLOT
 # =============================================================================
-      
-plt.plot(t['phase'] * hbt.r2d, t['area_dn'], marker = 'o', linestyle = 'none', label=t['label'])
-#plt.yscale('log')
-plt.title('Phase Curve, New Horizons J-Ring')
-plt.ylim((1e-5, 1e-2))
-plt.show()
- 
-# Plot several individual radial profiles
 
+# This is duplicated by much better radial profiles above. Skip it.
+
+if False:
+    plt.plot(t['phase'] * hbt.r2d, t['area_dn'], marker = 'o', linestyle = 'none', label=t['label'])
+    #plt.yscale('log')
+    plt.title('Phase Curve, New Horizons J-Ring, one point per image')
+    plt.ylim((1e-7, 3e-4))
+    plt.show()
+ 
 # =============================================================================
 # Now make some customized individual profiles. For a 'best merged set' profile thing.
 # =============================================================================
@@ -1066,7 +1070,7 @@ plt.show()
 
 a = ring_profile()
 # a.load(7, hbt.frange(8,15),key_radius='full').\
-#     remove_background_radial(radius_bg_halo_core,do_plot=False).flatten().plot()
+#     remove_background_radial(radius_bg_main_core,do_plot=False).flatten().plot()
 a.load(7, hbt.frange(8,15),key_radius='full').flatten().plot()
 plt.show()
 
@@ -1085,7 +1089,7 @@ a.load(7, hbt.frange(91,93),key_radius='full').plot()
 
 a.dn2iof()
 a.plot()
-a.remove_background_radial(radius_bg_halo_core).flatten().plot()
+a.remove_background_radial(radius_bg_main_core).flatten().plot()
 
 plt.show()
 

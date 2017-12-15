@@ -149,7 +149,7 @@ def nh_jring_mask_from_objectlist(objectfile, do_plot = False):
 # Test case to check if things are working
 #==============================================================================
         
-def test():
+if (__name__ == '__main__'):  # Code below this will run when file is executed, but not when it is imported.
 
     from nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
     
