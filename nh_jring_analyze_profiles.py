@@ -31,6 +31,7 @@ from   matplotlib.figure import Figure
 import numpy as np
 import astropy.modeling
 
+from scipy import signal, fftpack
 
 import spiceypy as sp
 #from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
@@ -90,7 +91,7 @@ class ring_profile:
         
         # Process the group names. Some of this is duplicated logic -- depends on how we want to use it.
         
-        self.groups = astropy.table.unique(self.t, keys=(['Desc']))['Desc'
+        self.groups = astropy.table.unique(self.t, keys=(['Desc']))['Desc']
 
         stretch_percent = 90    
         self.stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
@@ -102,6 +103,21 @@ class ring_profile:
         self.A_ADRASTEA = 128981        # Orbital distance, in km. From SCW07
 
 # =============================================================================
+# Define the 'string' for the class. This is the human-readable value returned when we do   print(ring)
+# =============================================================================
+
+    def __str__(self):
+        return("Ring profile, {}/{}".format(self.index_group_arr[0], self.index_image_arr[0])) 
+
+# =============================================================================
+# Define the 'string' for the class. This is theory should be a string to reconstruct the object... hopeless, here,
+# so we just reutrn the string instead.
+# =============================================================================
+
+    def __repr__(self):
+        return("Ring profile, {}/{}".format(self.index_group_arr[0], self.index_image_arr[0])) 
+        
+# =============================================================================
 # Define an __iter__ function so we can iterate over our individual radial profile
 # =============================================================================
 
@@ -109,6 +125,18 @@ class ring_profile:
         
         # NOT WORKING YET (obviously)
         return(True)
+
+# =============================================================================
+# Define a __getitem__ method. This should nominally take an object which has 7 profiles in it, and extract just nth.
+# I think I need this if I want to define __iter__, __next__, etc. in order to iterate over class.
+# However, maybe they are not needed for basic usage of the class.        
+# =============================================================================
+
+    def __getitem__(self, index):
+        obj = self.copy()
+        obj.exptime_arr = obj.exptime_arr[index]
+        obj.groups
+        return obj
         
 # =============================================================================
 # Lookup the analysis filename
@@ -154,7 +182,6 @@ class ring_profile:
         # The individual one read can be controlled with key_radius and key_azimuth
         #
         # Usually the values of the profiles will be read in units of DN. 
-        # But, it is up to the user to keep straight if it is DN, IoF, normal IoF, EW, etc.
         
         import humanize
         
@@ -178,6 +205,9 @@ class ring_profile:
         self.index_group_arr        = []
         self.dt_arr                 = [] # dt is the time since the datafile was written. 
         self.dt_str_arr             = []
+        self.image_unwrapped_arr    = []
+        self.mask_objects_unwrapped_arr = []
+        self.mask_stray_unwrapped_arr = []
         
         self.profile_azimuth_units  = 'DN per pixel'
         self.profile_radius_units   = 'DN per pixel'
@@ -189,7 +219,7 @@ class ring_profile:
             vals = pickle.load(lun)
             lun.close()
         
-            (image_unwrapped,     # Unwrapped image itself
+            (image_unwrapped,                # Unwrapped image itself
                         mask_objects_unwrapped,  # Boolean mask: True = good pixel
                         mask_stray_unwrapped,
                         radius,              # Axis values for the unwrapped image
@@ -229,6 +259,13 @@ class ring_profile:
             self.index_group_arr.append(index_group)
             self.dt_arr.append(dt)
             self.dt_str_arr.append(dt_str)
+            self.image_unwrapped_arr.append(image_unwrapped)
+            self.mask_stray_unwrapped_arr.append(mask_stray_unwrapped)
+            self.mask_objects_unwrapped_arr.append(mask_objects_unwrapped)
+
+            # Define a new property, which is a shift to be applied to each curve. Shift is in radial bins (ie, pixels)
+            
+            self.shift_bin              = np.zeros(self.num_images_group,dtype=int)
 
             if verbose:
                 print("Read image {}/{}, phase = {:0.1f}°, {}, {}, {}".format(
@@ -269,7 +306,11 @@ class ring_profile:
 # =============================================================================
 # Return number of profiles
 # =============================================================================
-        
+    
+    @property      # Putting the 'property' decorator here means that this func appears like 
+                   # ring.num_profiles, not ring.num_profiles(). It looks like a property, not
+                   # the function that it really is.
+                   
     def num_profiles(self):
         
         return np.size(self.dt_arr)
@@ -365,7 +406,7 @@ class ring_profile:
         if (kernel is None):
             kernel = Gaussian1DKernel(width)
                 
-        num_profiles = self.num_profiles()
+        num_profiles = self.num_profiles
 
         for i in range(num_profiles):
         
@@ -424,9 +465,16 @@ class ring_profile:
         self.dt_arr          = np.array([self.dt_arr[0]])
         self.dt_str_arr      = np.array([self.dt_str_arr[0]])
         
+        # Flatten the images and mask arrays, by taking median
+        
+        self.image_unwrapped_arr = np.array([np.nanmedian(self.image_unwrapped_arr, axis=0)])
+        self.mask_objects_unwrapped_arr = np.array([np.nanmedian(self.mask_objects_unwrapped_arr, axis=0)])
+        self.mask_stray_unwrapped_arr = np.array([np.nanmedian(self.mask_stray_unwrapped_arr, axis=0)])
+        
         return self          # The value is returned, so that commands can be chained.
                              # Also, the value of all quantities (e.g., profile_azimuth_arr) is changed internally.
- 
+
+    
 # =============================================================================
 # Copy the object
 # =============================================================================
@@ -486,7 +534,7 @@ class ring_profile:
         
         # Now loop over each profile, and find the right fit coefficients for it.
         
-        for i in range(self.num_profiles()):  
+        for i in range(self.num_profiles):  
             profile = self.profile_radius_arr[i]
 
             r = linregress(radius[is_radius_good], profile[is_radius_good])
@@ -525,6 +573,7 @@ class ring_profile:
                       plot_sats=True,  # Plot the location of Metis / Adrastea on radial profile?
                       smooth=None,
                       title=None,
+                      xlim=None,
                       **kwargs):
 
         #==============================================================================
@@ -540,7 +589,7 @@ class ring_profile:
                 profile_radius = self.profile_radius_arr[i]
                 
                 p = plt.plot(radius, 
-                         (i * dy_radial) + profile_radius, 
+                         np.roll( (i * dy_radial) + profile_radius, self.shift_bin[i]),  
                          label = r'{}/{}, $\alpha$={:.2f}°, e={:.2f}°, {}'.format(
                                        self.index_group_arr[i], 
                                        self.index_image_arr[i], 
@@ -548,7 +597,12 @@ class ring_profile:
                                        self.ang_elev_arr[i]*hbt.r2d,
                                        self.dt_str_arr[i]),
                          **kwargs)
-            
+
+                # Set the xlimit explicitly. This is stupid that it cannot be passed as a kwarg...
+                
+                if (xlim):
+                    plt.xlim(xlim)
+                   
             # Plot Metis and Adrastea
             
             if (plot_sats):
@@ -616,7 +670,7 @@ class ring_profile:
         
         area = []
         
-        for i in range(self.num_profiles()):  # I guess this is where I should use __iter__
+        for i in range(self.num_profiles):  # I guess this is where I should use __iter__
         
             (area_out, _, _) = area_between_line_curve(self.radius_arr[i], self.profile_radius_arr[i], limit)
             area.append(area_out)                 
@@ -870,7 +924,7 @@ for i in range(num_sequences):
 alam   = 500  * u.nm
 rmin   = 0.01 * u.micron
 rmax   = 50   * u.micron     
-num_r  = 150
+num_r  = 20
 
 pi     = math.pi
 
@@ -1056,74 +1110,84 @@ if False:
 # Now make some customized individual profiles. For a 'best merged set' profile thing.
 # =============================================================================
 
-# This is a good profile for 0-7! Shows moonlet belt really well.
-# Background subtration needed: None.
+# Keep these as an example of how to use the class
+
+if False:
+    a = ring_profile()
+    radius_bg_127 = np.array([[125,126], [130, 131]])*1000
+    a.load(7, hbt.frange(40,42),key_radius='full').remove_background_radial(radius_bg_127,do_plot=False).flatten()
+    a.dn2iof().plot()
+    plt.show()
+    
+    a = ring_profile()
+    a.load(7, hbt.frange(40,42),key_radius='full').flatten().plot()
+
+# =============================================================================
+# Now make a 'best possible radial profile'
+# =============================================================================
 
 a = ring_profile()
-a.load(7, hbt.frange(0,7),key_radius='full').flatten().plot()
+a.load(7, hbt.frange(40,42),key_radius='full').plot()
+
+profile = []
+
+# Extract just the central few azimuthal bins. These are the best and most reliable.
+
+for i in range(a.num_profiles):    
+    profile_i = np.sum( (a.image_unwrapped_arr[i][:,140:160]), axis=1)
+    profile.append(profile_i)
+
+profile_short = []
+for profile_i in profile:
+  profile_short.append(np.pad(profile_i[bins[0]:bins[1]], 5, 'edge'))
+
+shift = [0, 0, 1]
+
+profile_short_sum = 0. * profile_short[0]
+
+for i,p in enumerate(profile_short):
+    profile_i = np.roll(p, shift[i])
+    plt.plot(profile_i, label=repr(i))
+    profile_short_sum += profile_i
+plt.legend()
+profile_short_sum /= (i+1)
+plt.plot(profile_short_sum)
 plt.show()
 
-# This is a good profile for 8-15. Shows moonlet belt really well. Looks like 0-7 one. Has an extra bump = stray.
-# We could consider masking they stray. Right now I just use horizontal and vertical regions to remove it.
-# But, that would be a big task.
-# I guess I could just pass an additional argument, like 'c20(120,200)' for a 20-pixel radius circle.
+###
 
 a = ring_profile()
-# a.load(7, hbt.frange(8,15),key_radius='full').\
-#     remove_background_radial(radius_bg_main_core,do_plot=False).flatten().plot()
-a.load(7, hbt.frange(8,15),key_radius='full').flatten().plot()
+a.load(7, hbt.frange(40,42),key_radius='full').plot()
+
+a.shift_bin = np.array([0,0,1])
+a.plot(xlim=(127000,131000))
+    
+profile = np.array(profile)  # Convert into NP array, [i, num_radii]
+
+profile_short = np.array(profile)
+
+radius = a.radius_arr[0]
+bins = (hbt.x2bin(127500, radius), hbt.x2bin(129500, radius))
+
+plt.plot(a.radius_arr[0], np.transpose(profile))
+plt.xlim((127500,129500))
 plt.show()
 
-# Decent profile for 16-23.
+  
+profile1 = np.pad( profile[1, bins[0]:bins[1]], 5, 'edge')
+profile2 = np.pad( profile[2, bins[0]:bins[1]], 5, 'edge')
 
-a = ring_profile()
-a.load(7, hbt.frange(16,23),key_radius='full').remove_background_radial(radius_bg_117,do_plot=False).flatten().plot()
+plt.plot(profile0)
+plt.plot(profile1)
+plt.plot(profile2)
 plt.show()
 
-
-# Decent profile for 24-31.
-# It is a very narrow moonlet belt between A+M, plus some inner stuff. 
-
-a = ring_profile()
-a.load(7, hbt.frange(91,93),key_radius='full').plot()
-
-a.dn2iof()
-a.plot()
-a.remove_background_radial(radius_bg_main_core).flatten().plot()
-
+r = signal.correlate(profile0, profile1)
+plt.plot(r)
 plt.show()
+    
+np.argmax(signal.correlate(profile1, profile0))
 
-# Marginal profile for 32-35.
-# There is more stray light here. It really needs masking.
-# I did increase the polynomial power from 2 -> 5, which helped (like it should have).
-# The inner region is going to be hard to get. I might do better if I mask it.
-
-a = ring_profile()
-a.load(7, hbt.frange(32,35),key_radius='core').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
-
-# OK profile for 36-39. Similar to previous. Thet moonlet belt is visible but the dust is probably subtracted out here.
-
-a = ring_profile()
-radius_bg_127 = np.array([[125,126], [130, 131]])*1000
-a.load(7, hbt.frange(36,39),key_radius='full').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
-
-# Profile for 40-42. Still working on this one.
-
-a = ring_profile()
-radius_bg_127 = np.array([[125,126], [130, 131]])*1000
-a.load(7, hbt.frange(40,42),key_radius='full').remove_background_radial(radius_bg_127,do_plot=False).flatten().plot()
-
-plt.show()
-
-
-a_dn = a.copy()
-a_dn.dn2iof().plot()
-plt.show()
-
-a = ring_profile()
-a.load(7, hbt.frange(91,93),key_radius='core').plot()
-plt.show()
-
-a_dn = a.copy()
-a_dn.dn2iof().plot()
-plt.show()
+# =============================================================================
+# Now make an azimuthal profile, with all the data
+# =============================================================================
