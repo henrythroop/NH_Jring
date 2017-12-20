@@ -107,7 +107,9 @@ class ring_profile:
 # =============================================================================
 
     def __str__(self):
-        return("Ring profile, {}/{}".format(self.index_group_arr[0], self.index_image_arr[0])) 
+        return("Ring profile, {}/{}-{}".format(self.index_group_arr[0], 
+               self.index_image_arr[0],
+               self.index_image_arr[-1])) 
 
 # =============================================================================
 # Define the 'string' for the class. This is theory should be a string to reconstruct the object... hopeless, here,
@@ -288,7 +290,8 @@ class ring_profile:
 # =============================================================================
 # Return number of radial bins
 # =============================================================================
-        
+    
+    @property         # Property -- allow it to be num_bins_radius, not num_bins_radius()    
     def num_bins_radius(self):
         
         return np.shape(self.profile_radius_arr)[1]
@@ -297,7 +300,8 @@ class ring_profile:
 # =============================================================================
 # Return size of azimuthal array
 # =============================================================================
-        
+    
+    @property    
     def num_bins_azimuth(self):
         
         return np.shape(self.profile_azimuth_arr)[1]
@@ -341,7 +345,7 @@ class ring_profile:
         
         r = 5.35 # Distance in AU. For the Jupiter encounter, dist = 5.30 AU .. 5.39 AU for the 10d surrounding it.
         
-        TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_radius(),1)))  # Increase this from 1D to 2D
+        TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_radius,1)))  # Increase this from 1D to 2D
         
         I = C / TEXP_2D / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. All v similar, except for spectrum assumed.
         
@@ -357,7 +361,7 @@ class ring_profile:
         
         mu = np.cos(e)
         
-        mu_2D = np.transpose(np.tile(mu, (self.num_bins_radius(),1)))
+        mu_2D = np.transpose(np.tile(mu, (self.num_bins_radius,1)))
         
         # Calculate the normal I/F
         
@@ -373,8 +377,8 @@ class ring_profile:
         
         # Do the same for azimuthal profile
 
-        TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_azimuth(),1)))
-        mu_2D = np.transpose(np.tile(mu, (self.num_bins_azimuth(),1)))
+        TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_azimuth,1)))
+        mu_2D = np.transpose(np.tile(mu, (self.num_bins_azimuth,1)))
         self.profile_azimuth_arr = self.profile_azimuth_arr / TEXP_2D / RSOLAR * math.pi * r**2 / F_solar * 4 * mu_2D
         
         self.profile_azimuth_units = 'Normal I/F'
@@ -1129,29 +1133,47 @@ if False:
 a = ring_profile()
 a.load(7, hbt.frange(40,42),key_radius='full').plot()
 
+hbt.set_fontsize(20)
+
+num_bins_az_central = 15            # How many azimuthal bins do we use for the profile?
+shift               = [1, 0, 1]     # This is the # of bins to shift it *outward* by. Negative is inward.
+dy                  = 3           # Offset between adjacent lines 
+
+lw                  = 3.5
+
+a.load(7, hbt.frange(24,31),key_radius='full')
+shift               = [0, 0, 0, 2, 0, 0, 0, 1]     # This is the # of bins to shift it *outward* by. Negative is inward.
+
+# From the image, extract just the central few azimuthal bins and make a profile. These are the best and most reliable.
+
 profile = []
 
-# Extract just the central few azimuthal bins. These are the best and most reliable.
-
-for i in range(a.num_profiles):    
-    profile_i = np.sum( (a.image_unwrapped_arr[i][:,140:160]), axis=1)
+bin0  = int(a.num_bins_azimuth/2 - num_bins_az_central/2)
+bin1  = int(a.num_bins_azimuth/2 + num_bins_az_central/2)
+            
+for i in range(a.num_profiles):        
+    image_i = a.image_unwrapped_arr[i] 
+    profile_i = np.nanmean( image_i[:,bin0:bin1], axis=1)
     profile.append(profile_i)
 
-profile_short = []
-for profile_i in profile:
-  profile_short.append(np.pad(profile_i[bins[0]:bins[1]], 5, 'edge'))
+profile_sum = 0. * profile[0]
 
-shift = [0, 0, 1]
+for i,p in enumerate(profile):
+    profile_i = np.roll(p, shift[i]) # Grab the profile, and roll it.
+    plt.plot(a.radius_arr[0]/1000, profile_i + dy*i, label="{}, $\Delta$ = {}".format(i, shift[i]), lw=lw)
+    profile_sum += profile_i
+    
+i += 1
+    
+profile_sum /= i
 
-profile_short_sum = 0. * profile_short[0]
+plt.plot(a.radius_arr[0]/1000, profile_sum + dy*i, label = 'Sum', lw=lw)
 
-for i,p in enumerate(profile_short):
-    profile_i = np.roll(p, shift[i])
-    plt.plot(profile_i, label=repr(i))
-    profile_short_sum += profile_i
 plt.legend()
-profile_short_sum /= (i+1)
-plt.plot(profile_short_sum)
+plt.xlim((127.5,130))
+plt.ylabel(a.profile_radius_units)
+plt.xlabel('Radius [1000 km]')
+plt.title("{}, central {} az bins".format(a, num_bins_az_central))
 plt.show()
 
 ###
