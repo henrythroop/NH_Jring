@@ -57,7 +57,12 @@ import hbt
 # indicating positions of stars, satellites, etc according to WCS, SPICE, and star catalogs.
 #==============================================================================
 
-def nh_jring_mask_from_objectlist(objectfile, do_plot = False):
+def nh_jring_mask_from_objectlist(objectfile, 
+                                  width_sat      = 25, # Define the default width of the 'PSF' for each type of object
+                                  width_star     = 10, 
+                                  width_star_4x4 = 3,
+                                  width_sat_4x4  = 8, 
+                                  do_plot        = False):
     
     '''
     Input: an objectfile ('_opnav_objects.txt')
@@ -66,14 +71,6 @@ def nh_jring_mask_from_objectlist(objectfile, do_plot = False):
     Boolean array mask with one value per pixel, indicating positions of stars, 
     satellites, etc according to WCS, SPICE, and star catalogs.
     '''
-
-# Define the width of the 'PSF' for each type of object
-    
-    width_star     = 10
-    width_sat      = 25
-
-    width_star_4x4 = 3
-    width_sat_4x4  = 8
     
 # Set the directories and paths
     
