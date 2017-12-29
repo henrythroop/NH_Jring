@@ -82,7 +82,7 @@ class ring_profile:
     
     def __init__(self):
 
-        file_pickle = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
+        file_pickle = 'nh_jring_read_params_571.pkl'     # Filename to read to get filenames, etc.
         dir_out     = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
             
         lun = open(dir_out + file_pickle, 'rb')
@@ -135,6 +135,7 @@ class ring_profile:
 # =============================================================================
 
     def __getitem__(self, index):
+        # NOT WORKING YET
         obj = self.copy()
         obj.exptime_arr = obj.exptime_arr[index]
         obj.groups
@@ -1160,16 +1161,27 @@ a.load(8, images, key_radius='full')
 shift = np.zeros(48)
 
 # From the image, extract just the central few azimuthal bins and make a profile. These are the best and most reliable2
-shift = np.array(shift)
+shift = np.array(shift,dtype=int)  # Must be integers, for np.roll() to work in np 1.11. Floats allowed in np 1.13.
 
 profile = []
 
 bin0  = int(a.num_bins_azimuth/2 - num_bins_az_central/2)
 bin1  = int(a.num_bins_azimuth/2 + num_bins_az_central/2)
+
            
 for i in range(a.num_profiles):        
     image_i = a.image_unwrapped_arr[i] 
+    mask = np.logical_and(a.mask_stray_unwrapped_arr[i,:,:], 
+                         a.mask_objects_unwrapped_arr[i,:,:])  # XXX This mask mergering isn't working right.
+
+    # Now actually sum to get the radial profile. These two should give identical results.
     profile_i = np.nanmean( image_i[:,bin0:bin1], axis=1)
+    profile_i2 = nh_jring_extract_profile_from_unwrapped(a.image_unwrapped_arr[i],
+                                                        a.radius_arr[i,:],
+                                                        a.azimuth_arr[i,:],
+                                                        0.047,
+                                                        'radial')
+                                                        mask_unwrapped=mask)
     profile.append(profile_i)
 
 # Compute the the mean of all the profiles.
@@ -1208,8 +1220,6 @@ plt.title("{}, central {} az bins".format(a, num_bins_az_central))
 plt.ylim((0, np.amax(profile_mean + dy*(i+3))))
 plt.show()
 
-
-
 # Now that we have a sum, we can do the correlation
 # We want to get the correlation between the sum, and each individual curve.
 # If this value is zero, then we are in good shape.
@@ -1232,7 +1242,7 @@ plt.xlim((480,520))
 plt.legend(loc = 'upper left')  
 plt.show()
 
-shift_computed = np.array(shift_computed)
+shift_computed = np.array(shift_computed, dtype=int)
 
 ## Need to validate sign of shift_computed. Negative, or positive?
 
