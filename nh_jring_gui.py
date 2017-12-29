@@ -127,8 +127,8 @@ class App:
         
         option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
         entry_bg_default    = '0-10'   # Default polynomial order XXX need to set a longer string length here!
-        index_group_default = 7        # Default group to start with
-        index_image_default = 32       # Default image number within the group
+        index_group_default = 8        # Default group to start with
+        index_image_default = 15       # Default image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -1510,6 +1510,9 @@ the internal state which is already correct. This does *not* refresh the image i
 
         self.file_objectlist = file_objectlist
         
+        width_mask_sat_pix = 70 # Set this quite wide. Metis is large and bright, and there are some non-neg nav
+                                # errors that put it several dozen pixels away from expected lcoation -- e..g, 8/14-16.
+        
         self.file_objectlist_shortname = self.t_group['Shortname'][self.index_image]
 				
         if (os.path.isfile(file_objectlist)):
@@ -1517,9 +1520,11 @@ the internal state which is already correct. This does *not* refresh the image i
             self.objectlist = t  # This will load self.t
 
             # While we are at it, also create the object mask, which is a boolean image
-            # Also, rleverse its polarity, so that True = <Ring good>, rather than True = <object here>
+            # Also, reverse its polarity, so that True = <Ring good>, rather than True = <object here>
+            # We can set the width of the msk for sats and stars here. 
             
-            self.mask_objects = np.logical_not(nh_jring_mask_from_objectlist(file_objectlist))
+            self.mask_objects = np.logical_not(nh_jring_mask_from_objectlist(file_objectlist,
+                                                                             width_sat = width_mask_sat_pix))
             
             return True
 

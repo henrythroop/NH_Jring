@@ -220,7 +220,9 @@ class ring_profile:
             lun = open(file, 'rb')
             vals = pickle.load(lun)
             lun.close()
-        
+
+            print("Loaded pickle file {}/{} {}".format(index_group, index_image, file))
+            
             (image_unwrapped,                # Unwrapped image itself
                         mask_objects_unwrapped,  # Boolean mask: True = good pixel
                         mask_stray_unwrapped,
@@ -434,13 +436,16 @@ class ring_profile:
 
     def flatten(self):
         
-        """ Flatten the profile, from N profile, into one mean profile.
+        """ Flatten the profile, from N profile, into one mean (or median) profile.
             Applies to radial and azimuthal and all other quantities.
             Result is returned, and internal values are changed as well.
             After flattening, most outputs are as 1-element arrays (not scalars)."""
-            
-        # Use mean() to get a merged radial profile
-
+        
+        # If is is already flattened (or a single profile), return without changing anything
+        
+        if (self.num_profiles == 1):
+            return self
+        
         # First do radial profiles
                 
         self.profile_radius_arr[0] = np.mean(self.profile_radius_arr, axis=0) # Save the flattened profile
@@ -578,6 +583,7 @@ class ring_profile:
                       smooth=None,
                       title=None,
                       xlim=None,
+                      plot_legend=True,
                       **kwargs):
 
         #==============================================================================
@@ -625,7 +631,8 @@ class ring_profile:
             if ('I/F' in self.profile_radius_units):       
                 axes.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
             
-            plt.legend()
+            if plot_legend:
+                plt.legend(loc='upper left')
             if (title is not None):
                 plt.title(title)    
             plt.show()
@@ -648,7 +655,8 @@ class ring_profile:
                 
             plt.xlabel('Azimuth [deg]')
             plt.ylabel(self.profile_azimuth_units)
-            plt.legend()
+            if plot_legend:
+                plt.legend()
             if (title is not None):
                 plt.title(title)
             plt.show()
@@ -1131,85 +1139,166 @@ if False:
 # =============================================================================
 
 a = ring_profile()
-a.load(7, hbt.frange(40,42),key_radius='full').plot()
 
 hbt.set_fontsize(20)
-
-num_bins_az_central = 15            # How many azimuthal bins do we use for the profile?
-shift               = [1, 0, 1]     # This is the # of bins to shift it *outward* by. Negative is inward.
+lw                  = 3.5          # Line weight 
 dy                  = 3           # Offset between adjacent lines 
+num_bins_az_central = 15            # How many azimuthal bins do we use for the profile?
 
-lw                  = 3.5
+
+a.load(7, hbt.frange(40,42),key_radius='full')
+shift               = [1, 0, 1]     # This is the # of bins to shift it *outward* by. Negative is inward.
 
 a.load(7, hbt.frange(24,31),key_radius='full')
 shift               = [0, 0, 0, 2, 0, 0, 0, 1]     # This is the # of bins to shift it *outward* by. Negative is inward.
 
-# From the image, extract just the central few azimuthal bins and make a profile. These are the best and most reliable.
+images = np.delete(hbt.frange(0,47),16)  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
+images = np.delete(hbt.frange(0,47),(16,18,19))  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
+images = np.delete(hbt.frange(0,47),(16,18,19,29))  # 0-47, but exclude a few spefic bad profiles (bg, or satellites)
+
+a.load(8, images, key_radius='full')
+shift = np.zeros(48)
+
+# From the image, extract just the central few azimuthal bins and make a profile. These are the best and most reliable2
+shift = np.array(shift)
 
 profile = []
 
 bin0  = int(a.num_bins_azimuth/2 - num_bins_az_central/2)
 bin1  = int(a.num_bins_azimuth/2 + num_bins_az_central/2)
-            
+           
 for i in range(a.num_profiles):        
     image_i = a.image_unwrapped_arr[i] 
     profile_i = np.nanmean( image_i[:,bin0:bin1], axis=1)
     profile.append(profile_i)
 
+# Compute the the mean of all the profiles.
+
 profile_sum = 0. * profile[0]
 
 for i,p in enumerate(profile):
     profile_i = np.roll(p, shift[i]) # Grab the profile, and roll it.
-    plt.plot(a.radius_arr[0]/1000, profile_i + dy*i, label="{}, $\Delta$ = {}".format(i, shift[i]), lw=lw)
     profile_sum += profile_i
-    
 i += 1
-    
-profile_sum /= i
+profile_mean = profile_sum / i
 
-plt.plot(a.radius_arr[0]/1000, profile_sum + dy*i, label = 'Sum', lw=lw)
+# Make a plot of the summed radial profile
 
-plt.legend()
+plt.plot(a.radius_arr[0]/1000, profile_mean + dy*i, label = 'Mean', lw=lw)
+plt.xlim((127.5, 130))
+plt.title("{}, central {} az bins".format(a, num_bins_az_central))
+plt.xlabel('Radius [1000 km]')
+plt.show()
+
+# Make the plot of all of the individual radial profiles
+
+for i,p in enumerate(profile):
+    profile_i = np.roll(p, shift[i]) # Grab the profile, and roll it.
+    plt.plot(a.radius_arr[0]/1000, profile_i + dy*i, label="{}, $\Delta$ = {}".format(a.index_image_arr[i], 
+             shift[i]), lw=lw)
+i+=1
+
+plt.plot(a.radius_arr[0]/1000, profile_mean + dy*i, label = 'Mean', lw=lw)
+
+#plt.legend(loc='upper left')
 plt.xlim((127.5,130))
 plt.ylabel(a.profile_radius_units)
 plt.xlabel('Radius [1000 km]')
 plt.title("{}, central {} az bins".format(a, num_bins_az_central))
+plt.ylim((0, np.amax(profile_mean + dy*(i+3))))
 plt.show()
 
-###
 
-a = ring_profile()
-a.load(7, hbt.frange(40,42),key_radius='full').plot()
 
-a.shift_bin = np.array([0,0,1])
-a.plot(xlim=(127000,131000))
-    
-profile = np.array(profile)  # Convert into NP array, [i, num_radii]
+# Now that we have a sum, we can do the correlation
+# We want to get the correlation between the sum, and each individual curve.
+# If this value is zero, then we are in good shape.
+# In theory it is best if we correlate not to the sum, but to the sum of everything *except this one*.
+# But if we have enough curves, this should be effectively the same.
 
-profile_short = np.array(profile)
+lw = 1
 
-radius = a.radius_arr[0]
-bins = (hbt.x2bin(127500, radius), hbt.x2bin(129500, radius))
+shift_computed = []
 
-plt.plot(a.radius_arr[0], np.transpose(profile))
-plt.xlim((127500,129500))
+for i,p in enumerate(profile):
+    profile_i = np.roll(p, shift[i]) # Grab the profile, and roll it.
+    r = signal.correlate(profile_mean, profile_i)
+    shift_computed_i = np.argmax(r) - (len(profile_i)-1)
+    plt.plot(r, label="{}, $\Delta_c$ = {}".format(i, shift_computed_i), lw=lw)
+    shift_computed.append( shift_computed_i )
+plt.title("{}, central {} az bins, signal.correlate(mean, i)".format(a, num_bins_az_central))
+plt.xlim((480,520)) 
+#plt.ylim((np.amin(r), dy * (i+3) + 2*np.amax(r)))
+plt.legend(loc = 'upper left')  
 plt.show()
 
-  
-profile1 = np.pad( profile[1, bins[0]:bins[1]], 5, 'edge')
-profile2 = np.pad( profile[2, bins[0]:bins[1]], 5, 'edge')
+shift_computed = np.array(shift_computed)
 
-plt.plot(profile0)
-plt.plot(profile1)
-plt.plot(profile2)
+## Need to validate sign of shift_computed. Negative, or positive?
+
+for i,p in enumerate(profile):
+    profile_i = np.roll(p, shift[i]) # Grab the profile, and roll it.
+    r = signal.correlate(profile_mean, profile_i)
+    plt.plot(np.roll(r, -shift_computed[i]), label="{}, $\Delta_c$ = {}".format(i, shift_computed[i]), lw=lw)
+plt.title("{}, central {} az bins, signal.correlate(mean, i)".format(a, num_bins_az_central))
+plt.xlim((480,520)) 
+#plt.ylim((np.amin(r), dy * (i+3) + 2*np.amax(r)))
+plt.legend(loc = 'upper left')  
 plt.show()
 
-r = signal.correlate(profile0, profile1)
-plt.plot(r)
+### NOW REDO THE STUFF AGAIN, USING THE COMPUTED SHIFTS
+
+# Compute the the mean of all the profiles.
+
+profile_sum = 0. * profile[0]
+
+for i,p in enumerate(profile):
+    profile_i = np.roll(p, -shift_computed[i]) # Grab the profile, and roll it.
+    profile_sum += profile_i
+i += 1
+profile_mean = profile_sum / i
+
+# Make a plot of the summed radial profile
+
+lw=3.5
+
+plt.plot(a.radius_arr[0]/1000, profile_mean + dy*i, label = 'Mean', lw=lw)
+plt.xlim((127.5, 130))
+plt.title("{}, central {} az bins, aligned".format(a, num_bins_az_central))
+plt.xlabel('Radius [1000 km]')
 plt.show()
-    
-np.argmax(signal.correlate(profile1, profile0))
+
+# Make the plot of all of the individual radial profiles
+
+lw = 1
+
+for i,p in enumerate(profile):
+    profile_i = np.roll(p, shift_computed[i]) # Grab the profile, and roll it.
+    plt.plot(a.radius_arr[0]/1000, profile_i + dy*i, label="{}, $\Delta$ = {}".format(a.index_image_arr[i], 
+             shift_computed[i]), lw=lw)
+i+=1
+
+plt.plot(a.radius_arr[0]/1000, profile_mean + dy*i, label = 'Mean', lw=lw)
+
+#plt.legend(loc='upper left')
+plt.xlim((127.5,130))
+plt.ylabel(a.profile_radius_units)
+plt.xlabel('Radius [1000 km]')
+plt.title("{}, central {} az bins".format(a, num_bins_az_central))
+plt.ylim((0, np.amax(profile_mean + dy*(i+3))))
+plt.show()
+
 
 # =============================================================================
 # Now make an azimuthal profile, with all the data
 # =============================================================================
+
+#hbt.set_fontsize(9)
+images = np.delete(hbt.frange(0,47),16)  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
+
+#a.load(8, hbt.frange(0,10),key_radius='full').plot(plot_legend=False)
+a.load(8,images,key_radius='full').flatten().plot(xlim=(120000,131000))
+a.load(8,hbt.frange(10,40),key_radius='full').plot(xlim=(115000,131000), plot_legend=False)
+
+a.load(8,hbt.frange(13,23)).plot(plot_legend=True, plot_azimuthal=True)
+
