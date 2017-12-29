@@ -41,7 +41,7 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped,
         The unwrapped image, N x M pixels
     bins_radius :
         Array defining the radial bins. M elements long.
-    third : 
+    bins_azimuth : 
         Array defining the azimuthal bins. N elements long.
     range_profile :
         Range of azimuth to use (for radial profile), or v/v. Can be float or tuple. If a float, then it is the fraction
@@ -120,7 +120,9 @@ def nh_jring_extract_profile_from_unwrapped(im_unwrapped,
         else:
             
             raise(ValueError("Cannot parse range! range_profile = {}".format(range_profile)))
-          
+
+        print("Extracted radial profile in bin range {}:{}".format(bin_0, bin_1))
+
         return(profile_radius)
         
 # Extract the azimuthal profile, if requested
