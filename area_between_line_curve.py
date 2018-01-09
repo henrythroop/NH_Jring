@@ -18,7 +18,8 @@ def area_between_line_curve(data_x, data_y, limits_x, bins=False, binning=None, 
     Value returned is typically positive for emission line, and negative for absorption.
     
     Parameters
-    ---
+    ----
+    
     data_x:
         X array (e.g., wavelength)
     data_y:
