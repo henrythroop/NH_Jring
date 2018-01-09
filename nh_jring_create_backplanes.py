@@ -1,20 +1,25 @@
 # -*- coding: utf-8 -*-
 """
+
+ Create all backplanes for the set of NH Jupiter ring flyby data. 
+ 
+ This is a one-off script that is run (in theory) only one time ever.
+ 
+ It creates all of the navigation backplanes based on WCS keywords found in the image headers.
+ Any offset (from stellar navigation, or user-determined coeffs) is *not* added, unless the image
+ has had its WCS coords updated (e.g. *_opnav.fit)
+ 
+ This routine takes ~ 1 minute per file.
+
+ I should investigate if I can multi-thread this. It seems like it could be sped up very easily.
+ [A: No, it can't. Python threading will allow for processes to wait in the background for blocks, like 
+     loading URLs. But they won't speed up CPU waiting. Instead, run multiple python shells.]
+
 Created on Sun Jun  5 22:45:22 2016
 
 @author: throop
 """
 
-# Create all backplanes. This is a one-off script that is run (in theory) only one time ever.
-# It creates all of the navigation backplanes based on WCS keywords found in the image headers.
-# Any offset (from stellar navigation, or user-determined coeffs) is *not* added, unless the image
-# has had its WCS coords updated (e.g. *_opnav.fit)
-# 
-# This routine takes ~ 1 minute per file.
-#
-# I should investigate if I can multi-thread this. It seems like it could be sped up very easily.
-# [A: No, it can't. Python threading will allow for processes to wait in the background for blocks, like 
-#     loading URLs. But they won't speed up CPU waiting. Instead, run multiple python shells.]
 
 import math      
 import astropy
@@ -79,7 +84,7 @@ for i,file in enumerate(files_shuffled):
     if os.path.isfile(file_out) and not(DO_OVERWRITE):
         print("  ** File already exists! Skipping. {}".format(file_short))
     else:    
-        plane = hbt.create_backplane(file)
+        plane = hbt.create_backplane(file)  # This returns a set of backplane arrays, packed into a single tuple.
 
     #    print "RA, Dec mean = " + repr(np.mean(plane['RA']) * hbt.r2d) + ', ' + repr(np.mean(plane['Dec']) * hbt.r2d)
         
