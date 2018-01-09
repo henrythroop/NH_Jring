@@ -63,7 +63,7 @@ from   matplotlib.figure import Figure
 
 import hbt
 
-from import image_stack import image_stack
+from image_stack import image_stack
 
 #=============================================================================
 # OK! Now time to do some data analysis.

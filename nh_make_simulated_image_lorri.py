@@ -200,6 +200,9 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
     scale_pix_km = dist_target.to('km').value * scale_pix_lorri_rad
         
     # Construct an array showing the distance of each pixel from the target, in km
+
+    # XXX NB: This looks to be assuming a perfectly circular ring, aimed at observer. 
+    # But I thought we did a better job of doing this as a sunflower orbit.
     
     xx, yy = np.mgrid[:naxis, :naxis]  # What is this syntax all about? That is weird.
                                        # A: mgrid is a generator. np.meshgrid is the normal function version.
@@ -231,7 +234,6 @@ def nh_make_simulated_image_lorri(do_ring = False,                  # Flag: do w
     
         arr = is_ring * iof_ring * nh_iof_2_dn_lorri_extended(exptime = exptime, dist=dist_solar, mode=mode)
     
-
     # Create the MU69 image
     
     if (do_mu69):
