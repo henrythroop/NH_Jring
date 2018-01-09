@@ -670,9 +670,9 @@ class App:
 #                                                       'outer-30' : (1,-0.3), 'outer-50' : (1,-0.5)}
                                                                                       # for radial  profile
 
-# Merge the masks. True = <good pixel>
+# Merge the masks. True = <good pixel>. NaN = off edge. We can treat those as False, too, without losing anything.
                                                                                       
-        mask_unwrapped = np.logical_and(self.mask_stray_unwrapped, self.mask_objects_unwrapped)
+        mask_unwrapped = hbt.nanlogical_and(self.mask_stray_unwrapped, self.mask_objects_unwrapped)
                                                                                
 # Make radial profiles
         

@@ -233,6 +233,9 @@ def nh_jring_unwrap_ring_image(im,
         mask_stray_unwrapped   = mask_stray_grid
         mask_objects_unwrapped = mask_objects_grid
         
+        # Convert these to booleans, and set any NaN to be False (since they are probably off-edge)
+        
+        
         return (image_unwrapped, mask_stray_unwrapped, mask_objects_unwrapped, bins_radius, bins_azimuth)
     
     else:

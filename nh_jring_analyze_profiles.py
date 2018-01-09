@@ -1171,8 +1171,8 @@ bin1  = int(a.num_bins_azimuth/2 + num_bins_az_central/2)
            
 for i in range(a.num_profiles):        
     image_i = a.image_unwrapped_arr[i] 
-    mask = np.logical_and(a.mask_stray_unwrapped_arr[i,:,:], 
-                         a.mask_objects_unwrapped_arr[i,:,:])  # XXX This mask mergering isn't working right.
+    mask = hbt.nanlogical_and(a.mask_stray_unwrapped_arr[i,:,:], 
+                          a.mask_objects_unwrapped_arr[i,:,:])  # XXX This mask mergering isn't working right.
 
     # Now actually sum to get the radial profile. These two should give identical results.
     profile_i = np.nanmean( image_i[:,bin0:bin1], axis=1)
@@ -1180,7 +1180,7 @@ for i in range(a.num_profiles):
                                                         a.radius_arr[i,:],
                                                         a.azimuth_arr[i,:],
                                                         0.047,
-                                                        'radial')
+                                                        'radial',
                                                         mask_unwrapped=mask)
     profile.append(profile_i)
 
