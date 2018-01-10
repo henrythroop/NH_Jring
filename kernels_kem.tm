@@ -26,7 +26,7 @@ KERNELS_TO_LOAD = (
 'kernels/nh_fss_v000.ti',
 'kernels/nh_astr_v000.ti',
 'kernels/naif0012.tls',
-'kernels/new-horizons_0664.tsc',
+'kernels/new-horizons_1535.tsc',
 'kernels/gv_pck.tpc',
 'kernels/gv_naif_ids.txt',
 'kernels/pluto_solar_heliographic.tf',
@@ -50,4 +50,5 @@ KERNELS_TO_LOAD = (
 'kernels/nh_nom_20170201_20210714_v13_prime.bsp',
 'kernels/gv_pluto_smallsats_lhr.tf',
 'kernels/gv_pck.tpc',
+'kernels/mu69_sunflower.tf',
 )
