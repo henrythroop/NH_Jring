@@ -3,10 +3,13 @@ includes all SPICE files used by NHGV, including frames kernels, trajectories
 for s/c and many planets and satellites, MU69, frames kernels, instrument
 kernels, etc.
 
-The kernels/ directory referenced below is accessible at ixion:/home/html/nh/gv-dev/kernels .
+All of these files exist on ixion, and can be used by making a symlink from 
+GV's kernel directory into a local directory:
 
-(e.g., "ln -s /home/html/nh/gv-dev/kernels .", and then SPICE will read the
-kernels from the current directory.)
+   ln -s /home/html/nh/gv-dev/kernels .
+
+After doing so, the entire kernel set can be used by passing FURNSH() the name
+of *this file*.
 
 HBT 12-Jan-2017
 
