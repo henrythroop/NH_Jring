@@ -121,7 +121,7 @@ def nh_create_backplanes_fits(file_in = None,
     frame = 'J2000'
     name_target = 'MU69'
     name_observer = 'New Horizons'        
-    abcorr = 'LT+S' # Not sure which abcorr to use, but LT vs LT+S makes ~ 1-pixel difference
+    abcorr = 'LT' # Not sure which abcorr to use, but LT vs LT+S makes ~ 1-pixel difference
     
 # Start up SPICE
     
@@ -159,7 +159,7 @@ def nh_create_backplanes_fits(file_in = None,
     
 # Display the image, and MU69.
 
-    DO_PLOT = False
+    DO_PLOT = True
     if DO_PLOT:
         
         radec_str = SkyCoord(ra=ra*u.rad, dec=dec*u.rad).to_string('dms')
@@ -221,6 +221,9 @@ def nh_create_backplanes_fits(file_in = None,
 if (__name__ == '__main__'):
     
     file_in = os.path.join(os.path.expanduser('~'), 'Data', 'NH_KEM_Hazard', 'ORT1_Jan18', 
-                               'lor_0406731132_0x633_sci_HAZARD_test1.fit')
+#                                'lor_0406731132_0x633_sci_HAZARD_test1.fit'
+                                'lor_0406731132_0x633_sci_HAZARD_test1-1.fit'
+#                                'lor_0368310087_0x633_sci_HAZARD_test1.fit'
+                                )
 
     planes = nh_create_backplanes_fits(file_in, None)

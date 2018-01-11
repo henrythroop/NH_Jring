@@ -1,3 +1,15 @@
+This is NHGV's default kernel set for the NH MU69 Prime trajectory flyby. It
+includes all SPICE files used by NHGV, including frames kernels, trajectories
+for s/c and many planets and satellites, MU69, frames kernels, instrument
+kernels, etc.
+
+The kernels/ directory referenced below is accessible at ixion:/home/html/nh/gv-dev/kernels .
+
+(e.g., "ln -s /home/html/nh/gv-dev/kernels .", and then SPICE will read the
+kernels from the current directory.)
+
+HBT 12-Jan-2017
+
 \begindata
 KERNELS_TO_LOAD = (
 'kernels/pck00009.tpc',
