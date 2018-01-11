@@ -159,59 +159,56 @@ def nh_create_backplanes_fits(file_in = None,
     
 # Display the image, and MU69.
 
-    radec_str = SkyCoord(ra=ra*u.rad, dec=dec*u.rad).to_string('dms')
-
-    hbt.figsize((10,10))
-    hbt.set_fontsize(12)
-    plt.subplot(projection=w)    
-    plt.imshow(stretch(data))
-    plt.plot(pos_pix_x, pos_pix_y, color='orange', ls='None', marker = 'o', ms=7, alpha=1, 
-             label = 
-       '{}, RA={:0.3f}, Dec={:0.3f}, {}'.format(name_target, ra*hbt.r2d, dec*hbt.r2d, radec_str))
-       
-# Plot a sunflower ring, using the defined reference frame
-
-    frame_sunflower = '2014_MU69_SUNFLOWER_INERT'
-
-    az_ring = hbt.frange(0,2*math.pi, 100)
-    radius_ring = 10000*u.km
- 
-    (n,re) = sp.bodvrd( 'MU69', 'RADII', 3)
-    mx_sunflower_j2k = sp.pxform(frame_sunflower, 'J2000', et)
-    radius = radius_ring.to('km').value
-    
-    for az_ring_i in az_ring:
-        vec_ring_i_mu69 = [radius * np.cos(az_ring_i), 0, radius * np.sin(az_ring_i)]    
-        vec_mu69_ring_i_j2k  = sp.mxvg(mx_sunflower_j2k, vec_ring_i_mu69, 3,3)
-        vec_obs_ring_i_j2k = vec_mu69_ring_i_j2k + vec_obs_mu69
-        (_, ra, dec) = sp.recrad(vec_obs_ring_i_j2k)
-        (pos_pix_x, pos_pix_y) = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
-        plt.plot(pos_pix_x, pos_pix_y, color='orange', ls='None', marker = 'o', ms=2, alpha=1)
-    
-    plt.title('{}, {}, {}'.format(os.path.basename(file_in), utc, abcorr))
-    plt.legend(framealpha=1)
-    plt.show()
+    DO_PLOT = False
+    if DO_PLOT:
         
-#   VARIABLE  I/O  DESCRIPTION 
-#   --------  ---  -------------------------------------------------- 
-#   body       I   Body with which coordinate system is associated. 
-#   lon        I   Planetographic longitude of a point (radians). 
-#   lat        I   Planetographic latitude of a point (radians). 
-#   alt        I   Altitude of a point above reference spheroid. 
-#   re         I   Equatorial radius of the reference spheroid. 
-#   f          I   Flattening coefficient. 
-#   rectan     O 
-
-    print("MU69 location from SPICE: RA {:0.3f}, Dec {:0.3f} → {}".format(ra*hbt.r2d, dec*hbt.r2d, radec_str))
-
+        radec_str = SkyCoord(ra=ra*u.rad, dec=dec*u.rad).to_string('dms')
+    
+        hbt.figsize((10,10))
+        hbt.set_fontsize(12)
+        plt.subplot(projection=w)    
+        plt.imshow(stretch(data))
+        plt.plot(pos_pix_x, pos_pix_y, color='orange', ls='None', marker = 'o', ms=7, alpha=1, 
+                 label = 
+           '{}, RA={:0.3f}, Dec={:0.3f}, {}'.format(name_target, ra*hbt.r2d, dec*hbt.r2d, radec_str))
+           
+    # Plot a sunflower ring, using the Sunflower rotating reference frame
+    
+        frame_sunflower = '2014_MU69_SUNFLOWER_ROT'  # INERT frame is not working yet. 
+    
+        az_ring = hbt.frange(0,2*math.pi, 100) # Set up azimuth angle
+        radius_ring = 10000*u.km
+     
+        (n,re) = sp.bodvrd( 'MU69', 'RADII', 3)
+        mx_sunflower_j2k = sp.pxform(frame_sunflower, 'J2000', et)
+        radius = radius_ring.to('km').value
+    
+    # For each point in the ring, just define an XYZ point in space.
+    # Then, we will call PXFORM to transform from Sunflower frame, to J2K frame.
+    # As per MRS sketches, sunflower frame is defined s.t. ring is in the X-Z plane.
+                                
+        for az_ring_i in az_ring:
+    
+            vec_ring_i_mu69 = [radius * np.cos(az_ring_i), 0, radius * np.sin(az_ring_i)] # Circle in X-Z plane. 
+            vec_mu69_ring_i_j2k  = sp.mxvg(mx_sunflower_j2k, vec_ring_i_mu69, 3,3)
+            vec_obs_ring_i_j2k = vec_mu69_ring_i_j2k + vec_obs_mu69
+            (_, ra, dec) = sp.recrad(vec_obs_ring_i_j2k)
+            (pos_pix_x, pos_pix_y) = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
+            plt.plot(pos_pix_x, pos_pix_y, color='orange', ls='None', marker = 'o', ms=1, alpha=1)
+        
+        plt.title('{}, {}, {}'.format(os.path.basename(file_in), utc, abcorr))
+        plt.legend(framealpha=1)
+        plt.show()
+        
+        print("MU69 location from SPICE: RA {:0.3f}, Dec {:0.3f} → {}".format(ra*hbt.r2d, dec*hbt.r2d, radec_str))
 
 # Call a routine to actually create the backplanes, and return as a tuple.
 
-#    planes = create_backplane(file_in,
-#                              type = 'Sunflower',
-#                              name_target = name_target,
-#                              name_observer = name_observer
-#                              )
+    planes = create_backplane(file_in,
+                              type = 'Sunflower',
+                              name_target = name_target,
+                              name_observer = name_observer
+                              )
     
 # Return to user
     
