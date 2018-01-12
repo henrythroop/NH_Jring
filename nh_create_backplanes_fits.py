@@ -68,6 +68,7 @@ def nh_create_backplanes_fits(file_in = None,
                               name_target = 'MU69', 
                               name_observer = 'New Horizons', 
                               clobber = False,
+                              do_plot = True,
                               type = 'Sunflower'):
     
     """
@@ -159,8 +160,7 @@ def nh_create_backplanes_fits(file_in = None,
     
 # Display the image, and MU69.
 
-    DO_PLOT = True
-    if DO_PLOT:
+    if do_plot:
         
         radec_str = SkyCoord(ra=ra*u.rad, dec=dec*u.rad).to_string('dms')
     
@@ -202,13 +202,41 @@ def nh_create_backplanes_fits(file_in = None,
         
         print("MU69 location from SPICE: RA {:0.3f}, Dec {:0.3f} → {}".format(ra*hbt.r2d, dec*hbt.r2d, radec_str))
 
-# Call a routine to actually create the backplanes, and return as a tuple.
+# =============================================================================
+# Call a routine to actually create the backplanes, which returns them as a tuple.
+# =============================================================================
 
     planes = create_backplane(file_in,
                               type = 'Sunflower',
                               name_target = name_target,
                               name_observer = name_observer
                               )
+  
+# =============================================================================
+# Now write everything to a new FITS file. 
+# =============================================================================
+    
+    file_out = file_in.replace('.fit', '_backplaned.fit')   # Works for both .fit and .fits
+    
+    # Open the existing file
+    
+    hdu = fits.open(file_in)
+    
+    # Go thru all of the new backplanes, and add them one by one. For each, create an ImageHDU, and then add it.
+    
+    for key in planes.keys():
+        hdu_new = fits.ImageHDU(data=planes[key].astype(np.float32), name=key, header=None)
+        hdu.append(hdu_new)
+    
+    # Write to a new file
+    
+    hdu.writeto(file_out, overwrite=True)
+
+    print("Wrote: {}; {} planes; {:.1f} MB".format(file_out, 
+                                                   len(hdu), 
+                                                   os.path.getsize(file_out)/1e6))
+
+    hdu.close()
     
 # Return to user
     
@@ -226,4 +254,7 @@ if (__name__ == '__main__'):
 #                                'lor_0368310087_0x633_sci_HAZARD_test1.fit'
                                 )
 
-    planes = nh_create_backplanes_fits(file_in, None)
+    
+    # Create the backplanes
+    
+    nh_create_backplanes_fits(file_in, None, do_plot=False)
