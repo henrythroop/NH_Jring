@@ -206,7 +206,7 @@ def nh_create_backplanes_fits(file_in = None,
 # Call a routine to actually create the backplanes, which returns them as a tuple.
 # =============================================================================
 
-    planes = create_backplane(file_in,
+    (planes, descs) = create_backplane(file_in,
                               type = 'Sunflower',
                               name_target = name_target,
                               name_observer = name_observer
@@ -228,6 +228,15 @@ def nh_create_backplanes_fits(file_in = None,
         hdu_new = fits.ImageHDU(data=planes[key].astype(np.float32), name=key, header=None)
         hdu.append(hdu_new)
     
+    # Add relevant header info
+    
+    hdu[0].header['COMMENT'] = '*********************************************************'
+    hdu[0].header['COMMENT'] = '*** BACKPLANE INFO                                    ***'
+    hdu[0].header['COMMENT'] = '*********************************************************'
+    
+    for i,desc in enumerate(descs):
+        hdu[0].header['BKPLN_{}'.format(i)] = desc
+        
     # Write to a new file
     
     hdu.writeto(file_out, overwrite=True)
