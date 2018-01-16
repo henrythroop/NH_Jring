@@ -69,6 +69,8 @@ def nh_create_backplanes_fits(file_in = None,
                               name_observer = 'New Horizons', 
                               clobber = False,
                               do_plot = True,
+                              verbose = False,
+                              frame = 'J2000',
                               type = 'Sunflower'):
     
     """
@@ -112,8 +114,17 @@ def nh_create_backplanes_fits(file_in = None,
 #- Write the new FITS file
 #- Return output to user
 
-# Intialize graphics
+
+# Initialize the output file, and check if it exists
     
+    if not(file_out):
+        file_out = file_in.replace('.fit', '_backplaned.fit')   # Works for both .fit and .fits
+        
+    if os.path.exists(file_out) and not(clobber):
+        raise(FileExistsError)
+    
+# Intialize graphics
+        
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
@@ -124,12 +135,13 @@ def nh_create_backplanes_fits(file_in = None,
     name_observer = 'New Horizons'        
     abcorr = 'LT' # Not sure which abcorr to use, but LT vs LT+S makes ~ 1-pixel difference
     
-# Start up SPICE
+# Start up SPICE, if needed
     
     file_kernel = 'kernels_kem.tm'
-    sp.furnsh(file_kernel)
+    if sp.ktotal('ALL') == 0:
+        sp.furnsh(file_kernel)
     
-# Load the image
+# Load the input image
         
     hdu = fits.open(file_in) 
     data = hdu['PRIMARY'].data
@@ -208,20 +220,22 @@ def nh_create_backplanes_fits(file_in = None,
 
     (planes, descs) = create_backplane(file_in,
                               type = 'Sunflower',
+                              frame = frame,  
                               name_target = name_target,
                               name_observer = name_observer
                               )
-  
+      
 # =============================================================================
 # Now write everything to a new FITS file. 
 # =============================================================================
-    
-    file_out = file_in.replace('.fit', '_backplaned.fit')   # Works for both .fit and .fits
     
     # Open the existing file
     
     hdu = fits.open(file_in)
     
+    if (verbose):
+        print("Read: {}".format(file_in))
+        
     # Go thru all of the new backplanes, and add them one by one. For each, create an ImageHDU, and then add it.
     
     for key in planes.keys():
@@ -238,32 +252,40 @@ def nh_create_backplanes_fits(file_in = None,
         hdu[0].header['BKPLN_{}'.format(i)] = desc
         
     # Write to a new file
+    # XXX this isn't quite working yet.
     
     hdu.writeto(file_out, overwrite=True)
 
-    print("Wrote: {}; {} planes; {:.1f} MB".format(file_out, 
+    if (verbose):
+        print("Wrote: {}; {} planes; {:.1f} MB".format(file_out, 
                                                    len(hdu), 
                                                    os.path.getsize(file_out)/1e6))
 
     hdu.close()
-    
-# Return to user
-    
-    return(0)
-
+                
 # =============================================================================
 # Do some tests, to validate the function
 # =============================================================================
 
 if (__name__ == '__main__'):
     
-    file_in = os.path.join(os.path.expanduser('~'), 'Data', 'NH_KEM_Hazard', 'ORT1_Jan18', 
+#    file_in = os.path.join(os.path.expanduser('~'), 'Data', 'ORT1', 
 #                                'lor_0406731132_0x633_sci_HAZARD_test1.fit'
-                                'lor_0406731132_0x633_sci_HAZARD_test1-1.fit'
+#                                'lor_0406731132_0x633_sci_HAZARD_test1-1.fit'
 #                                'lor_0368310087_0x633_sci_HAZARD_test1.fit'
-                                )
+#                                )
 
+    file_in =  '/Users/throop/Data/ORT1/porter/pwcs_ort1/K1LR_HAZ00/lor_0405175932_0x633_pwcs.fits'
+    file_out = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405175932_0x633_pwcs_backplaned.fits'
+
+    # Create the backplanes in memory. Not necessary, but for debugging
     
-    # Create the backplanes
+    (planes, desc) = create_backplane(file_in, frame='J2000', name_target='MU69', name_observer='NEW HORIZONS')
+
+    # Create the backplanes on disk
     
-    nh_create_backplanes_fits(file_in, None, do_plot=False)
+    nh_create_backplanes_fits(file_in, file_out, do_plot=False, verbose=True, clobber=True)
+    
+    # Plot them
+    
+    nh_plot_backplanes(file_out)
