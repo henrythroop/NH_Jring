@@ -30,6 +30,10 @@ def nh_make_backplanes_ort1():
     Call this function in order to generate the backplanes from Simon's WCS files.
     """
     
+# =============================================================================
+#     Get a proper list of all the input files
+# =============================================================================
+    
     dir_data_ort1 = '/Users/throop/Data/ORT1'
     dir_in  = os.path.join(dir_data_ort1, 'porter', 'pwcs_ort1')
     dir_out = os.path.join(dir_data_ort1, 'throop', 'backplaned')
@@ -39,8 +43,11 @@ def nh_make_backplanes_ort1():
     do_reverse = True
     do_digit_filter = False
     
-    files = glob.glob(os.path.join(dir_in, '*HAZ*','*_pwcs.fits'))
     files = glob.glob(os.path.join(dir_in, '*','*_pwcs.fits'))
+    
+# =============================================================================
+#     Filter files if needed
+# =============================================================================
     
     # If desired, do a 'digit filter.' This filters the files down into a smaller number.
     # This is useful to do processing in parallel. Python global interpreter lock means
@@ -74,7 +81,11 @@ def nh_make_backplanes_ort1():
         file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned.fit') # Works for both .fit and .fits
     
         try:
-            nh_create_backplanes_fits(file_in, file_out, do_plot=False, clobber=do_clobber, verbose=True)
+            nh_create_backplanes_fits(file_in, 
+                                      file_out, 
+                                      do_plot=False, 
+                                      do_clobber=do_clobber,
+                                      verbose=True)
         except FileExistsError:
             print('File exists -- skipping. {}'.format(file_out))
     

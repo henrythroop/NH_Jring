@@ -62,17 +62,12 @@ from   matplotlib.figure import Figure
 import hbt
 from   image_stack import image_stack
 from   compute_backplanes import compute_backplanes
+from   nh_plot_backplanes import nh_plot_backplanes
 
-def nh_create_backplanes_fits(file_in = None, 
-                              file_out = None, 
-                              name_target = 'MU69', 
-                              name_observer = 'New Horizons', 
+def nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_out,
                               clobber = False,
                               do_plot = True,
-                              verbose = False,
-                              frame = 'J2000',
-                              type = 'Sunflower'):
-    
+                              verbose = False):    
     """
     Function to create backplanes and add them to a FITS file.
     
@@ -218,13 +213,7 @@ def nh_create_backplanes_fits(file_in = None,
 # Call a routine to actually create the backplanes, which returns them as a tuple.
 # =============================================================================
 
-    (planes, descs) = compute_backplanes(
-                              file_in,
-                              type = 'Sunflower',
-                              frame = frame,  
-                              name_target = name_target,
-                              name_observer = name_observer
-                              )
+    (planes, descs) = compute_backplanes(file_in, name_target, frame, name_observer)
       
 # =============================================================================
 # Now write everything to a new FITS file. 
@@ -281,11 +270,18 @@ if (__name__ == '__main__'):
 
     # Create the backplanes in memory. Not necessary, but for debugging
     
-    (planes, desc) = create_backplane(file_in, frame='J2000', name_target='MU69', name_observer='NEW HORIZONS')
+    name_observer = 'New Horizons'
+    name_target   = 'MU69'
+    frame         = '2014_MU69_SUNFLOWER_ROT'
+    
+    # Create the backplanes in memory only
+    
+    (planes, desc) = compute_backplanes(file_in, name_target, frame, name_observer)
 
     # Create the backplanes on disk
     
-    nh_create_backplanes_fits(file_in, file_out, do_plot=False, verbose=True, clobber=True)
+    nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_out, 
+                              do_plot=False, verbose=True, clobber=True)
     
     # Plot them
     
