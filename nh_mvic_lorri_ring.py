@@ -232,8 +232,8 @@ if (DO_FIX_FITS):
 
     print("Generating backplanes...")
     
-    planes = hbt.create_backplane(file_header_out, frame = 'IAU_PLUTO', 
-                                  name_target='Pluto', name_observer='New Horizons')
+    (planes, desc) = hbt.compute_backplanes(file_header_out, frame = 'IAU_PLUTO', 
+                                            name_target='Pluto', name_observer='New Horizons')
 
 # Create backplaned FITS file.
 

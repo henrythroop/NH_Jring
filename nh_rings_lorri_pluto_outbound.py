@@ -159,7 +159,8 @@ def add_backplanes():
     
         print("Generating backplane...")
                 
-        planes = hbt.create_backplane(file, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
+        (planes,descs) = hbt.compute_backplanes(
+                             file, frame = 'IAU_PLUTO', name_target='Pluto', name_observer='New Horizons')
             
     # Create a new FITS file, made of an existing file plus these new planes
     

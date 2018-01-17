@@ -61,7 +61,7 @@ from   matplotlib.figure import Figure
 
 import hbt
 from   image_stack import image_stack
-from   create_backplane import create_backplane
+from   compute_backplanes import compute_backplanes
 
 def nh_create_backplanes_fits(file_in = None, 
                               file_out = None, 
@@ -218,7 +218,8 @@ def nh_create_backplanes_fits(file_in = None,
 # Call a routine to actually create the backplanes, which returns them as a tuple.
 # =============================================================================
 
-    (planes, descs) = create_backplane(file_in,
+    (planes, descs) = compute_backplanes(
+                              file_in,
                               type = 'Sunflower',
                               frame = frame,  
                               name_target = name_target,

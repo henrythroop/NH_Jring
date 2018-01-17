@@ -93,9 +93,9 @@ hdulist = fits.open(dir_images + '/' + file)
 data = hdulist['PRIMARY'].data
 stretch = astropy.visualization.PercentileInterval(10)  # PI(90) scales array to 5th .. 95th %ile. 
 
-# Create the backplane
+# Create the backplanes
 
-planes = hbt.create_backplane(dir_images + '/' + file)
+(planes, descs) = hbt.compute_backplanes(dir_images + '/' + file)
 
 am = planes['Ang_Metis']
 

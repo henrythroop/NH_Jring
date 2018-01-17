@@ -57,7 +57,7 @@ from   matplotlib.figure import Figure
 
 import hbt
 from   image_stack import image_stack
-from   create_backplane import create_backplane
+from   compute_backplanes import compute_backplanes
 
 def nh_ort1_find_rings():
     
@@ -162,7 +162,14 @@ def nh_ort1_find_rings():
     plt.plot(ra[w_haz2], dec[w_haz2], marker='o', ls='none')
     plt.plot(ra[w_haz3], dec[w_haz3], marker='o', ls='none')
     plt.plot(ra[w_haz4], dec[w_haz4], marker='o', ls='none')
+    plt.show()
     
+    plt.plot(et[w_haz0], marker='o', ls='none')
+    plt.plot(et[w_haz1], marker='o', ls='none')
+    plt.plot(et[w_haz2], marker='o', ls='none')
+    plt.plot(et[w_haz3], marker='o', ls='none')
+    plt.plot(et[w_haz4], marker='o', ls='none')
+
 # =============================================================================
 # Run the function
 # =============================================================================

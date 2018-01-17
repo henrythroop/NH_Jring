@@ -80,11 +80,11 @@ for i,file in enumerate(files_shuffled):
     file_out = file_out.replace('.fit', '_planes.pkl')
     
     print("{}/{}: Generating backplane for {}".format(i, np.size(files), file_short))
-    
+        
     if os.path.isfile(file_out) and not(DO_OVERWRITE):
         print("  ** File already exists! Skipping. {}".format(file_short))
     else:    
-        plane = hbt.create_backplane(file)  # This returns a set of backplane arrays, packed into a single tuple.
+        plane = hbt.compute_backplanes(file)  # This returns a set of backplane arrays, packed into a single tuple.
 
     #    print "RA, Dec mean = " + repr(np.mean(plane['RA']) * hbt.r2d) + ', ' + repr(np.mean(plane['Dec']) * hbt.r2d)
         
