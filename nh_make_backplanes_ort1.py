@@ -90,7 +90,7 @@ def nh_make_backplanes_ort1():
             print('File exists -- skipping. {}'.format(file_out))
     
         if (do_plot):
-            nh_plot_backplanes(file_out)
+            plot_backplanes(file_out, name_observer = 'New Horizons', name_target = 'MU69')
  
 # =============================================================================
 # End of function

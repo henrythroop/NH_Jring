@@ -62,7 +62,7 @@ from   matplotlib.figure import Figure
 import hbt
 from   image_stack import image_stack
 from   compute_backplanes import compute_backplanes
-from   nh_plot_backplanes import nh_plot_backplanes
+from   plot_backplanes import plot_backplanes
 
 def nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_out,
                               clobber = False,
@@ -285,4 +285,4 @@ if (__name__ == '__main__'):
     
     # Plot them
     
-    nh_plot_backplanes(file_out)
+    plot_backplanes(file_out, name_observer = name_observer, name_target = name_target)
