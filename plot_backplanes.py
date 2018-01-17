@@ -29,8 +29,22 @@ def plot_backplanes(file,
     
     SPICE must be up and running.
     
-    This is a general function and will work on any 
-    
+    This is a general function and will work on many FITS files.
+
+    Parameters
+    -----
+    file: 
+        FITS file to plot
+        
+    Optional keyword parameters
+    -----
+    name_target:
+        Name of SPICE target
+    name_observer:
+        name of observer
+        
+    If both of the optional parameters are passed, then the code will plot the position of target seen from observer.
+        
     """
     # Plot all of the planes to the screen, for validation
 

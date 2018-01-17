@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import glob
 
 from create_backplanes_fits import create_backplanes_fits
+from plot_backplanes        import plot_backplanes
 
 def nh_make_backplanes_ort1():
     
@@ -34,9 +35,9 @@ def nh_make_backplanes_ort1():
 # Initialize
 # =============================================================================
 
-    do_plot    = True
-    do_clobber = False
-    do_digit_filter = False
+    do_plot    = False
+    do_clobber = True
+    do_digit_filter = True
     
     name_target   = 'MU69'
     name_observer = 'New Horizons'
@@ -61,10 +62,10 @@ def nh_make_backplanes_ort1():
     # that only one CPU at a time can be used. To get around this, filter the files down,
     # and put each filter in its own Spyder tab.
     
-#    digit_filter = '12'
-#    digit_filter = '34'
-#    digit_filter = '56'
-#    digit_filter = '78'
+    digit_filter = '12'
+    digit_filter = '34'
+    digit_filter = '56'
+    digit_filter = '78'
     digit_filter = '90'
     
     if (do_digit_filter):
@@ -92,7 +93,7 @@ def nh_make_backplanes_ort1():
     for i,file_in in enumerate(files):
         print("{}/{}".format(i,len(files))) 
         file_out = file_in.replace(dir_in, dir_out)
-        file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned_2.fit') # Works for both .fit and .fits
+        file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned.fit') # Works for both .fit and .fits
     
         try:
             create_backplanes_fits(file_in, 
@@ -103,12 +104,13 @@ def nh_make_backplanes_ort1():
                                       do_plot=False, 
                                       do_clobber=do_clobber,
                                       do_verbose=True)
+            if (do_plot):
+                plot_backplanes(file_out, name_observer = name_observer, name_target = name_target)
+     
         except FileExistsError:
             print('File exists -- skipping. {}'.format(file_out))
     
-        if (do_plot):
-            plot_backplanes(file_out, name_observer = name_observer, name_target = name_target)
- 
+       
 # =============================================================================
 # End of function
 # =============================================================================
