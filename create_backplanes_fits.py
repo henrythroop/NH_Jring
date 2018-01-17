@@ -176,9 +176,12 @@ if (__name__ == '__main__'):
 #                                'lor_0368310087_0x633_sci_HAZARD_test1.fit'
 #                                )
 
-    file_in =  '/Users/throop/Data/ORT1/porter/pwcs_ort1/K1LR_HAZ00/lor_0405175932_0x633_pwcs.fits'
-    file_out = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405175932_0x633_pwcs_backplaned_rot.fits'
+#    file_in =  '/Users/throop/Data/ORT1/porter/pwcs_ort1/K1LR_HAZ00/lor_0405175932_0x633_pwcs.fits'
+#    file_out = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405175932_0x633_pwcs_backplaned_rot.fits'
     
+    file_in       = '/Users/throop/Data/ORT1/Test/lor_0406731132_0x633_sci_HAZARD_test1.fit'
+    file_out      = '/Users/throop/Data/ORT1/Test/lor_0406731132_0x633_sci_HAZARD_test1_backplaned.fit'
+
     name_observer = 'New Horizons'
     name_target   = 'MU69'
     frame         = '2014_MU69_SUNFLOWER_ROT'
@@ -198,22 +201,3 @@ if (__name__ == '__main__'):
     # Plot them
     
 #    plot_backplanes(file_out, name_observer = name_observer, name_target = name_target)
-
-
-###
-#    Now do some one-off tests. 
-    
-    dir = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00'
-    file1 = 'lor_0405176022_0x633_pwcs_backplaned.fits'
-    file2 = 'lor_0405176022_0x633_pwcs_backplaned_2.fits'
-    
-    hdu1 = fits.open(os.path.join(dir, file1))
-    hdu2 = fits.open(os.path.join(dir, file2))
-    
-    r1 = hdu1['RADIUS_EQ'].data
-    r2 = hdu2['RADIUS_EQ'].data
-    
-    plt.imshow(r1 < 100_000, alpha=0.5)
-    plt.imshow(r2 < 100_000, alpha=0.5)
-    plt.show()
-    

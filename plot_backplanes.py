@@ -101,7 +101,7 @@ def plot_backplanes(file,
         # Plot a ring, if we are looking at MU69. Use the backplane to filter by radius
      
         if name_target == 'MU69': 
-            radius_ring = 100_000  # This needs to be adjusted for different distances.
+            radius_ring = 10_000  # This needs to be adjusted for different distances.
             radius_arr = hdu['Radius_eq'].data
             radius_good = np.logical_and(radius_arr > radius_ring*0.95, radius_arr < radius_ring*1.05)
             plt.imshow(radius_good, alpha=0.3)

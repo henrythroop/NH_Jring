@@ -57,17 +57,27 @@ import hbt
 
 class image_stack:
 
-# =============================================================================
-# # This class stacks images. It takes a list of files, and it does various processing on them.
-# =============================================================================
-    
-# =============================================================================
-# Init method: load the index and all files
-# Mandatory argument: the directory holding all the files
-# =============================================================================
+    """ 
+    This class stacks images. It takes a list of files, and it does various processing on them.
+    """
    
     def __init__(self, dir, do_force=False) :   
-#        file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
+
+        """
+        Init method: load the index and all files
+        
+        Parameters
+        ----
+        dir:
+            The directory with all the files
+            
+        Optional keyword parameters
+        ----
+        do_force:
+            Force loading from a save file (I think?)
+        """
+        
+        #        file_tm = "/Users/throop/gv/dev/gv_kernels_new_horizons.txt"  # SPICE metakernel
         file_tm = "kernels_kem.tm"  # SPICE metakernel
         
         self.dir = (dir + '/').replace('//', '/') # Make sure it terminates in exactly one /
@@ -112,7 +122,8 @@ class image_stack:
         
         self.data     = {}
         
-        # Set up the table. "The standard method of representing Python 3 strings in numpy is via the unicode 'U' dtype."
+        # Set up the table. 
+        # The standard method of representing Python 3 strings in numpy is via the unicode 'U' dtype."
         # Disadvantage of this is memory space, but not an issue for me.
         
         self.t = Table(  [[],              [],          [],         [],        [],       [],       [],      [],   [], 
@@ -136,13 +147,13 @@ class image_stack:
                      .replace('_0x633_pwcs','')\
                      .replace('_0x630_pwcs','')
             exptime = hdulist[0].header['EXPTIME']
-            visitnam = hdulist[0].header['VISITNAM']
+            visitnam= hdulist[0].header['VISITNAM']
             sapname = hdulist[0].header['SAPNAME']
             sapdesc = hdulist[0].header['SAPDESC']
-            target = hdulist[0].header['TARGET']
-            reqid = hdulist[0].header['REQID']
-            et = hdulist[0].header['SPCSCET']
-            utc = sp.et2utc(et, 'C', 1)
+            target  = hdulist[0].header['TARGET']
+            reqid   = hdulist[0].header['REQID']
+            et      = hdulist[0].header['SPCSCET']
+            utc     = sp.et2utc(et, 'C', 1)
         
             print("Read {}/{} {}".format(i, len(files), filename_short))
             hdulist.close()
