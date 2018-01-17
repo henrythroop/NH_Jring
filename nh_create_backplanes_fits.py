@@ -42,7 +42,7 @@ from   image_stack import image_stack
 from   compute_backplanes import compute_backplanes
 from   plot_backplanes import plot_backplanes
 
-def nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_out,
+def create_backplanes_fits(file_in, name_target, frame, name_observer, file_out,
                               do_clobber = False,
                               do_verbose = False,
                               do_plot    = False):    
@@ -192,7 +192,7 @@ if (__name__ == '__main__'):
 
     # Create the backplanes on disk
     
-    nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_out, 
+    create_backplanes_fits(file_in, name_target, frame, name_observer, file_out, 
                               do_plot=True, do_verbose=True, do_clobber=True)
     
     # Plot them

@@ -18,7 +18,7 @@ import os
 import matplotlib.pyplot as plt
 import glob
 
-from nh_create_backplanes_fits import nh_create_backplanes_fits
+from create_backplanes_fits import create_backplanes_fits
 
 def nh_make_backplanes_ort1():
     
@@ -95,7 +95,7 @@ def nh_make_backplanes_ort1():
         file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned_2.fit') # Works for both .fit and .fits
     
         try:
-            nh_create_backplanes_fits(file_in, 
+            create_backplanes_fits(file_in, 
                                       name_target,
                                       frame,
                                       name_observer,
