@@ -84,7 +84,7 @@ def plot_backplanes(file,
         (_, ra, dec) = sp.recrad(vec_obs_target)
         (pos_pix_x, pos_pix_y) = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
 
-        # Plot a ring, if we are looking at MU69
+        # Plot a ring, if we are looking at MU69. Use the backplane to filter by radius
      
         if name_target == 'MU69': 
             radius_ring = 100_000  # This needs to be adjusted for different distances.

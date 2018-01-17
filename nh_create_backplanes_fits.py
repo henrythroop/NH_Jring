@@ -14,46 +14,24 @@ import pdb
 import glob
 import math       # We use this to get pi. Documentation says math is 'always available' 
                   # but apparently it still must be imported.
-from   subprocess import call
-import warnings
-import pdb
+
 import os.path
 import os
-import subprocess
+
 
 import astropy
 from   astropy.io import fits
-from   astropy.table import Table
 import astropy.table   # I need the unique() function here. Why is in in table and not Table??
 import matplotlib
 import matplotlib.pyplot as plt # pyplot
 from   matplotlib.figure import Figure
 import numpy as np
-import astropy.modeling
-from   scipy.optimize import curve_fit
-#from   pylab import *  # So I can change plot size.
-                       # Pylab defines the 'plot' command
+
 import spiceypy as sp
 #from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
+
 from   astropy.wcs import WCS
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
-from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
-#from   photutils import datasets
-from   scipy.stats import mode
-from   scipy.stats import linregress
-from   astropy.visualization import wcsaxes
-import time
-from   scipy.interpolate import griddata
-from   importlib import reload            # So I can do reload(module)
-import imreg_dft as ird                    # Image translation
-
-from astropy.coordinates import SkyCoord
-
-import re # Regexp
-import pickle # For load/save
-
-import scipy
 
 from   matplotlib.figure import Figure
 
@@ -65,36 +43,38 @@ from   compute_backplanes import compute_backplanes
 from   plot_backplanes import plot_backplanes
 
 def nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_out,
-                              clobber = False,
-                              do_plot = True,
-                              verbose = False):    
+                              do_clobber = False,
+                              do_verbose = False,
+                              do_plot    = False):    
     """
     Function to create backplanes and add them to a FITS file.
     
     Idea is that this should be runnable as a commandline script.
+    
+    SPICE must already be running.
     
     Parameters
     ----
     
     file_in:
         Input FITS file. Should be fully navigated and have good header info (correct WCS, etc)
-    file_out:
-        Output FITS file to be written. If None, then no file is written.
     name_target:
-        String. Name of central body of the backplanes. For now, must be 'MU69'.
+        String. Name of central body of the backplanes.
+    frame:
+        The SPICE frame to be used for the backplane. Usually IAU_JUPITER, IAU_PLUTO, etc.
     name_observer:
         String. Name of observer. Usually 'New Horizons'
-    clobber:
-        Boolean. The original file will be overwritten, iff file_out == file_in and file==True.
-    type:
-        Type of orbit to assume for the backplanes. Can be 'Sunflower'. Other orbits might be added later, like ones 
-        that face north pole, or are tilted relative to ecliptic, rather than face the Sun.
+    file_out:
+        Output FITS file to be written. If None, then no file is written.
+    do_clobber:
+        Boolean. Overwrite the output file?
+    do_verbose:
+        Boolean. 
     
     Output
     ----    
     
-    tuple:
-        A tuple of(radius, azimuth, d_ra, d_dec, etc). This has all of the backplanes in it.
+    All output is written to specified file. Nothing output to user.
     
     Return status
     ----
@@ -102,112 +82,25 @@ def nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_o
         
     """
 
-#- Open the file
-#- Read the time, mode (1x1 vs 4x4), image scale, etc.
-#- Compute the backplanes
-#- Copy the FITS fileconso
-#- Write the new FITS file
-#- Return output to user
-
 
 # Initialize the output file, and check if it exists
     
     if not(file_out):
         file_out = file_in.replace('.fit', '_backplaned.fit')   # Works for both .fit and .fits
         
-    if os.path.exists(file_out) and not(clobber):
+    if os.path.exists(file_out) and not(do_clobber):
         raise(FileExistsError)
-    
-# Intialize graphics
         
-    stretch_percent = 90    
-    stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
-
-    plt.set_cmap('Greys_r')
-
-    frame = 'J2000'
-    name_target = 'MU69'
-    name_observer = 'New Horizons'        
-    abcorr = 'LT' # Not sure which abcorr to use, but LT vs LT+S makes ~ 1-pixel difference
-    
-# Start up SPICE, if needed
-    
-    file_kernel = 'kernels_kem.tm'
-    if sp.ktotal('ALL') == 0:
-        sp.furnsh(file_kernel)
-    
 # Load the input image
         
-    hdu = fits.open(file_in) 
-    data = hdu['PRIMARY'].data
+    hdu    = fits.open(file_in) 
     header = hdu['PRIMARY'].header
 
-# Grab some critical info from header
+# Grab info from header
 
     et      = header['SPCSCET']
-    sformat = header['SFORMAT']
-    dx_pix  = header['NAXIS1']
-    dy_pix  = header['NAXIS2']
-    mode    = header['SFORMAT']
-    exptime = header['EXPTIME'] 
-
-# Do some processing on the header
-
-    utc = sp.et2utc(et, 'C', 0)
-    w = WCS(header)
-    
-# Look up position of MU69 in pixels.
-    
-    (st,lt) = sp.spkezr(name_target, et, frame, abcorr, name_observer)
-    vec_obs_mu69 = st[0:3]
-    (_, ra, dec) = sp.recrad(vec_obs_mu69)
-    (pos_pix_x, pos_pix_y) = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
-
-    dist_mu69 = sp.vnorm(st[0:3])*u.km
-    
-# Display the image, and MU69.
-
-    if do_plot:
-        
-        radec_str = SkyCoord(ra=ra*u.rad, dec=dec*u.rad).to_string('dms')
-    
-        hbt.figsize((10,10))
-        hbt.set_fontsize(12)
-        plt.subplot(projection=w)    
-        plt.imshow(stretch(data))
-        plt.plot(pos_pix_x, pos_pix_y, color='orange', ls='None', marker = 'o', ms=7, alpha=1, 
-                 label = 
-           '{}, RA={:0.3f}, Dec={:0.3f}, {}'.format(name_target, ra*hbt.r2d, dec*hbt.r2d, radec_str))
-           
-    # Plot a sunflower ring, using the Sunflower rotating reference frame
-    
-        frame_sunflower = '2014_MU69_SUNFLOWER_ROT'  # INERT frame is not working yet. 
-    
-        az_ring = hbt.frange(0,2*math.pi, 100) # Set up azimuth angle
-        radius_ring = 10000*u.km
-     
-        (n,re) = sp.bodvrd( 'MU69', 'RADII', 3)
-        mx_sunflower_j2k = sp.pxform(frame_sunflower, 'J2000', et)
-        radius = radius_ring.to('km').value
-    
-    # For each point in the ring, just define an XYZ point in space.
-    # Then, we will call PXFORM to transform from Sunflower frame, to J2K frame.
-    # As per MRS sketches, sunflower frame is defined s.t. ring is in the X-Z plane.
-                                
-        for az_ring_i in az_ring:
-    
-            vec_ring_i_mu69 = [radius * np.cos(az_ring_i), 0, radius * np.sin(az_ring_i)] # Circle in X-Z plane. 
-            vec_mu69_ring_i_j2k  = sp.mxvg(mx_sunflower_j2k, vec_ring_i_mu69, 3,3)
-            vec_obs_ring_i_j2k = vec_mu69_ring_i_j2k + vec_obs_mu69
-            (_, ra, dec) = sp.recrad(vec_obs_ring_i_j2k)
-            (pos_pix_x, pos_pix_y) = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
-            plt.plot(pos_pix_x, pos_pix_y, color='orange', ls='None', marker = 'o', ms=1, alpha=1)
-        
-        plt.title('{}, {}, {}'.format(os.path.basename(file_in), utc, abcorr))
-        plt.legend(framealpha=1)
-        plt.show()
-        
-        print("MU69 location from SPICE: RA {:0.3f}, Dec {:0.3f} → {}".format(ra*hbt.r2d, dec*hbt.r2d, radec_str))
+    utc     = sp.et2utc(et, 'C', 0)
+    w       = WCS(header)
 
 # =============================================================================
 # Call a routine to actually create the backplanes, which returns them as a tuple.
@@ -223,7 +116,7 @@ def nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_o
     
     hdu = fits.open(file_in)
     
-    if (verbose):
+    if (do_verbose):
         print("Read: {}".format(file_in))
         
     # Go thru all of the new backplanes, and add them one by one. For each, create an ImageHDU, and then add it.
@@ -234,25 +127,43 @@ def nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_o
     
     # Add relevant header info
     
-    hdu[0].header['COMMENT'] = '*********************************************************'
-    hdu[0].header['COMMENT'] = '*** BACKPLANE INFO                                    ***'
-    hdu[0].header['COMMENT'] = '*********************************************************'
-    
+    keys = list(planes.keys())
     for i,desc in enumerate(descs):
-        hdu[0].header['BKPLN_{}'.format(i)] = desc
-        
+        hdu[0].header['BKPLN_{}'.format(i)] = "{}: {}".format(keys[i], desc)
+    
+    hdu[0].header['BKPLNFRM'] = (frame,       'Name of SPICE frame used for backplanes')
+    hdu[0].header['BKPLNTRG'] = (name_target, 'Name of SPICE target used for backplanes')
+
+    # Add a comment / divider. Not working, not sure why.
+    
+#    hdu[0].header['COMMENT'] = '*********************************************************'
+#    hdu[0].header['COMMENT'] = '*** BACKPLANE INFO                                    ***'
+#    hdu[0].header['COMMENT'] = '*********************************************************'
+#    
     # Write to a new file
-    # XXX this isn't quite working yet.
     
     hdu.writeto(file_out, overwrite=True)
 
-    if (verbose):
+    if (do_verbose):
         print("Wrote: {}; {} planes; {:.1f} MB".format(file_out, 
                                                    len(hdu), 
                                                    os.path.getsize(file_out)/1e6))
 
     hdu.close()
-                
+
+# =============================================================================
+# Make a plot if requested
+# =============================================================================
+
+    if do_plot:
+        plot_backplanes(file_out, name_target, name_observer)
+ 
+    return(0)
+
+# =============================================================================
+# End of function definition
+# =============================================================================
+               
 # =============================================================================
 # Do some tests, to validate the function
 # =============================================================================
@@ -266,23 +177,43 @@ if (__name__ == '__main__'):
 #                                )
 
     file_in =  '/Users/throop/Data/ORT1/porter/pwcs_ort1/K1LR_HAZ00/lor_0405175932_0x633_pwcs.fits'
-    file_out = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405175932_0x633_pwcs_backplaned.fits'
-
-    # Create the backplanes in memory. Not necessary, but for debugging
+    file_out = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405175932_0x633_pwcs_backplaned_rot.fits'
     
     name_observer = 'New Horizons'
     name_target   = 'MU69'
     frame         = '2014_MU69_SUNFLOWER_ROT'
     
-    # Create the backplanes in memory only
+    do_plot       = True
+
+    # Start SPICE, if necessary
     
-    (planes, desc) = compute_backplanes(file_in, name_target, frame, name_observer)
+    if (sp.ktotal('ALL') == 0):
+        sp.furnsh('kernels_kem.tm')
 
     # Create the backplanes on disk
     
     nh_create_backplanes_fits(file_in, name_target, frame, name_observer, file_out, 
-                              do_plot=False, verbose=True, clobber=True)
+                              do_plot=True, do_verbose=True, do_clobber=True)
     
     # Plot them
     
-    plot_backplanes(file_out, name_observer = name_observer, name_target = name_target)
+#    plot_backplanes(file_out, name_observer = name_observer, name_target = name_target)
+
+
+###
+#    Now do some one-off tests. 
+    
+    dir = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00'
+    file1 = 'lor_0405176022_0x633_pwcs_backplaned.fits'
+    file2 = 'lor_0405176022_0x633_pwcs_backplaned_2.fits'
+    
+    hdu1 = fits.open(os.path.join(dir, file1))
+    hdu2 = fits.open(os.path.join(dir, file2))
+    
+    r1 = hdu1['RADIUS_EQ'].data
+    r2 = hdu2['RADIUS_EQ'].data
+    
+    plt.imshow(r1 < 100_000, alpha=0.5)
+    plt.imshow(r2 < 100_000, alpha=0.5)
+    plt.show()
+    

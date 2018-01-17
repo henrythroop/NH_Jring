@@ -29,6 +29,18 @@ def nh_make_backplanes_ort1():
     
     Call this function in order to generate the backplanes from Simon's WCS files.
     """
+
+# =============================================================================
+# Initialize
+# =============================================================================
+
+    do_plot    = True
+    do_clobber = False
+    do_digit_filter = False
+    
+    name_target   = 'MU69'
+    name_observer = 'New Horizons'
+    frame         = '2014_MU69_SUNFLOWER_ROT'
     
 # =============================================================================
 #     Get a proper list of all the input files
@@ -37,11 +49,6 @@ def nh_make_backplanes_ort1():
     dir_data_ort1 = '/Users/throop/Data/ORT1'
     dir_in  = os.path.join(dir_data_ort1, 'porter', 'pwcs_ort1')
     dir_out = os.path.join(dir_data_ort1, 'throop', 'backplaned')
-        
-    do_plot    = False
-    do_clobber = False
-    do_reverse = True
-    do_digit_filter = False
     
     files = glob.glob(os.path.join(dir_in, '*','*_pwcs.fits'))
     
@@ -72,25 +79,35 @@ def nh_make_backplanes_ort1():
         files = files_filtered            
 
 # =============================================================================
-# Now that we have a list of files, go thru and process each one.
+# Start SPICE, if necessary
+# =============================================================================
+    
+    if (sp.ktotal('ALL') == 0):
+        sp.furnsh('kernels_kem.tm')
+        
+# =============================================================================
+# Loop and create each backplane
 # =============================================================================
         
     for i,file_in in enumerate(files):
         print("{}/{}".format(i,len(files))) 
         file_out = file_in.replace(dir_in, dir_out)
-        file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned.fit') # Works for both .fit and .fits
+        file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned_2.fit') # Works for both .fit and .fits
     
         try:
             nh_create_backplanes_fits(file_in, 
-                                      file_out, 
+                                      name_target,
+                                      frame,
+                                      name_observer,
+                                      file_out,
                                       do_plot=False, 
                                       do_clobber=do_clobber,
-                                      verbose=True)
+                                      do_verbose=True)
         except FileExistsError:
             print('File exists -- skipping. {}'.format(file_out))
     
         if (do_plot):
-            plot_backplanes(file_out, name_observer = 'New Horizons', name_target = 'MU69')
+            plot_backplanes(file_out, name_observer = name_observer, name_target = name_target)
  
 # =============================================================================
 # End of function
