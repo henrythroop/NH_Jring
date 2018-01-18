@@ -10,9 +10,7 @@ import pdb
 import glob
 import math       # We use this to get pi. Documentation says math is 'always available' 
                   # but apparently it still must be imported.
-from   subprocess import call
 import warnings
-import pdb
 import os.path
 import os
 import subprocess
@@ -32,14 +30,9 @@ from   scipy.optimize import curve_fit
 import spiceypy as sp
 #from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
 from   astropy.wcs import WCS
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 #from   photutils import datasets
-from   scipy.stats import mode
-from   scipy.stats import linregress
-from   astropy.visualization import wcsaxes
-import time
 from   scipy.interpolate import griddata
 from   importlib import reload            # So I can do reload(module)
 import imreg_dft as ird                    # Image translation
@@ -74,30 +67,36 @@ def nh_ort1_make_stacks():
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
     
-    reqids = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
-    
+    reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
     reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
     
-    dir_data = '/Users/throop/Data/ORT1/throop/backplaned/'
+    dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
 
-    # Load and stack the field image
+    # Start up SPICE if needed
+    
+    if (sp.ktotal('ALL') == 0):
+        sp.furnsh('kernels_kem.tm')
+    
+    hbt.figsize((12,12))
+    
+    # Load and stack the field images
     
     stack_field = image_stack(os.path.join(dir_data, reqid_field))
     flat_field  = stack_field.flatten(method = 'median')  # Median is much better than mean. Mean leaves CR's.
     
-    for reqid in reqids:
-        stack = image_stack(os.path.join(dir_data, reqid))
-        flat  = stack.flatten(method = 'median')
+    for reqid in reqids_haz:
+        stack_haz = image_stack(os.path.join(dir_data, reqid))
+        flat_haz  = stack_haz.flatten(method = 'median')
 
         # Calculate the offset.
         # This is probably silly: we should get it from WCS instead
         
-        out = ird.translation(flat_field, flat)
+        out = ird.translation(flat_field, flat_haz)
         tvec = np.round(np.array(out['tvec'])).astype(int)
         
         # Make the plot
         
-        plt.imshow(stretch(flat_field - np.roll(np.roll(flat,round(tvec[1]),1),round(tvec[0]),0)))
+        plt.imshow(stretch(np.roll(np.roll(flat_haz,round(tvec[1]),1),round(tvec[0]),0) - flat_field))
         plt.title("{} - {}".format(reqid, "field"))
         plt.show()
 
