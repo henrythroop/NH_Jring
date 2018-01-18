@@ -526,7 +526,7 @@ if (__name__ == '__main__'):
     
     # Load and stack the field images
     
-    stack_field = image_stack(os.path.join(dir_data, reqid_field))
+#    stack_field = image_stack(os.path.join(dir_data, reqid_field))
     stack_haz0  = image_stack(os.path.join(dir_data, reqids_haz[0]))
     stack_haz4  = image_stack(os.path.join(dir_data, reqids_haz[4]))
     
@@ -539,17 +539,19 @@ if (__name__ == '__main__'):
     (_, ra, dec) = sp.recrad(vec)
     
 #    radec_mu69 = (274.711*hbt.d2r, -20.867*hbt.d2r)
-    radec_mu69 = (ra*hbt.d2r, dec*hbt.d2r)
+    radec_mu69 = (ra, dec) # Keep in radians
     
     # Align the frames
     
-    stack_field.align(method = 'radec', center = (radec_mu69))
+#    stack_field.align(method = 'radec', center = (radec_mu69))
     stack_haz0.align(method  = 'radec', center = (radec_mu69))
     stack_haz4.align(method  = 'radec', center = (radec_mu69))
     
-    img_field = stack_field.flatten(do_subpixel=False, method='median',zoom=1)
-    img_haz0  = stack_haz0.flatten(do_subpixel=False,  method='median',zoom=1)
-    img_haz4  = stack_haz4.flatten(do_subpixel=False,  method='median',zoom=1)
+    zoom = 4
+    
+#    img_field = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom)
+    img_haz0  = stack_haz0.flatten(do_subpixel=False,  method='median',zoom=zoom)
+    img_haz4  = stack_haz4.flatten(do_subpixel=False,  method='median',zoom=zoom)
 
 #    img_field_s = stack_field.flatten(do_subpixel=True, method='median',zoom=zoom)
 #    img_haz0_s  = stack_haz0.flatten(do_subpixel=True,  method='median',zoom=zoom)
@@ -562,23 +564,50 @@ if (__name__ == '__main__'):
     diff_s = img_haz4_s - img_field_s
     diff   = img_haz4   - img_field
     
-    plt.imshow(stretch( img_haz0 - img_field ))
-    plt.imshow(stretch( img_haz4_s - img_field_s ))
+    plt.imshow(stretch( img_haz4 - img_field ))
     plt.show()
     
     # Manually get the offset
     
-    out = ird.translation(img_field, img_haz4)
-    tvec = np.round(np.array(out['tvec'])).astype(int)
-    print("Detected shift = {} pix".format(out['tvec']))
+    img_haz4_small = img_haz4[000:600,000:600]
+    img_haz0_small = img_haz0[000:600,000:600]
+    img_field_small = img_field[000:6000400:600]
+    
+    out_f4 = ird.translation(img_field_small, img_haz4_small)
+    out_f0 = ird.translation(img_field_small, img_haz0_small)
+    
+    tvec_f0 = np.round(np.array(out_f0['tvec'])).astype(int)
+    print("Detected shift = {} pix".format(out_f0['tvec']))
+    
+    tvec_f4 = np.round(np.array(out_f4['tvec'])).astype(int)
+    print("Detected shift = {} pix".format(out_f4['tvec']))
     
     plt.imshow(stretch(np.roll(np.roll(img_haz4,round(tvec[1]),1),round(tvec[0]),0) - img_field))
 
 #    stack_field.set_indices(hbt.frange(0,10))
-    
-    # Make a plot of the offset in pixels between frames
-    
+
+# Make a plot of the offset in pixels between frames
+
 #    plt.plot(stack_field.t['shift_x_pix'], stack_field.t['shift_y_pix'])
 #    plt.xlabel('RA pixels')
 #    plt.ylabel('Dec pixels')
 #    plt.show()
+
+ # Load the first HAZ4 frame. Plot MU69's position on it.
+ 
+    file = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/lor_0406990332_0x633_pwcs_backplaned.fits'
+    hdu = fits.open(file)
+    w = WCS(file)
+    plt.imshow(stretch(hdu[0].data))
+     
+    et = hdu[0].header['SPCSCET']
+    (st, lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
+    vec = st[0:3]
+    (_, ra, dec) = sp.recrad(vec) 
+    (pos_pix_x, pos_pix_y) = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
+     
+    plt.plot(pos_pix_x, pos_pix_y, marker = 'o', ms=5, color='red')
+    plt.show()
+     
+    hdu.close()
+ 
