@@ -53,15 +53,15 @@ from   matplotlib.figure import Figure
 import hbt
 from   image_stack import image_stack
 from   compute_backplanes import compute_backplanes
+from   get_radial_profile_circular import get_radial_profile_circular 
 
 def nh_ort1_make_stacks():
     
     """
-    This program takes a directory full of individual NH KEM Hazard frames, stacks them, and stubracts
+    This program takes a directory full of individual NH KEM Hazard frames, stacks them, and subtracts
     a stack of background field. This reveals rings, etc. in the area.
     
-    Written for NH MU69 ORT1, Jan-2018.
-    
+    Written for NH MU69 ORT1, Jan-2018.  
     """
     
     stretch_percent = 90    
@@ -72,34 +72,65 @@ def nh_ort1_make_stacks():
     
     dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
 
+    zoom = 4
+    
+    # Set the edge padding large enough s.t. all output stacks will be the same size.
+    # This value is easy to compute: loop over all stacks, and take max of stack.calc_padding()[0]
+    
+    padding = 61   
     # Start up SPICE if needed
     
     if (sp.ktotal('ALL') == 0):
         sp.furnsh('kernels_kem.tm')
+        
+    # Set the RA/Dec of MU69. We could look this up from SPICE but it changes slowly, so just keep it fixed for now.
     
-    hbt.figsize((12,12))
+    radec_mu69 = (4.794979838984583, -0.3641418801015417)
     
     # Load and stack the field images
     
     stack_field = image_stack(os.path.join(dir_data, reqid_field))
-    flat_field  = stack_field.flatten(method = 'median')  # Median is much better than mean. Mean leaves CR's.
+    stack_field.align(method = 'wcs', center = radec_mu69)
+    img_field  = stack_field.flatten(zoom=zoom, padding=padding)
+
+    hbt.figsize((12,12))
+    hbt.set_fontsize(20)
     
     for reqid in reqids_haz:
         stack_haz = image_stack(os.path.join(dir_data, reqid))
-        flat_haz  = stack_haz.flatten(method = 'median')
+        stack_haz.align(method = 'wcs', center = radec_mu69)
+        img_haz  = stack_haz.flatten(zoom=zoom, padding=padding)
 
-        # Calculate the offset.
-        # This is probably silly: we should get it from WCS instead
-        
-        out = ird.translation(flat_field, flat_haz)
-        tvec = np.round(np.array(out['tvec'])).astype(int)
-        
         # Make the plot
         
-        plt.imshow(stretch(np.roll(np.roll(flat_haz,round(tvec[1]),1),round(tvec[0]),0) - flat_field))
-        plt.title("{} - {}".format(reqid, "field"))
+        diff = img_haz - img_field
+        diff_trim = hbt.trim_image(diff)
+        plt.imshow(stretch(diff_trim))
+        plt.title(f"{reqid} - field, zoom = {zoom}")
         plt.show()
+        
+        # Save the stacked image as a FITS file
+        
+        file_out = os.path.join(dir_data, reqid, "stack_n{}_z{}.fits".format(stack_haz.size[0], zoom))
+        hdu = fits.PrimaryHDU(stretch(diff_trim))
+        hdu.writeto(file_out, overwrite=True)
+        print(f'Wrote: {file_out}')        
 
+        # Make a radial profile
+        
+        pos =  np.array(np.shape(diff))/2
+        (radius, profile) = get_radial_profile_circular(diff, pos=pos, width=1)
+    
+        hbt.figsize((10,8))
+        hbt.set_fontsize(20)
+        plt.plot(radius, profile)
+        plt.xlim((0, 50*zoom))
+        plt.ylim((-1,np.amax(profile)))
+        plt.xlabel('Radius [pixels]')
+        plt.title(f'Ring Radial Profile, {reqid}, zoom={zoom}')
+        plt.ylabel('Median DN')
+        plt.show()
+        
 if (__name__ == '__main__'):
     nh_ort1_make_stacks()
     

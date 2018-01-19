@@ -64,7 +64,7 @@ class image_stack:
     
     """
    
-    def __init__(self, dir, do_force=False, do_verbose=False, nmax=None) :   
+    def __init__(self, dir, do_force=False, do_verbose=False, nmax=None, prefix='lor') :   
 
         """
         Init method: load the index and all files.
@@ -84,11 +84,13 @@ class image_stack:
             Force loading stack from original files, rather than from a .pkl file.
         do_verbose:
             List each file explicitly when reading
+        prefix:
+            A text prefix which each filename must match (e.g., 'lor' to match only LORRI files).
             
         """
                 
-        files1 = glob.glob(os.path.join(dir,      '*.fit*'))     # Look in dir
-        files2 = glob.glob(os.path.join(dir, '*', '*.fit*'))     # Look in subdirs
+        files1 = glob.glob(os.path.join(dir,      prefix + '*.fit*'))     # Look in dir
+        files2 = glob.glob(os.path.join(dir, '*', prefix + '*.fit*'))     # Look in subdirs
         
         files = files1 + files2
         
@@ -128,11 +130,7 @@ class image_stack:
         et       = []
         utc      = []
         target   = []
-        
-        # Set up a dictionary for the data itself
-        
-        self.data     = {}
-        
+                
         # Set up the table. 
         # The standard method of representing Python 3 strings in numpy is via the unicode 'U' dtype."
         # Disadvantage of this is memory space, but not an issue for me.
@@ -157,11 +155,11 @@ class image_stack:
         
         
         self.t = Table(  [[],              [],          [],         [],        [],       [],       [],      [],   [], 
-                                                    [], [], [], [], [], [] ],
+                                                    [], [], [], [], [], [], [], [], [] ],
             names=('filename_short', 'exptime', 'visitname', 'sapname', 'sapdesc', 'target', 'reqid', 'et',  'utc', 
-                              'shift_x_pix', 'shift_y_pix', 'ra_center', 'dec_center', 'angle', 'dx_pix'),
+                  'shift_x_pix', 'shift_y_pix', 'ra_center', 'dec_center', 'angle', 'dx_pix', 'dy_pix', 'wcs', 'data'),
             dtype = ('U50',           'float64', 'U50',      'U50',     'U50',     'U50',    'U50',   'float64', 'U50', 
-                                                    'float64', 'float64', 'float64', 'float64', 'float64', 'float64'  ))
+                    'float64', 'float64', 'float64', 'float64', 'float64', 'float64', 'float64', 'object', 'object'  ))
         
         print("Reading {} files from {}".format(len(files), dir))
         
@@ -225,12 +223,9 @@ class image_stack:
                        ra_center,   
                        dec_center,  
                        angle,
-                       dx_pix])     
-        
-        
-        # Save the image from this file into a dictionary. We can access it later using the filename as a key.
-            
-            self.data[filename_short] = arr
+                       dx_pix, dy_pix, # X and Y dimensions
+                       w,              # WCS object 
+                       arr])           # Actual imaging data 
         
         # End of loop over files
         
@@ -252,18 +247,18 @@ class image_stack:
         
         self.size       = (len(files), dx_pix, dy_pix) 
         
-    # Finally, remove a few columns that we don't need, or that are wrong.
+        # Finally, remove a few columns that we don't need, or that are wrong.
         
         self.t.remove_column('sapdesc')
         self.t.remove_column('sapname')
         self.t.remove_column('target')
         self.t.remove_column('visitname')
 
-    # Initialize the 'indices' vector, which indicates which planes we use for flattening
+        # Initialize the 'indices' vector, which indicates which planes we use for flattening
     
         self.indices = np.ones(len(self.t), dtype=bool)
         
-    # Return. Looks like an init method should not return anything.
+        # Return. Looks like an init method should not return anything.
     
         print()
 
@@ -272,7 +267,7 @@ class image_stack:
 # Calculate alignments between all frames
 # =============================================================================
 
-    def align(self, method = 'radec', center = None):
+    def align(self, method = 'wcs', center = None):
         """
         Take a loaded stack, and set the shift amounts for each image.
         
@@ -284,14 +279,18 @@ class image_stack:
         Optional arguments
         ----
         method:
-            'radec' : Center based on RA / Dec positions in WCS
+            'wcs' : Center based on full WCS object. This should usually be used.
+
+            'wcs_simple' : Center based on RA / Dec positions in WCS. Does not use full WCS -- just CRVAL.
             
-            'body'  : Center based on a given body name
+            'body'  : Center based on a given body name. Not yet implemented.
+            
         center:
-            Tuple or string specifying the center to use
+            Tuple or string specifying the center to use. For instance, center = (ra_radians, dec_radians)
+            
         """
         
-        if (method.upper() == 'RADEC'):
+        if (method.upper() == 'WCS_SIMPLE'):
             
             # If 'radec' is passed, then set the shifts s.t. the right amount is applied to put 
             # specified RA/Dec in the center.
@@ -299,16 +298,14 @@ class image_stack:
             # Extract the ra and dec in radians. These specify the desired RA and dec.
             
             (ra, dec) = center
-            
-            t = self.t
-            
+                        
             shift_x_pix = self.t['shift_x_pix']
             shift_y_pix = self.t['shift_y_pix']
             
             ra_center   = self.t['ra_center']   # RA of each individual image
             dec_center  = self.t['dec_center']
             
-            num_images = len(shift_x_pix)
+            num_images = self.size[0]
             
             for i in range(num_images):
                 shift_x_pix[i] = (ra_center[i]  -  ra)/self.pixscale_x
@@ -318,6 +315,32 @@ class image_stack:
             
             self.t['shift_pix_x'] = shift_x_pix
             self.t['shift_pix_y'] = shift_y_pix
+       
+        if (method.upper() == 'WCS'):
+            
+            # If 'WCS' is passed, do the same as 'radec', but use the whole WCS object explicitly.
+            # This should give very nearly the same results.
+            
+            (ra, dec) = center
+            
+            num_images = self.size[0]
+            
+            shift_x_pix = self.t['shift_x_pix']
+            shift_y_pix = self.t['shift_y_pix']
+            
+            for i in range(num_images):
+                wcs = self.t['wcs'][i]  # Get WCS for this image
+                                
+                (pos_pix_x, pos_pix_y) = wcs.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
+                
+                shift_x_pix[i] = self.dx_pix/2 - pos_pix_x
+                shift_y_pix[i] = self.dy_pix/2 - pos_pix_y
+           
+            # Save these values back to the table, where they live
+            
+            self.t['shift_pix_x'] = shift_x_pix
+            self.t['shift_pix_y'] = shift_y_pix
+            
             
 # =============================================================================
 # Load a pickle file from disk. 
@@ -334,7 +357,7 @@ class image_stack:
 
         lun = open(self.file_save, 'rb')
 #        self = pickle.load(lun)
-        (self.t, self.data, self.indices, self.pixscale_x, self.pixscale_y, self.dx_pix, self.dy_pix, self.size) \
+        (self.t, self.indices, self.pixscale_x, self.pixscale_y, self.dx_pix, self.dy_pix, self.size) \
           = pickle.load(lun)
         lun.close() 
 
@@ -351,7 +374,7 @@ class image_stack:
 
         lun = open(self.file_save, 'wb')
 #        pickle.dump(self, lun)
-        pickle.dump((self.t, self.data, self.indices, 
+        pickle.dump((self.t, self.indices, 
                      self.pixscale_x, self.pixscale_y, self.dx_pix, self.dy_pix, self.size), lun)
         lun.close()
         print("Wrote: " + self.file_save)     
@@ -363,7 +386,10 @@ class image_stack:
     def print(self):
         """
         Print the table. This lists all of the tabulated information about each
-        image in the stack.
+        image in the stack. 
+        
+        This function is only moderately useful, because the wcs and data objects
+        do not print well in a table. It would be more useful if these columns were omitted.
         """
         
         self.t.pprint(max_lines = -1, max_width = -1)
@@ -373,26 +399,84 @@ class image_stack:
 # =============================================================================
 
     def set_indices(self, indices):
+        """
+        Set the indices of planes to use when flattening.
+        
+        Parameters
+        ----
+        indices:
+            Boolean array, one per plane. Indicates whether this plane will be used during flatten().
+        """
+        
         self.indices = indices
+
+# =============================================================================
+# Calculate the amount of padding required for an image
+# =============================================================================
+        
+    def calc_padding(self):
+
+        """
+        Returns the padding required for an image, based on the shifts of individual frames.
+    
+        return: (max, ((mix_x, max_x), (min_y, max_y)))
+        """
+        
+        shift_x_pix = self.t['shift_x_pix']
+        shift_y_pix = self.t['shift_y_pix']
+        
+        # Calculate the total shift range, from negative to positive.
+        # Use ceil() to assure that we have enough headroom for rounding.
+        
+        shift_x_pix_min = hbt.ceilout(np.amin(shift_x_pix))
+        shift_x_pix_max = hbt.ceilout(np.amax(shift_x_pix))
+        shift_y_pix_min = hbt.ceilout(np.amin(shift_y_pix))
+        shift_y_pix_max = hbt.ceilout(np.amax(shift_y_pix))
+        
+        # Calculate the padding on each edge to add
+        pad_xy = np.amax(np.abs([shift_x_pix_min, shift_x_pix_max,
+                                 shift_y_pix_min, shift_y_pix_max]))
+
+        return (pad_xy, 
+                ((shift_x_pix_min, shift_x_pix_max), 
+                 (shift_y_pix_min, shift_y_pix_max)))
         
 # =============================================================================
 # Flatten a stack of images as per the currently-set indices
 # =============================================================================
 
-    def flatten(self, method='mean', zoom=1, do_subpixel = False):
+    def flatten(self, method='median', zoom=1, do_subpixel=False, do_wrap=False, padding = 'Auto'):
         
         """
-        Flatten a stack of images as per the currently-set indices.
+        Flatten a stack of images as per the currently-set shift values and indices.
         
         Optional parameters
         ----
         method: 
+            'median': Slower but better. Recommended.
+
             'mean':   Faster but doesn't remove cosmic rays well.
-            
-            'median': Slower but better
-            
+                        
         zoom:
-            Value to scale output by -- e.g., zoom=4 → each pixel turns into 4x4=16 pixels.     
+            Value to scale images by. Zoom is applied before the shift is performed. The output image
+            retains the zoomed values. Zoom=4 → each pixel turns into 4x4=16 pixels.
+            
+        do_subpixel:
+            Boolean. For shifts, use an FFT method which simulates sub-pixel shifts. This is OK for experimentation,
+            but leaves a lot of ringing artifacts. Better to scale the output using zoom parameter.
+            
+        do_wrap:
+            Boolean. If True, then the flattened output array will be the same size as the input, with each plane rolled
+            s.t. they wrap around the edge. If False, the output array is padded so no wrapping occurs.
+            
+        padding:
+            Amount of padding to add to edge. If 'Auto', then it will be calculated automatically based on the actual 
+            shifts in this stack. However, this may be larger than necessary, *and* the shifts might not match other
+            stacks.
+            
+            If int, then a fixed number of bins is added to each edge (R, L, T, B). Padding is added *before* the zoom.
+            (Padding=10, Zoom=4) will increase the size of the output array by 80 pixels in each direction.
+            
         """    
         
         self.num_planes = np.sum(self.indices)
@@ -400,23 +484,45 @@ class image_stack:
         # Create a 3D output array for all of the images to go into. 
         # This will temporarily store the shifted+zoomed frames.
         
-        self.arr = np.zeros((self.num_planes, self.dx_pix*zoom, self.dy_pix*zoom))
-        
         w = np.where(self.indices)[0]  # List of all the indices
-        print(f"Looping over {w} planes")
+        
+        shift_x_pix = self.t['shift_x_pix']
+        shift_y_pix = self.t['shift_y_pix']
 
+        # Calculate the padding on each edge to add
+
+        if type(padding) == str:
+            if (padding == 'Auto'):
+                pad_xy = (self.calc_padding())[0]
+
+        else:        
+            pad_xy = padding
+            
+            
+            
+        if not(do_wrap):
+            arr = np.zeros( (self.num_planes, (self.dx_pix + pad_xy*2)*zoom, 
+                                              (self.dy_pix + pad_xy*2)*zoom) )
+        else:    
+            arr = np.zeros((self.num_planes, self.dx_pix*zoom, self.dy_pix*zoom))
+        
         for j,w_i in enumerate(w):  # Loop over all the indices. 'j' counts from 0 to N. w_i is each individual index.
-            im = self.data[self.t['filename_short'][w_i]]
+            im = self.t['data'][w_i]
             im_expand = scipy.ndimage.zoom(im,zoom) # Expand the image. This increases total flux; keeps DN/px fixed.
 
-            dx = self.t['shift_x_pix'][w_i]
-            dy = self.t['shift_y_pix'][w_i]
+            if not(do_wrap):
+                pad = np.array( ((pad_xy, pad_xy),(pad_xy, pad_xy)) ) * zoom
+                im_expand = np.pad(im_expand, pad, mode = 'constant')
+                
+            # Look up the shift amount, and zoom it as necessary
             
+            dx = shift_x_pix[w_i]
+            dy = shift_y_pix[w_i]
             shift = (dy*zoom, dx*zoom)
         
             # Apply the proper shift in X and Y. What I am calling 'x' and 'y'             
             # Sub-pixel shifting is in theory better. But in reality it makes a trivial difference over
-            # integer shifting.
+            # integer shifting, and leaves a lot of ringing artifacts.
             
             # Apply the sub-pixel shifting. I tried for hours to get scipy.ndimage.shift() to work, but 
             # it kept being screwy. fourier_shift works fine, though slightly slower.
@@ -429,61 +535,23 @@ class image_stack:
   
             # Copy the shifted, zoomed image into place
             
-            self.arr[j,:,:] = im_expand              
+            arr[j,:,:] = im_expand              
         
         # Merge all the individual frames, using mean or median
         
-        print("Flattening array with dimension {} using {}".format(np.shape(self.arr), method))
+        print("Flattening array with dimension {} using {}".format(np.shape(arr), method))
         
         if (method == 'mean'):
-            self.img_flat   = np.nanmean(self.arr,0)    # Fast
+            arr_flat   = np.nanmean(arr,0)    # Fast
             
         if (method == 'median'):
-            self.img_flat = np.nanmedian(self.arr,0)  # Slow -- about 15x longer
+            arr_flat = np.nanmedian(arr,0)  # Slow -- about 15x longer
             
-        return self.img_flat
+        return arr_flat
 
 # =============================================================================
 # End of method definition
 # =============================================================================
-
-#=============================================================================
-# Extract a radial profile. This is the simplest possible case: circular
-# ** This is NOT part of the method! It is a standalone function.        
-#=============================================================================
-
-def get_radial_profile_circular(arr, pos = (0,0), width=1, method='mean'):
-  
-    dx = hbt.sizex(arr) 
-    dy = hbt.sizey(arr)
-    
-    xx, yy = np.mgrid[:dx, :dy]  # What is this syntax all about? That is weird.
-                                 # A: mgrid is a generator. np.meshgrid is the normal function version.
-    
-    dist_pix_2d = np.sqrt( ((xx - pos[0]) ** 2) + ((yy - pos[1]) ** 2) )
-
-    dist_pix_1d = hbt.frange(0, int(np.amax(dist_pix_2d)/width))*width
-    
-    profile_1d    = 0. * dist_pix_1d.copy()
-    
-#    profile_1d_median  = 0. * dist_pix_1d.copy()
-    
-    for i in range(len(dist_pix_1d)-2):
-
-    # Identify the pixels which are at the right distance
-    
-        is_good = np.logical_and(dist_pix_2d >= dist_pix_1d[i],
-                                 dist_pix_2d <= dist_pix_1d[i+1]) 
-    
-        if (method == 'mean'):
-            profile_1d[i]   = np.mean(arr[is_good])
-    #        profile_1d = profile_1d_mean
-    
-        if (method == 'median'):
-            profile_1d[i] = np.median(arr[is_good])
-    #        profile_1d = profile_1d_median
-        
-    return (dist_pix_1d, profile_1d)
 
 # =============================================================================
 # Run the function
@@ -526,55 +594,83 @@ if (__name__ == '__main__'):
     
     # Load and stack the field images
     
-#    stack_field = image_stack(os.path.join(dir_data, reqid_field))
+    stack_field = image_stack(os.path.join(dir_data, reqid_field))
     stack_haz0  = image_stack(os.path.join(dir_data, reqids_haz[0]))
+    stack_haz1  = image_stack(os.path.join(dir_data, reqids_haz[1]))
+    stack_haz2  = image_stack(os.path.join(dir_data, reqids_haz[2]))
+    stack_haz3  = image_stack(os.path.join(dir_data, reqids_haz[3]))
     stack_haz4  = image_stack(os.path.join(dir_data, reqids_haz[4]))
     
-    # Set the rough position of MU69, from GV
+    # Set the rough position of MU69
     
     et = stack_haz0.t['et'][0] # Look up ET for first image in the Hazard stack
-    
     (st, lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
     vec = st[0:3]
     (_, ra, dec) = sp.recrad(vec)
-    
-#    radec_mu69 = (274.711*hbt.d2r, -20.867*hbt.d2r)
     radec_mu69 = (ra, dec) # Keep in radians
     
     # Align the frames
     
-#    stack_field.align(method = 'radec', center = (radec_mu69))
-    stack_haz0.align(method  = 'radec', center = (radec_mu69))
-    stack_haz4.align(method  = 'radec', center = (radec_mu69))
+    stack_field.align(method = 'wcs', center = (radec_mu69))
+    stack_haz0.align(method  = 'wcs', center = (radec_mu69))
+    stack_haz1.align(method  = 'wcs', center = (radec_mu69))
+    stack_haz2.align(method  = 'wcs', center = (radec_mu69))
+    stack_haz3.align(method  = 'wcs', center = (radec_mu69))
+    stack_haz4.align(method  = 'wcs', center = (radec_mu69))
     
-    zoom = 4
+    # Calc the padding required. This can only be done after the images are loaded and aligned.
+
+    pad_field = stack_field.calc_padding()[0]
+    pad_haz0  = stack_haz0.calc_padding()[0]
+    pad_haz1  = stack_haz1.calc_padding()[0]
+    pad_haz2  = stack_haz2.calc_padding()[0]
+    pad_haz3  = stack_haz3.calc_padding()[0]
+    pad_haz4  = stack_haz4.calc_padding()[0]
     
-#    img_field = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom)
-    img_haz0  = stack_haz0.flatten(do_subpixel=False,  method='median',zoom=zoom)
-    img_haz4  = stack_haz4.flatten(do_subpixel=False,  method='median',zoom=zoom)
+    pad = np.amax([pad_field, pad_haz0, pad_haz1, pad_haz2, pad_haz3, pad_haz4])
+    
+    # Flatten the stacks
+    
+    img_field = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad)
+    img_haz0  = stack_haz0.flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad)
+    img_haz4  = stack_haz4.flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad)
 
-#    img_field_s = stack_field.flatten(do_subpixel=True, method='median',zoom=zoom)
-#    img_haz0_s  = stack_haz0.flatten(do_subpixel=True,  method='median',zoom=zoom)
-#    img_haz4_s  = stack_haz4.flatten(do_subpixel=True,  method='median',zoom=zoom)
-
+    # Plot the flattened images
+    
     plt.imshow(stretch(img_field))
     plt.imshow(stretch(img_haz0))
+    plt.imshow(stretch(img_haz4))
     plt.show()
+    
+    # Create the difference image, and trim it
+    
+    diff = img_haz4 - img_field
+    diff_trim = trim_image(diff)
+    
+    # Save as FITS
+    
+    file_out = '/Users/throop/Desktop/test_zoom{}.fits'.format(zoom)
+    hdu = fits.PrimaryHDU(stretch(diff_trim))
+    hdu.writeto(file_out, overwrite=True)
+    print(f'Wrote: {file_out}')
+     
+    # Calculate a radial profile    
+    
+    pos =  np.array(np.shape(diff))/2
+    (radius, profile) = get_radial_profile_circular(diff, pos=pos, width=1)
 
-    diff_s = img_haz4_s - img_field_s
-    diff   = img_haz4   - img_field
-    
-    plt.imshow(stretch( img_haz4 - img_field ))
+    hbt.figsize((10,8))
+    hbt.set_fontsize(20)
+    plt.plot(radius, profile)
+    plt.xlim((0, 100))
+    plt.ylim((-1,np.amax(profile)))
+    plt.xlabel('Radius [pixels]')
+    plt.title('Ring Radial Profile')
+    plt.ylabel('Median DN')
     plt.show()
     
-    # Manually get the offset
-    
-    img_haz4_small = img_haz4[000:600,000:600]
-    img_haz0_small = img_haz0[000:600,000:600]
-    img_field_small = img_field[000:6000400:600]
-    
-    out_f4 = ird.translation(img_field_small, img_haz4_small)
-    out_f0 = ird.translation(img_field_small, img_haz0_small)
+    plt.imshow(stretch( diff ))
+    plt.show()
     
     tvec_f0 = np.round(np.array(out_f0['tvec'])).astype(int)
     print("Detected shift = {} pix".format(out_f0['tvec']))
@@ -610,4 +706,4 @@ if (__name__ == '__main__'):
     plt.show()
      
     hdu.close()
- 
+
