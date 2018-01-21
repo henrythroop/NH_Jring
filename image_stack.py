@@ -645,7 +645,7 @@ if (__name__ == '__main__'):
     # Create the difference image, and trim it
     
     diff = img_haz4 - img_field
-    diff_trim = trim_image(diff)
+    diff_trim = hbt.trim_image(diff)
     
     # Save as FITS
     
