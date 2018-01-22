@@ -64,7 +64,7 @@ class image_stack:
     
     """
    
-    def __init__(self, dir, do_force=False, do_verbose=False, nmax=None, prefix='lor') :   
+    def __init__(self, dir, do_force=False, do_verbose=False, nmax=None, prefix='lor', do_save=False) :   
 
         """
         Init method: load the index and all files.
@@ -86,6 +86,8 @@ class image_stack:
             List each file explicitly when reading
         prefix:
             A text prefix which each filename must match (e.g., 'lor' to match only LORRI files).
+        do_save:
+            If set, save the results of this stacking as a .pkl file
             
         """
                 
@@ -229,6 +231,9 @@ class image_stack:
         
         # End of loop over files
         
+        if do_verbose:
+            print("") # Print CR at end of "...."
+            
         # Sort by ET.
             
         self.t.sort('et')
@@ -258,11 +263,35 @@ class image_stack:
     
         self.indices = np.ones(len(self.t), dtype=bool)
         
+        # Initialize the num_planes vector to set the size
+        
+        self.num_planes = len(files)
+    
+        # Save if requested
+        
+        if do_save:
+            self.save()
+            
         # Return. Looks like an init method should not return anything.
     
         print()
 
-
+#
+## =============================================================================
+## Return size of the stack
+## =============================================================================
+#        
+#        
+#    def size(self):
+#        """
+#        Return size of the stack.
+#        
+#        Q: Why do I need this? Aren't a method's variables exposed to the outside world?
+#        I thought that was the point of not needing getter/setters in python.
+#        """
+#        
+#        return self.size
+    
 # =============================================================================
 # Calculate alignments between all frames
 # =============================================================================
@@ -498,8 +527,6 @@ class image_stack:
         else:        
             pad_xy = padding
             
-            
-            
         if not(do_wrap):
             arr = np.zeros( (self.num_planes, (self.dx_pix + pad_xy*2)*zoom, 
                                               (self.dy_pix + pad_xy*2)*zoom) )
@@ -550,6 +577,50 @@ class image_stack:
         return arr_flat
 
 # =============================================================================
+# Align and retrieve a single image from the stack.
+# =============================================================================
+
+    def image_single(self, num, zoom=1, do_wrap=False, padding = 'Auto'):
+
+        """
+        Return a single plane of an image stack, according to a given zoom and wrap.
+        """
+        
+        if type(padding) == str:
+            if (padding == 'Auto'):
+                pad_xy = (self.calc_padding())[0]
+
+        else:        
+            pad_xy = padding
+
+        if (do_wrap):
+            raise(ValueError('do_wrap = True not supported'))
+            
+        # Get the image
+            
+        im = self.t['data'][num]
+        
+        # Zoom the image
+        
+        im_expand = scipy.ndimage.zoom(im,zoom) # Expand the image. This increases total flux; keeps DN/px fixed.
+
+        # Pad the image 
+        
+        pad = np.array( ((pad_xy, pad_xy),(pad_xy, pad_xy)) ) * zoom
+        im_expand = np.pad(im_expand, pad, mode = 'constant')
+
+        # Shift the image
+
+        dx = self.t['shift_x_pix'][num]
+        dy = self.t['shift_y_pix'][num]
+        shift = (dy*zoom, dx*zoom)
+    
+        im_expand = np.roll(np.roll(im_expand, int(round(shift[0])), axis=0), int(round(shift[1])), axis=1)
+
+        return(im_expand)
+
+        
+# =============================================================================
 # End of method definition
 # =============================================================================
 
@@ -594,12 +665,14 @@ if (__name__ == '__main__'):
     
     # Load and stack the field images
     
-    stack_field = image_stack(os.path.join(dir_data, reqid_field))
-    stack_haz0  = image_stack(os.path.join(dir_data, reqids_haz[0]))
-    stack_haz1  = image_stack(os.path.join(dir_data, reqids_haz[1]))
-    stack_haz2  = image_stack(os.path.join(dir_data, reqids_haz[2]))
-    stack_haz3  = image_stack(os.path.join(dir_data, reqids_haz[3]))
-    stack_haz4  = image_stack(os.path.join(dir_data, reqids_haz[4]))
+    do_force = False
+    
+    stack_field = image_stack(os.path.join(dir_data, reqid_field),   do_force=do_force, do_save=do_force)
+    stack_haz0  = image_stack(os.path.join(dir_data, reqids_haz[0]), do_force=do_force, do_save=do_force)
+    stack_haz1  = image_stack(os.path.join(dir_data, reqids_haz[1]), do_force=do_force, do_save=do_force)
+    stack_haz2  = image_stack(os.path.join(dir_data, reqids_haz[2]), do_force=do_force, do_save=do_force)
+    stack_haz3  = image_stack(os.path.join(dir_data, reqids_haz[3]), do_force=do_force, do_save=do_force)
+    stack_haz4  = image_stack(os.path.join(dir_data, reqids_haz[4]), do_force=do_force, do_save=do_force)
     
     # Set the rough position of MU69
     
