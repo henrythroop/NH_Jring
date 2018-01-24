@@ -83,7 +83,11 @@ class ring_flyby:
         if name_target:
             self.name_target = name_target
         
+        self.abcorr = 'LT'
+        
         # Define the grids
+        
+        # NB: "_arr" always refers to a 3D array.
         
         self.density_arr = np.array(num_pts_3d) # Number of dust grains in this bin. Normalized somehow, not sure how.
         self.azimuth_arr = np.array(num_pts_3d) # Azmuth angle. Not sure we need this. In body frame.
@@ -100,11 +104,13 @@ class ring_flyby:
         x = hbt.frange(-n/2, n/2, n) * gridspacing[0]
         y = hbt.frange(-n/2, n/2, n) * gridspacing[1]
         z = hbt.frange(-n/2, n/2, n) * gridspacing[2]
-    
+            
         # Define 3D arrays for xyz position
         
-        (x_arr, y_arr, z_arr) = np.meshgrid(x, y, z)
+        (self.x_arr, self.y_arr, self.z_arr) = np.meshgrid(x, y, z)
 
+        radius_arr = np.sqrt(self.x_arr**2 + self.y_arr**2 + self.z_arr**2)
+        
 
     def set_ring_parameters(self, file, albedo, q):
         
@@ -114,7 +120,7 @@ class ring_flyby:
         
         # Read the radial profile
         
-        t = Table.read(file)
+        t = Table.read(file, format = 'ascii')
         self.radius_km  = t['RadiusKM']
         self.IoF        = t['I/F']
         self.radius_pix = t['RadiusPixels']
@@ -124,8 +130,13 @@ class ring_flyby:
         # Set the size distribution
         # We set one size distribution for the entire ring. It is uniform and does not change spatially or temporally.
         
-        self.n_dust = {}
-        self.r_dust = {}
+        is_good = np.logical_and(self.radius_arr < 20000, self.radius_arr > 10000)
+        self.density = self.radius_arr.copy()
+        self.density[np.logical_not(is_good)] = 0
+        
+        self.n_dust = []
+        self.r_dust = []
+        
         return(0)
         
         
@@ -133,10 +144,49 @@ class ring_flyby:
         """
         Now that all parameters are set, sample the ring along a flight path.
         """
+    
+        # Save the passed-in parameters in case we need them 
         
-        et_arr = hbt.frange(int(et_start), int(et_end))
+        self.et_start = et_start
+        self.et_end   = et_end
+        self.dt       = dt
         
-        return(0)
+        self.name_observer = name_observer
+        
+        # Set up the output time array
+        
+        num = math.ceil( (et_end - et_start) / dt )
+        
+        et_1d = hbt.frange(int(et_start), int(et_end), num)
+        
+        # Loop over et
+        
+        radius_1d = []
+        x_1d      = []
+        y_1d      = []
+        z_1d      = []
+        lon_1d    = []
+        lat_1d    = []
+        
+        for i,et_i in enumerate(et_1d):
+#            (st, lt) = sp.spkezr(self.name_target, et_i, 'J2000', self.abcorr, self.name_observer)  
+                                                                    # Gives RA/Dec of MU69 from NH
+            (st, lt) = sp.spkezr(self.name_observer, et_i, self.frame, self.abcorr, self.name_target)
+                                                                    # Get position of s/c in MU69 frame!
+            (radius, lon, lat) = sp.reclat(st[0:3])
+            
+            radius_1d.append(radius)
+            lon_1d.append(lon)
+            lat_1d.append(lat)
+
+            x_1d.append(st[0])
+            y_1d.append(st[1])
+            z_1d.append(st[2])   
+        
+        self.radius_1d = radius_1d
+        self.et_1d     = et_1d
+        
+        return(radius_1d, et_1d, x_1d, y_1d, z_1d, lon_1d, lat_1d)
         
 # =============================================================================
 # END OF METHOD DEFINITION
@@ -148,9 +198,9 @@ class ring_flyby:
     
 def do_ring_flyby():
     
-    albedo              = {0.05, 0.1, 0.3, 0.7}
-    q_dust              = {2, 3.}
-    inclination_ring    = {0., 0.1}
+    albedo              = [0.05, 0.1, 0.3, 0.7]
+    q_dust              = [2, 3.]
+    inclination_ring    = [0., 0.1]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
@@ -167,7 +217,7 @@ def do_ring_flyby():
     
     name_observer = 'New Horizons'
     
-    dt_sample = 1         # Sampling time through the flyby. Assumed to be seconds.
+    dt = 10         # Sampling time through the flyby. Assumed to be seconds.
 
     # Start up SPICE if needed
     
@@ -197,6 +247,10 @@ def do_ring_flyby():
     for albedo_i in albedo:
         for q_dust_i in q_dust:
             for inclination_i in inclination_ring:
+    
+                albedo_i = albedo[0]
+                q_dust_i = q_dust[0]
+                inclination_i = inclination_ring[0]
                 
                 # Set up the ring itself
                 
@@ -204,10 +258,29 @@ def do_ring_flyby():
 
                 # And fly through it
                 
-                out = ring.fly_trajectory(name_observer, et_start, et_end, dt_sample)    
-
+                out = ring.fly_trajectory(name_observer, et_start, et_end, dt)    
+                (radius_1d, et_1d, x_1d, y_1d, z_1d, lon_1d, lat_1d) = out
+                
                 # Write the trajectory to a file, plot it, etc.
-                    
+                
+                plt.subplot(2,2,1)
+                plt.plot(radius_1d)
+                plt.title('Radius')
+                
+                plt.subplot(2,2,2)
+                plt.plot(z_1d)
+                plt.title('Z')
+                
+                plt.subplot(2,2,3)
+                plt.plot(lat_1d)
+                plt.title('Lat')
+                
+                plt.subplot(2,2,4)
+                plt.plot(lon_1d)
+                plt.title('Lon')
+                
+                plt.show()
+                
 # =============================================================================
 # Run the function
 # =============================================================================
