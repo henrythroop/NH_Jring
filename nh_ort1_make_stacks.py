@@ -130,7 +130,79 @@ def nh_ort1_make_stacks():
         plt.title(f'Ring Radial Profile, {reqid}, zoom={zoom}')
         plt.ylabel('Median DN')
         plt.show()
+
+# =============================================================================
+# Calculate how many DN MU69 should be at encounter (K-20d, etc.)
+# Or alternatively, convert all of my DN values, to I/F values
+# =============================================================================
+
+        # Convert DN values in array, to I/F values
+            
+        RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+        RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+        
+        C = profile # Get the DN values of the ring. Typical value is 1 DN.
+        
+        # Define the solar flux, from Hal's paper.
+        
+        FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+        F_solar = FSOLAR_LORRI # Flux from Hal's paper
+        
+        RSOLAR = RSOLAR_LORRI_4X4
+        
+        # Calculate the MU69-Sun distance, in AU (or look it up). 
+        
+        km2au = 1 / (u.au/u.km).to('1')
+        
+        et = stack_haz.t['et'][0]
+        (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
+        r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+        
+        (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
+        r_sun_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+        
+        pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming 4x4)
+        
+        TEXP = stack_haz.t['exptime'][0]
+        
+        I = C / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. All v similar, except for spectrum assumed.
+        
+        # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
+        
+        IoF = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+        
+        plt.plot(radius * pixscale_km, IoF)
+        plt.xlim((0, 50000))
+#        plt.ylim((0,np.amax(IoF)))
+        plt.yscale('log')
+        plt.xlabel('Radius [km]')
+        plt.title(f'Ring Radial Profile, {reqid}, zoom={zoom}')
+        plt.ylabel('Median I/F')
+        plt.show()
+        
+        # Write it to a table
+        t = Table([radius, radius * pixscale_km, profile, IoF], names = ['RadiusPixels', 'RadiusKM', 'DN/pix', 'I/F'])
+        file_out_table = file_out.replace('.fits', '_profiles.txt')
+        t.write(file_out_table, format='ascii')
+        print("Wrote: {}".format(file_out_table))
+        
+#    # Now convert to 'normal I/F'
+#    
+#    # Define mu = cos(e), where e = emission angle, and e=0 is face-on.
+#    
+#    e = 0 # Assume ring is face-on. The sunflower orbits are. 
+#    
+#    mu = np.cos(e)
+#    
+#    #        mu_2D = np.transpose(np.tile(mu, (self.num_bins_radius(),1)))
+#    
+#    # Calculate the normal I/F
+#    
+#    IoF_normal = 4 * mu * IoF
         
 if (__name__ == '__main__'):
     nh_ort1_make_stacks()
+    
+    
+    
     
