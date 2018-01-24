@@ -104,26 +104,37 @@ class ring_flyby:
         # Define 3D arrays for xyz position
         
         (x_arr, y_arr, z_arr) = np.meshgrid(x, y, z)
-#
-#    def set_trajectory(name_observer):
-#        """
-#        Parameters
-#        ----
-#            et: 
-#                A list of ET values.
-#            name_observer:
-#                SPICE name of observer
-#        """        
-#            
-#        
-#        self.name_observer = name_observer
 
-    def set_profile(file=file_profile, albedo=albedo_i, q = q_i):
+
+    def set_ring_parameters(self, file, albedo, q):
         
+        """
+        Define the ring radial profile, size distribution, albedo, size dist, etc.
+        """
+        
+        # Read the radial profile
+        
+        t = Table.read(file)
+        self.radius_km  = t['RadiusKM']
+        self.IoF        = t['I/F']
+        self.radius_pix = t['RadiusPixels']
+        
+        # Extrapolate the radial profile to the right bins, and set it.
+        
+        # Set the size distribution
+        # We set one size distribution for the entire ring. It is uniform and does not change spatially or temporally.
+        
+        self.n_dust = {}
+        self.r_dust = {}
         return(0)
         
         
-    def sample_trajectory(name_observer, et_start, et_end, dt):
+    def fly_trajectory(self, name_observer, et_start, et_end, dt):
+        """
+        Now that all parameters are set, sample the ring along a flight path.
+        """
+        
+        et_arr = hbt.frange(int(et_start), int(et_end))
         
         return(0)
         
@@ -141,7 +152,9 @@ def do_ring_flyby():
     q_dust              = {2, 3.}
     inclination_ring    = {0., 0.1}
     
-    file_profile_ring = 'profile.txt'  # This defines I/F as a function of orbital distance.
+    file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
+    
+ # This defines I/F as a function of orbital distance.
                                        # n(r) and q are then derived from I/F and albedo.
     
     utc_ca = '2019 1 Jan 05:33:00'
@@ -178,10 +191,6 @@ def do_ring_flyby():
     et_ca = sp.utc2et(utc_ca)
     et_start = et_ca - dt_before.to('s').value
     et_end   = et_ca + dt_after.to('s').value
-     
-    et_arr = hbt.frange(int(et_start), int(et_end))
-    
-    ring.set_trajectory(name_observer, dt_sample)
     
     # Loop over the input parameters
     
@@ -191,11 +200,11 @@ def do_ring_flyby():
                 
                 # Set up the ring itself
                 
-                ring.set_profile(file=file_profile_ring, albedo=albedo_i, q = q_i)
+                ring.set_ring_parameters(file=file_profile_ring, albedo=albedo_i, q = q_dust_i)
 
                 # And fly through it
                 
-                out = ring.sample_trajectory(name_observer, et_start, et_end, dt)    
+                out = ring.fly_trajectory(name_observer, et_start, et_end, dt_sample)    
 
                 # Write the trajectory to a file, plot it, etc.
                     
