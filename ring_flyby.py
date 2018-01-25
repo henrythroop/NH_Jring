@@ -172,6 +172,19 @@ class ring_flyby:
         
         # Extrapolate the radial profile to the right bins, and set it.
         
+        bin_profile = np.digitize(self.radius_km, self.x_1d)
+        
+        # Now, we need to loop over the value of radius_ring, in 1-pixel steps.
+        # For each step, fill everything at that radius and outward with value from IoF.
+        
+        # Get the positive x values. Use these as the radial bins to loop over
+        
+        radii = self.x_1d[self.x_1d > 0]
+        
+        for radius_i in radii: # Radius is in km
+            is_good = self.radius_ring_arr > radius_i
+            density[is_good] = self.IoF[bin_profile[radius_i]]
+            
         # Set the size distribution
         # We set one size distribution for the entire ring. It is uniform and does not change spatially or temporally.
         
@@ -238,14 +251,10 @@ class ring_flyby:
             lat_t.append(lat)
 
             # Get the XYZ positions wrt time.
-            
-            x = st[0]
-            y = st[1]
-            z = st[2]
-            
-            x_t.append(x)
-            y_t.append(y)
-            z_t.append(z)
+        
+            x_t.append(st[0])
+            y_t.append(st[1])
+            z_t.append(st[2])
         
         # Convert into bin values. This is vectorized.
         # ** If values exceed the largest bin, then the index returned will be too large for the density lookup!
@@ -260,11 +269,14 @@ class ring_flyby:
         bin_y_t[bin_y_t >= len(self.y_1d)] = len(self.y_1d)-1
         bin_z_t[bin_z_t >= len(self.z_1d)] = len(self.z_1d)-1
         
+        # Now that we have all the XYZ bins that the s/c travels in, get the density for each one.
+        # We should be able to do this vectorized -- but can't figure it out, so using a loop.
+        
         density_t = 0. * et_t
         for i in range(len(et_t)):
             density_t[i] = self.density[bin_x_t[i], bin_y_t[i], bin_z_t[i]]
 
-        # Make a cumulative sum
+        # Make a cumulative sum of the density. We don't need this -- Doug Mehoke will make his own -- but for testing.
         
         density_cum_t       = np.cumsum(density_t)
                             
