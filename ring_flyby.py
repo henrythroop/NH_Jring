@@ -69,11 +69,33 @@ class ring_flyby:
     Albedo
     
     """
+
+# =============================================================================
+# Set up the grid, and basic initialization.
+# =============================================================================
     
-    def __init__(self, num_pts_3d, gridspacing, frame=None, name_target=None):
+    def __init__(self, num_pts_3d, gridspacing, frame, name_target):
 
         """
         Initialize the grid.
+        
+        Parameters
+        ----
+            
+            num_pts_3d:
+                Tuple (n_x, n_y, n_z) describing the size of the grid. Each entry is the number of points in that
+                dimension.
+                
+            gridspacing:
+                Tuple (dx, dy, dz) describing the binsize in each dirction. Each entry is the width, in km,
+                of a single bin.
+            
+            frame:
+                The name of the SPICE frame (e.g., '2014_MU69_SUNFLOWER_ROT')
+                
+            name_target:
+                The name of the body (e.g., 'MU69')
+            
         """
         
         # We want to set up this grid in the MU69 Sunflower frame.
@@ -101,16 +123,39 @@ class ring_flyby:
         
         # Define 1D arrays for xyz position
         
-        x = hbt.frange(-n/2, n/2, n) * gridspacing[0]
-        y = hbt.frange(-n/2, n/2, n) * gridspacing[1]
-        z = hbt.frange(-n/2, n/2, n) * gridspacing[2]
-            
+        x_1d = hbt.frange(-n/2, n/2, n) * gridspacing[0]
+        y_1d = hbt.frange(-n/2, n/2, n) * gridspacing[1]
+        z_1d = hbt.frange(-n/2, n/2, n) * gridspacing[2]
+        
+        # Save the 1D arrays for future use
+        
+        self.x_1d = x_1d
+        self.y_1d = y_1d
+        self.z_1d = z_1d
+        
         # Define 3D arrays for xyz position
+        # Note that the LHS xyz order is opposite the RHS order. I don't know exactly why, but it has something
+        # to do with python array indexing order. In any event, the order below gives expected results
+        # for accessing an array with values    arr[x_index, y_index, z_index]
         
-        (self.x_arr, self.y_arr, self.z_arr) = np.meshgrid(x, y, z)
+#        (y_arr, x_arr, z_arr) = np.meshgrid(x, y, z)
+        
+        (self.y_arr, self.x_arr, self.z_arr) = np.meshgrid(x_1d, y_1d, z_1d)
 
-        radius_arr = np.sqrt(self.x_arr**2 + self.y_arr**2 + self.z_arr**2)
+        # Define the radius (ie, distance from the center, 3D)
+        # ** Do not confuse this with the ring radius!
         
+        radius_arr = np.sqrt(self.x_arr**2 + self.y_arr**2 + self.z_arr**2)
+        self.radius_arr = radius_arr
+        
+        # Define the 'ring radius' -- ie, distance from the center, in the XZ plane only!
+
+        radius_ring_arr = np.sqrt(self.x_arr**2 + self.z_arr**2)
+        self.radius_ring_arr = radius_ring_arr
+
+# =============================================================================
+# Set up the ring itself
+# =============================================================================
 
     def set_ring_parameters(self, file, albedo, q):
         
@@ -130,8 +175,8 @@ class ring_flyby:
         # Set the size distribution
         # We set one size distribution for the entire ring. It is uniform and does not change spatially or temporally.
         
-        is_good = np.logical_and(self.radius_arr < 20000, self.radius_arr > 10000)
-        self.density = self.radius_arr.copy()
+        is_good = np.logical_and(self.radius_ring_arr > 5000, self.radius_ring_arr < 10000)
+        self.density = 1. + self.radius_arr.copy()*0 
         self.density[np.logical_not(is_good)] = 0
         
         self.n_dust = []
@@ -139,6 +184,9 @@ class ring_flyby:
         
         return(0)
         
+# =============================================================================
+# Fly a trajectory through the ring and sample it
+# =============================================================================
         
     def fly_trajectory(self, name_observer, et_start, et_end, dt):
         """
@@ -157,36 +205,87 @@ class ring_flyby:
         
         num = math.ceil( (et_end - et_start) / dt )
         
-        et_1d = hbt.frange(int(et_start), int(et_end), num)
+        et_t = hbt.frange(int(et_start), int(et_end), num)
         
         # Loop over et
         
-        radius_1d = []
-        x_1d      = []
-        y_1d      = []
-        z_1d      = []
-        lon_1d    = []
-        lat_1d    = []
+        radius_t = []
+        x_t      = []
+        y_t      = []
+        z_t      = []
+        lon_t    = []
+        lat_t    = []
+        density_t= []
+        bin_x_t  = []
+        bin_y_t  = []
+        bin_z_t  = []
         
-        for i,et_i in enumerate(et_1d):
+        
+        for i,et_i in enumerate(et_t):
 #            (st, lt) = sp.spkezr(self.name_target, et_i, 'J2000', self.abcorr, self.name_observer)  
                                                                     # Gives RA/Dec of MU69 from NH
             (st, lt) = sp.spkezr(self.name_observer, et_i, self.frame, self.abcorr, self.name_target)
                                                                     # Get position of s/c in MU69 frame!
             (radius, lon, lat) = sp.reclat(st[0:3])
             
-            radius_1d.append(radius)
-            lon_1d.append(lon)
-            lat_1d.append(lat)
+            # Get the lon/lat wrt time. Note that for MU69 flyby, the lat is always positive.
+            # This is non-intuituve, but it is because the MU69 Sunflower frame is defined s.t. the ring
+            # is in the XZ plane. 
+            # In this plane, indeed NH stays 'above' MU69 the whole flyby, with lat always positive.
+            
+            radius_t.append(radius)
+            lon_t.append(lon)
+            lat_t.append(lat)
 
-            x_1d.append(st[0])
-            y_1d.append(st[1])
-            z_1d.append(st[2])   
+            # Get the XYZ positions wrt time.
+            
+            x = st[0]
+            y = st[1]
+            z = st[2]
+            
+            x_t.append(x)
+            y_t.append(y)
+            z_t.append(z)
         
-        self.radius_1d = radius_1d
-        self.et_1d     = et_1d
+        # Convert into bin values. This is vectorized.
+        # ** If values exceed the largest bin, then the index returned will be too large for the density lookup!
         
-        return(radius_1d, et_1d, x_1d, y_1d, z_1d, lon_1d, lat_1d)
+        bin_x_t = np.digitize(x_t, self.x_1d)
+        bin_y_t = np.digitize(y_t, self.y_1d)
+        bin_z_t = np.digitize(z_t, self.z_1d)
+        
+        # If indices are too large, drop them by one. This just handles the edge cases so the code doesn't crash.
+        
+        bin_x_t[bin_x_t >= len(self.x_1d)] = len(self.x_1d)-1
+        bin_y_t[bin_y_t >= len(self.y_1d)] = len(self.y_1d)-1
+        bin_z_t[bin_z_t >= len(self.z_1d)] = len(self.z_1d)-1
+        
+        density_t = 0. * et_t
+        for i in range(len(et_t)):
+            density_t[i] = self.density[bin_x_t[i], bin_y_t[i], bin_z_t[i]]
+
+        # Make a cumulative sum
+        
+        density_cum_t       = np.cumsum(density_t)
+                            
+        # Save all variables so they can be retrieved
+        
+        self.radius_t      = radius_t
+        self.et_t          = et_t        
+        self.bin_x_t       = bin_x_t
+        self.bin_y_t       = bin_y_t
+        self.bin_z_t       = bin_z_t
+        self.density_t     = density_t
+        self.density_cum_t = density_cum_t
+        self.lon_t         = lon_t
+        self.lat_t         = lat_t
+        self.x_t           = x_t
+        self.y_t           = y_t
+        self.z_t           = z_t
+        
+        self.radius_t = radius_t  # This is distance from the center, in 3D coords. Not 'ring radius.'
+        
+        return()
         
 # =============================================================================
 # END OF METHOD DEFINITION
@@ -198,8 +297,8 @@ class ring_flyby:
     
 def do_ring_flyby():
     
-    albedo              = [0.05, 0.1, 0.3, 0.7]
-    q_dust              = [2, 3.]
+    albedo              = [0.05]
+    q_dust              = [2]
     inclination_ring    = [0., 0.1]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
@@ -230,7 +329,8 @@ def do_ring_flyby():
     
     # Define the size of each grid box
     
-    dx_bin = dy_bin = dz_bin = 25  # Distances are km. Not worth tracking the units. Consistent with SPICE.
+    dx_bin = dy_bin = dz_bin = 100  # Distances are km. Not worth tracking the units. Consistent with SPICE.
+                                    # XXX This is supposed to be 25 km. But that is too small for a 10,000 km ring!
     
     # Initialize the grid 
     
@@ -258,28 +358,32 @@ def do_ring_flyby():
 
                 # And fly through it
                 
-                out = ring.fly_trajectory(name_observer, et_start, et_end, dt)    
-                (radius_1d, et_1d, x_1d, y_1d, z_1d, lon_1d, lat_1d) = out
+                ring.fly_trajectory(name_observer, et_start, et_end, dt)    
                 
                 # Write the trajectory to a file, plot it, etc.
                 
                 plt.subplot(2,2,1)
-                plt.plot(radius_1d)
+                plt.plot(ring.radius_t)
                 plt.title('Radius')
                 
                 plt.subplot(2,2,2)
-                plt.plot(z_1d)
-                plt.title('Z')
-                
-                plt.subplot(2,2,3)
-                plt.plot(lat_1d)
+                plt.plot(ring.lat_t)
                 plt.title('Lat')
                 
-                plt.subplot(2,2,4)
-                plt.plot(lon_1d)
+                plt.subplot(2,2,3)
+                plt.plot(ring.lon_t)
                 plt.title('Lon')
                 
                 plt.show()
+                
+                plt.plot(ring.et_t - np.amin(ring.et_t), ring.density_cum_t)
+                plt.title('Density (cumulative)')
+                plt.xlabel('ET')
+                plt.ylabel('Density Cum')
+                plt.show()
+                
+    self = ring
+                
                 
 # =============================================================================
 # Run the function
