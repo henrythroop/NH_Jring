@@ -74,7 +74,7 @@ class ring_flyby:
 # Set up the grid, and basic initialization.
 # =============================================================================
     
-    def __init__(self, num_pts_3d, gridspacing, frame, name_target):
+    def __init__(self, num_pts_3d, binsize_km_3d, frame, name_target):
 
         """
         Initialize the grid.
@@ -89,7 +89,7 @@ class ring_flyby:
                 The axes (XYZ) are the SPICE axes, in MRS's Sunflower frame. This is *not* the same as 
                 normal ring axes. For instance, to sum vertically, we sum in the __ direction, not Z.
                 
-            gridspacing:
+            binsize_km:
                 Tuple (dx, dy, dz) describing the binsize in each dirction. Each entry is the width, in km,
                 of a single bin.
             
@@ -115,9 +115,10 @@ class ring_flyby:
         
         # Define the grids
         
-        # NB: "_arr" always refers to a 3D array.
+        # NB: _arr refers to a 3D array.
+        #     _1d  refers to a 1D array.
         
-        self.numberdensity_arr = np.array(num_pts_3d) # Number of dust grains in this bin. Normalized somehow, not sure how.
+        self.numberdensity_arr = np.array(num_pts_3d) # Number of dust grains in this bin.
         self.azimuth_arr = np.array(num_pts_3d) # Azmuth angle. Not sure we need this. In body frame.
         self.radius_arr  = np.array(num_pts_3d) # Radius. This will be useful. In body frame.
         
@@ -129,9 +130,9 @@ class ring_flyby:
         
         # Define 1D arrays for xyz position
         
-        x_1d = hbt.frange(-n/2, n/2, n) * gridspacing[0]
-        y_1d = hbt.frange(-n/2, n/2, n) * gridspacing[1]
-        z_1d = hbt.frange(-n/2, n/2, n) * gridspacing[2]
+        x_1d = hbt.frange(-n/2, n/2, n) * binsize_km_3d[0]
+        y_1d = hbt.frange(-n/2, n/2, n) * binsize_km_3d[1]
+        z_1d = hbt.frange(-n/2, n/2, n) * binsize_km_3d[2]
         
         # Save the 1D arrays for future use
         
@@ -139,14 +140,18 @@ class ring_flyby:
         self.y_1d = y_1d
         self.z_1d = z_1d
         
-        # Define 3D arrays for xyz position
-        # Note that the LHS xyz order is opposite the RHS order. I don't know exactly why, but it has something
-        # to do with python array indexing order. In any event, the order below gives expected results
-        # for accessing an array with values    arr[x_index, y_index, z_index]
+#        x_1d = self.x_1d + 0
+#        y_1d = self.y_1d * 100
+#        z_1d = self.z_1d * -1
+#        
+        self.binsize_km_3d = binsize_km_3d
         
-#        (y_arr, x_arr, z_arr) = np.meshgrid(x, y, z)
-        
-        (self.y_arr, self.x_arr, self.z_arr) = np.meshgrid(x_1d, y_1d, z_1d)
+        # Define 3D arrays for xyz position. 
+        # Note that when using meshgrid, need to pass 'indexing' keyword -- otherwise first two axes are swapped.
+        # I don't quite understand it, but this works and documentation confirms it.
+        # This gives the expected results for accessing an array with values    arr[x_index, y_index, z_index]
+                
+        (self.x_arr, self.y_arr, self.z_arr) = np.meshgrid(x_1d, y_1d, z_1d, indexing = 'ij')  # Nominal
 
         # Define the radius (ie, distance from the center, 3D)
         # ** Do not confuse this with the ring radius!
@@ -159,38 +164,61 @@ class ring_flyby:
         radius_ring_arr = np.sqrt(self.x_arr**2 + self.z_arr**2)
         self.radius_ring_arr = radius_ring_arr
 
+        # Define the 'ring vertical' -- ie, distance from the midplane, relative to XZ plane.
+        
+        vertical_ring_arr = self.y_arr - np.mean(self.y_1d)
+        self.vertical_ring_arr = vertical_ring_arr
+        
+        ### Just some testing
+        
+        x_1d = hbt.frange(-10,10,21)
+        y_1d = hbt.frange(-100,100,21)
+        z_1d = hbt.frange(-1000,1000,21)
+        
+        (x_arr, y_arr, z_arr) = np.meshgrid(x_1d, y_1d, z_1d, indexing = 'xy')  # Testing
+               
+        return
                 
 # =============================================================================
 # Set up the ring itself
 # =============================================================================
 
-    def set_ring_parameters(self, file_profile_ring, albedo, q_dust):
+    def set_ring_parameters(self, file_profile_ring, albedo, q_dust, inclination):
         
         """
         Define the ring radial profile, size distribution, albedo, size dist, etc.
+        
+        Parameters
+        ----
+        
+        file_profile_ring:
+            Name of a text file which defines the ring's radial profile.
+            
+        albedo:
+            Float. Ring particle albedo.
+            
+        q_dust:
+            Float. Dust size distribution exponent. Positive. n(r) dr = r^(-q) dr
+            
+        inclination:
+            Float. Fraction (e.g., 0.1 = 10%)
+            
         """
         
-        # Read the radial profile
+        # Read the radial profile from file. We will load this into the 3D numberdensity_arr array.
         
-        t = Table.read(file_profile_ring, format = 'ascii')
-        radius_km  = t['RadiusKM']
-        IoF        = t['I/F']
-        radius_pix = t['RadiusPixels']
+        t               = Table.read(file_profile_ring, format = 'ascii')
         
-        # Extrapolate the radial profile to the right bins, and set it.
-        
-        bin_profile = np.digitize(radius_km, self.x_1d)
+        radius_km_file  = t['RadiusKM']
+        IoF_file        = t['I/F']
+        radius_pix_file = t['RadiusPixels']
         
         # Now, we need to loop over the value of radius_ring, in 1-pixel steps.
         # For each step, fill everything at that radius and outward with value from IoF.
         
-        # numberdensity = # of particles per cm3.
-        # It is the total number of particles, from min(self.r_dust) .. max(self.r_dust).
-        # It does not include a size distribution. 
-        
-        # Q: I could alternatively describe numberdensity as the # of particles in the smallest bin.
-        #    This seems mathematically easier.
-        #    *** I will choose this. 
+        # numberdensity = # of particles per km3.
+        # This is taken to be the # of particles for the smallest size in n(r).
+        # The entire size dist can be easily calculated from that.
         
         self.numberdensity_arr = self.radius_arr.copy()*0 
                 
@@ -198,40 +226,93 @@ class ring_flyby:
         
         radii = self.x_1d[self.x_1d > 0]  # Loop over the radius_ring in the output grid
         
-        for i,radius_i in enumerate(radii): # Radius is in km
-            is_good = self.radius_ring_arr > radius_i
-            self.numberdensity_arr[is_good] = IoF[ int(np.digitize(radius_i, self.x_1d)) ]
-                        
-        # Set the size distribution
-        # We set one size distribution for the entire ring. It is uniform and does not change spatially or temporally.
+        for radius_i in radii:                         # Loop over the radius_ring bin in the output grid 
+            is_good = self.radius_ring_arr >= radius_i # Flag all bins at or beyond current radial bin
+            self.numberdensity_arr[is_good] = IoF_file[ int(np.digitize(radius_i, radius_km_file)) ]
         
-        is_good = np.logical_and(self.radius_ring_arr > 5000, self.radius_ring_arr < 10000)
+        # We will normalize this later!
+        
+        # Now bring in the vertical profile.
+        # For each grid location, we want to calculate the value (vertical from midplane) / (radius_ring from center).
+        # If this is < 'inclination', then we set it to 1. Otherwise, 0.
 
-        # Save the albedo
+        is_good_vertical_arr = ((np.abs(self.vertical_ring_arr) / self.radius_ring_arr) < inclination).astype(float)
+
+        self.numberdensity_arr *= is_good_vertical_arr
+        self.inclination_ring = inclination
+        
+#        self.numberdensity_arr *= is_good[]
+#        verticalprofile_arr = 0d * self.numberdensity_arr
+#        verticalprofile_arr[is_good] = 1
+        
+        # Set the albedo
         
         self.albedo = albedo
                       
-        self.n_dust = []
-        self.r_dust = []
-        
-        # Define the size distribution
-        # We'll normalize it later if we need to. For now, just make it a power, law, spanning the bins.
+        # Define the size distribution. This size dist applies to the entire ring equally.
 
-        # We assume this size distribution to apply to the entire ring equally.
+        self.r_dust = []
+        self.n_dust = []
+        
+        # Define the bins as per MRS 28-Jan-2017. These are the fixed sizes we output for Doug Mehoke.
+        # Lower limit: 0.046 mm = 46 micron.
         
         r_dust = np.array([0.046, 0.1, 0.215, 0.46, 1, 2.15, 4.6])*u.mm.to('cm') # From MRS 28-Jan-2017
         
-#        r_dust_min = 0.1*u.micron.to('cm')
-#        r_dust_max = 5*u.mm.to('cm')         
-#        nbins_dust = 10
-#        r_dust = hbt.frange(0.1*u.micron.to('cm'), 5*u.mm.to('cm'), nbins_dust, log=True)
-        
+        # Make it a power law, spanning the bins.
+
         n_dust = r_dust**-q_dust
+        
+        # Normalize the size dist, s.t. smallest bin has exactly one particle.
+        # The ring itself is defined s.t. numberdensity_arr is the number of smallest-bin particles per km3.
+        
+        n_dust = n_dust / n_dust[0]
+        
+        # Save the n(r) where we can get it later
         
         self.r_dust = r_dust
         self.n_dust = n_dust
+    
+        return
+
+# =============================================================================
+# Normalize the ring population
+# =============================================================================
+
+    def normalize(IoF_max):
+        """
+        This changes numberdensity_arr s.t. I/F is the proper values.
+        """
         
+        num_radius = len(self.x_1d) / 2
         
+        index_center = int(num_radius)
+        
+        radius_ring = self.radius_ring_arr[index_center:,0,index_center]
+        
+        # Calculate the I/F formally. See TPW04 eq 1.
+        
+        mu  = 1.  # Assume a face-on ring, for sunflower
+
+        # Calculate the I/F along a vertical-radial slice in the Z-Y plane, from center outward 
+        
+        IoF = self.albedo * \
+              np.sum(math.pi * self.n_dust * self.r_dust**2) * \
+              self.numberdensity_arr[index_center:,:,index_center] / (4 * mu)
+
+        # Sum the I/F vertically
+        
+        IoF = np.sum(IoF, axis=1)
+        
+        # And normalize number density based on this
+        
+        self.numberdensity_arr *= (IoF_max / np.amax(IoF))
+        
+        # XXX NB: This is not yet finished! We still need to normalize based on the I/F of an optical ring.
+        # Most grains are not in the mm size, and this model glosses over that.
+        
+        return
+    
 # =============================================================================
 # Plot the ring radial profile
 # =============================================================================
@@ -262,7 +343,27 @@ class ring_flyby:
         
         # Flatten in the vertical direction.
         
-        IoF_2d = np.sum(IoF, axis=2)
+#        IoF_2d = np.sum(IoF, axis=2)
+        
+        # Make plot of radial profile
+        
+        plt.plot(radius_ring, IoF)
+        plt.xlabel('Radius [km]')
+        plt.ylabel('I/F [arbitrary]')
+        plt.show()
+        
+        # Make a plot of the edge profile
+        
+        is_populated_arr = (self.numberdensity_arr > 0).astype(int)
+        
+        plt.imshow(is_populated_arr[index_center,:,:], extent =[np.amin(self.x_1d), np.amax(self.x_1d), 
+                                                     np.amin(self.z_1d), np.amax(self.z_1d)])
+        plt.xlabel('Radius [km]')
+        plt.ylabel('Vertical [km]')
+    
+        plt.title('Edge Slice Profile, i = {}'.format(self.inclination_ring))
+#        plt.xlim((-10,10))
+        plt.show()
         
         # Plot the size distribution, just for fun
         
@@ -391,7 +492,7 @@ def do_ring_flyby():
     
     albedo              = [0.05]
     q_dust              = [2]
-    inclination_ring    = [0., 0.1]
+    inclination_ring    = [0.5]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
@@ -426,7 +527,10 @@ def do_ring_flyby():
     
     # Initialize the grid 
     
-    ring = ring_flyby((n_dx, n_dy, n_dz), (dx_bin, dy_bin, dz_bin), frame, name_target)
+    num_pts_3d    = (n_dx,   n_dy,   n_dz)
+    binsize_km_3d = (dx_bin, dy_bin, dz_bin)
+    
+    ring = ring_flyby(num_pts_3d, binsize_km_3d, frame, name_target)
 
     # Load the trajectory
 
@@ -446,8 +550,12 @@ def do_ring_flyby():
                 
                 # Set up the ring itself
                 
-                ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i)
+                ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i, inclination_i)
 
+                # Plot the ring profile
+                
+                ring.plot_radial_profile()
+                
                 # And fly through it
                 
                 ring.fly_trajectory(name_observer, et_start, et_end, dt)    
