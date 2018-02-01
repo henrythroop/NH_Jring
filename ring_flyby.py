@@ -253,6 +253,7 @@ class ring_flyby:
 
         self.r_dust = []
         self.n_dust = []
+        self.q_dust = q_dust
         
         # Define the bins as per MRS 28-Jan-2017. These are the fixed sizes we output for Doug Mehoke.
         # Lower limit: 0.046 mm = 46 micron.
@@ -279,7 +280,7 @@ class ring_flyby:
 # Normalize the ring population
 # =============================================================================
 
-    def normalize(IoF_max):
+    def normalize(self, IoF_max=2e-7):
         """
         This changes numberdensity_arr s.t. I/F is the proper values.
         """
@@ -307,6 +308,10 @@ class ring_flyby:
         # And normalize number density based on this
         
         self.numberdensity_arr *= (IoF_max / np.amax(IoF))
+        
+        # Convert this to number per km3, from number 
+        
+        self.numberdensity_arr *= ( ((1*u.km) / (1*u.cm)).to('1').value ) **3
         
         # XXX NB: This is not yet finished! We still need to normalize based on the I/F of an optical ring.
         # Most grains are not in the mm size, and this model glosses over that.
@@ -345,11 +350,20 @@ class ring_flyby:
         
 #        IoF_2d = np.sum(IoF, axis=2)
         
-        # Make plot of radial profile
+        # Make 2D plot of radial profile
         
         plt.plot(radius_ring, IoF)
         plt.xlabel('Radius [km]')
         plt.ylabel('I/F [arbitrary]')
+        plt.show()
+        
+        # Plot an image of the face-on ring
+        
+        plt.imshow(self.numberdensity_arr[:,index_center,:], extent =[np.amin(self.x_1d), np.amax(self.x_1d), 
+                                                     np.amin(self.z_1d), np.amax(self.z_1d)])
+        plt.title('Ring, Face on')
+        plt.xlabel('Z [km]')
+        plt.ylabel('X [km]')
         plt.show()
         
         # Make a plot of the edge profile
@@ -374,6 +388,31 @@ class ring_flyby:
         plt.yscale('log')
         plt.xscale('log')
         plt.show()
+
+# =============================================================================
+# Output the trajectory and particle intercept info to a file
+# =============================================================================
+    def output_trajectory(self):
+
+            # Do an ET calculation
+            
+        delta_et_t = self.et_t - np.mean(self.et_t)
+
+            # Create the table
+            
+        t = Table([self.et_t, delta_et_t, self.x_t, self.y_t, self.z_t], 
+                      names = ['ET', 'ET from CA', 'X [km]', 'Y [km]', 'Z [km]'])
+
+        for i in range(len(self.n_dust)):
+                t['n_{}, {:.3f} mm, # per km3'.format(i, self.r_dust[i])] = self.numberdensity_t * self.n_dust[i]
+            
+        file_out = 'mu69_hazard_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination_ring, self.albedo)
+            
+        t.write(file_out, format = 'ascii')
+            
+        print("Wrote: {}".format(file_out))
+         
+    
         
 # =============================================================================
 # Fly a trajectory through the ring and sample it
@@ -478,8 +517,10 @@ class ring_flyby:
         
         self.radius_t = radius_t  # This is distance from the center, in 3D coords. Not 'ring radius.'
         
-        return()
-        
+#        return()
+
+
+            
 # =============================================================================
 # END OF METHOD DEFINITION
 # =============================================================================
@@ -492,7 +533,7 @@ def do_ring_flyby():
     
     albedo              = [0.05]
     q_dust              = [2]
-    inclination_ring    = [0.5]
+    inclination_ring    = [0.1]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
@@ -509,7 +550,7 @@ def do_ring_flyby():
     
     name_observer = 'New Horizons'
     
-    dt = 10         # Sampling time through the flyby. Assumed to be seconds.
+    dt = 1         # Sampling time through the flyby. Assumed to be seconds.
 
     # Start up SPICE if needed
     
@@ -552,6 +593,8 @@ def do_ring_flyby():
                 
                 ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i, inclination_i)
 
+                ring.normalize()
+                
                 # Plot the ring profile
                 
                 ring.plot_radial_profile()
@@ -588,6 +631,8 @@ def do_ring_flyby():
                 plt.xlabel('ET')
                 plt.ylabel('Density Cum')
                 plt.show()
+                
+                ring.output_trajectory()
                 
     self = ring
                 
