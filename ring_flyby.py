@@ -183,7 +183,7 @@ class ring_flyby:
 # Set up the ring itself
 # =============================================================================
 
-    def set_ring_parameters(self, file_profile_ring, albedo, q_dust, inclination):
+    def set_ring_parameters(self, file_profile_ring, albedo, q_dust, inclination=None):
         
         """
         Define the ring radial profile, size distribution, albedo, size dist, etc.
@@ -201,7 +201,8 @@ class ring_flyby:
             Float. Dust size distribution exponent. Positive. n(r) dr = r^(-q) dr
             
         inclination:
-            Float. Fraction (e.g., 0.1 = 10%)
+            Float. Fraction (e.g., 0.1 = 10%). If None, then the ring takes the full vertical height of the box 
+            at all radii.
             
         """
         
@@ -212,6 +213,13 @@ class ring_flyby:
         radius_km_file  = t['RadiusKM']
         IoF_file        = t['I/F']
         radius_pix_file = t['RadiusPixels']
+        
+        IoF_file        = np.clip(IoF_file, 0, None)   # Clip values to be positive.
+
+        # Save the I/F values, in case we want to do a reality check later, or use them for normalization
+        
+        self.IoF_file       = IoF_file
+        self.radius_km_file = radius_km_file
         
         # Now, we need to loop over the value of radius_ring, in 1-pixel steps.
         # For each step, fill everything at that radius and outward with value from IoF.
@@ -235,15 +243,15 @@ class ring_flyby:
         # Now bring in the vertical profile.
         # For each grid location, we want to calculate the value (vertical from midplane) / (radius_ring from center).
         # If this is < 'inclination', then we set it to 1. Otherwise, 0.
+        # If no inclination is passed, then fill everything in the box.
 
-        is_good_vertical_arr = ((np.abs(self.vertical_ring_arr) / self.radius_ring_arr) < inclination).astype(float)
+        if (inclination):
+            
+            is_good_vertical_arr = ((np.abs(self.vertical_ring_arr) / self.radius_ring_arr) < inclination).astype(float)
 
-        self.numberdensity_arr *= is_good_vertical_arr
+            self.numberdensity_arr *= is_good_vertical_arr
+            
         self.inclination_ring = inclination
-        
-#        self.numberdensity_arr *= is_good[]
-#        verticalprofile_arr = 0d * self.numberdensity_arr
-#        verticalprofile_arr[is_good] = 1
         
         # Set the albedo
         
@@ -273,6 +281,7 @@ class ring_flyby:
         
         self.r_dust = r_dust
         self.n_dust = n_dust
+        
     
         return
 
@@ -313,8 +322,9 @@ class ring_flyby:
         
         self.numberdensity_arr *= ( ((1*u.km) / (1*u.cm)).to('1').value ) **3
         
-        # XXX NB: This is not yet finished! We still need to normalize based on the I/F of an optical ring.
-        # Most grains are not in the mm size, and this model glosses over that.
+        # XXX NB: This is not yet finished! We still need to normalize based on the particles that 
+        # Kaufmann / Hamilton see that actually exist. However, that is a second step. For now, 
+        # get the proper population here.
         
         return
     
@@ -392,27 +402,49 @@ class ring_flyby:
 # =============================================================================
 # Output the trajectory and particle intercept info to a file
 # =============================================================================
-    def output_trajectory(self):
+    def output_trajectory(self, do_positions=True):
 
-            # Do an ET calculation
+        """
+        Write an output table. The filename is auto-generated based on the parameters already supplied.
+        
+        Parameters
+        -----
+        do_positions:
+            If True, output three columns which describe the XYZ position of the spacecraft as function of time.
+        """
+        
+        # Create the table
+        
+        # We really don't care about fractional values on any of these. So, truncate everything
+        # to be an integer. There is no easy way to force all columns to print as int, so just do it manually.
+        
+        t = Table([np.array(self.et_t).astype(int), 
+                   np.array(self.delta_et_t).astype(int)], 
+                      names = ['ET', 'ET from CA'])
+
+        if do_positions:
+            t['X [km]'] = np.array(self.x_t).astype(int)
+            t['Y [km]'] = np.array(self.y_t).astype(int)
+            t['Z [km]'] = np.array(self.z_t).astype(int)
             
-        delta_et_t = self.et_t - np.mean(self.et_t)
-
-            # Create the table
-            
-        t = Table([self.et_t, delta_et_t, self.x_t, self.y_t, self.z_t], 
-                      names = ['ET', 'ET from CA', 'X [km]', 'Y [km]', 'Z [km]'])
-
         for i in range(len(self.n_dust)):
-                t['n_{}, {:.3f} mm, # per km3'.format(i, self.r_dust[i])] = self.numberdensity_t * self.n_dust[i]
-            
+                t['n_{}, {:.3f} mm, # per km3'.format(i, self.r_dust[i])] = \
+                                       np.array(self.numberdensity_t * self.n_dust[i]).astype(int)
+        
+
+        # Create the output filename
+        
         file_out = 'mu69_hazard_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination_ring, self.albedo)
+        if do_positions:
+            file_out = file_out.replace('.txt', '_pos.txt')
             
-        t.write(file_out, format = 'ascii')
+        # Write the file
+
+        t.write(file_out, format = 'ascii', overwrite=True)
             
         print("Wrote: {}".format(file_out))
          
-    
+        return
         
 # =============================================================================
 # Fly a trajectory through the ring and sample it
@@ -433,9 +465,13 @@ class ring_flyby:
         
         # Set up the output time array
         
-        num = math.ceil( (et_end - et_start) / dt )
+        num = math.ceil( (et_end - et_start) / dt ) + 1
         
         et_t = hbt.frange(int(et_start), int(et_end), num)
+        
+        # Calc offset in DT from C/A time
+            
+        delta_et_t = et_t - np.mean(et_t)
         
         # Loop over et
         
@@ -503,7 +539,8 @@ class ring_flyby:
         # Save all variables so they can be retrieved
         
         self.radius_t      = radius_t
-        self.et_t          = et_t        
+        self.et_t          = et_t
+        self.delta_et_t    = delta_et_t
         self.bin_x_t       = bin_x_t
         self.bin_y_t       = bin_y_t
         self.bin_z_t       = bin_z_t
@@ -533,12 +570,12 @@ def do_ring_flyby():
     
     albedo              = [0.05]
     q_dust              = [2]
-    inclination_ring    = [0.1]
+    inclination_ring    = [None]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
- # This defines I/F as a function of orbital distance.
-                                       # n(r) and q are then derived from I/F and albedo.
+# This defines I/F as a function of orbital distance.
+# n(r) and q are then derived from I/F and albedo.
     
     utc_ca = '2019 1 Jan 05:33:00'
     dt_before = 1*u.hour
@@ -575,7 +612,8 @@ def do_ring_flyby():
 
     # Load the trajectory
 
-    et_ca = sp.utc2et(utc_ca)
+    et_ca = int( sp.utc2et(utc_ca) )  # Force this to be an integer, just to make output cleaner.
+    
     et_start = et_ca - dt_before.to('s').value
     et_end   = et_ca + dt_after.to('s').value
     
