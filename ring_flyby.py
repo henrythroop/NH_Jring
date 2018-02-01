@@ -118,7 +118,7 @@ class ring_flyby:
         # NB: _arr refers to a 3D array.
         #     _1d  refers to a 1D array.
         
-        self.numberdensity_arr = np.array(num_pts_3d) # Number of dust grains in this bin.
+        self.number_arr = np.array(num_pts_3d) # Number of dust grains in this bin.
         self.azimuth_arr = np.array(num_pts_3d) # Azmuth angle. Not sure we need this. In body frame.
         self.radius_arr  = np.array(num_pts_3d) # Radius. This will be useful. In body frame.
         
@@ -206,7 +206,7 @@ class ring_flyby:
             
         """
         
-        # Read the radial profile from file. We will load this into the 3D numberdensity_arr array.
+        # Read the radial profile from file. We will load this into the 3D number_arr array.
         
         t               = Table.read(file_profile_ring, format = 'ascii')
         
@@ -224,20 +224,19 @@ class ring_flyby:
         # Now, we need to loop over the value of radius_ring, in 1-pixel steps.
         # For each step, fill everything at that radius and outward with value from IoF.
         
-        # numberdensity = # of particles per km3.  ← Or perhaps: Number of particles in the bin, period.
+        # number = # of particles in the bin, period.
         # This is taken to be the # of particles for the smallest size in n(r).
         # The entire size dist can be easily calculated from that.
         
-        self.numberdensity_arr = np.zeros(np.shape(self.radius_arr)) # Keep this one unitless.
+        self.number_arr = np.zeros(np.shape(self.radius_arr)) # Keep this one unitless.
                                                 
-                
         # Get the positive x values. Use these as the radial bins to loop over
         
         radii = self.x_1d[self.x_1d > 0]  # Loop over the radius_ring in the output grid
         
         for radius_i in radii:                         # Loop over the radius_ring bin in the output grid 
             is_good = self.radius_ring_arr >= radius_i # Flag all bins at or beyond current radial bin
-            self.numberdensity_arr[is_good] = IoF_file[ int(np.digitize(radius_i, radius_km_file)) ]
+            self.number_arr[is_good] = IoF_file[ int(np.digitize(radius_i, radius_km_file)) ]
         
         # We will normalize this later!
         
@@ -250,7 +249,7 @@ class ring_flyby:
             
             is_good_vertical_arr = ((np.abs(self.vertical_ring_arr) / self.radius_ring_arr) < inclination).astype(float)
 
-            self.numberdensity_arr *= is_good_vertical_arr
+            self.number_arr *= is_good_vertical_arr
             
         self.inclination_ring = inclination
         
@@ -275,7 +274,7 @@ class ring_flyby:
         n_dust = (r_dust.value)**-q_dust
         
         # Normalize the size dist, s.t. smallest bin has exactly one particle.
-        # The ring itself is defined s.t. numberdensity_arr is the number of smallest-bin particles per km3.
+        # The ring itself is defined s.t. number_arr is the number of smallest-bin particles per km3.
         
         n_dust = n_dust / n_dust[0]
         
@@ -292,45 +291,14 @@ class ring_flyby:
 
     def normalize(self, IoF_max=2e-7):
         """
-        This changes numberdensity_arr s.t. I/F is the proper values.
+        This changes number_arr s.t. I/F is the proper values.
         """
         
         (radius_ring, IoF) = self.get_radial_profile()
-
-        
-#        num_radius = len(self.x_1d) / 2
-#        
-#        index_center = int(num_radius)
-#        
-#        radius_ring = self.radius_ring_arr[index_center:,0,index_center]
-#        
-#        # Calculate the I/F formally. See TPW04 eq 1.
-#        
-#        mu  = 1.  # Assume a face-on ring, for sunflower
-#
-#        # Calculate the I/F along a vertical-radial slice in the Z-Y plane, from center outward 
-#        # This does all the unit conversions automatically.
-#        # This includes just the smallest particle.
-#        
-#        # This assumes numberdensity_arr = # of grains in the box, period.
-#        
-#        IoF = self.albedo * \
-#              np.sum(math.pi * self.n_dust[0] * self.r_dust[0]**2) * \
-#              self.numberdensity_arr[index_center:,:,index_center] / \
-#              (self.binsize_3d[0] * self.binsize_3d[2]) / \
-#              (4 * mu)
-#
-#        # I/F should be unitless, so put it back that way
-#        
-#        IoF = IoF.to(1).value
-#        
-#        # Sum the I/F vertically
-#        
-#        IoF = np.sum(IoF, axis=1)
         
         # And normalize number density based on this
         
-        self.numberdensity_arr *= (np.amax(self.IoF_file) / np.amax(IoF))
+        self.number_arr *= (np.amax(self.IoF_file) / np.amax(IoF))
         
         # XXX NB: This is not yet finished! We still need to normalize based on the particles that 
         # Kaufmann / Hamilton see that actually exist. However, that is a second step. For now, 
@@ -345,7 +313,7 @@ class ring_flyby:
     def get_radial_profile(self):
 
         """
-        Return a radial profile.
+        Return a radial profile - that is, I/F vs distance.
         
         Returns a tuple with (radius, I/F)
         """
@@ -366,11 +334,12 @@ class ring_flyby:
         # This does all the unit conversions automatically.
         # This includes just the smallest particle.
         
-        IoF = self.albedo * \
-              np.sum(math.pi * self.n_dust[0] * self.r_dust[0]**2) * \
-              self.numberdensity_arr[index_center_x,:,:] / \
-              (self.binsize_3d[0] * self.binsize_3d[2]) / \
-              (4 * mu)
+        IoF = (self.albedo * \
+               np.sum(math.pi * self.n_dust[0] * self.r_dust[0]**2) * 
+               self.number_arr[index_center_x,:,:] / 
+               (self.binsize_3d[0] * self.binsize_3d[2]) / 
+               (4 * mu) )
+        
         IoF = IoF.to(1).value
         
         IoF_profile = np.sum(IoF, axis=0)
@@ -403,7 +372,7 @@ class ring_flyby:
 #        
 #        radius_ring = self.radius_ring_arr[index_center:,0,index_center]
 #        
-#        IoF = self.albedo * np.sum(self.n_dust * self.r_dust**2) * self.numberdensity_arr[index_center:,0,index_center]
+#        IoF = self.albedo * np.sum(self.n_dust * self.r_dust**2) * self.number_arr[index_center:,0,index_center]
         
         # Flatten in the vertical direction.
         
@@ -420,7 +389,10 @@ class ring_flyby:
         
         # Plot an image of the face-on ring
         
-        plt.imshow(self.numberdensity_arr[:,index_center,:], extent =
+        index_center_y = int(len(self.y_1d)/2)
+        index_center_x = int(len(self.x_1d)/2)
+        
+        plt.imshow(self.number_arr[:,index_center_y,:], extent =
                                             [np.amin(self.x_1d.to('km').value), np.amax(self.x_1d.to('km').value), 
                                              np.amin(self.z_1d.to('km').value), np.amax(self.z_1d.to('km').value)])
         plt.title('Ring, Face on')
@@ -430,9 +402,9 @@ class ring_flyby:
         
         # Make a plot of the edge profile
         
-        is_populated_arr = (self.numberdensity_arr > 0).astype(int)
+        is_populated_arr = (self.number_arr > 0).astype(int)
         
-        plt.imshow(is_populated_arr[index_center,:,:], extent =
+        plt.imshow(is_populated_arr[index_center_x,:,:], extent =
                                             [np.amin(self.x_1d.to('km').value), np.amax(self.x_1d.to('km').value), 
                                              np.amin(self.z_1d.to('km').value), np.amax(self.z_1d.to('km').value)])
                    
@@ -455,6 +427,7 @@ class ring_flyby:
 # =============================================================================
 # Output the trajectory and particle intercept info to a file
 # =============================================================================
+        
     def output_trajectory(self, do_positions=True):
 
         """
@@ -488,7 +461,7 @@ class ring_flyby:
         
         for i in range(len(self.n_dust)):
                 t['n_{}, {:.3f} mm, # per km3'.format(i, self.r_dust[i])] = \
-                                       np.array(self.numberdensity_t * self.n_dust[i] / binvol_km3).astype(int)
+                                       np.array(self.number_t * self.n_dust[i] / binvol_km3).astype(int)
         
         # Create the output filename
         
@@ -508,9 +481,16 @@ class ring_flyby:
 # Fly a trajectory through the ring and sample it
 # =============================================================================
         
-    def fly_trajectory(self, name_observer, et_start, et_end, dt):
+    def fly_trajectory(self, name_observer, et_start, et_end, dt, area=None):
         """
         Now that all parameters are set, sample the ring along a flight path.
+        
+        Parameters
+        ----
+        
+        area:
+            If passed, use this as a surface area. The cumulative particle number will be calculated based on this.
+            
         """
     
         # Save the passed-in parameters in case we need them 
@@ -583,16 +563,31 @@ class ring_flyby:
         # Now that we have all the XYZ bins that the s/c travels in, get the density for each one.
         # We should be able to do this vectorized -- but can't figure it out, so using a loop.
         
-        numberdensity_t = 0. * et_t
+        number_t = 0. * et_t
         
         for i in range(len(et_t)):
-            numberdensity_t[i] = self.numberdensity_arr[bin_x_t[i], bin_y_t[i], bin_z_t[i]]
+            number_t[i] = self.number_arr[bin_x_t[i], bin_y_t[i], bin_z_t[i]]
 
         # ** This gives us number density at the smallest binsize. We then need to apply n(r), to get 
         # density at all other bin sizes.
         # Make a cumulative sum of the density. We don't need this -- Doug Mehoke will make his own -- but for testing.
         
-        numberdensity_cum_t       = np.cumsum(numberdensity_t)
+        if (area):
+        
+            # Get the binvolume, in km3, as an integer
+        
+            binvol = (self.binsize_3d[0] * self.binsize_3d[1] * self.binsize_3d[2])
+        
+            # Calc the fraction of the bin volume that the s/c sweeps up during its passage. 
+            # This could be off by a factor of sqrt(2), depending on how we fly thru the bin. But it's close.
+            
+            fracvol = ( (area * self.binsize_3d[0]) / (binvol) ).to(1).value
+            
+            number_cum_t = np.cumsum(number_t * fracvol)
+
+        else:
+            
+            number_cum_t       = np.cumsum(number_t)
                             
         # Save all variables so they can be retrieved
         
@@ -602,8 +597,8 @@ class ring_flyby:
         self.bin_x_t       = bin_x_t
         self.bin_y_t       = bin_y_t
         self.bin_z_t       = bin_z_t
-        self.numberdensity_t = numberdensity_t
-        self.numberdensity_cum_t = numberdensity_cum_t
+        self.number_t      = number_t
+        self.number_cum_t  = number_cum_t
         self.lon_t         = lon_t
         self.lat_t         = lat_t
         self.x_t           = x_t
@@ -613,8 +608,6 @@ class ring_flyby:
         self.radius_t = radius_t  # This is distance from the center, in 3D coords. Not 'ring radius.'
         
 #        return()
-
-
             
 # =============================================================================
 # END OF METHOD DEFINITION
@@ -628,7 +621,7 @@ def do_ring_flyby():
     
     albedo              = [0.05]
     q_dust              = [2]
-    inclination_ring    = [None]
+    inclination_ring    = [0.1]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
@@ -639,6 +632,8 @@ def do_ring_flyby():
     dt_before = 1*u.hour
     dt_after  = 1*u.hour
     
+    area_sc = (1*u.m)**2
+
     frame = '2014_MU69_SUNFLOWER_ROT'
     
     name_target = 'MU69'
@@ -693,7 +688,6 @@ def do_ring_flyby():
                 ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i, inclination_i)
 
                 ring.normalize()
-
                 
                 # Plot the ring profile
                 
@@ -701,7 +695,7 @@ def do_ring_flyby():
                 
                 # And fly through it
                 
-                ring.fly_trajectory(name_observer, et_start, et_end, dt)    
+                ring.fly_trajectory(name_observer, et_start, et_end, dt, area_sc)
                 
                 # Write the trajectory to a file, plot it, etc.
                 
@@ -719,14 +713,21 @@ def do_ring_flyby():
                 
                 plt.show()
 
-                plt.subplot(2,1,1)                
-                plt.plot(ring.et_t - np.amin(ring.et_t), ring.numberdensity_cum_t)
-                plt.title('Number Density (cumulative)')
+#                plt.subplot(2,1,1)                
+                plt.plot(ring.delta_et_t, ring.number_cum_t)
+                for i,r_dust_i in enumerate(self.r_dust):
+                    plt.plot(ring.delta_et_t, ring.number_cum_t * ring.n_dust[i],
+                             label = 'r={}'.format(r_dust_i))
+                plt.legend()    
+                plt.title('Number of Impacts (cumulative), A = {}'.format(area))
                 plt.xlabel('ET')
-                plt.ylabel('Density Cum')
+                plt.yscale('log')
+                plt.ylabel('# of Impacts')
+                plt.axhline(y = 1, linestyle = '--', alpha = 0.1)    
+                plt.show()
 
                 plt.subplot(2,1,2)
-                plt.plot(ring.et_t - np.amin(ring.et_t), ring.numberdensity_t)
+                plt.plot(ring.et_t - np.amin(ring.et_t), ring.number_t)
                 plt.title('Density')
                 plt.xlabel('ET')
                 plt.ylabel('Density Cum')
