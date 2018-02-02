@@ -91,7 +91,8 @@ class ring_flyby:
                 
             binsize_3d:
                 Tuple (dx, dy, dz) describing the binsize in each dirction. Each entry is the width
-                of a single bin. Requires units (e.g., u.km)
+                of a single bin. Requires units (e.g., u.km). **NB: XYZ sizes are tracked separately, but
+                currently the code assumes internally that they are all equal (square bins)**
             
             frame:
                 The name of the SPICE frame (e.g., '2014_MU69_SUNFLOWER_ROT')
@@ -100,7 +101,7 @@ class ring_flyby:
                 The name of the body (e.g., 'MU69')
                 
             q_dust:
-                Power law exponent of the dust size distribution: n(r) dr = r^(-q) dr
+                Power law exponent of the dust size distribution. Should be positive. : n(r) dr = r^(-q) dr
             
         """
         
@@ -240,16 +241,32 @@ class ring_flyby:
         
         # We will normalize this later!
         
-        # Now bring in the vertical profile.
+        # Now bring in the vertical profile. We want to make a simple flared disk, with a linear profile to edges.
         # For each grid location, we want to calculate the value (vertical from midplane) / (radius_ring from center).
-        # If this is < 'inclination', then we set it to 1. Otherwise, 0.
-        # If no inclination is passed, then fill everything in the box.
+        # If this is < 'inclination', then we set it to 1. Otherwise, 0. We use 0/1 to flag which pixels to include.
+        # 
+        # Then, for each vertical column in the disk (from N-S pole, which is Y axis of array), we count up how 
+        # many pixels we are including, and weight each one appropriately, so that the vertical sum thru each point
+        # is the same, regardless of what inclination we choose.
 
         if (inclination):
+            nx = len(self.x_1d)
+            ny = len(self.y_1d)
+            nz = len(self.z_1d)
             
             is_good_vertical_arr = ((np.abs(self.vertical_ring_arr) / self.radius_ring_arr) < inclination).astype(float)
 
-            self.number_arr *= is_good_vertical_arr
+            weighting_2d = np.sum(is_good_vertical_arr,axis=1) # Count how many good pixels there are in each vertical
+
+            weighting_2d[weighting_2d == 0] = 1                # To avoid NaN, set any pixels of 0 → 1.
+                                                               # These will be at the center, so doesn't change 
+                                                               # results by very much.
+            
+            weighting_3d = np.tile((1/weighting_2d).reshape(nx,1,nz), (1,ny,1)) # Expand this 2D array into 3D
+            
+            weighting_3d *= is_good_vertical_arr # Now that we've computed the weighting, apply the 0/1 mask.
+            
+            self.number_arr *= weighting_3d      # And finally apply this weighting+mask to the original array
             
         self.inclination_ring = inclination
         
@@ -358,27 +375,7 @@ class ring_flyby:
         Also might plot vertical profile, or other slices through it.
         """
         
-        # What we want to plot is the radial profile, in terms of I/F.
-        
-        # We now want to take a radial slice. This will let us plot the I/F.
-        
-        # We use that to then normalize s.t. 'density' is correct, and I/F matches given.
-        
-        # Then, we output values of 'density' along the path.
-        
-#        num_radius = len(self.x_1d) / 2
-#        
-#        index_center = int(num_radius)
-#        
-#        radius_ring = self.radius_ring_arr[index_center:,0,index_center]
-#        
-#        IoF = self.albedo * np.sum(self.n_dust * self.r_dust**2) * self.number_arr[index_center:,0,index_center]
-        
-        # Flatten in the vertical direction.
-        
-#        IoF_2d = np.sum(IoF, axis=2)
-        
-        # Make 2D plot of radial profile
+        # Make 2D plot of radial profile vs I/F
         
         (radius_ring, IoF) = self.get_radial_profile()
         
@@ -389,15 +386,22 @@ class ring_flyby:
         
         # Plot an image of the face-on ring
         
+        plt.subplot(1,2,1)
         index_center_y = int(len(self.y_1d)/2)
         index_center_x = int(len(self.x_1d)/2)
-        
-        plt.imshow(self.number_arr[:,index_center_y,:], extent =
-                                            [np.amin(self.x_1d.to('km').value), np.amax(self.x_1d.to('km').value), 
-                                             np.amin(self.z_1d.to('km').value), np.amax(self.z_1d.to('km').value)])
-        plt.title('Ring, Face on')
+       
+        extent = [np.amin(self.x_1d.to('km').value), np.amax(self.x_1d.to('km').value), 
+                  np.amin(self.z_1d.to('km').value), np.amax(self.z_1d.to('km').value)]
+       
+        plt.imshow(self.number_arr[:,index_center_y,:], extent=extent)
+                   
+        plt.title('Ring, Middle Slice')
         plt.xlabel('Z [km]')
         plt.ylabel('X [km]')
+        
+        plt.subplot(1,2,2)
+        plt.imshow(np.sum(self.number_arr, axis=1), extent=extent)
+        plt.title('Ring, Vertical Sum')
         plt.show()
         
         # Make a plot of the edge profile
@@ -428,7 +432,7 @@ class ring_flyby:
 # Output the trajectory and particle intercept info to a file
 # =============================================================================
         
-    def output_trajectory(self, do_positions=True):
+    def output_trajectory(self, str=None, do_positions=True):
 
         """
         Write an output table. The filename is auto-generated based on the parameters already supplied.
@@ -437,6 +441,8 @@ class ring_flyby:
         -----
         do_positions:
             If True, output three columns which describe the XYZ position of the spacecraft as function of time.
+        str:
+            A string to be inserted into the filename, as part of the filename.
         """
         
         # Create the table
@@ -468,6 +474,8 @@ class ring_flyby:
         file_out = 'mu69_hazard_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination_ring, self.albedo)
         if do_positions:
             file_out = file_out.replace('.txt', '_pos.txt')
+        if (str):
+            file_out = file_out.replace('.txt', str + '.txt')
             
         # Write the file
 
@@ -481,15 +489,21 @@ class ring_flyby:
 # Fly a trajectory through the ring and sample it
 # =============================================================================
         
-    def fly_trajectory(self, name_observer, et_start, et_end, dt, area=None):
+    def fly_trajectory(self, name_observer, et_start, et_end, dt, area):
         """
         Now that all parameters are set, sample the ring along a flight path.
         
         Parameters
         ----
         
+        et_start:
+            
+        et_end:
+        
+        dt:
+            
         area:
-            If passed, use this as a surface area. The cumulative particle number will be calculated based on this.
+            S/C surface area. The cumulative particle number will be calculated based on this. Must be in astropy units.
             
         """
     
@@ -523,7 +537,6 @@ class ring_flyby:
         bin_x_t  = []
         bin_y_t  = []
         bin_z_t  = []
-        
         
         for i,et_i in enumerate(et_t):
 #            (st, lt) = sp.spkezr(self.name_target, et_i, 'J2000', self.abcorr, self.name_observer)  
@@ -570,25 +583,28 @@ class ring_flyby:
 
         # ** This gives us number density at the smallest binsize. We then need to apply n(r), to get 
         # density at all other bin sizes.
-        # Make a cumulative sum of the density. We don't need this -- Doug Mehoke will make his own -- but for testing.
+        # Make a cumulative sum of the density. We don't really need this, but just for fun.
         
-        if (area):
+        number_cum_t       = np.cumsum(number_t)
+    
+        # Now for fun, calculate the number of grains that intercept a s/c of a given area.
+        # We do this calc very crudely, just by taking the area of s/c vs area of a bin edge. We are ignoring
+        # the slant path of the s/c, so we could underestimate the flux by up to sqrt(3).
         
-            # Get the binvolume, in km3, as an integer
+        # Calc the fraction of the bin volume that the s/c sweeps up during its passage. 
         
-            binvol = (self.binsize_3d[0] * self.binsize_3d[1] * self.binsize_3d[2])
+        # Get the binvolume, in km3, as an integer
+    
+        binvol = (self.binsize_3d[0] * self.binsize_3d[1] * self.binsize_3d[2])
+    
+        # Calc the fractional ratio between volume of a bin, and volume that s/c sweeps up in its path thru the bin.
         
-            # Calc the fraction of the bin volume that the s/c sweeps up during its passage. 
-            # This could be off by a factor of sqrt(2), depending on how we fly thru the bin. But it's close.
-            
-            fracvol = ( (area * self.binsize_3d[0]) / (binvol) ).to(1).value
-            
-            number_cum_t = np.cumsum(number_t * fracvol)
+        fracvol = ( (area * self.binsize_3d[0]) / (binvol) ).to(1).value
 
-        else:
+        number_sc_t = number_t * fracvol
+        
+        number_sc_cum_t = np.cumsum(number_sc_t)
             
-            number_cum_t       = np.cumsum(number_t)
-                            
         # Save all variables so they can be retrieved
         
         self.radius_t      = radius_t
@@ -598,6 +614,8 @@ class ring_flyby:
         self.bin_y_t       = bin_y_t
         self.bin_z_t       = bin_z_t
         self.number_t      = number_t
+        self.number_sc_t   = number_sc_t
+        self.number_sc_cum_t=number_sc_cum_t
         self.number_cum_t  = number_cum_t
         self.lon_t         = lon_t
         self.lat_t         = lat_t
@@ -614,14 +632,15 @@ class ring_flyby:
 # =============================================================================
     
 # =============================================================================
-# The main function to call to run the simulation
+# The main function to call to run the simulation.
+# This is an example usage of the method.        
 # =============================================================================
     
 def do_ring_flyby():
     
-    albedo              = [0.05]
+    albedo              = [0.5]
     q_dust              = [2]
-    inclination_ring    = [0.8]
+    inclination_ring    = [None]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
@@ -640,12 +659,16 @@ def do_ring_flyby():
     
     name_observer = 'New Horizons'
     
+#    orbit = 'alternate'  # Can be 'prime' or 'alternate'
+    orbit = 'prime'  # Can be 'prime' or 'alternate'
+    
     dt = 1         # Sampling time through the flyby. Assumed to be seconds.
 
-    # Start up SPICE if needed
+    # Start up SPICE if needed. 
+    # Note that if we change the name of the kernel file, we need to restart python to have the new one loaded.
     
     if (sp.ktotal('ALL') == 0):
-        sp.furnsh('kernels_kem.tm')
+        sp.furnsh(f'kernels_kem_{orbit}.tm')
     
     # Define the number of grid locations on each side.
     
@@ -655,6 +678,7 @@ def do_ring_flyby():
     
     dx_bin = dy_bin = dz_bin = 250*u.km  # Distances are km. Not worth tracking the units. Consistent with SPICE.
                                          # XXX Wiki said 25 km, but should be 250.
+                                         # XYZ sizes are tracked separately, but really should be identical.
     
     # Initialize the grid 
     
@@ -682,7 +706,6 @@ def do_ring_flyby():
                 q_dust_i = q_dust[0]
                 inclination_i = inclination_ring[0]
  
-               
                 # Set up the ring itself
                 
                 ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i, inclination_i)
@@ -697,45 +720,58 @@ def do_ring_flyby():
                 
                 ring.fly_trajectory(name_observer, et_start, et_end, dt, area_sc)
                 
-                # Write the trajectory to a file, plot it, etc.
+                # Make a few diagnostics plots of our path through the system
                 
                 plt.subplot(2,2,1)
-                plt.plot(ring.radius_t)
+                plt.plot(ring.delta_et_t, ring.radius_t)
+                plt.ylim((0,np.amax(ring.radius_t)))
                 plt.title('Radius')
+                plt.show()
                 
                 plt.subplot(2,2,2)
-                plt.plot(ring.lat_t)
+                plt.plot(ring.delta_et_t, ring.lat_t)
                 plt.title('Lat')
                 
                 plt.subplot(2,2,3)
-                plt.plot(ring.lon_t)
+                plt.plot(ring.delta_et_t, ring.lon_t)
                 plt.title('Lon')
                 
                 plt.show()
 
-#                plt.subplot(2,1,1)                
-                plt.plot(ring.delta_et_t, ring.number_cum_t)
+                # Make a plot of the instantaneous count rate
+
+                plt.plot(ring.delta_et_t, ring.number_sc_t)
+                plt.title('Number of Impacts per sec, A={}, i={}'.format(area_sc, inclination_i))
                 for i,r_dust_i in enumerate(self.r_dust):
-                    plt.plot(ring.delta_et_t, ring.number_cum_t * ring.n_dust[i],
+                    plt.plot(ring.delta_et_t, ring.number_sc_t * ring.n_dust[i],
+                             label = 'r={}'.format(r_dust_i))
+                plt.yscale('log')    
+                plt.xlabel('ET')
+                plt.legend()
+                plt.ylabel('# of Impacts per sec')
+                plt.show()
+
+                # Make a plot of the cumulative count rate
+                
+                plt.plot(ring.delta_et_t, ring.number_sc_cum_t)
+                for i,r_dust_i in enumerate(self.r_dust):
+                    plt.plot(ring.delta_et_t, ring.number_sc_cum_t * ring.n_dust[i],
                              label = 'r={}'.format(r_dust_i))
                 plt.legend()    
-                plt.title('Number of Impacts (cumulative), A = {}'.format(area))
+                plt.title('Number of Impacts (cumulative), A={}, i={}'.format(area_sc, inclination_i))
                 plt.xlabel('ET')
                 plt.yscale('log')
                 plt.ylabel('# of Impacts')
                 plt.axhline(y = 1, linestyle = '--', alpha = 0.1)    
                 plt.show()
 
-                plt.subplot(2,1,2)
-                plt.plot(ring.et_t - np.amin(ring.et_t), ring.number_t)
-                plt.title('Density')
-                plt.xlabel('ET')
-                plt.ylabel('Density Cum')
-                plt.show()
+                # Output the dust population to a file
                 
-                ring.output_trajectory(do_positions=False)
+                ring.output_trajectory(str=f'_{orbit}', do_positions=False)
                 
+                # Print some diagnostics
                 
+                print(f"Total number of particles={np.sum(self.number_arr)}")
                 
 # =============================================================================
 # Run the function
