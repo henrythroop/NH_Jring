@@ -466,7 +466,7 @@ class ring_flyby:
         # For each bin, output the # of particles, divided by the bin volume, to get particles/km3.
         
         for i in range(len(self.n_dust)):
-                t['n_{}, {:.3f} mm, # per km3'.format(i, self.r_dust[i])] = \
+                t['n_{}, {:.3f}, # per km3'.format(i, self.r_dust[i])] = \
                                        np.array(self.number_t * self.n_dust[i] / binvol_km3).astype(int)
         
         # Create the output filename
@@ -531,6 +531,7 @@ class ring_flyby:
         x_t      = []
         y_t      = []
         z_t      = []
+        v_t      = [] # Velocity
         lon_t    = []
         lat_t    = []
         density_t= []
@@ -559,7 +560,9 @@ class ring_flyby:
             x_t.append(st[0])
             y_t.append(st[1])
             z_t.append(st[2])
-        
+            
+            v_t.append( sp.vnorm(st[3:6]) * u.km/u.s )
+                
         # Convert into bin values. This is vectorized.
         # ** If values exceed the largest bin, then the index returned will be too large for the density lookup!
         
@@ -594,13 +597,16 @@ class ring_flyby:
         # Calc the fraction of the bin volume that the s/c sweeps up during its passage. 
         
         # Get the binvolume, in km3, as an integer
-    
+        
+        
         binvol = (self.binsize_3d[0] * self.binsize_3d[1] * self.binsize_3d[2])
     
         # Calc the fractional ratio between volume of a bin, and volume that s/c sweeps up in its path thru the bin.
         
-        fracvol = ( (area * self.binsize_3d[0]) / (binvol) ).to(1).value
+        fracvol = ( (area * self.vt[iXX]) / (binvol) ).to(1).value
 
+# XXX BUG: this should not be area * binsize, but area * velocity * dt
+    
         number_sc_t = number_t * fracvol
         
         number_sc_cum_t = np.cumsum(number_sc_t)
@@ -622,6 +628,7 @@ class ring_flyby:
         self.x_t           = x_t
         self.y_t           = y_t
         self.z_t           = z_t
+        self.v_t           = v_t
         
         self.radius_t = radius_t  # This is distance from the center, in 3D coords. Not 'ring radius.'
         
@@ -638,9 +645,9 @@ class ring_flyby:
     
 def do_ring_flyby():
     
-    albedo              = [0.5]
-    q_dust              = [2]
-    inclination_ring    = [None]
+    albedo              = [0.05,0.5]
+    q_dust              = [2, 3, 4]
+    inclination_ring    = [0.1, 0.01, 0.5]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
@@ -702,9 +709,9 @@ def do_ring_flyby():
         for q_dust_i in q_dust:
             for inclination_i in inclination_ring:
     
-                albedo_i = albedo[0]
-                q_dust_i = q_dust[0]
-                inclination_i = inclination_ring[0]
+#                albedo_i = albedo[0]
+#                q_dust_i = q_dust[0]
+#                inclination_i = inclination_ring[0]
  
                 # Set up the ring itself
                 
