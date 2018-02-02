@@ -621,7 +621,7 @@ def do_ring_flyby():
     
     albedo              = [0.05]
     q_dust              = [2]
-    inclination_ring    = [0.1]
+    inclination_ring    = [0.8]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
@@ -733,7 +733,7 @@ def do_ring_flyby():
                 plt.ylabel('Density Cum')
                 plt.show()
                 
-                ring.output_trajectory()
+                ring.output_trajectory(do_positions=False)
                 
                 
                 
