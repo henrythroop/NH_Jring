@@ -432,7 +432,7 @@ class ring_flyby:
 # Output the trajectory and particle intercept info to a file
 # =============================================================================
         
-    def output_trajectory(self, str=None, do_positions=True):
+    def output_trajectory(self, suffix=None, do_positions=True):
 
         """
         Write an output table. The filename is auto-generated based on the parameters already supplied.
@@ -471,17 +471,35 @@ class ring_flyby:
         
         # Create the output filename
         
+        dir_out = 'out'
+        
         file_out = 'mu69_hazard_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination_ring, self.albedo)
         if do_positions:
             file_out = file_out.replace('.txt', '_pos.txt')
-        if (str):
+        if (suffix):
             file_out = file_out.replace('.txt', str + '.txt')
             
         # Write the file
 
-        t.write(file_out, format = 'ascii', overwrite=True)
+        path_out = os.path.join(dir_out, file_out)
+        
+        do_write_astropy = False
+        
+        if do_write_astropy:
             
-        print("Wrote: {}".format(file_out))
+            t.write(path_out, format = 'ascii', overwrite=True)
+            print("Wrote: {} using astropy writer".format(path_out))
+
+        else:
+
+            header = repr( np.concatenate(([0], self.r_dust.to('mm').value)) )
+            lun = open(path_out, "w")
+            lun.write(header)
+            for line in t:
+                lun.write(line)
+            lun.close()
+            print("Wrote: {} using manual writer".format(path_out))
+           
          
         return
         
@@ -517,7 +535,7 @@ class ring_flyby:
         
         # Set up the output time array
         
-        num = math.ceil( (et_end - et_start) / dt ) + 1
+        num = math.ceil( (et_end - et_start) / dt.to('s').value ) + 1
         
         et_t = hbt.frange(int(et_start), int(et_end), num)
         
@@ -561,7 +579,7 @@ class ring_flyby:
             y_t.append(st[1])
             z_t.append(st[2])
             
-            v_t.append( sp.vnorm(st[3:6]) * u.km/u.s )
+            v_t.append( sp.vnorm(st[3:6]) )
                 
         # Convert into bin values. This is vectorized.
         # ** If values exceed the largest bin, then the index returned will be too large for the density lookup!
@@ -569,6 +587,9 @@ class ring_flyby:
         bin_x_t = np.digitize(x_t, self.x_1d)
         bin_y_t = np.digitize(y_t, self.y_1d)
         bin_z_t = np.digitize(z_t, self.z_1d)
+        
+        v_t = np.array(v_t) * u.km/u.s
+        
         
         # If indices are too large, drop them by one. This just handles the edge cases so the code doesn't crash.
         
@@ -598,16 +619,13 @@ class ring_flyby:
         
         # Get the binvolume, in km3, as an integer
         
-        
         binvol = (self.binsize_3d[0] * self.binsize_3d[1] * self.binsize_3d[2])
     
         # Calc the fractional ratio between volume of a bin, and volume that s/c sweeps up in its path thru the bin.
         
-        fracvol = ( (area * self.vt[iXX]) / (binvol) ).to(1).value
-
-# XXX BUG: this should not be area * binsize, but area * velocity * dt
+        fracvol_t = ( (area * v_t * self.dt) / (binvol) ).to(1).value
     
-        number_sc_t = number_t * fracvol
+        number_sc_t = number_t * fracvol_t
         
         number_sc_cum_t = np.cumsum(number_sc_t)
             
@@ -669,7 +687,7 @@ def do_ring_flyby():
 #    orbit = 'alternate'  # Can be 'prime' or 'alternate'
     orbit = 'prime'  # Can be 'prime' or 'alternate'
     
-    dt = 1         # Sampling time through the flyby. Assumed to be seconds.
+    dt = 1*u.s         # Sampling time through the flyby. Astropy units.s
 
     # Start up SPICE if needed. 
     # Note that if we change the name of the kernel file, we need to restart python to have the new one loaded.
