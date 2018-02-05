@@ -64,6 +64,10 @@ def nh_ort1_make_stacks():
     Written for NH MU69 ORT1, Jan-2018.  
     """
     
+    do_force = False  # Boolean: Do we force reloading of all of the images from FITS, or just restore from pkl?
+                      # Pkl (aka False) is faster. But if we have made changes to the core algorithms, must
+                      # reload from disk (aka True).
+    
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
     
@@ -81,7 +85,7 @@ def nh_ort1_make_stacks():
     # Start up SPICE if needed
     
     if (sp.ktotal('ALL') == 0):
-        sp.furnsh('kernels_kem.tm')
+        sp.furnsh('kernels_kem_prime.tm')
         
     # Set the RA/Dec of MU69. We could look this up from SPICE but it changes slowly, so just keep it fixed for now.
     
@@ -89,40 +93,56 @@ def nh_ort1_make_stacks():
     
     # Load and stack the field images
     
-    stack_field = image_stack(os.path.join(dir_data, reqid_field))
+    stack_field = image_stack(os.path.join(dir_data, reqid_field), do_force=do_force)
     stack_field.align(method = 'wcs', center = radec_mu69)
     img_field  = stack_field.flatten(zoom=zoom, padding=padding)
+    
+    if do_force:
+        stack_field.save()
 
     hbt.figsize((12,12))
-    hbt.set_fontsize(20)
+    hbt.set_fontsize(15)
     
     for reqid in reqids_haz:
-        stack_haz = image_stack(os.path.join(dir_data, reqid))
+        stack_haz = image_stack(os.path.join(dir_data, reqid), do_force=do_force)
         stack_haz.align(method = 'wcs', center = radec_mu69)
         img_haz  = stack_haz.flatten(zoom=zoom, padding=padding)
 
+        if do_force:
+            stack_haz.save()
+            
         # Make the plot
         
         diff = img_haz - img_field
         diff_trim = hbt.trim_image(diff)
         plt.imshow(stretch(diff_trim))
         plt.title(f"{reqid} - field, zoom = {zoom}")
-        plt.show()
-        
+
         # Save the stacked image as a FITS file
         
         file_out = os.path.join(dir_data, reqid, "stack_n{}_z{}.fits".format(stack_haz.size[0], zoom))
         hdu = fits.PrimaryHDU(stretch(diff_trim))
         hdu.writeto(file_out, overwrite=True)
-        print(f'Wrote: {file_out}')        
+        print(f'Wrote: {file_out}')    
+        
+        # Save the stack as a PNG
+        
+        file_out_plot_stack = file_out.replace('.fits', '.png')
+        plt.savefig(file_out_plot_stack, bbox_inches='tight')
+        print("Wrote: {}".format(file_out_plot_stack))
 
+        # Display it 
+        # This must be done *after* the plt.savefig()
+        
+        plt.show()
+        
         # Make a radial profile
         
         pos =  np.array(np.shape(diff))/2
         (radius, profile) = get_radial_profile_circular(diff, pos=pos, width=1)
     
         hbt.figsize((10,8))
-        hbt.set_fontsize(20)
+        hbt.set_fontsize(15)
         plt.plot(radius, profile)
         plt.xlim((0, 50*zoom))
         plt.ylim((-1,np.amax(profile)))
@@ -173,17 +193,21 @@ def nh_ort1_make_stacks():
         
         plt.plot(radius * pixscale_km, IoF)
         plt.xlim((0, 50000))
+        plt.ylim((-1e-7, 4e-7))
 #        plt.ylim((0,np.amax(IoF)))
-        plt.yscale('log')
+#        plt.yscale('log')
         plt.xlabel('Radius [km]')
         plt.title(f'Ring Radial Profile, {reqid}, zoom={zoom}')
         plt.ylabel('Median I/F')
+        file_out_plot_profile = file_out.replace('.fits', '_profile.png')
+        plt.savefig(file_out_plot_profile, bbox_inches='tight')
         plt.show()
+        print(f'Wrote: {file_out_plot_profile}')
         
         # Write it to a table
         t = Table([radius, radius * pixscale_km, profile, IoF], names = ['RadiusPixels', 'RadiusKM', 'DN/pix', 'I/F'])
-        file_out_table = file_out.replace('.fits', '_profiles.txt')
-        t.write(file_out_table, format='ascii')
+        file_out_table = file_out.replace('.fits', '_profile.txt')
+        t.write(file_out_table, format='ascii', overwrite=True)
         print("Wrote: {}".format(file_out_table))
         
 #    # Now convert to 'normal I/F'
@@ -204,5 +228,8 @@ if (__name__ == '__main__'):
     nh_ort1_make_stacks()
     
     
+#a  = plt.imshow(hbt.dist_center(100))
+#plt.savefig('test.png', bbox_inches='tight')
+#plt.show()
     
     

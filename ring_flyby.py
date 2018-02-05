@@ -47,6 +47,8 @@ import imreg_dft as ird                    # Image translation
 import re # Regexp
 import pickle # For load/save
 
+from   datetime import datetime
+
 import scipy
 
 from   matplotlib.figure import Figure
@@ -141,10 +143,6 @@ class ring_flyby:
         self.y_1d = y_1d
         self.z_1d = z_1d
         
-#        x_1d = self.x_1d + 0
-#        y_1d = self.y_1d * 100
-#        z_1d = self.z_1d * -1
-#        
         self.binsize_3d = binsize_3d
         
         # Define 3D arrays for xyz position. 
@@ -444,12 +442,18 @@ class ring_flyby:
         str:
             A string to be inserted into the filename, as part of the filename.
         """
+
+        # Choose the method of table writing. Astropy is easier to code, but I can't use my own header to match MRS's.
+        
+        do_write_astropy = False
         
         # Create the table
         
         # We really don't care about fractional values on any of these. So, truncate everything
         # to be an integer. There is no easy way to force all columns to print as int, so just do it manually.
         
+
+
         t = Table([np.array(self.et_t).astype(int), 
                    np.array(self.delta_et_t).astype(int)], 
                       names = ['ET', 'ET from CA'])
@@ -473,30 +477,51 @@ class ring_flyby:
         
         dir_out = 'out'
         
-        file_out = 'mu69_hazard_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination_ring, self.albedo)
+        file_out = 'ort1_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination_ring, self.albedo)
         if do_positions:
             file_out = file_out.replace('.txt', '_pos.txt')
-        if (suffix):
-            file_out = file_out.replace('.txt', str + '.txt')
             
-        # Write the file
-
+        # Add a specified string to the filename, if requested
+        
+        if (suffix):
+            file_out = file_out.replace('.txt', '_' + suffix + '.txt')
+            
         path_out = os.path.join(dir_out, file_out)
         
-        do_write_astropy = False
-        
+
         if do_write_astropy:
+
+            # Write the file using Astropy
             
             t.write(path_out, format = 'ascii', overwrite=True)
             print("Wrote: {} using astropy writer".format(path_out))
 
         else:
 
-            header = repr( np.concatenate(([0], self.r_dust.to('mm').value)) )
+            # Write the file using explicit manual formatting
+            
             lun = open(path_out, "w")
-            lun.write(header)
-            for line in t:
-                lun.write(line)
+            lun.write("#    First line is '0' and then size bins, in mm\n")
+            lun.write("#    Remaining are delta_ET, n(r_0), n(r_2), n(r_3), n(r_3), n(r_4), n(r_5), n(r_6)\n")
+            lun.write("#    n(r) are number per km3\n")
+            lun.write("#    Henry Throop {}\n".format(str(datetime.now())))          
+            lun.write("{} {} {} {} {} {} {} {}\n".format(0, 
+                                                    self.r_dust[0].to('mm').value,
+                                                    self.r_dust[1].to('mm').value,
+                                                    self.r_dust[2].to('mm').value,
+                                                    self.r_dust[3].to('mm').value,
+                                                    self.r_dust[4].to('mm').value,
+                                                    self.r_dust[5].to('mm').value,
+                                                    self.r_dust[6].to('mm').value))
+            for i in range(len(t)):                                                
+                lun.write("{} {} {} {} {} {} {}\n".format(
+                        t[i][1],
+                        t[i][2],
+                        t[i][3],
+                        t[i][4],
+                        t[i][5],
+                        t[i][6],
+                        t[i][7]))
             lun.close()
             print("Wrote: {} using manual writer".format(path_out))
            
@@ -663,9 +688,9 @@ class ring_flyby:
     
 def do_ring_flyby():
     
-    albedo              = [0.05,0.5]
-    q_dust              = [2, 3, 4]
-    inclination_ring    = [0.1, 0.01, 0.5]
+    albedo              = [0.05,0.10, 0.30, 0.50]
+    q_dust              = [2, 3.5]
+    inclination_ring    = [0.05, 0.3]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
@@ -684,8 +709,8 @@ def do_ring_flyby():
     
     name_observer = 'New Horizons'
     
-#    orbit = 'alternate'  # Can be 'prime' or 'alternate'
-    orbit = 'prime'  # Can be 'prime' or 'alternate'
+    orbit = 'alternate'  # Can be 'prime' or 'alternate'
+#    orbit = 'prime'  # Can be 'prime' or 'alternate'
     
     dt = 1*u.s         # Sampling time through the flyby. Astropy units.s
 
@@ -693,11 +718,12 @@ def do_ring_flyby():
     # Note that if we change the name of the kernel file, we need to restart python to have the new one loaded.
     
     if (sp.ktotal('ALL') == 0):
+    
         sp.furnsh(f'kernels_kem_{orbit}.tm')
     
     # Define the number of grid locations on each side.
     
-    n_dx = n_dy = n_dz = 201   # This is 'multiple assignment' in Python. Unlike IDL, it is official and legal.
+    n_dx = n_dy = n_dz = 201  # This is 'multiple assignment' in Python. Unlike IDL, it is official and legal.
     
     # Define the size of each grid box
     
@@ -792,7 +818,7 @@ def do_ring_flyby():
 
                 # Output the dust population to a file
                 
-                ring.output_trajectory(str=f'_{orbit}', do_positions=False)
+                ring.output_trajectory(suffix=f'{orbit}', do_positions=False)
                 
                 # Print some diagnostics
                 

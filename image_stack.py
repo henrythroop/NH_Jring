@@ -90,7 +90,9 @@ class image_stack:
             If set, save the results of this stacking as a .pkl file
             
         """
-                
+        
+        do_lorri_destripe = True  # I didn't use this at first, but it is a clear improvement.
+        
         files1 = glob.glob(os.path.join(dir,      prefix + '*.fit*'))     # Look in dir
         files2 = glob.glob(os.path.join(dir, '*', prefix + '*.fit*'))     # Look in subdirs
         
@@ -177,7 +179,6 @@ class image_stack:
             dx_pix         = hbt.sizex(arr)   # Usually 256 or 1024
             dy_pix         = hbt.sizey(arr)
             
-            
             filename_short = os.path.basename(file).replace('.fits', '').replace('lor_', '')\
                      .replace('_0x633_pwcs','')\
                      .replace('_0x630_pwcs','')
@@ -198,6 +199,11 @@ class image_stack:
 
             hdulist.close()
         
+            # Destripe if requested (aka remove jailbars)
+            
+            if do_lorri_destripe:
+                arr = hbt.lorri_destripe(arr)
+                
             # Read the WCS coords
             
             w = WCS(file)
