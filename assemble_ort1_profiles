@@ -29,4 +29,4 @@ cd /Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ04/
 
 scp -r ~/git/nh_rings/out/ort1_profiles ixion:ORT1/astrom/ort1_track1
 
-scp -r ~/git/nh_rings/out/ort1_throop_track5.tar.gz ixion:ORT1/astrom/track5
+scp -r ~/git/nh_rings/out/ort1_throop_track4.tar.gz ixion:ORT1/astrom/track4
