@@ -62,7 +62,7 @@ class ring_flyby:
     """
     Simulate passage of New Horizons through a ring system surrounding MU69.
     
-    For Hazard team. Jan 2019. New Horizons KEM.
+    For Hazard team. Jan 2019. New Horizons KEM. ORT.y
     
     Mark Showalter has his own code to do this. But I will use mine.
     
@@ -475,7 +475,7 @@ class ring_flyby:
         
         # Create the output filename
         
-        dir_out = 'out'
+        dir_out = '/Users/throop/Data/ORT1/throop/track4/'
         
         file_out = 'ort1_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination_ring, self.albedo)
         if do_positions:
@@ -499,6 +499,7 @@ class ring_flyby:
         else:
 
             # Write the file using explicit manual formatting
+            # There are seven size radial bins, as per MRS e-mail 2-Feb-2018.
             
             lun = open(path_out, "w")
             lun.write("#    First line is '0' and then size bins, in mm\n")
@@ -514,14 +515,15 @@ class ring_flyby:
                                                     self.r_dust[5].to('mm').value,
                                                     self.r_dust[6].to('mm').value))
             for i in range(len(t)):                                                
-                lun.write("{} {} {} {} {} {} {}\n".format(
+                lun.write("{} {} {} {} {} {} {} {}\n".format(
                         t[i][1],
                         t[i][2],
                         t[i][3],
                         t[i][4],
                         t[i][5],
                         t[i][6],
-                        t[i][7]))
+                        t[i][7],
+                        t[i][8]))
             lun.close()
             print("Wrote: {} using manual writer".format(path_out))
            

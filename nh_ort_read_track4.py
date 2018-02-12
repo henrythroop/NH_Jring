@@ -60,63 +60,226 @@ from   matplotlib.figure import Figure
 
 import hbt
 
-# =============================================================================
-# Plot Mark Showalter's profiles. This is very easy.
-# =============================================================================
-
-dir_mrs = '/Users/throop/Data/ORT1/showalter'
-
-files_mrs = glob.glob(os.path.join(dir_mrs, 'ort1*dust'))
-
-for file in files_mrs:
-    print(file)
-    t = Table.read(file, format='ascii', 
-                   names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
-
-    r_dust_row = t[0]
+class track4_profile:
     
-    r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]]
-    t.remove_row(0)
-    
-    for i,col in enumerate( (t.colnames)[1:] ):
-        plt.plot(t['delta_et'], t[col], label = "{:.2f} mm".format(r_dust[i]))
+    def __init__(self, file):
         
-    plt.yscale('log')
-    plt.ylim(1e-6,1e6)
-    plt.xlim((-100,100))
-    plt.legend(loc = 'upper left')
-    plt.title(os.path.basename(file))
-    plt.xlabel('t from C/A [sec]')
-    plt.ylabel('# particles/km3')
-    plt.show()
+            # Get the speed relative to MU69
 
-# =============================================================================
-# Plot HBT profiles. This is very easy.
-# =============================================================================
-
-dir_mrs = '/Users/throop/Data/ORT1/showalter'
-
-files_mrs = glob.glob(os.path.join(dir_mrs, 'ort1*dust'))
-
-for file in files_mrs:
-    print(file)
-    t = Table.read(file, format='ascii', 
-                   names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
-
-    r_dust_row = t[0]
-    
-    r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]]
-    t.remove_row(0)
-    
-    for i,col in enumerate( (t.colnames)[1:] ):
-        plt.plot(t['delta_et'], t[col], label = "{:.2f} mm".format(r_dust[i]))
+        file_tm = 'kernels_kem_prime.tm'
         
-    plt.yscale('log')
-    plt.ylim(1e-6,1e6)
-    plt.xlim((-100,100))
-    plt.legend(loc = 'upper left')
-    plt.title(os.path.basename(file))
-    plt.xlabel('t from C/A [sec]')
-    plt.ylabel('# particles/km3')
-    plt.show()
-  
+        # Start up SPICE if needed
+        
+        if (sp.ktotal('ALL') == 0):
+            sp.furnsh(file_tm)    
+            
+        utc_ca = '2019 1 Jan 05:33:00'
+        et_ca  = sp.utc2et(utc_ca) 
+        (st,lt) = sp.spkezr('New Horizons', et_ca, 'J2000', 'LT', 'MU69')
+        
+        velocity = sp.vnorm(st[3:6])*u.km/u.s
+    
+        # Save the velocity (relative to MU69)
+
+        self.velocity = velocity
+
+        # Save the name of file to read
+        
+        self.file = file
+
+        # Save the area of the s/c
+        
+        self.area_sc = (1*u.m)**2
+        
+        return
+
+# =============================================================================
+# Read one of Mark Showalter's profiles. This is very easy.
+# =============================================================================
+    
+    def read_mrs(self):
+            
+        t = Table.read(self.file, format='ascii', 
+                       names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
+    
+        # Read the first row of the file as the size bins, and remove it.
+    
+#        r_dust_row = t[0]
+        
+        r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]]
+        t.remove_row(0)
+        
+        t['n_0'].unit = '1/km**3'
+        t['n_1'].unit = '1/km**3'
+        t['n_2'].unit = '1/km**3'
+        t['n_3'].unit = '1/km**3'
+        t['n_4'].unit = '1/km**3'
+        t['n_5'].unit = '1/km**3'
+        t['n_6'].unit = '1/km**3'
+        
+        n_dust = np.zeros((7))
+
+        self.delta_et = t['delta_et']
+        
+        dt = (self.delta_et[1] - self.delta_et[0])*u.s   # Time incrememnt, in seconds
+
+        t.remove_column('delta_et')
+
+        for i in range(len(n_dust)):
+            n_dust[i] = t[f'n_{i}'].sum()
+        
+        self.r_dust = r_dust
+        self.t  = t
+        self.dt = dt
+        self.n_dust = n_dust
+        
+        self.process()
+        print(f"Finished reading file MRS {self.file}")
+            
+# =============================================================================
+# Read HBT profiles. This is very easy.
+# =============================================================================
+
+    def read_hbt(self):
+        
+        t = Table.read(file, format='ascii', 
+                       names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
+    
+#        r_dust_row = t[0]
+        
+        t['n_0'].unit = '1/km**3'
+        t['n_1'].unit = '1/km**3'
+        t['n_2'].unit = '1/km**3'
+        t['n_3'].unit = '1/km**3'
+        t['n_4'].unit = '1/km**3'
+        t['n_5'].unit = '1/km**3'
+        t['n_6'].unit = '1/km**3'
+        
+        r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]]
+        t.remove_row(0)
+        dt = (t['delta_et'][1] - t['delta_et'][0])*u.s  # Time incrememnt, in seconds
+
+        self.t   = t
+        self.delta_et = t['delta_et']
+        t.remove_column('delta_et')
+        
+        self.dt = dt
+        self.r_dust = r_dust
+        self.n_dust = 0
+
+        self.process()
+        print(f"Finished reading file HBT {self.file}")
+        
+# =============================================================================
+# Process some numbers. 
+# =============================================================================
+        
+    def process(self):
+
+        # Put the number density in a good place
+        
+        number_density = self.t.copy()
+        
+        # Calculate cumulative
+
+        number_cum = number_density.copy()
+        
+        for i,col in enumerate(number_cum.colnames):
+            number_cum[col] *=  ((1/u.km)**3 * self.area_sc * self.velocity * self.dt).to('1').value
+            number_cum[col].units = 1/u.s
+            number_cum[col] = np.cumsum(number_cum[col])
+
+        # Save them
+        
+        self.number_cum     = number_cum
+        self.number_density = number_density
+
+        # Calculate a total line-of-sight density
+        
+# =============================================================================
+# Plot the profile
+# =============================================================================
+        
+    def plot(self):
+        
+        t      = self.t
+        n_dust = self.n_dust
+        r_dust = self.r_dust
+        
+        hbt.figsize((13,9))
+        
+
+        # Plot number density
+                  
+        plt.subplot(2,2,1)    
+        for i,col in enumerate( (t.colnames)[1:] ):
+            plt.plot(self.delta_et, t[col], label = "{:.2f} mm".format(r_dust[i]))
+        
+        plt.yscale('log')
+        plt.ylim(1e-6,1e8)
+        plt.xlim((-300,300))
+        plt.legend(loc = 'upper left')
+        plt.title(os.path.basename(file))
+        plt.xlabel('t from C/A [sec]')
+        plt.ylabel('# particles/km3')
+        
+        # Plot cumulative number
+        
+        plt.subplot(2,2,2)    
+        for i,col in enumerate((self.number_cum.colnames)):
+            plt.plot(self.delta_et, self.number_cum[col], 
+                     label = "{:.2f} mm".format(r_dust[i]))
+        
+        n_dust = np.zeros((7))
+        for i in range(len(n_dust)):
+            n_dust[i] = t[f'n_{i}'].sum()
+        plt.yscale('log')
+        plt.ylim((1e-6,1e9))
+        plt.xlim((-300,300))
+        plt.legend(loc = 'upper left')
+        plt.title(os.path.basename(file))
+        plt.xlabel('t from C/A [sec]')
+        plt.ylabel('Cum # particles hit on SC')
+                   
+        # Make a plot of the size distribution by itself
+        
+        plt.subplot(2,2,3)
+        plt.plot(r_dust, n_dust, marker = 'o', linestyle = '--')
+        plt.yscale('log')
+        plt.xscale('log')
+        plt.xlabel('r [mm]')
+        plt.ylabel('N per km3')
+        plt.ylim((1e1, 1e9))
+        plt.xlim((1e-2, 1e1))
+        plt.show()
+    
+# =============================================================================
+# Run the method
+# =============================================================================
+ 
+if __name__ == '__main__':
+
+    do_mrs = True
+    do_hbt = True
+    
+    if do_mrs:    
+        dir_mrs = '/Users/throop/Data/ORT1/showalter'
+        files_mrs = glob.glob(os.path.join(dir_mrs, 'ort1*dust'))
+        files_mrs = files_mrs[0:3]
+        file_mrs = files_mrs[0]
+        for file_mrs in files_mrs:
+            track = track4_profile(file_mrs)
+            track.read_mrs()
+            self = track
+            track.plot()
+
+    if do_hbt:    
+        dir_hbt = '/Users/throop/Data/ORT1/throop/track4/'
+        files_hbt = glob.glob(os.path.join(dir_hbt, 'ort1*txt'))
+        file_hbt = files_hbt[0]
+        for file in files_hbt:
+            track2 = track4_profile(file_hbt)
+            track2.read_hbt()
+            self = track2
+            track2.plot()
+        
