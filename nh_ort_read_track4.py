@@ -60,21 +60,63 @@ from   matplotlib.figure import Figure
 
 import hbt
 
+# =============================================================================
+# Plot Mark Showalter's profiles. This is very easy.
+# =============================================================================
+
 dir_mrs = '/Users/throop/Data/ORT1/showalter'
 
 files_mrs = glob.glob(os.path.join(dir_mrs, 'ort1*dust'))
 
 for file in files_mrs:
     print(file)
-    t = Table.read(file, format='ascii', names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
+    t = Table.read(file, format='ascii', 
+                   names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
 
-    for col in (t.colnames)[1:]:
-        plt.plot(t['delta_et'], t[col], label = col)
+    r_dust_row = t[0]
+    
+    r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]]
+    t.remove_row(0)
+    
+    for i,col in enumerate( (t.colnames)[1:] ):
+        plt.plot(t['delta_et'], t[col], label = "{:.2f} mm".format(r_dust[i]))
         
     plt.yscale('log')
-    plt.ylim(1,1e6)
+    plt.ylim(1e-6,1e6)
     plt.xlim((-100,100))
     plt.legend(loc = 'upper left')
+    plt.title(os.path.basename(file))
+    plt.xlabel('t from C/A [sec]')
+    plt.ylabel('# particles/km3')
     plt.show()
 
+# =============================================================================
+# Plot HBT profiles. This is very easy.
+# =============================================================================
+
+dir_mrs = '/Users/throop/Data/ORT1/showalter'
+
+files_mrs = glob.glob(os.path.join(dir_mrs, 'ort1*dust'))
+
+for file in files_mrs:
+    print(file)
+    t = Table.read(file, format='ascii', 
+                   names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
+
+    r_dust_row = t[0]
     
+    r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]]
+    t.remove_row(0)
+    
+    for i,col in enumerate( (t.colnames)[1:] ):
+        plt.plot(t['delta_et'], t[col], label = "{:.2f} mm".format(r_dust[i]))
+        
+    plt.yscale('log')
+    plt.ylim(1e-6,1e6)
+    plt.xlim((-100,100))
+    plt.legend(loc = 'upper left')
+    plt.title(os.path.basename(file))
+    plt.xlabel('t from C/A [sec]')
+    plt.ylabel('# particles/km3')
+    plt.show()
+  
