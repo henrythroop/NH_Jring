@@ -62,7 +62,7 @@ class ring_flyby:
     """
     Simulate passage of New Horizons through a ring system surrounding MU69.
     
-    For Hazard team. Jan 2019. New Horizons KEM. ORT.y
+    For Hazard team. Jan 2019. New Horizons KEM. ORT.
     
     Mark Showalter has his own code to do this. But I will use mine.
     
@@ -95,6 +95,8 @@ class ring_flyby:
                 Tuple (dx, dy, dz) describing the binsize in each dirction. Each entry is the width
                 of a single bin. Requires units (e.g., u.km). **NB: XYZ sizes are tracked separately, but
                 currently the code assumes internally that they are all equal (square bins)**
+                
+                For MU69 ORT, this is 250 km x 250 km x 250 km.
             
             frame:
                 The name of the SPICE frame (e.g., '2014_MU69_SUNFLOWER_ROT')
@@ -691,7 +693,7 @@ class ring_flyby:
 def do_ring_flyby():
     
     albedo              = [0.05,0.10, 0.30, 0.50]
-    q_dust              = [2, 3.5]
+    q_dust              = [2.5, 3.5]
     inclination_ring    = [0.05, 0.3]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
