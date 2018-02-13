@@ -106,7 +106,7 @@ class track4_profile:
     
 #        r_dust_row = t[0]
         
-        r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]]
+        r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]] * u.mm
         t.remove_row(0)
         
         t['n_0'].unit = '1/km**3'
@@ -155,7 +155,7 @@ class track4_profile:
         t['n_5'].unit = '1/km**3'
         t['n_6'].unit = '1/km**3'
         
-        r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]]
+        r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]] * u.mm
         t.remove_row(0)
         dt = (t['delta_et'][1] - t['delta_et'][0])*u.s  # Time incrememnt, in seconds
 
@@ -178,23 +178,32 @@ class track4_profile:
 
         # Put the number density in a good place
         
-        number_density = self.t.copy()
+        # Shape (7, 7201)
+        number_density = \
+                         np.array([self.t['n_0'].data, 
+                                   self.t['n_1'].data, 
+                                   self.t['n_2'].data, 
+                                   self.t['n_3'].data, 
+                                   self.t['n_4'].data, 
+                                   self.t['n_5'].data, 
+                                   self.t['n_6'].data])
+        
+#        self.t.copy()
         
         # Calculate cumulative
 
         number_cum = number_density.copy()
         
-        for i,col in enumerate(number_cum.colnames):
-            number_cum[col] *=  ((1/u.km)**3 * self.area_sc * self.velocity * self.dt).to('1').value
-            number_cum[col].units = 1/u.s
-            number_cum[col] = np.cumsum(number_cum[col])
-
-        # Save them
+        number_cum *= ((1/u.km)**3 * self.area_sc * self.velocity * self.dt).to('1').value
+        
+        number_cum = np.cumsum(number_cum, axis=1)  # Units is number/sec
         
         self.number_cum     = number_cum
         self.number_density = number_density
 
-        # Calculate a total line-of-sight density
+        # Calculate a total line-of-sight density (ie, optical depth)
+        
+        tau = np.sum(number_cum, axis=1) * (math.pi * self.r_dust**2)
         
 # =============================================================================
 # Plot the profile
@@ -226,9 +235,9 @@ class track4_profile:
         # Plot cumulative number
         
         plt.subplot(2,2,2)    
-        for i,col in enumerate((self.number_cum.colnames)):
-            plt.plot(self.delta_et, self.number_cum[col], 
-                     label = "{:.2f} mm".format(r_dust[i]))
+        for i in range(len(self.r_dust)):
+            plt.plot(self.delta_et, self.number_cum[i,:], 
+                     label = "{:.2f}".format(r_dust[i]))
         
         n_dust = np.zeros((7))
         for i in range(len(n_dust)):
