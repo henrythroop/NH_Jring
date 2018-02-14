@@ -86,7 +86,6 @@ class track4_profile:
         # Save the name of file to read
         
         self.file = file
-        print("self.file = {}".format(self.file))
 
         # Save the area of the s/c
         
@@ -125,14 +124,17 @@ class track4_profile:
         dt = (self.delta_et[1] - self.delta_et[0])*u.s   # Time incrememnt, in seconds
 
         t.remove_column('delta_et')
-      
-        self.r_dust  = r_dust
-        self.t       = t
-        self.dt      = dt
+
+        for i in range(len(n_dust)):
+            n_dust[i] = t[f'n_{i}'].sum()
         
-        # Now that we have read the file, do some basic processing on it.
+        self.r_dust = r_dust
+        self.t  = t
+        self.dt = dt
+        self.n_dust = n_dust
         
         self.process()
+        print(f"Finished reading file MRS {self.file}")
             
 # =============================================================================
 # Read HBT profiles. This is very easy.
@@ -163,19 +165,18 @@ class track4_profile:
         
         self.dt = dt
         self.r_dust = r_dust
+        self.n_dust = 0
 
-# Now that we have read the file, do some basic processing on it.
-        
         self.process()
+        print(f"Finished reading file HBT {self.file}")
         
 # =============================================================================
-# Process the data we've read in.
+# Process some numbers. 
 # =============================================================================
         
     def process(self):
 
-        # The number density is in a table. Extract it and put it in an array, where it can be
-        # more easily accessed.
+        # Put the number density in a good place
         
         # Shape (7, 7201)
         number_density = \
@@ -186,6 +187,8 @@ class track4_profile:
                                    self.t['n_4'].data, 
                                    self.t['n_5'].data, 
                                    self.t['n_6'].data])
+        
+#        self.t.copy()
         
         # Calculate cumulative
 
@@ -198,18 +201,9 @@ class track4_profile:
         self.number_cum     = number_cum
         self.number_density = number_density
 
-        # Measure the overall size dist, by summing along the path
-        
-        self.n_dust = np.sum(number_density, axis=1)
-        
         # Calculate a total line-of-sight density (ie, optical depth)
         
-        self.tau = (np.sum( np.sum(number_cum, axis=1) * (math.pi * self.r_dust**2) )/ self.area_sc).to('').value
-        
-        # Calculate the probability of loss of mission. This is just from the number of large grains we hit.
-        # Very rough, but should be OOM same as Doug Mehoke gets.
-        
-        self.plom = self.number_cum[-1,-1]
+        tau = (np.sum( np.sum(self.number_cum, axis=1) * (math.pi * self.r_dust**2) ) / self.area_sc).to('').value
         
 # =============================================================================
 # Plot the profile
@@ -223,6 +217,7 @@ class track4_profile:
         
         hbt.figsize((13,9))
         
+
         # Plot number density
                   
         plt.subplot(2,2,1)    
@@ -233,7 +228,7 @@ class track4_profile:
         plt.ylim(1e-6,1e8)
         plt.xlim((-300,300))
         plt.legend(loc = 'upper left')
-        plt.title(os.path.basename(self.file))
+        plt.title(os.path.basename(file))
         plt.xlabel('t from C/A [sec]')
         plt.ylabel('# particles/km3')
         
@@ -251,18 +246,18 @@ class track4_profile:
         plt.ylim((1e-6,1e9))
         plt.xlim((-300,300))
         plt.legend(loc = 'upper left')
-        plt.title("P_LOM = {:.1e}; tau = {:.1e}".format(self.plom, self.tau))
+        plt.title(os.path.basename(file))
         plt.xlabel('t from C/A [sec]')
         plt.ylabel('Cum # particles hit on SC')
                    
-        # Plot the size distribution by itself
+        # Make a plot of the size distribution by itself
         
         plt.subplot(2,2,3)
         plt.plot(r_dust, n_dust, marker = 'o', linestyle = '--')
         plt.yscale('log')
         plt.xscale('log')
         plt.xlabel('r [mm]')
-        plt.ylabel('Number (arbitrary)')
+        plt.ylabel('N per km3')
         plt.ylim((1e1, 1e9))
         plt.xlim((1e-2, 1e1))
         plt.show()
@@ -273,13 +268,13 @@ class track4_profile:
  
 if __name__ == '__main__':
 
-    do_mrs= True
+    do_mrs = True
     do_hbt = True
     
     if do_mrs:    
         dir_mrs = '/Users/throop/Data/ORT1/showalter'
         files_mrs = glob.glob(os.path.join(dir_mrs, 'ort1*dust'))
-#        files_mrs = files_mrs[0:3]
+        files_mrs = files_mrs[0:3]
         file_mrs = files_mrs[0]
         for file_mrs in files_mrs:
             track = track4_profile(file_mrs)
@@ -291,7 +286,7 @@ if __name__ == '__main__':
         dir_hbt = '/Users/throop/Data/ORT1/throop/track4/'
         files_hbt = glob.glob(os.path.join(dir_hbt, 'ort1*txt'))
         file_hbt = files_hbt[0]
-        for file_hbt in files_hbt:
+        for file in files_hbt:
             track2 = track4_profile(file_hbt)
             track2.read_hbt()
             self = track2
