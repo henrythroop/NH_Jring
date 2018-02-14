@@ -68,15 +68,22 @@ class nh_ort_read_track3:  # Q: Is this required to be same name as the file?
     def __init__(self, name, dir_base='/Users/throop/data/ORT1/kaufmann/deliveries', binfmt = 2):
         
         """
-        Initialize the method.
+        Initialize the method. Read in data from a specified file, and do initial processing on it.
         
-        Paramateters
+        Parameters
         ------
             
         name:
             The name of the run. This is a slash-separated string, such as 
             `'ort1-0001/1000010/speed1/beta_2.6e-04/subset00'`
-             
+        
+        Optional parameters
+        ------
+        
+        binfmt:
+            Type of file to read. 1 = old file (pure grid). 2 = new file (sparse matrix). For ORT1 and beyond, 
+            the default is `binfmt=2`.
+            
         dir_base:
             The top-level directory that I download files from ixion into. Typically this ends in `deliveries`.
         """    
@@ -151,6 +158,9 @@ class nh_ort_read_track3:  # Q: Is this required to be same name as the file?
     
     
         self.density = density
+        
+        # Read a bunch of values from the header, and save them into the method
+        
         self.km_per_cell_x = km_per_cell_x
         self.km_per_cell_y = km_per_cell_y
         self.km_per_cell_z = km_per_cell_z
@@ -162,7 +172,31 @@ class nh_ort_read_track3:  # Q: Is this required to be same name as the file?
         self.weight    = self.get_header_val('weight')   # Statistical weight of this solution
         self.speed     = self.get_header_val('speed')    # Should be 1 or 2 as per wiki. But is really 0 or 1. 
         
-        # We should read the full header in to the class as well. But this will require more parsing.
+        # Do a calculation for particle radius
+        
+        Beta = 5.7e-4 * Q_PR / (rho * s/(10mm))  ← s = radius in cm [sic]. rho = g/cm3.
+        Q_PR = 1 + 1.36 * p_v ← p_v = albedo
+
+        
+        # Below we list the possible values for p_v (albedo) and q_pr
+        # These two below are linked and 1:1!
+        
+        p_v = np.array([0.7, 0.3, 0.1, 0.05])
+        q_pr = np.array([1.95, 1.41, 1.14, 1.07])
+
+        # This is a list of all the distinct allowable values of beta
+        # This list is just taken by examination of DK's files.
+        
+        beta = [5.7e-8, 5.7e-7, 5.7e-6, 5.7e-5, 5.7e-4, 5.7e-3, 
+                         2.6e-7, 2.6e-6, 2.6e-5, 2.5e-4, 2.6e-3, 
+                         1.2e-7, 1.2e-6, 1.2e-5, 1.2e-4, 1.2e-3]
+
+        
+        rho_dust = np.array([1, 0.46, 0.21, 0.1])*u.g/(u.cm)**3
+        
+        f = 5.7e-5 * u.g / (u.cm)**3
+        
+        r_dust = (5.7e-4 * q_pr) / (self.beta * rho_dust) * u.mm
         
         return
 
