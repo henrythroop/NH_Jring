@@ -744,7 +744,7 @@ def do_nh_ort_track4_flyby():
     num_pts_3d    = (n_dx,   n_dy,   n_dz)
     binsize_3d    = (dx_bin, dy_bin, dz_bin)
     
-    ring = nh_ort_track4_ring_flyby(num_pts_3d, binsize_3d, frame, name_target)
+    ring = nh_ort_track4_flyby(num_pts_3d, binsize_3d, frame, name_target)
 
     self = ring # For debugging only!
 
