@@ -408,6 +408,9 @@ class nh_ort_track4_flyby:
         plt.title('Ring, Vertical Sum')
         plt.show()
         
+        # Make a plot of the optical depth profile through the ring
+        XXX
+        
         # Make a plot of the edge profile
         
         is_populated_arr = (self.number_arr > 0).astype(int)
