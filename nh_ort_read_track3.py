@@ -75,7 +75,9 @@ class nh_ort_read_track3:  # Q: Is this required to be same name as the file?
             
         name:
             The name of the run. This is a slash-separated string, such as 
-            `'ort1-0001/1000010/speed1/beta_2.6e-04/subset00'`
+            `'ort1-0001/1000010/speed1/beta_2.6e-04/subset00'`. These slashes are not the best way 
+            to do this, and it's not very compact. But the names are inconsistent, and this is the 
+            most reliable way to deal with it for now.
         
         Optional parameters
         ------
@@ -170,12 +172,14 @@ class nh_ort_read_track3:  # Q: Is this required to be same name as the file?
         self.time_step = self.get_header_val('time_step')*u.s
         self.beta      = self.get_header_val('beta')
         self.weight    = self.get_header_val('weight')   # Statistical weight of this solution
-        self.speed     = self.get_header_val('speed')    # Should be 1 or 2 as per wiki. But is really 0 or 1. 
+        self.speed     = self.get_header_val('speed')    # Should be 1 or 2 as per wiki. But is really 0 or 1.
+        self.ejected   = self.get_header_val('ejected')
+        self.gm        = self.get_header_val('gm')
         
         # Do a calculation for particle radius
         
-        Beta = 5.7e-4 * Q_PR / (rho * s/(10mm))  ← s = radius in cm [sic]. rho = g/cm3.
-        Q_PR = 1 + 1.36 * p_v ← p_v = albedo
+#        Beta = 5.7e-4 * Q_PR / (rho * s/(10mm))  ← s = radius in cm [sic]. rho = g/cm3.
+#        Q_PR = 1 + 1.36 * p_v # ← p_v = albedo     From Showalter 3.6. A simple relationship. 
 
         
         # Below we list the possible values for p_v (albedo) and q_pr
@@ -186,11 +190,16 @@ class nh_ort_read_track3:  # Q: Is this required to be same name as the file?
 
         # This is a list of all the distinct allowable values of beta
         # This list is just taken by examination of DK's files.
+        # Beta has 16 different values, 5.7e-8 .. 5.7e-3. Factor of 2.1 between them. Total range of 1e5.
         
         beta = [5.7e-8, 5.7e-7, 5.7e-6, 5.7e-5, 5.7e-4, 5.7e-3, 
                          2.6e-7, 2.6e-6, 2.6e-5, 2.5e-4, 2.6e-3, 
                          1.2e-7, 1.2e-6, 1.2e-5, 1.2e-4, 1.2e-3]
 
+        
+#        plt.plot(sorted(beta), marker = 'o')
+#        plt.yscale('log')
+#        plt.show()
         
         rho_dust = np.array([1, 0.46, 0.21, 0.1])*u.g/(u.cm)**3
         
@@ -198,7 +207,7 @@ class nh_ort_read_track3:  # Q: Is this required to be same name as the file?
         
         r_dust = (5.7e-4 * q_pr) / (self.beta * rho_dust) * u.mm
         
-        return
+        return  # Return the object so we can chain calls.
 
 # =============================================================================
 # Search through the header, and find the value corresponding to a given keyword
@@ -263,22 +272,82 @@ class nh_ort_read_track3:  # Q: Is this required to be same name as the file?
         
         plt.show()
         
-        return
+        return self
 
+# =============================================================================
+# Print some info about the run
+# =============================================================================
+
+    def print_info(self):
+
+        print(f'Name:     {self.name}')
+        print(f'Beta:     {self.beta}')
+        print(f'Duration: {self.duration}')
+        print(f'Speed:    {self.speed}')
+        print(f'Timestep: {self.time_step}')
+        print(f'Body ID:  {self.body_id}')
+        print(f'GM:       {self.gm}')
+        print(f'ejected:  {self.ejected}')
+        
+        return
+        
 # =============================================================================
 # Run the file
 # =============================================================================
     
 if __name__ == '__main__':
+
+    do_short = False
+
+    stretch_percent = 90    
+    stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
     
     dir_base='/Users/throop/data/ORT1/kaufmann/deliveries'
     
     runs_full = glob.glob(os.path.join(dir_base, '*', '*', '*', '*', '*'))
-    run = runs_full[0].replace(dir_base, '')[1:]
+    if do_short:
+        runs_full = runs_full[0:10]
+        
+    run = runs_full[0].replace(dir_base, '')[1:]  # Populate one, just for cut & paste ease
     
-    for run_full in runs_full:
+    num_files             = len(runs_full)
+    density_flattened_arr = np.zeros((num_files, 200, 200))
+    beta_arr              = np.zeros(num_files)
+    time_step_arr         = np.zeros(num_files)
+    duration_arr          = np.zeros(num_files)
+    speed_arr             = np.zeros(num_files)
+    body_id_arr           = np.zeros(num_files)
+    ejected_arr           = np.zeros(num_files)
+    gm_arr                = np.zeros(num_files) 
+    
+    weighting = np.zeros((len(runs_full), 1, 1)) # Weight each individual run. We make this into a funny shape
+                                                 # so we can broadcast it with the full array easily.
+    
+    for i,run_full in enumerate(runs_full):
         run = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
-        ring = nh_ort_read_track3(run)
-        ring.plot()
+        ring = nh_ort_read_track3(run)            # Read the data array itself
+#        ring.plot()
+        ring.print_info()
+        density_flattened_arr[i,:,:] = np.sum(ring.density, axis=0)
+        beta_arr[i] = ring.beta
+        time_step_arr[i] = ring.time_step.value
+        duration_arr[i] = ring.duration.value
+        speed_arr[i] = ring.speed
+        body_id_arr[i] = ring.body_id
+        gm_arr[i] = ring.gm
+        ejected_arr[i] = ring.ejected
+        
+        print('-----')
     
-     
+    print(f"Read {num_files} files.")
+    # Assign some (very arbitrary) weights to each plane
+    
+    weighting[:,0,0] = beta_arr[:]
+    weighting[:,0,0] = (body_id_arr == 4)
+    
+    # Finally, do a weighted sum of all the planes, and plot it.
+    # Based on the prelim data, we should 
+    
+    plt.imshow(stretch(np.sum(density_flattened_arr * weighting, axis=0)))
+    plt.show()
+    
