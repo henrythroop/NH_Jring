@@ -65,6 +65,19 @@ class nh_ort_track4_flyby:
     This is the NH ORT 'Track 4' code. It creates a simulated rings, and then
     creates a time-series of dust densities as the s/c flies along a path.
     
+    The input for the ring model can come from either:
+        
+        - An I/F and profile that I give it explicitly (derived from Track 1 rings obs)
+        - A ring density from N-body simulations of DK/DPH (their Track 3 calculations, inferred from Track 1 moon obs)
+    
+    Code then creates a 3D array, and flies through it.
+
+    Track 1: Measure I/F of ring and/or moons from data
+    Track 2: Fit orbits to moons
+    Track 3: N-body modeling to predict dust based on moon orbits
+    Track 4: Fly through the dust array and get a dust timeline.
+    Track 5: Compute s/c hazard and P_LOM at each position.
+    
     For Hazard team. Jan 2019. New Horizons KEM. ORT.
     
     Mark Showalter has his own code to do this. 
@@ -122,13 +135,19 @@ class nh_ort_track4_flyby:
         
         self.abcorr = 'LT'
         
+        # Define the flyby distances
+        
+        self.a_flyby = [10000*u.km, 3500*u.km]
+
         # Define the grids
         
         # NB: _arr refers to a 3D array.
         #     _1d  refers to a 1D array.
         
-        self.number_arr = np.array(num_pts_3d) # Number of dust grains in this bin.
-        self.azimuth_arr = np.array(num_pts_3d) # Azmuth angle. Not sure we need this. In body frame.
+        self.number_arr  = np.array(num_pts_3d) # Number of dust grains in this bin. Not a density -- just #.
+                                                # This is the number of small dust grains -- ie, n(r_dust[0])
+                                                # and we get number of larger by applying the powerdist.
+        self.azimuth_arr = np.array(num_pts_3d) # Azimuth angle. Not sure we need this. In body frame.
         self.radius_arr  = np.array(num_pts_3d) # Radius. This will be useful. In body frame.
         
         self.x_arr       = np.array(num_pts_3d)
@@ -188,7 +207,7 @@ class nh_ort_track4_flyby:
 # Set up the ring itself
 # =============================================================================
 
-    def set_ring_parameters(self, file_profile_ring, albedo, q_dust, inclination=None):
+    def set_ring_parameters(self, file_profile_ring, albedo, q_dust, area_sc, inclination=None):
         
         """
         Define the ring radial profile, size distribution, albedo, size dist, etc.
@@ -208,6 +227,9 @@ class nh_ort_track4_flyby:
         inclination:
             Float. Fraction (e.g., 0.1 = 10%). If None, then the ring takes the full vertical height of the box 
             at all radii.
+            
+        area_sc:
+            Surface area of spacecraft. Astropy units. Optional; pass None to keep undefined.
             
         """
         
@@ -274,6 +296,10 @@ class nh_ort_track4_flyby:
             
         self.inclination_ring = inclination
         
+        # Set the s/c area. This is optional
+        
+        self.area_sc = area_sc
+        
         # Set the albedo
         
         self.albedo = albedo
@@ -315,7 +341,7 @@ class nh_ort_track4_flyby:
         This changes number_arr s.t. I/F is the proper values.
         """
         
-        (radius_ring, IoF) = self.get_radial_profile()
+        (radius_ring, IoF, _, _) = self.get_radial_profile()
         
         # And normalize number density based on this
         
@@ -331,12 +357,21 @@ class nh_ort_track4_flyby:
 # Get the radial profile
 # =============================================================================
 
-    def get_radial_profile(self):
+    def get_radial_profile(self, r_min = None):
 
         """
         Return a radial profile - that is, I/F vs distance.
         
-        Returns a tuple with (radius, I/F)
+        Returns a tuple with (radius, I/F, tau, n_hits).
+        
+        Optional parameters
+        ------
+        
+        r_min:
+            Minimum particle size to consider. Any bins that include this size range, or larger, will be included.
+            This allows us to get the optical depth using *all* particles (default), or the optical depth using
+            only deadly particles (by passing explicitly).
+            
         """
         
         # Take a slice in the X-Z plane
@@ -351,27 +386,106 @@ class nh_ort_track4_flyby:
         
         mu  = 1.  # Assume a face-on ring, for sunflower
 
+        # Calculate the lower bin limit
+        # XXX This is not quite right, since the advertised bin size is actually the *middle* of a bin.
+        # XXX I think there is an off-by-one bug here too.
+        
+        if r_min:
+            bin_r_min = np.digitize(r_min, self.r_dust)
+        else:
+            bin_r_min = 0
+            
         # Calculate the I/F along a vertical-radial slice in the Z-X (or Y-X, same) plane, from edge to edge
         # This does all the unit conversions automatically.
-        # This includes just the smallest particle.
+        # This includes the contribution from all particle sizes.
         
         IoF = (self.albedo * \
-               np.sum(math.pi * self.n_dust[0] * self.r_dust[0]**2) * 
+               np.sum(math.pi * self.n_dust[bin_r_min:] * self.r_dust[bin_r_min:]**2) * 
                self.number_arr[index_center_x,:,:] / 
                (self.binsize_3d[0] * self.binsize_3d[2]) / 
                (4 * mu) )
         
         IoF = IoF.to(1).value
-        
         IoF_profile = np.sum(IoF, axis=0)
+
+        # Calc optical depth
         
-        return( (radius_ring, IoF_profile) )
+        tau =  (np.sum(math.pi * self.n_dust[bin_r_min:] * self.r_dust[bin_r_min:]**2) * 
+                self.number_arr[index_center_x,:,:] / 
+                (self.binsize_3d[0] * self.binsize_3d[2]) )
+
+        tau = tau.to(1).value
+        tau_profile = np.sum(tau, axis=0)
+        
+        # Calc loss-of-mission probability. 
+        # Requires that area_sc be set.
+        
+        n_hits =  (np.sum(math.pi * self.n_dust[bin_r_min:]) * 
+                   self.area_sc * 
+                   self.number_arr[index_center_x,:,:] / 
+                   (self.binsize_3d[0] * self.binsize_3d[2]) )
+
+        n_hits = n_hits.to(1).value
+        n_hits_profile = np.sum(n_hits, axis=0)
+        
+        # Now that we have it, chop it in half, so we go center to edge. (Could have done this earlier.)
+        
+        return( (radius_ring[index_center_x:], 
+                 IoF_profile[index_center_x:], 
+                 tau_profile[index_center_x:],
+                 n_hits_profile[index_center_x:]) )
+
+# =============================================================================
+# Estimate the loss-of-mission probability.
+# =============================================================================
+
+    def plot_prlom(self, r_min = 0.2*u.mm, area_sc=(1*u.m)**2):
+        
+        """
+        Calculate the probability of loss of mission Pr(LOM). This is bascially just the number of grains > r_crit.
+        
+        This is an over-simplification. But it should be good to order-of-mag.
+        
+        This part of the code basically duplicates the functionality in self.fly_trajectory().
+        That is much more explicit about it, and does the time integration. But the net result should be similar.
+        
+        Optional parameters
+        ------
+        
+        r_min:
+            Define the smallest size to consider. Any bins that include this size range are included, plus 
+            any larger bins. Astropy units.
+        
+        area_sc:
+            Area of the spacecraft. Astropy units.
+            
+        """
+        
+        # Get the optical depth profile. Use the correct minimum size, so as to consider only deadly grains.
+        
+        (radius_ring, IoF, tau, n_hits) = self.get_radial_profile(r_min=r_min)
+       
+        # The optical depth is just the fraction obscured.
+    
+        prlom = 1-1/np.exp(n_hits)
+        
+        plt.plot(radius_ring, prlom)
+        plt.ylabel('Pr(LOM)')
+        plt.xlabel('Radius [km]')
+        plt.title(f'Loss of Mission Probability. r_min = {r_min}')
+        
+        for a_flyby_i in self.a_flyby:
+            plt.axvline(a_flyby_i.to('km').value, linestyle = 'dotted', color='red', alpha=0.5)
+            
+        plt.show()
+        
+        return
     
 # =============================================================================
 # Plot the ring radial profile
 # =============================================================================
 
-    def plot_radial_profile(self):
+    def plot_radial_profile(self, r_min=None):
         """
         Plot the ring's radial profile. This is mostly used for testing, just to 
         make sure that it has been loaded properly.
@@ -381,16 +495,31 @@ class nh_ort_track4_flyby:
         
         # Make 2D plot of radial profile vs I/F
         
-        (radius_ring, IoF) = self.get_radial_profile()
+        (radius_ring, IoF, tau, n_hits) = self.get_radial_profile(r_min=r_min)
         
-        plt.plot(radius_ring, IoF)
+        plt.plot(radius_ring, IoF, label = 'I/F')
+        plt.plot(radius_ring, tau, label = 'tau')
         plt.xlabel('Radius [km]')
-        plt.ylabel('I/F [of small grain]')
+        plt.ylabel('Profile')
+        for a_flyby_i in self.a_flyby:
+            plt.axvline(a_flyby_i.to('km').value, linestyle = 'dotted', color='red', alpha=0.5)
+        
+#        plt.gca().ticklabel_format(style='sci')
+        plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e')) 
+        plt.title(f'Radial Profile, a={self.albedo}, r_min = {r_min}')
+        plt.legend()
         plt.show()
+        
+        # Calculate tau and I/F at the flyby distances
+        
+        for a_flyby_i in self.a_flyby:
+            bin_a_flyby_i = np.digitize(a_flyby_i, radius_ring)
+            print("At {:5.0f}: I/F = {:.2e}, tau = {:.2e}, n_hits = {:.2f}".format(
+                    a_flyby_i, IoF[bin_a_flyby_i], tau[bin_a_flyby_i], n_hits[bin_a_flyby_i]))
         
         # Plot an image of the face-on ring
         
-        plt.subplot(1,2,1)
+        plt.subplot(1,3,1)
         index_center_y = int(len(self.y_1d)/2)
         index_center_x = int(len(self.x_1d)/2)
        
@@ -403,18 +532,24 @@ class nh_ort_track4_flyby:
         plt.xlabel('Z [km]')
         plt.ylabel('X [km]')
         
-        plt.subplot(1,2,2)
-        plt.imshow(np.sum(self.number_arr, axis=1), extent=extent)
+        plt.subplot(1,3,2)
+        sum_vert = np.sum(self.number_arr, axis=1)
+        plt.imshow(sum_vert, extent=extent)
         plt.title('Ring, Vertical Sum')
-        plt.show()
         
         # Make a plot of the optical depth profile through the ring
-        XXX
+        # Number in self.number_arr is just a number, not a density. It is the number of 
+        # grains at the smallest size  -- ie, n(r_dust[0]).
+        
+        profile_radial = sum_vert[index_center_x,:]  # Get the radial profile, from edge-center-edge
+                                                     # This is the number of smallest grains. 
+#        profile_radial_tau = profile_radial * XXX
         
         # Make a plot of the edge profile
         
         is_populated_arr = (self.number_arr > 0).astype(int)
         
+        plt.subplot(1,3,3)
         plt.imshow(is_populated_arr[index_center_x,:,:], extent =
                                             [np.amin(self.x_1d.to('km').value), np.amax(self.x_1d.to('km').value), 
                                              np.amin(self.z_1d.to('km').value), np.amax(self.z_1d.to('km').value)])
@@ -427,13 +562,16 @@ class nh_ort_track4_flyby:
         
         # Plot the size distribution, just for fun
         
-        plt.plot(self.r_dust.to('mm').value, self.n_dust, marker = 'o', linestyle='none')
-        plt.title('Size Distribution')
-        plt.xlabel('Size [mm]')
-        plt.ylabel('Number')
-        plt.yscale('log')
-        plt.xscale('log')
-        plt.show()
+        do_plot_size_dist = False
+
+        if do_plot_size_dist:
+            plt.plot(self.r_dust.to('mm').value, self.n_dust, marker = 'o', linestyle='none')
+            plt.title('Size Distribution')
+            plt.xlabel('Size [mm]')
+            plt.ylabel('Number')
+            plt.yscale('log')
+            plt.xscale('log')
+            plt.show()
 
 # =============================================================================
 # Output the trajectory and particle intercept info to a file
@@ -444,6 +582,15 @@ class nh_ort_track4_flyby:
         """
         Write an output table. The filename is auto-generated based on the parameters already supplied.
         
+        The output value is typically in particles per km3.
+          ** That is my memory from MRS. But, his email 5-Dec-2017 says 
+             "Once the numbers are calibrated to particles per size bin per cubic meter, we tabulate those numbers 
+             vs. time along each trajectory and hand them off to Doug M"
+          ** Wiki says "Units are TBD"
+          ** MRS's code nhdust.py (?) uses #/km3 at one point.
+             
+             ** For now I will assume # per km3, but this can be trivially changed later.
+          
         Parameters
         -----
         do_positions:
@@ -461,8 +608,6 @@ class nh_ort_track4_flyby:
         # We really don't care about fractional values on any of these. So, truncate everything
         # to be an integer. There is no easy way to force all columns to print as int, so just do it manually.
         
-
-
         t = Table([np.array(self.et_t).astype(int), 
                    np.array(self.delta_et_t).astype(int)], 
                       names = ['ET', 'ET from CA'])
@@ -543,7 +688,7 @@ class nh_ort_track4_flyby:
 # Fly a trajectory through the ring and sample it
 # =============================================================================
         
-    def fly_trajectory(self, name_observer, et_start, et_end, dt, area):
+    def fly_trajectory(self, name_observer, et_start, et_end, dt):
         """
         Now that all parameters are set, sample the ring along a flight path.
         
@@ -555,9 +700,6 @@ class nh_ort_track4_flyby:
         et_end:
         
         dt:
-            
-        area:
-            S/C surface area. The cumulative particle number will be calculated based on this. Must be in astropy units.
             
         """
     
@@ -626,7 +768,6 @@ class nh_ort_track4_flyby:
         
         v_t = np.array(v_t) * u.km/u.s
         
-        
         # If indices are too large, drop them by one. This just handles the edge cases so the code doesn't crash.
         
         bin_x_t[bin_x_t >= len(self.x_1d)] = len(self.x_1d)-1
@@ -659,7 +800,7 @@ class nh_ort_track4_flyby:
     
         # Calc the fractional ratio between volume of a bin, and volume that s/c sweeps up in its path thru the bin.
         
-        fracvol_t = ( (area * v_t * self.dt) / (binvol) ).to(1).value
+        fracvol_t = ( (self.area_sc * v_t * self.dt) / (binvol) ).to(1).value
     
         number_sc_t = number_t * fracvol_t
         
@@ -702,6 +843,10 @@ def do_nh_ort_track4_flyby():
     albedo              = [0.05,0.10, 0.30, 0.50]
     q_dust              = [2.5, 3.5]
     inclination_ring    = [0.05, 0.3]
+    
+    albedo = [1]
+    q_dust = [3]
+    inclination_ring = [0.8]
     
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
@@ -760,27 +905,35 @@ def do_nh_ort_track4_flyby():
     
     # Loop over the input parameters
     
+    do_test = False
+    
     for albedo_i in albedo:
         for q_dust_i in q_dust:
             for inclination_i in inclination_ring:
     
-#                albedo_i = albedo[0]
-#                q_dust_i = q_dust[0]
-#                inclination_i = inclination_ring[0]
- 
+                if do_test: # Do this only for debugging and diagnostics
+                    albedo_i = albedo[0]
+                    q_dust_i = q_dust[0]
+                    inclination_i = inclination_ring[0]
+                    self = ring
+     
                 # Set up the ring itself
                 
-                ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i, inclination_i)
+                ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i, area_sc, inclination_i)
 
                 ring.normalize()
                 
                 # Plot the ring profile
                 
-                ring.plot_radial_profile()
+                ring.plot_radial_profile(r_min=0.2*u.mm)
+                
+                # Get a quick estimate of the PrLOM
+                
+                ring.plot_prlom()
                 
                 # And fly through it
                 
-                ring.fly_trajectory(name_observer, et_start, et_end, dt, area_sc)
+                ring.fly_trajectory(name_observer, et_start, et_end, dt)
                 
                 # Make a few diagnostics plots of our path through the system
                 
