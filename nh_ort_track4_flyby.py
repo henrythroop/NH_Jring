@@ -447,7 +447,7 @@ class nh_ort_track4_flyby:
         This is an over-simplification. But it should be good to order-of-mag.
         
         This part of the code basically duplicates the functionality in self.fly_trajectory().
-        That is much more explicit about it, and does the time integration. But the net result should be similar.
+        That is much more explicit about it, and does the time integration. But the net result should be similar. 
         
         Optional parameters
         ------
