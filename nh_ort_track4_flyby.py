@@ -562,6 +562,13 @@ class nh_ort_track4_flyby:
         plt.ylabel('Vertical [km]')
     
         plt.title('Edge Slice Profile, i = {}'.format(self.inclination))
+        
+        # Fiddle with the plot to make sure things don't overlap 
+        
+        plt.tight_layout()
+        
+        # And display it
+        
         plt.show()
         
         # Plot the size distribution, just for fun
@@ -681,7 +688,7 @@ class nh_ort_track4_flyby:
             
             lun = open(path_out, "w")
             lun.write("#    First line is '0' and then size bins, in mm\n")
-            lun.write("#    Remaining are delta_ET, n(r_0), n(r_2), n(r_3), n(r_3), n(r_4), n(r_5), n(r_6)\n")
+            lun.write("#    Remaining are delta_ET, n(r_1), n(r_2), n(r_3), n(r_4), n(r_5), n(r_6), n(r_7)\n")
             lun.write("#    n(r) are number per km3\n")
             lun.write("#    Henry Throop {}\n".format(str(datetime.now())))          
             lun.write("{} {} {} {} {} {} {} {}\n".format(0, 
