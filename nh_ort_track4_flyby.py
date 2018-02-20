@@ -207,7 +207,8 @@ class nh_ort_track4_flyby:
 # Set up the ring itself
 # =============================================================================
 
-    def set_ring_parameters(self, file_profile_ring, albedo, q_dust, area_sc, inclination=None):
+    def set_ring_parameters(self, file_profile_ring, albedo, q_dust, 
+                            area_sc=None, inclination=None, name_trajectory=None):
         
         """
         Define the ring radial profile, size distribution, albedo, size dist, etc.
@@ -230,6 +231,8 @@ class nh_ort_track4_flyby:
             
         area_sc:
             Surface area of spacecraft. Astropy units. Optional; pass None to keep undefined.
+        
+        name_trajectory:
             
         """
         
@@ -294,11 +297,12 @@ class nh_ort_track4_flyby:
             
             self.number_arr *= weighting_3d      # And finally apply this weighting+mask to the original array
             
-        self.inclination_ring = inclination
+        self.inclination = inclination
         
-        # Set the s/c area. This is optional
+        # Set the s/c area and trajectory. These are optional, but default to None.
         
         self.area_sc = area_sc
+        self.name_trajectory = name_trajectory
         
         # Set the albedo
         
@@ -557,7 +561,7 @@ class nh_ort_track4_flyby:
         plt.xlabel('Radius [km]')
         plt.ylabel('Vertical [km]')
     
-        plt.title('Edge Slice Profile, i = {}'.format(self.inclination_ring))
+        plt.title('Edge Slice Profile, i = {}'.format(self.inclination))
         plt.show()
         
         # Plot the size distribution, just for fun
@@ -573,6 +577,30 @@ class nh_ort_track4_flyby:
             plt.xscale('log')
             plt.show()
 
+# =============================================================================
+# Create the output filename automatically, based on the parameter values
+# =============================================================================
+
+    def create_filename_track4(self):
+               
+        str_traj = {'prime': 'traj1', 'alternate': 'traj2'}[self.name_trajectory]
+        
+        str_test = 'ort2-ring'
+        
+        str_speed = 'speed1'
+        
+        str_qej = f"q{self.q_dust}".replace('.', '')   # 'q25', 'q35'
+        
+        str_albedo = {'0.05' : 'pv1', '0.10': 'pv2', '0.30':'pv3', '0.70' : 'pv4'}['{:4.2f}'.format(self.albedo)]
+        
+        str_rho = 'rho1'
+        
+        str_inc = {'0.05':'inc1', '0.50':'inc2'}['{:4.2f}'.format(self.inclination)]
+        
+        file_out = f"{str_traj}_{str_test}_{str_speed}_{str_qej}_{str_albedo}_{str_rho}_{str_inc}.dust"
+                        
+        return file_out
+    
 # =============================================================================
 # Output the trajectory and particle intercept info to a file
 # =============================================================================
@@ -629,20 +657,16 @@ class nh_ort_track4_flyby:
         
         # Create the output filename
         
-        dir_out = '/Users/throop/Data/ORT1/throop/track4/'
+        dir_out = '/Users/throop/Data/ORT2/throop/track4/'
         
-        file_out = 'ort1_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination_ring, self.albedo)
-        if do_positions:
-            file_out = file_out.replace('.txt', '_pos.txt')
-            
-        # Add a specified string to the filename, if requested
+        file_out = self.create_filename_track4()
         
-        if (suffix):
-            file_out = file_out.replace('.txt', '_' + suffix + '.txt')
-            
+#        file_out = 'ort1_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination, self.albedo)
+#        if do_positions:
+#            file_out = file_out.replace('.txt', '_pos.txt')
+#       
         path_out = os.path.join(dir_out, file_out)
         
-
         if do_write_astropy:
 
             # Write the file using Astropy
@@ -780,7 +804,7 @@ class nh_ort_track4_flyby:
         number_t = 0. * et_t
         
         for i in range(len(et_t)):
-            number_t[i] = self.number_arr[bin_x_t[i], bin_y_t[i], bin_z_t[i]]
+            number_t[i] = self.number_arr[bin_x_t[i], bin_y_t[i], bin_z_t[i]]  # Number per km3
 
         # ** This gives us number density at the smallest binsize. We then need to apply n(r), to get 
         # density at all other bin sizes.
@@ -840,14 +864,14 @@ class nh_ort_track4_flyby:
     
 def do_nh_ort_track4_flyby():
     
-    albedo              = [0.05,0.10, 0.30, 0.50]
+    albedo              = [0.05, 0.70]
     q_dust              = [2.5, 3.5]
-    inclination_ring    = [0.05, 0.3]
+    inclination         = [0.05, 0.5]
     
-    albedo = [1]
-    q_dust = [3]
-    inclination_ring = [0.8]
-    
+#    albedo = [0.30]
+#    q_dust = [3.5]
+#    inclination = [0.5]
+#    
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
 # This defines I/F as a function of orbital distance.
@@ -865,8 +889,8 @@ def do_nh_ort_track4_flyby():
     
     name_observer = 'New Horizons'
     
-    orbit = 'alternate'  # Can be 'prime' or 'alternate'
-#    orbit = 'prime'  # Can be 'prime' or 'alternate'
+#    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
+    name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
     
     dt = 1*u.s         # Sampling time through the flyby. Astropy units.s
 
@@ -875,7 +899,7 @@ def do_nh_ort_track4_flyby():
     
     if (sp.ktotal('ALL') == 0):
     
-        sp.furnsh(f'kernels_kem_{orbit}.tm')
+        sp.furnsh(f'kernels_kem_{name_trajectory}.tm')
     
     # Define the number of grid locations on each side.
     
@@ -909,17 +933,18 @@ def do_nh_ort_track4_flyby():
     
     for albedo_i in albedo:
         for q_dust_i in q_dust:
-            for inclination_i in inclination_ring:
+            for inclination_i in inclination:
     
                 if do_test: # Do this only for debugging and diagnostics
                     albedo_i = albedo[0]
                     q_dust_i = q_dust[0]
-                    inclination_i = inclination_ring[0]
+                    inclination_i = inclination[0]
                     self = ring
      
                 # Set up the ring itself
                 
-                ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i, area_sc, inclination_i)
+                ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i, 
+                                         area_sc=area_sc, inclination=inclination_i, name_trajectory=name_trajectory)
 
                 ring.normalize()
                 
@@ -982,7 +1007,7 @@ def do_nh_ort_track4_flyby():
 
                 # Output the dust population to a file
                 
-                ring.output_trajectory(suffix=f'{orbit}', do_positions=False)
+                ring.output_trajectory(suffix=f'{name_trajectory}', do_positions=False)
                 
                 # Print some diagnostics
                 
