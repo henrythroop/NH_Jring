@@ -212,6 +212,10 @@ class App:
         
         self.reqid_haz = self.reqids_haz[self.num_image]  # Set it to 'K1LR_HAZ00', for instance.
         
+# Set a list of frame numbers to animate
+        
+        l = hbt.frange(0, len(self.reqids_haz)-1)
+        
 # Plot the image
         
         self.plot()
@@ -464,6 +468,13 @@ class App:
 # =============================================================================
 
     def blink_advanced_e(self, event):
+        
+        dt = input('Enter blink time in ms ({self.dt_blink}): ')
+        if (dt):                       # If user didn't just hit <cr>
+            self.dt_blink = int(dt)
+        
+        list_frames = ''
+        
         print('Blink advanced now!')
         self.plot()  
         
