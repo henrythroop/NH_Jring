@@ -454,7 +454,8 @@ class nh_ort_track4_flyby:
         """
         Calculate the probability of loss of mission Pr(LOM). This is bascially just the number of grains > r_crit.
         
-        This is an over-simplification. But it should be good to order-of-mag.
+        This is an over-simplification. But it should be good to order-of-mag. Doug Mehoke will calculate
+        much better.
         
         This part of the code basically duplicates the functionality in self.fly_trajectory().
         That is much more explicit about it, and does the time integration. But the net result should be similar. 
@@ -908,6 +909,8 @@ def do_nh_ort_track4_flyby():
     
     name_observer = 'New Horizons'
     
+    hbt.figsize((8,6))
+    hbt.set_fontsize(12)
 
     dt = 1*u.s         # Sampling time through the flyby. Astropy units.
 
@@ -971,14 +974,10 @@ def do_nh_ort_track4_flyby():
                 # Plot the ring profile
                 
                 ring.plot_radial_profile(r_min=r_crit)
-                
-                # XXX Save value: tau and I/F at the given distance
-                
-                # Get a quick estimate of the PrLOM
+                                
+                # Plot the PrLOM. This is *my* Q&D estimate of it -- not Doug Mehoke's careful assessment.
                 
                 ring.plot_prlom()
-                
-                # XXX Save value: PrLOM at the given distance (either 3500 or 10,000)
                 
                 # And fly through it
                 
@@ -1034,28 +1033,27 @@ def do_nh_ort_track4_flyby():
                 plt.axhline(y = 1, linestyle = '--', alpha = 0.1)    
                 plt.show()
                 
-                ## XX Save value: ring.number_sc_cum for all >= r_crit. This is on given path.
+                # Calculate the radial profiles explicitly, so I can extract the I/F, etc at the flyby distance,
+                # and save in a table as output.
                                     
                 (radius_ring, IoF, tau, n_hits, pr_lom) = self.get_radial_profile(r_min=r_crit)
 
-                # Now add an entry to the table
-
+                # Calculate the proper radial bin to extract
+                
                 bin_a_flyby = np.digitize(ring.a_flyby[name_trajectory], radius_ring)
                 
+                # Now add an entry to the table
+
                 t.add_row(vals=[name_trajectory, q_dust_i, inclination_i, albedo_i, 
                                 IoF[bin_a_flyby], tau[bin_a_flyby], n_hits[bin_a_flyby], pr_lom[bin_a_flyby]])
 
-                # Output the dust population to a file
+                # Output the dust population for this run to a file. This is the file that Doug Mehoke will read.
                 
                 ring.output_trajectory(suffix=f'{name_trajectory}', do_positions=False)
                 
-                # Print some diagnostics
-                
-                print(f"Total number of particles={np.sum(self.number_arr)}")
-                
-                # Print the table
-                
-                t.pprint(max_width=-1)
+    # Print the table
+    
+    t.pprint(max_width=-1)
 
 # =============================================================================
 # Run the function
