@@ -3,6 +3,14 @@
 """
 Created on Mon Jan 22 09:58:37 2018
 
+This is my image stack blinker for the MU69 ORT. It is an animated Tk tool that allows the user to scan through 
+stacked images.
+
+Hit 'h' for help.
+
+Keypresses like this are accepted when cursor is on the GUI. Sometimes, for entering data such as a new timestep, 
+text must be entered into the main Python window, not the GUI.
+
 @author: throop
 """
 
@@ -72,13 +80,14 @@ class App:
 
     def __init__(self, master):
 
-        self.master = master
+        self.master = master   # This is the handle to the main Tk widget. I have to use it occasionally to 
+                               # set up event handlers, so grab it and save it.
         
         # Open the image stack
         
-        self.stretch_percent = 90    
-        self.stretch = astropy.visualization.PercentileInterval(self.stretch_percent) # PI(90) scales to 5th..95th %ile.
-        
+#        self.stretch_percent = 90    
+#        self.stretch = astropy.visualization.PercentileInterval(self.stretch_percent) # PI(90) scales to 5th..95th %ile.
+#        
         self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
 #        self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
         self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
@@ -109,8 +118,6 @@ class App:
         
         self.do_subtract = True
 
-        hbt.figsize((12,12))
-        hbt.figsize((5,5))
         hbt.set_fontsize(20)
 
         # Set the stretch range, for imshow. These values are mapped to black and white, respectively.
@@ -155,39 +162,19 @@ class App:
             if ('y' in yn):
                 self.save()
                 
-# Set the sizes of the plots -- e.g., (7,7) = large square
+# Set the sizes of the plots -- e.g., (15,15) = large square
         
-        figsize_image = (10,10)
+        figsize_image = (15,15)
         
         self.fig1 = Figure(figsize = figsize_image)    # <- this is in dx, dy... which is opposite from array order!
 
         self.ax1 = self.fig1.add_subplot(1,1,1, 
-                                    xlabel = 'X', ylabel = 'Y', 
                                     label = 'Image') # Return the axes
         plt.set_cmap('Greys_r')
         
         self.canvas1 = FigureCanvasTkAgg(self.fig1,master=master)
         self.canvas1.show()
         
-# Set up Plot 2 : Radial / Azimuthal profiles
-        
-        do_canvas2 = False
-
-        if do_canvas2:
-            
-            self.bgcolor = 'red'
-    
-            self.fig2 = Figure(figsize = (7,3))
-            _ = self.fig2.set_facecolor(self.bgcolor)
-    
-            self.ax2 = self.fig2.add_subplot(1,1,1, 
-                                        xlabel = 'Radius or Azimuth', ylabel = 'Intensity', 
-                                        label = 'Plot') # Return the axes
-            
-            self.canvas2 = FigureCanvasTkAgg(self.fig2,master=master)
-            self.canvas2.show()  
-            self.canvas2.get_tk_widget().grid(row=2, column=1, rowspan = 1)
-
 # Put objects into appropriate grid positions
 
         self.canvas1.get_tk_widget().grid(row=1, column=1, rowspan = 1)
@@ -204,7 +191,8 @@ class App:
         master.bind('<Right>', self.next_e)
         master.bind('s',       self.stretch_e)
         master.bind('b',       self.blink_e)
-        
+        master.bind('t',       self.blink_set_time_e)
+        master.bind('#',       self.blink_set_sequence_e)
         master.bind('z',       self.zoom_screen_up_e)
         master.bind('Z',       self.zoom_screen_down_e)
 
@@ -212,9 +200,11 @@ class App:
         
         self.reqid_haz = self.reqids_haz[self.num_image]  # Set it to 'K1LR_HAZ00', for instance.
         
-# Set a list of frame numbers to animate
-        
-        l = hbt.frange(0, len(self.reqids_haz)-1)
+# Set a list of frame numbers to animate. For default, do them all.
+
+        self.list_index_blink = hbt.frange(0, len(self.reqids_haz)-1) # List of indices ( [1, 2, 3] )
+        self.list_index_blink_str = ' '.join(np.array(self.list_index_blink).astype(str)) # Make into string ('1 2 3')
+        self.index_blink = 0      # where in the list of indices do we start? Current index.     
         
 # Plot the image
         
@@ -273,12 +263,15 @@ class App:
         min = int(dx/2 - dx_zoomed/2)
         max = int(dx/2 + dx_zoomed/2)
         
-        # Subtract the bg image, if requested, and display it
+        # Clear the existing image. Otherwise, we end up over-plotting, and the speed drops every time plot() called.
         
+        self.ax1.clear()
+        
+        # Subtract the bg image, if requested, and display it
+
         if (self.do_subtract):
             im_disp = img_haz[min:max, min:max] - self.img_field[min:max, min:max]
             self.plt1 = self.ax1.imshow(im_disp, interpolation=None, vmin=self.vmin_diff, vmax=self.vmax_diff)
-            self.range_stretch = hbt.mm(self.stretch(im_disp))  # Get the 
             
         else:
             self.plt1 = self.ax1.imshow(img_haz[min:max, min:max], interpolation=None, 
@@ -286,19 +279,23 @@ class App:
             
         # Set the title, etc.
         
-        self.ax1.set_title('{}, {}/{}, zoom = {}'.format(self.reqid_haz,
-                       'N', len(self.reqids_haz), self.zoom))
-#        self.ax1.set_xlim(range)
-#        self.ax1.set_ylim(range)
-        
+        self.ax1.set_title(self.make_title())
+            
         # Make it as compact as possible
         
-#        plt.tight_layout()
+        self.fig1.tight_layout()
+        
         self.canvas1.show()
 
-#        self.ax2.plot(self.img_haz[500,:])
-#        self.canvas2.show()
- 
+
+    def make_title(self):
+        """
+        Return the title for a plot
+        """
+        
+        return '{}, {}/{}, zoom = {},{}'.format(
+                       self.reqid_haz,
+                       self.num_image, len(self.reqids_haz), self.zoom, self.zoom_screen)
 # =============================================================================
 # Update just the data in the current image, leaving all the rest untouched.
 # =============================================================================
@@ -330,6 +327,10 @@ class App:
         else:
             self.plt1.set_data(img[min:max, min:max]) # Like imshow, but faster
 
+        # Set the title. This gets updated when using draw() or show() just fine.
+        
+        self.ax1.set_title(self.make_title())
+        
         self.canvas1.draw()
         self.canvas1.show()  # Q: Do I need this:? A: Yes, even when using set_data().
 
@@ -348,15 +349,14 @@ class App:
         print('-            : Next')
         print('h or ?       : Help')
         print('q            : Quit')
-        print('s            : change Stretch')
+        print('s            : Change Stretch')
         print('b            : Toggle blinking on/off')
         print('t            : Change blink time')
-        print('e            ; Enter blink sequence as a string')
+        print('#            ; Change blink sequence')
         print('-----')
         print('CURRENT STATUS:')
-        print(f'Stretch:     {self.stretch_percent}')
-        print(f'Blink sequence: ')
-        print(f'Blink status: XX, dt = X')
+        print(f'Blink sequence: {self.list_index_blink_str}')
+        print(f'Blink status: {self.is_blink}, dt = {self.dt_blink}')
         print(f'Zoom:        {self.zoom}')
         print(f'Zoom_screen: {self.zoom_screen}')
         print(f'v1, v2 diff: {self.vmin_diff},  {self.vmax_diff}')
@@ -379,6 +379,10 @@ class App:
 # =============================================================================
         
     def prev_e(self, event):
+        """
+        Go to previous image. This is *not* the previous image in blink sequence.
+        """
+        
         self.num_image_prior = self.num_image
         self.num_image -=1
         self.num_image = np.clip(self.num_image, 0, len(self.reqids_haz)-1)
@@ -392,12 +396,23 @@ class App:
 # =============================================================================
         
     def stretch_e(self, event):
-        str = input(f'Enter new stretch range ({self.vmin} {self.vmax}): ')
+        """
+        Change the min and max stretch values. We scale linearly between these.
+        These are set separately for the case of subtracting the bg, and not.
+        """
+
+        if self.do_subtract:
+            s = input(f'Enter new diff stretch range ({self.vmin_diff} {self.vmax_diff}): ')
+            if s:
+                self.vmin_diff = int(s.strip().split(' ')[0])  # Mapped to black
+                self.vmax_diff = int(s.strip().split(' ')[1])  # Mapped to white 
+        else:
+            s = input(f'Enter new raw stretch range ({self.vmin_raw} {self.vmax_raw}): ')
+            if s:
+                self.vmin_raw = int(s.strip().split(' ')[0])  # Mapped to black
+                self.vmax_raw = int(s.strip().split(' ')[1])  # Mapped to white 
         
-        self.vmin = int(str.split(' ')[0])  # Mapped to black
-        self.vmax = int(str.split(' ')[1])  # Mapped to white 
-        
-        self.replot()   # We have to do plot and not replot, since the latter doesn't take vmin args.
+        self.plot()   # We have to do plot and not replot, since the latter doesn't take vmin/vmax args.
 
 # =============================================================================
 # Key: zoom screen Up
@@ -417,14 +432,6 @@ class App:
         if (self.zoom_screen < 1):
             self.zoom_screen = 1
         print(self.zoom_screen)
-        self.plot()
-
-# =============================================================================
-# Key: change Stretch
-# =============================================================================
-
-    def restretch_e(self, event):
-        print('Enter new stretch value:')
         self.plot()
         
 # =============================================================================
@@ -455,7 +462,11 @@ class App:
         is entirely done in the background, and the app responds fully to all events.
         """
         
-        self.num_image += 1
+        self.index_blink += 1  # Go to the next item in the sequence list
+        if self.index_blink == len(self.list_index_blink):
+            self.index_blink = 0  # If we're at the end, go back to start
+            
+        self.num_image = self.list_index_blink[self.index_blink]
         if (self.num_image >= len(self.reqids_haz)):
             self.num_image = 0
         print(f"Animating frame {self.num_image}")    
@@ -464,27 +475,40 @@ class App:
             self.master.after(self.dt_blink, self.show_next_frame)
         
 # =============================================================================
-# Key: Blink (advanced)
-# =============================================================================
-
-    def blink_advanced_e(self, event):
-        
-        dt = input('Enter blink time in ms ({self.dt_blink}): ')
-        if (dt):                       # If user didn't just hit <cr>
-            self.dt_blink = int(dt)
-        
-        list_frames = ''
-        
-        print('Blink advanced now!')
-        self.plot()  
-        
-# =============================================================================
 # Key: Toggle bg subtraction
 # =============================================================================
         
     def toggle_subtract_e(self, event):
         self.do_subtract = not(self.do_subtract)
-        self.plot()
+        self.plot()        
+        
+# =============================================================================
+# Key: Change blink time
+# =============================================================================
+        
+    def blink_set_time_e(self, event):
+
+        dt = input(f'Enter blink time in ms ({self.dt_blink}): ')
+        if (dt):                       # If user didn't just hit <cr>
+            self.dt_blink = int(dt)
+
+        print(f'dt = {dt} ms')
+        
+# =============================================================================
+# Key: Change blink sequence
+# =============================================================================
+        
+    def blink_set_sequence_e(self, event):
+
+        s = input(f'Enter frame list to animate ({self.list_index_blink_str}): ')
+        if (s):
+            self.list_index_blink = list(np.array(s.strip().split(' ')).astype(int))
+                      
+        self.list_index_blink_str = ' '.join(np.array(self.list_index_blink).astype(str))
+
+        self.index_blink = 0           # Start at the initial animation frame
+        
+        print(f'Blinking frames {self.list_index_blink}')
         
 # =============================================================================
 # Key: Quit
@@ -512,7 +536,7 @@ app  = App(root)
 
 # set the dimensions and position of the window
 
-root.geometry('%dx%d+%d+%d' % (810, 800, 2, 2))
+root.geometry('%dx%d+%d+%d' % (1080, 1080, 2, 2)) # I chose this size experimentally so it would match the figsize().
 root.configure(background='#ECECEC')                # ECECEC is the 'default' background
                
 os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
