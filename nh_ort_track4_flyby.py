@@ -952,7 +952,7 @@ def do_nh_ort_track4_flyby():
     do_test = False
     i       = 0            # Counter of index in which to store results
     
-    r_crit = 0.2*u.mm
+    r_crit = 0.9*u.mm
     
     for albedo_i in albedo:
         for q_dust_i in q_dust:
