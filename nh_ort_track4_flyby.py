@@ -600,21 +600,21 @@ class nh_ort_track4_flyby:
 
     def create_filename_track4(self):
                
-        str_traj = {'prime': 'traj1', 'alternate': 'traj2'}[self.name_trajectory]
+        str_traj = self.name_trajectory
         
         str_test = 'ort2-ring'
         
-        str_speed = 'speed1'
+        str_speed = 'v2.2'
         
-        str_qej = f"q{self.q_dust}".replace('.', '')   # 'q25', 'q35'
+        str_qej = 'q{:3.1f}'.format(self.q_dust)
         
-        str_albedo = {'0.05' : 'pv1', '0.10': 'pv2', '0.30':'pv3', '0.70' : 'pv4'}['{:4.2f}'.format(self.albedo)]
+        str_albedo = 'pv{:4.2f}'.format(self.albedo)
         
-        str_rho = 'rho1'
+        str_rho = 'rho1.00'
         
-        str_inc = {'0.05':'inc1', '0.50':'inc2'}['{:4.2f}'.format(self.inclination)]
+        str_inc = 'inc{:4.2f}'.format(self.inclination)
         
-        file_out = f"{str_traj}_{str_test}_{str_speed}_{str_qej}_{str_albedo}_{str_rho}_{str_inc}.dust"
+        file_out = f"{str_test}_{str_traj}_{str_speed}_{str_qej}_{str_albedo}_{str_rho}_{str_inc}.dust"
                         
         return file_out
     
@@ -881,17 +881,17 @@ class nh_ort_track4_flyby:
     
 def do_nh_ort_track4_flyby():
     
-#    albedo              = [0.05, 0.70]
-#    q_dust              = [2.5, 3.5]
-#    inclination         = [0.05, 0.5]
+    albedo              = [0.05, 0.70]
+    q_dust              = [2.5, 3.5]
+    inclination         = [0.05, 0.5]
 
 #    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
     name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
 
-    albedo = [0.05]
-    q_dust = [3.5]
-    inclination = [0.5]
-    
+#    albedo = [0.05]
+#    q_dust = [3.5]
+#    inclination = [0.5]
+#    
     bin_r_crit = 3    #   [0.046, 0.1, 0.215, 0.46, 1, 2.15, 4.6] mm.
 
     # Define the input filename, which has the ring radial profile
