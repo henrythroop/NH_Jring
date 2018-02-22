@@ -316,10 +316,17 @@ class nh_ort_track4_flyby:
         self.n_dust = []
         self.q_dust = q_dust
         
-        # Define the bins as per MRS 28-Jan-2017. These are the fixed sizes we output for Doug Mehoke.
+        # Define the bins as per MRS e-mail 28-Jan-2018. These are the fixed sizes we output for Doug Mehoke.
         # Lower limit: 0.046 mm = 46 micron.
+        # "The files delivered to Doug M. have seven columns with a maximum size (radius) of 4.6 mm. 
+        #  So: 0.046, 0.1, 0.215, 0.46, 1, 2.15, 4.6, all in mm." -- MRS email 28-Jan-2018
+        # This is the same list as in MRS's modeling document @4.4. But I thought those were diameter??
+        #
+        # Also: In DM's email to me 19-Feb, he says the sizes he receives are mm radii: 
+        # "Where the particle radii are in mm"
+        # This is teh 
         
-        r_dust = np.array([0.046, 0.1, 0.215, 0.46, 1, 2.15, 4.6])*u.mm # From MRS 28-Jan-2017
+        r_dust = np.array([0.046, 0.1, 0.215, 0.46, 1, 2.15, 4.6])*u.mm
         
         # Make it a power law, spanning the bins.
         # Drop the units here, of course.
@@ -874,24 +881,21 @@ class nh_ort_track4_flyby:
     
 def do_nh_ort_track4_flyby():
     
-    albedo              = [0.05, 0.70]
-    q_dust              = [2.5, 3.5]
-    inclination         = [0.05, 0.5]
+#    albedo              = [0.05, 0.70]
+#    q_dust              = [2.5, 3.5]
+#    inclination         = [0.05, 0.5]
 
 #    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
     name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
 
-    num_out = len(albedo) * len(q_dust) * len(inclination)
+    albedo = [0.05]
+    q_dust = [3.5]
+    inclination = [0.5]
+    
+    bin_r_crit = 3    #   [0.046, 0.1, 0.215, 0.46, 1, 2.15, 4.6] mm.
 
-    # Create an output table, Astropy format
+    # Define the input filename, which has the ring radial profile
     
-    t = Table(names = ['trajectory', 'q_dust', 'inclination', 'albedo', 'IoF', 'tau', 'n_hits', 'PrLOM'],
-              dtype = ['U30', float, float, float, float, float, float, float, ]  )
-    
-#    albedo = [0.05]
-#    q_dust = [3.5]
-#    inclination = [0.5]
-#    
     file_profile_ring = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ04/stack_n40_z4_profiles.txt'
     
 # This defines I/F as a function of orbital distance.
@@ -914,11 +918,15 @@ def do_nh_ort_track4_flyby():
 
     dt = 1*u.s         # Sampling time through the flyby. Astropy units.
 
-    # Start up SPICE if needed. 
-    # Note that if we change the name of the kernel file, we need to restart python to have the new one loaded.
+    # Create an output table, Astropy format
+    
+    t = Table(names = ['trajectory', 'q_dust', 'inclination', 'albedo', 'r_c [mm]', 
+                       'IoF > r_c', 'IoF full', 'tau > r_c', 'n_hits > r_c', 'n_hits full', f'PrLOM > r_c'],
+              dtype = ['U30', float, float, float, float, float, float, float, float, float, float]  )
+    
+    # Start up SPICE if needed. If we change the kernel file, we need to restart python.
     
     if (sp.ktotal('ALL') == 0):
-    
         sp.furnsh(f'kernels_kem_{name_trajectory}.tm')
     
     # Define the number of grid locations on each side.
@@ -952,8 +960,6 @@ def do_nh_ort_track4_flyby():
     do_test = False
     i       = 0            # Counter of index in which to store results
     
-    r_crit = 0.9*u.mm
-    
     for albedo_i in albedo:
         for q_dust_i in q_dust:
             for inclination_i in inclination:
@@ -972,6 +978,8 @@ def do_nh_ort_track4_flyby():
                 ring.normalize()
                 
                 # Plot the ring profile
+                
+                r_crit = ring.r_dust[bin_r_crit]
                 
                 ring.plot_radial_profile(r_min=r_crit)
                                 
@@ -1036,16 +1044,21 @@ def do_nh_ort_track4_flyby():
                 # Calculate the radial profiles explicitly, so I can extract the I/F, etc at the flyby distance,
                 # and save in a table as output.
                                     
-                (radius_ring, IoF, tau, n_hits, pr_lom) = self.get_radial_profile(r_min=r_crit)
+                (radius_ring_rc, IoF_rc, tau_rc, n_hits_rc, pr_lom_rc) = self.get_radial_profile(r_min=r_crit)
+                (radius_ring,    IoF,    tau,    n_hits,    pr_lom)    = self.get_radial_profile()
 
                 # Calculate the proper radial bin to extract
+                # We want this to be the geometrically closest bin. 
                 
                 bin_a_flyby = np.digitize(ring.a_flyby[name_trajectory], radius_ring)
                 
                 # Now add an entry to the table
 
-                t.add_row(vals=[name_trajectory, q_dust_i, inclination_i, albedo_i, 
-                                IoF[bin_a_flyby], tau[bin_a_flyby], n_hits[bin_a_flyby], pr_lom[bin_a_flyby]])
+                t.add_row(vals=[name_trajectory, q_dust_i, inclination_i, albedo_i, r_crit,
+                                IoF_rc[bin_a_flyby], IoF[bin_a_flyby], 
+                                tau_rc[bin_a_flyby], 
+                                n_hits_rc[bin_a_flyby], n_hits[bin_a_flyby],
+                                pr_lom_rc[bin_a_flyby]])
 
                 # Output the dust population for this run to a file. This is the file that Doug Mehoke will read.
                 

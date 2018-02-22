@@ -3,6 +3,9 @@
 """
 Created on Tue Feb 13 15:38:48 2018
 
+This reads the NH MU69 ORT 'Track 3' data, which is the output of N-Body simulations done by
+Doug Hamilton + David Kaufmann.
+
 @author: throop
 """
 

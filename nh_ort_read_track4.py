@@ -6,13 +6,19 @@ Created on Fri Feb  9 16:24:19 2018
 Program to read the ORT 'Track 4' results -- that is, the ring flythru simulations of 
 HBT + MRS.
 
+This routine is not used as part of the Hazard pipeline directly. Rather, it is used to compare
+results of HBT and MRS, to make sure we are sending similar things to Doug Mehoke.
+
+Track 4 are the lists of ring particle number densities as NH passes by MU69 on its path.
+These files are created by HBT and MRS (independently). They are then given to Doug Mehoke,
+for his use in Track 5.
+
 @author: throop
 """
 
 import pdb
 import glob
-import math       # We use this to get pi. Documentation says math is 'always available' 
-                  # but apparently it still must be imported.
+import math
 from   subprocess import call
 import warnings
 import pdb
@@ -103,9 +109,7 @@ class track4_profile:
                        names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
     
         # Read the first row of the file as the size bins, and remove it.
-    
-#        r_dust_row = t[0]
-        
+            
         r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]] * u.mm
         t.remove_row(0)
         
@@ -135,18 +139,16 @@ class track4_profile:
         
         self.process()
         print(f"Finished reading file MRS {self.file}")
-            
+
 # =============================================================================
-# Read HBT profiles. This is very easy.
+# Read HBT profiles (new naming convention, for ORT2)
 # =============================================================================
 
     def read_hbt(self):
         
-        t = Table.read(file, format='ascii', 
+        t = Table.read(self.file, format='ascii', 
                        names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
-    
-#        r_dust_row = t[0]
-        
+            
         t['n_0'].unit = '1/km**3'
         t['n_1'].unit = '1/km**3'
         t['n_2'].unit = '1/km**3'
@@ -169,7 +171,41 @@ class track4_profile:
 
         self.process()
         print(f"Finished reading file HBT {self.file}")
-        
+            
+# =============================================================================
+# Read HBT profiles (old naming convention, for ORT1).
+# =============================================================================
+
+#    def read_hbt_old(self, file):
+#        
+#        t = Table.read(file, format='ascii', 
+#                       names = ('delta_et', 'n_0', 'n_1', 'n_2', 'n_3', 'n_4', 'n_5', 'n_6'))
+#    
+##        r_dust_row = t[0]
+#        
+#        t['n_0'].unit = '1/km**3'
+#        t['n_1'].unit = '1/km**3'
+#        t['n_2'].unit = '1/km**3'
+#        t['n_3'].unit = '1/km**3'
+#        t['n_4'].unit = '1/km**3'
+#        t['n_5'].unit = '1/km**3'
+#        t['n_6'].unit = '1/km**3'
+#        
+#        r_dust  = [t[0][1], t[0][2], t[0][3], t[0][4], t[0][5], t[0][6], t[0][7]] * u.mm
+#        t.remove_row(0)
+#        dt = (t['delta_et'][1] - t['delta_et'][0])*u.s  # Time incrememnt, in seconds
+#
+#        self.t   = t
+#        self.delta_et = t['delta_et']
+#        t.remove_column('delta_et')
+#        
+#        self.dt = dt
+#        self.r_dust = r_dust
+#        self.n_dust = 0
+#
+#        self.process()
+#        print(f"Finished reading file HBT {self.file}")
+#        
 # =============================================================================
 # Process some numbers. 
 # =============================================================================
@@ -228,7 +264,7 @@ class track4_profile:
         plt.ylim(1e-6,1e8)
         plt.xlim((-300,300))
         plt.legend(loc = 'upper left')
-        plt.title(os.path.basename(file))
+        plt.title(os.path.basename(self.file))
         plt.xlabel('t from C/A [sec]')
         plt.ylabel('# particles/km3')
         
@@ -246,7 +282,7 @@ class track4_profile:
         plt.ylim((1e-6,1e9))
         plt.xlim((-300,300))
         plt.legend(loc = 'upper left')
-        plt.title(os.path.basename(file))
+        plt.title(os.path.basename(self.file))
         plt.xlabel('t from C/A [sec]')
         plt.ylabel('Cum # particles hit on SC')
                    
@@ -284,11 +320,14 @@ if __name__ == '__main__':
 
     if do_hbt:    
         dir_hbt = '/Users/throop/Data/ORT1/throop/track4/'
-        files_hbt = glob.glob(os.path.join(dir_hbt, 'ort1*txt'))
+        dir_hbt = '/Users/throop/Data/ORT2/throop/track4/'
+        files_hbt = glob.glob(os.path.join(dir_hbt, '*ort2*dust'))
         file_hbt = files_hbt[0]
         for file in files_hbt:
             track2 = track4_profile(file_hbt)
             track2.read_hbt()
             self = track2
             track2.plot()
-        
+    
+    file_hbt = '/Users/throop/Data/ORT2/throop/track4/traj1_ort2-ring_speed1_q35_pv1_rho1_inc2.dust'
+    file_mrs = '/Users/throop/Data/ORT1/showalter/ort1-ring_traj1_speed1_pv2_rho3_q35.dust'
