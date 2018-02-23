@@ -676,7 +676,7 @@ if (__name__ == '__main__'):
     zoom = 1      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
     
-    name_ort = 'ORT2'
+    name_ort = 'ORT1'
     
     if (name_ort == 'ORT1'):
         dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
@@ -819,26 +819,57 @@ if (__name__ == '__main__'):
     plt.title(name_ort)
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
     plt.show()
+
+    # Now see if I can take all fields, zoom them appropriately, and sum them.
+    # We want to scale them all to the scale of the final frame.
     
-#    plt.plot(radius, profile)
-#    plt.xlim((0, 100))
-#    plt.ylim((-1,np.amax(profile)))
-#    plt.xlabel('Radius [pixels]')
-#    plt.title('Ring Radial Profile')
-#    plt.ylabel('Median DN')
-#    plt.show()
-#    
-    plt.imshow(stretch( diff ))
+    pixscale_km_out = stack_haz[reqids_haz[-1]].pixscale_x_km
+#    out = 0*img_haz['K1LR_HAZ02'].copy()
+    size_out = np.shape(img_haz[reqids_haz[-1]])
+    
+    img_rescale_3d = np.zeros((len(reqids_haz),size_out[0],size_out[1]))
+    img_haz_rescale = {}
+    for i,reqid_i in enumerate(reqids_haz):
+        
+        zoomfac = stack_haz[reqid_i].pixscale_x_km / pixscale_km_out
+        arr = scipy.ndimage.zoom(img_haz[reqid_i] - img_field, zoomfac)
+        
+        size_in = np.shape(arr)
+        edge_left = int( (size_in[0]-size_out[0])/2)
+        edge_top = int( (size_in[1]-size_out[1])/2)
+        
+        arr_out = arr[ edge_left : edge_left+size_out[0], 
+                       edge_top  : edge_left+size_out[1] ] 
+        img_haz_rescale[reqid_i] = arr_out
+        img_rescale_3d[i,:,:] = arr_out
+    
+    img_rescale_mean     = np.mean(img_rescale_3d, axis=0)
+    img_rescale_median = np.median(img_rescale_3d, axis=0)
+    
+    plt.imshow( stretch(img_rescale))
+    plt.title(f'restretched and summed, {name_ort}')
     plt.show()
     
-    tvec_f0 = np.round(np.array(out_f0['tvec'])).astype(int)
-    print("Detected shift = {} pix".format(out_f0['tvec']))
+    file_out = f'/Users/throop/Desktop/img_rescale_median_{name_ort}.fits'
+    hdu = fits.PrimaryHDU(img_rescale_median)
+    hdu.writeto(file_out, overwrite=True)
+    print(f'Wrote: {file_out}')
+        
+    print(f'zooming by {zoomfac}, to size {np.shape(img_haz_rescale[reqid_i])}')
     
-    tvec_f4 = np.round(np.array(out_f4['tvec'])).astype(int)
-    print("Detected shift = {} pix".format(out_f4['tvec']))
+    (radius_med, profile_dn_median) = get_radial_profile_circular(img_rescale_median, pos=pos, width=2)
+    (radius_med, profile_dn_mean)     = get_radial_profile_circular(img_rescale_mean,    pos=pos, width=2)
     
-    plt.imshow(stretch(np.roll(np.roll(img_haz4,round(tvec[1]),1),round(tvec[0]),0) - img_field))
-
+    hbt.figsize((8,6))
+    plt.plot(radius, profile_dn_median,label = 'All curves, Median')
+    plt.plot(radius, profile_dn_mean, label = 'All curves, Mean')
+    plt.xlim((0,80))
+    plt.legend()
+    plt.ylabel('DN')
+    plt.title(name_ort)
+    plt.xlabel('pixels of some sort')
+    plt.show()
+    
 #    stack_field.set_indices(hbt.frange(0,10))
 
 # Make a plot of the offset in pixels between frames
