@@ -50,6 +50,7 @@ import pickle # For load/save
 import scipy
 
 from   matplotlib.figure import Figure
+from   get_radial_profile_circular import get_radial_profile_circular
 
 # HBT imports
 
@@ -665,7 +666,7 @@ if (__name__ == '__main__'):
     # Start up SPICE if needed
     
     if (sp.ktotal('ALL') == 0):
-        sp.furnsh('kernels_kem.tm')
+        sp.furnsh('kernels_kem_prime.tm')
     
     hbt.figsize((12,12))
     
