@@ -36,8 +36,8 @@ def nh_make_backplanes_ort1():
 # =============================================================================
 
     do_plot    = False
-    do_clobber = True
-    do_digit_filter = True
+    do_clobber = False
+    do_digit_filter = False
     
     name_target   = 'MU69'
     name_observer = 'New Horizons'
@@ -47,9 +47,16 @@ def nh_make_backplanes_ort1():
 #     Get a proper list of all the input files
 # =============================================================================
     
-    dir_data_ort1 = '/Users/throop/Data/ORT1'
-    dir_in  = os.path.join(dir_data_ort1, 'porter', 'pwcs_ort1')
-    dir_out = os.path.join(dir_data_ort1, 'throop', 'backplaned')
+    do_ORT1 = False
+    do_ORT2 = True
+    
+#    dir_data_ort = '/Users/throop/Data/ORT1'
+#    dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort1')
+#    dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
+
+    dir_data_ort = '/Users/throop/Data/ORT2'
+    dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort2')
+    dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
     
     files = glob.glob(os.path.join(dir_in, '*','*_pwcs.fits'))
     
@@ -62,17 +69,18 @@ def nh_make_backplanes_ort1():
     # that only one CPU at a time can be used. To get around this, filter the files down,
     # and put each filter in its own Spyder tab.
     
-    digit_filter = '12'
-    digit_filter = '34'
-    digit_filter = '56'
-    digit_filter = '78'
+#    digit_filter = '12'
+#    digit_filter = '34'
+#    digit_filter = '56'
+#    digit_filter = '78'
     digit_filter = '90'
     
     if (do_digit_filter):
         files_filtered = []
         for file in files:
             base = os.path.basename(file)
-            digit = base[12]  # This is the digit that changes the most in the LORRI files, so it's a good choice.
+            digit = base[12]  # Match the penultimate digit in LORRI filename (e.g., lor_0405348852_pwcs  ← matches '5')
+                              # This is the digit that changes the most in the LORRI files, so it's a good choice.
             if (digit in digit_filter):
                 files_filtered.append(file)
         print("Filtered on '{}': {} files → {}".format(digit_filter, len(files), len(files_filtered)))
@@ -84,7 +92,7 @@ def nh_make_backplanes_ort1():
 # =============================================================================
     
     if (sp.ktotal('ALL') == 0):
-        sp.furnsh('kernels_kem.tm')
+        sp.furnsh('kernels_kem_prime.tm')
         
 # =============================================================================
 # Loop and create each backplane

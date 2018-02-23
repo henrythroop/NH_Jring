@@ -52,6 +52,7 @@ import scipy
 from   matplotlib.figure import Figure
 from   get_radial_profile_circular import get_radial_profile_circular
 
+from   get_radial_profile_circular import get_radial_profile_circular
 # HBT imports
 
 import hbt
@@ -92,6 +93,8 @@ class image_stack:
             
         """
         
+        name_target = 'MU69'
+            
         do_lorri_destripe = True  # I didn't use this at first, but it is a clear improvement.
         
         files1 = glob.glob(os.path.join(dir,      prefix + '*.fit*'))     # Look in dir
@@ -136,9 +139,8 @@ class image_stack:
         utc      = []
         target   = []
                 
-        # Set up the table. 
-        # The standard method of representing Python 3 strings in numpy is via the unicode 'U' dtype."
-        # Disadvantage of this is memory space, but not an issue for me.
+        # Set up the table 't'. This is an astropy table within the stack, that has a list of all of the 
+        # useful image parameters taken from the FITS header.
         
         # Fields in the table are:
         #   filename_short
@@ -160,11 +162,13 @@ class image_stack:
         
         
         self.t = Table(  [[],              [],          [],         [],        [],       [],       [],      [],   [], 
-                                                    [], [], [], [], [], [], [], [], [] ],
+                                                    [], [], [], [], [], [], [], [], [], [], [], [] ],
             names=('filename_short', 'exptime', 'visitname', 'sapname', 'sapdesc', 'target', 'reqid', 'et',  'utc', 
-                  'shift_x_pix', 'shift_y_pix', 'ra_center', 'dec_center', 'angle', 'dx_pix', 'dy_pix', 'wcs', 'data'),
+                  'shift_x_pix', 'shift_y_pix', 'ra_center', 'dec_center', 'angle', 'dx_pix', 'dy_pix', 
+                  'pixscale_x_km', 'pixscale_y_km', 'dist_target_km', 'wcs', 'data'),
             dtype = ('U50',           'float64', 'U50',      'U50',     'U50',     'U50',    'U50',   'float64', 'U50', 
-                    'float64', 'float64', 'float64', 'float64', 'float64', 'float64', 'float64', 'object', 'object'  ))
+                    'float64', 'float64', 'float64', 'float64', 'float64', 'float64', 
+                    'float64', 'float64', 'float64', 'float64', 'object', 'object'  ))
         
         print("Reading {} files from {}".format(len(files), dir))
         
@@ -214,16 +218,22 @@ class image_stack:
             ra_center  = hdulist[0].header['CRVAL1']*hbt.d2r
             dec_center = hdulist[0].header['CRVAL2']*hbt.d2r
             
-            pixscale_x = hdulist[0].header['CD1_1']*hbt.d2r  # radians per pixel
-            pixscale_y = hdulist[0].header['CD2_2']*hbt.d2r 
+            pixscale_x = abs(hdulist[0].header['CD1_1']*hbt.d2r)  # radians per 4x4 pixel
+            pixscale_y = abs(hdulist[0].header['CD2_2']*hbt.d2r)  # Sometimes this is negative?
             
             # Initialize the shift amount for this image, in pixels
             
             shift_x_pix = 0
             shift_y_pix = 0
             
+            # Calc the distance to MU69, and the pixel scale (non-zoomed)
             
-        # Load the values for this image into a row of the astropy table
+            (st, lt) = sp.spkezr(name_target, et, 'J2000', 'LT', 'New Horizons')
+            dist_target_km = sp.vnorm(st[0:2])
+            pixscale_x_km = dist_target_km * pixscale_x
+            pixscale_y_km = dist_target_km * pixscale_y
+            
+            # Load the values for this image into a row of the astropy table
         
             self.t.add_row(
                       [filename_short, exptime, visitnam, sapname, sapdesc, target, reqid, 
@@ -233,13 +243,16 @@ class image_stack:
                        dec_center,  
                        angle,
                        dx_pix, dy_pix, # X and Y dimensions
+                       pixscale_x_km, pixscale_y_km,
+                       dist_target_km,
                        w,              # WCS object 
                        arr])           # Actual imaging data 
         
         # End of loop over files
         
-        if do_verbose:
-            print("") # Print CR at end of "...."
+#        if do_verbose:
+        
+        print("\n") # Print CR at end of "...."
             
         # Sort by ET.
             
@@ -249,6 +262,11 @@ class image_stack:
         
         self.pixscale_x = pixscale_x
         self.pixscale_y = pixscale_y
+        
+        self.pixscale_x_km = pixscale_x_km
+        self.pixscale_y_km = pixscale_y_km
+        
+        self.dist_target_km   = dist_target_km
         
         # Save the image size, from most recent image
         
@@ -274,16 +292,20 @@ class image_stack:
         
         self.num_planes = len(files)
     
-        # Save if requested
+        # If we generated the files manually (not by reloading), and flag is not set, then offer to save them
         
+        if not(do_save):
+            answer = input("Save to pickle file? ")
+            if ('y' in answer):
+                do_save = True
+                
         if do_save:
-            self.save()
+            self.save()            
             
         # Return. Looks like an init method should not return anything.
     
         print()
 
-#
 ## =============================================================================
 ## Return size of the stack
 ## =============================================================================
@@ -626,43 +648,46 @@ class image_stack:
 
         return(im_expand)
 
+def dn2iof(val, mode):
+
+    if (mode == '4X4'):
+        # Convert DN values in array, to I/F values
+            
+        profile = val
+        
+
         
 # =============================================================================
 # End of method definition
 # =============================================================================
 
 # =============================================================================
-# Run the function
+# Run the function. This just goes thru the motion of making some stacks.
+# It is not necessary to run this, but useful for diagnostics.
 # =============================================================================
 
 if (__name__ == '__main__'):
-    
-#    file_orig ='/Users/throop/Dropbox/Data/ORT1/spencer/ort1/lor_0405175932_0x633_sci_HAZARD_ort1.fit'
-#    file_wcs = '/Users/throop/Dropbox/Data/ORT1/porter/pwcs_ort1/K1LR_HAZ00/lor_0405175932_0x633_pwcs.fits'
-#    file_bp = '/Users/throop/Dropbox/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405175932_0x633_pwcs_backplaned.fits'
-#    
-#    hdu_wcs  = fits.open(file_wcs)
-#    hdu_orig = fits.open(file_orig)
-#    hdu_bp   = fits.open(file_bp)
-#    
-#    header_wcs  = hdu_wcs[0].header
-#    header_orig = hdu_orig[0].header
-#    header_bp   = hdu_bp[0].header
-#    
-#    print(fits.FITSDiff(hdu_wcs, hdu_orig).report())
     
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
     
     plt.set_cmap('Greys_r')
 
-    zoom = 4
+    zoom = 1      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+                  # 1 is faster; 4 is slower but better.
     
-    reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
-    reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+    name_ort = 'ORT2'
     
-    dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
+    if (name_ort == 'ORT1'):
+        dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
+        reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
+        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
 
+    if (name_ort == 'ORT2'):
+        dir_data    = '/Users/throop/Data/ORT2/throop/backplaned/'
+        reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02']
+        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+    
     # Start up SPICE if needed
     
     if (sp.ktotal('ALL') == 0):
@@ -672,18 +697,18 @@ if (__name__ == '__main__'):
     
     # Load and stack the field images
     
-    do_force = False
+    do_force = True   # If set, reload the stacks from individual frames, rather than restoring from a pickle file.
     
     stack_field = image_stack(os.path.join(dir_data, reqid_field),   do_force=do_force, do_save=do_force)
-    stack_haz0  = image_stack(os.path.join(dir_data, reqids_haz[0]), do_force=do_force, do_save=do_force)
-    stack_haz1  = image_stack(os.path.join(dir_data, reqids_haz[1]), do_force=do_force, do_save=do_force)
-    stack_haz2  = image_stack(os.path.join(dir_data, reqids_haz[2]), do_force=do_force, do_save=do_force)
-    stack_haz3  = image_stack(os.path.join(dir_data, reqids_haz[3]), do_force=do_force, do_save=do_force)
-    stack_haz4  = image_stack(os.path.join(dir_data, reqids_haz[4]), do_force=do_force, do_save=do_force)
+
+    stack_haz = {}
     
+    for reqid_i in reqids_haz:
+        stack_haz[reqid_i] = image_stack(os.path.join(dir_data, reqid_i), do_force=do_force, do_save=do_force)
+            
     # Set the rough position of MU69
     
-    et = stack_haz0.t['et'][0] # Look up ET for first image in the Hazard stack
+    et = stack_haz[reqids_haz[0]].t['et'][0] # Look up ET for first image in the Hazard stack
     (st, lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
     vec = st[0:3]
     (_, ra, dec) = sp.recrad(vec)
@@ -692,63 +717,117 @@ if (__name__ == '__main__'):
     # Align the frames
     
     stack_field.align(method = 'wcs', center = (radec_mu69))
-    stack_haz0.align(method  = 'wcs', center = (radec_mu69))
-    stack_haz1.align(method  = 'wcs', center = (radec_mu69))
-    stack_haz2.align(method  = 'wcs', center = (radec_mu69))
-    stack_haz3.align(method  = 'wcs', center = (radec_mu69))
-    stack_haz4.align(method  = 'wcs', center = (radec_mu69))
+    for reqid_i in reqids_haz:
+        stack_haz[reqid_i].align(method  = 'wcs', center = (radec_mu69))
     
     # Calc the padding required. This can only be done after the images are loaded and aligned.
 
     pad_field = stack_field.calc_padding()[0]
-    pad_haz0  = stack_haz0.calc_padding()[0]
-    pad_haz1  = stack_haz1.calc_padding()[0]
-    pad_haz2  = stack_haz2.calc_padding()[0]
-    pad_haz3  = stack_haz3.calc_padding()[0]
-    pad_haz4  = stack_haz4.calc_padding()[0]
-    
-    pad = np.amax([pad_field, pad_haz0, pad_haz1, pad_haz2, pad_haz3, pad_haz4])
-    
-    # Flatten the stacks
+    pad_haz = []
+    for reqid_i in reqids_haz:
+        pad_haz.append(stack_haz[reqid_i].calc_padding()[0])
+    pad_haz.append(pad_field)
+        
+    pad = max(pad_haz)
+       
+    # Flatten the stacks into single output images
+    # If we get an error here, it is probably due to a too-small 'pad' value.
     
     img_field = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad)
-    img_haz0  = stack_haz0.flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad)
-    img_haz4  = stack_haz4.flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad)
-
-    # Plot the flattened images
+    
+    img_haz = {}
+    img_haz_diff = {}
+    for reqid_i in reqids_haz:
+        img_haz[reqid_i]  = stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad)
+        img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field
+        
+    # Plot the trimmed, flattened images. This is just for show. They are not scaled very well for ring search.
     
     plt.imshow(stretch(img_field))
-    plt.imshow(stretch(img_haz0))
-    plt.imshow(stretch(img_haz4))
-    plt.show()
+    for reqid_i in reqids_haz:
+        plt.imshow(stretch(hbt.trim_image(img_haz_diff[reqid_i])))
+        plt.title(reqid_i)
+        plt.show()
+        
+        # Save as FITS
     
-    # Create the difference image, and trim it
+        file_out = '/Users/throop/Desktop/test_zoom{}.fits'.format(zoom)
+        hdu = fits.PrimaryHDU(stretch(diff_trim))
+        hdu.writeto(file_out, overwrite=True)
+        print(f'Wrote: {file_out}')
     
-    diff = img_haz4 - img_field
-    diff_trim = hbt.trim_image(diff)
+    # Calculate and display radial profiles
     
-    # Save as FITS
-    
-    file_out = '/Users/throop/Desktop/test_zoom{}.fits'.format(zoom)
-    hdu = fits.PrimaryHDU(stretch(diff_trim))
-    hdu.writeto(file_out, overwrite=True)
-    print(f'Wrote: {file_out}')
-     
-    # Calculate a radial profile    
-    
-    pos =  np.array(np.shape(diff))/2
-    (radius, profile) = get_radial_profile_circular(diff, pos=pos, width=1)
-
     hbt.figsize((10,8))
     hbt.set_fontsize(20)
-    plt.plot(radius, profile)
-    plt.xlim((0, 100))
-    plt.ylim((-1,np.amax(profile)))
-    plt.xlabel('Radius [pixels]')
-    plt.title('Ring Radial Profile')
-    plt.ylabel('Median DN')
+    pos =  np.array(np.shape(img_field))/2  # MU69 will be at the center of this array
+    for reqid_i in reqids_haz:
+        (radius, profile_dn) = get_radial_profile_circular(img_haz[reqid_i] - img_field, pos=pos, width=2)
+        radius_km = radius * stack_haz[reqid_i].pixscale_x_km
+        plt.plot(radius_km, profile_dn, label=reqid_i)
+    plt.xlim(0,50_000)
+    plt.xlabel('Expanded Pixels')
+    plt.ylabel('DN Median')
+    plt.legend()
     plt.show()
     
+    # Now, convert from DN to I/F
+    
+    for reqid_i in reqids_haz:
+ 
+        (radius, profile_dn) = get_radial_profile_circular(img_haz[reqid_i] - img_field, pos=pos, width=2)
+        radius_km = radius * stack_haz[reqid_i].pixscale_x_km
+        
+        RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+        RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+        
+        C = profile_dn # Get the DN values of the ring. Typical value is 1 DN.
+        
+        # Define the solar flux, from Hal's paper.
+        
+        FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+        F_solar = FSOLAR_LORRI # Flux from Hal's paper
+        
+        RSOLAR = RSOLAR_LORRI_4X4
+        
+        # Calculate the MU69-Sun distance, in AU (or look it up). 
+        
+        km2au = 1 / (u.au/u.km).to('1')
+        
+        et = stack_haz[reqid_i].t['et'][0]
+        (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
+        r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+        
+        (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
+        r_sun_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+        
+        pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming 4x4)
+        
+        TEXP = stack_haz[reqid_i].t['exptime'][0]
+        
+        I = C / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. All v similar, except for spectrum assumed.
+        
+        # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
+        
+        profile_IoF = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+        plt.plot(radius_km, profile_IoF, label=reqid_i)
+        plt.xlim(0,50_000)
+    plt.xlabel('Dist [km], 4x4 zoomed??')
+    plt.ylabel('DN Median')
+    plt.ylim((-2e-7,5e-7))
+    plt.legend()
+    plt.title(name_ort)
+    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+    plt.show()
+    
+#    plt.plot(radius, profile)
+#    plt.xlim((0, 100))
+#    plt.ylim((-1,np.amax(profile)))
+#    plt.xlabel('Radius [pixels]')
+#    plt.title('Ring Radial Profile')
+#    plt.ylabel('Median DN')
+#    plt.show()
+#    
     plt.imshow(stretch( diff ))
     plt.show()
     
