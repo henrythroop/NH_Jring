@@ -140,6 +140,14 @@ def create_backplanes_fits(file_in, name_target, frame, name_observer, file_out,
 #    hdu[0].header['COMMENT'] = '*** BACKPLANE INFO                                    ***'
 #    hdu[0].header['COMMENT'] = '*********************************************************'
 #    
+    # Create the new directory, if it doesn't exist
+    
+    dir_out = os.path.dirname(file_out)
+    
+    if not(os.path.isdir(dir_out)):
+        os.makedirs(dir_out)
+        print(f'Created directory: {dir_out}')
+        
     # Write to a new file
     
     hdu.writeto(file_out, overwrite=True)

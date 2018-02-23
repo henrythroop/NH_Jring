@@ -68,6 +68,8 @@ from   astropy.stats import sigma_clip
 
 from   image_stack import image_stack
 
+from get_radial_profile_circular import get_radial_profile_circular
+
 # HBT imports
 
 import hbt
@@ -88,11 +90,19 @@ class App:
 #        self.stretch_percent = 90    
 #        self.stretch = astropy.visualization.PercentileInterval(self.stretch_percent) # PI(90) scales to 5th..95th %ile.
 #        
-        self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
-#        self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
-        self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+        name_ort = 'ORT2'
         
-        self.dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
+        if (name_ort == 'ORT1'):
+            self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
+            #        self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
+            self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'        
+            self.dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
+
+        if (name_ort == 'ORT2'):
+            self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02']
+            #        self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
+            self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'        
+            self.dir_data    = '/Users/throop/Data/ORT2/throop/backplaned/'
             
         # Set the edge padding large enough s.t. all output stacks will be the same size.
         # This value is easy to compute: loop over all stacks, and take max of stack.calc_padding()[0]
