@@ -268,6 +268,8 @@ class image_stack:
         
         self.dist_target_km   = dist_target_km
         
+        self.et               = et 
+        
         # Save the image size, from most recent image
         
         self.dx_pix     = dx_pix
@@ -415,8 +417,15 @@ class image_stack:
 
         lun = open(self.file_save, 'rb')
 #        self = pickle.load(lun)
-        (self.t, self.indices, self.pixscale_x, self.pixscale_y, self.dx_pix, self.dy_pix, self.size) \
-          = pickle.load(lun)
+        (self.t, self.indices, 
+                     self.et,
+                     self.pixscale_x_km,
+                     self.pixscale_y_km,
+                     self.pixscale_x,
+                     self.pixscale_y,
+                     self.dist_target_km,
+                     self.dx_pix, self.dy_pix, self.size) =\
+          pickle.load(lun)
         lun.close() 
 
 # =============================================================================
@@ -433,7 +442,13 @@ class image_stack:
         lun = open(self.file_save, 'wb')
 #        pickle.dump(self, lun)
         pickle.dump((self.t, self.indices, 
-                     self.pixscale_x, self.pixscale_y, self.dx_pix, self.dy_pix, self.size), lun)
+                     self.et,
+                     self.pixscale_x_km,
+                     self.pixscale_y_km,
+                     self.pixscale_x,
+                     self.pixscale_y,
+                     self.dist_target_km,
+                     self.dx_pix, self.dy_pix, self.size), lun)
         lun.close()
         print("Wrote: " + self.file_save)     
         
@@ -595,7 +610,7 @@ class image_stack:
         
         # Merge all the individual frames, using mean or median
         
-        print("Flattening array with dimension {} using {}".format(np.shape(arr), method))
+        print("Flattening array with dimension {} using {}; zoom={}".format(np.shape(arr), method, zoom))
         
         if (method == 'mean'):
             arr_flat   = np.nanmean(arr,0)    # Fast
@@ -664,6 +679,8 @@ def dn2iof(val, mode):
 # =============================================================================
 # Run the function. This just goes thru the motion of making some stacks.
 # It is not necessary to run this, but useful for diagnostics.
+#
+# Also, this code does some useful work for the ORTs: scaling stacks, making radial profiles, etc.        
 # =============================================================================
 
 if (__name__ == '__main__'):
@@ -673,10 +690,11 @@ if (__name__ == '__main__'):
     
     plt.set_cmap('Greys_r')
 
-    zoom = 1      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 4      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
     
     name_ort = 'ORT1'
+    name_ort = 'ORT2_OPNAV'
     
     if (name_ort == 'ORT1'):
         dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
@@ -686,6 +704,15 @@ if (__name__ == '__main__'):
     if (name_ort == 'ORT2'):
         dir_data    = '/Users/throop/Data/ORT2/throop/backplaned/'
         reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02']
+        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+
+    if (name_ort == 'ORT2_OPNAV'):
+        dir_data    = '/Users/throop/Data/ORT2/throop/backplaned/'
+        dirs = glob.glob(dir_data + '/*LR_OPNAV*')         # Manually construct a list of all the OPNAV dirs
+        reqids_haz = []
+        for dir_i in dirs:
+            reqids_haz.append(os.path.basename(dir_i))
+        reqids_haz = sorted(reqids_haz)    
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
     
     # Start up SPICE if needed
@@ -697,7 +724,7 @@ if (__name__ == '__main__'):
     
     # Load and stack the field images
     
-    do_force = True   # If set, reload the stacks from individual frames, rather than restoring from a pickle file.
+    do_force = False   # If set, reload the stacks from individual frames, rather than restoring from a pickle file.
     
     stack_field = image_stack(os.path.join(dir_data, reqid_field),   do_force=do_force, do_save=do_force)
 
@@ -732,6 +759,7 @@ if (__name__ == '__main__'):
        
     # Flatten the stacks into single output images
     # If we get an error here, it is probably due to a too-small 'pad' value.
+    # This step can be very slow. Right now results are not saved. In theory they could be.
     
     img_field = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad)
     
@@ -744,8 +772,9 @@ if (__name__ == '__main__'):
     # Plot the trimmed, flattened images. This is just for show. They are not scaled very well for ring search.
     
     plt.imshow(stretch(img_field))
-    for reqid_i in reqids_haz:
-        plt.imshow(stretch(hbt.trim_image(img_haz_diff[reqid_i])))
+    for reqid_i in reqids_haz:        
+        diff_trim = hbt.trim_image(img_haz_diff[reqid_i])
+        plt.imshow(stretch(diff_trim))
         plt.title(reqid_i)
         plt.show()
         
@@ -759,7 +788,7 @@ if (__name__ == '__main__'):
     # Calculate and display radial profiles
     
     hbt.figsize((10,8))
-    hbt.set_fontsize(20)
+    hbt.set_fontsize(12)
     pos =  np.array(np.shape(img_field))/2  # MU69 will be at the center of this array
     for reqid_i in reqids_haz:
         (radius, profile_dn) = get_radial_profile_circular(img_haz[reqid_i] - img_field, pos=pos, width=2)
@@ -768,7 +797,7 @@ if (__name__ == '__main__'):
     plt.xlim(0,50_000)
     plt.xlabel('Expanded Pixels')
     plt.ylabel('DN Median')
-    plt.legend()
+    plt.legend(loc = 'upper right')
     plt.show()
     
     # Now, convert from DN to I/F
@@ -846,7 +875,7 @@ if (__name__ == '__main__'):
     img_rescale_mean     = np.mean(img_rescale_3d, axis=0)
     img_rescale_median = np.median(img_rescale_3d, axis=0)
     
-    plt.imshow( stretch(img_rescale))
+    plt.imshow( stretch(img_rescale_median))
     plt.title(f'restretched and summed, {name_ort}')
     plt.show()
     

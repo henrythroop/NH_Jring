@@ -91,6 +91,7 @@ class App:
 #        self.stretch = astropy.visualization.PercentileInterval(self.stretch_percent) # PI(90) scales to 5th..95th %ile.
 #        
         name_ort = 'ORT2'
+        name_ort = 'ORT2_OPNAV'
         
         if (name_ort == 'ORT1'):
             self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
@@ -103,6 +104,15 @@ class App:
             #        self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
             self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'        
             self.dir_data    = '/Users/throop/Data/ORT2/throop/backplaned/'
+            
+        if (name_ort == 'ORT2_OPNAV'):
+            self.dir_data    = '/Users/throop/Data/ORT2/throop/backplaned/'
+            dirs = glob.glob(self.dir_data + '/*LR_OPNAV*')         # Manually construct a list of all the OPNAV dirs
+            self.reqids_haz = []
+            for dir_i in dirs:
+                self.reqids_haz.append(os.path.basename(dir_i))
+            self.reqids_haz = sorted(self.reqids_haz)    
+            self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'    
             
         # Set the edge padding large enough s.t. all output stacks will be the same size.
         # This value is easy to compute: loop over all stacks, and take max of stack.calc_padding()[0]
@@ -124,6 +134,10 @@ class App:
         
         self.radec_mu69 = (4.794979838984583, -0.3641418801015417)
         
+        # Set the CA time. Roughly doing this is fine.
+        
+        self.et_ca = sp.utc2et('2019 1 Jan 05:33:00')
+        
         # Boolean. For the current image, do we subtract the field frame, or not?
         
         self.do_subtract = True
@@ -140,7 +154,8 @@ class App:
         
 # Restore the stacks directly from archived pickle file, if it exists
         
-        self.file_save = os.path.join(self.dir_data, f'stacks_blink_n{len(self.reqids_haz)}_z{self.zoom}.pkl')
+        self.file_save = os.path.join(self.dir_data, 
+                                      f'stacks_blink_{name_ort}_n{len(self.reqids_haz)}_z{self.zoom}.pkl')
         
         if os.path.isfile(self.file_save):
             self.restore()
@@ -197,6 +212,7 @@ class App:
         master.bind('=',       self.prev_e)
         master.bind('-',       self.next_e)
         master.bind('h',       self.help_e)
+        master.bind('?',       self.help_e)
         master.bind('<Left>',  self.prev_e)
         master.bind('<Right>', self.next_e)
         master.bind('s',       self.stretch_e)
@@ -205,7 +221,14 @@ class App:
         master.bind('#',       self.blink_set_sequence_e)
         master.bind('z',       self.zoom_screen_up_e)
         master.bind('Z',       self.zoom_screen_down_e)
-
+        
+        master.bind('=',       self.scale_max_up_e)
+        master.bind('+',       self.scale_max_down_e)
+        master.bind('-',       self.scale_min_up_e)
+        master.bind('_',       self.scale_min_down_e)
+        
+        
+        
 # Set the initial image index
         
         self.reqid_haz = self.reqids_haz[self.num_image]  # Set it to 'K1LR_HAZ00', for instance.
@@ -303,9 +326,13 @@ class App:
         Return the title for a plot
         """
         
-        return '{}, {}/{}, zoom = {},{}'.format(
+#        str_et = 
+        return 'K{:3.1f}d, {}, {}/{}, zoom = {},{}, vscale=[{:4.2f},{:4.2f}]'.format(
+                       (self.stack_haz[self.reqid_haz].et - self.et_ca)/86400,
                        self.reqid_haz,
-                       self.num_image, len(self.reqids_haz), self.zoom, self.zoom_screen)
+                       self.num_image, len(self.reqids_haz), self.zoom, self.zoom_screen,
+                       self.vmin_diff, self.vmax_diff)
+    
 # =============================================================================
 # Update just the data in the current image, leaving all the rest untouched.
 # =============================================================================
@@ -351,6 +378,7 @@ class App:
 # =============================================================================
 
     def help_e(self, event):
+        print('------------------------------')
         print('Help!')
         print('<space>      : Toggle field subtraction on/off')
         print('Z / z        : Zoom in/out' )
@@ -359,11 +387,13 @@ class App:
         print('-            : Next')
         print('h or ?       : Help')
         print('q            : Quit')
-        print('s            : Change Stretch')
+        print('s            : Change stretch')
         print('b            : Toggle blinking on/off')
         print('t            : Change blink time')
         print('#            ; Change blink sequence')
-        print('-----')
+        print('+-           : Change vertical scaling')
+        print('+- shifted   : Change vertical scaling')
+        print('------------------------------')
         print('CURRENT STATUS:')
         print(f'Blink sequence: {self.list_index_blink_str}')
         print(f'Blink status: {self.is_blink}, dt = {self.dt_blink}')
@@ -479,7 +509,7 @@ class App:
         self.num_image = self.list_index_blink[self.index_blink]
         if (self.num_image >= len(self.reqids_haz)):
             self.num_image = 0
-        print(f"Animating frame {self.num_image}")    
+#        print(f"Animating frame {self.num_image}")    
         self.replot()    
         if (self.is_blink):
             self.master.after(self.dt_blink, self.show_next_frame)
@@ -520,6 +550,38 @@ class App:
         
         print(f'Blinking frames {self.list_index_blink}')
         
+# =============================================================================
+# Keys: Change scaling (four different choices)
+# =============================================================================
+        
+    def scale_max_up_e(self, event):
+        if (self.do_subtract):
+            self.vmax_diff *= 1.1
+        else:
+            self.vmax_raw *= 1.1            
+        self.plot()
+
+    def scale_max_down_e(self, event):
+        if (self.do_subtract):
+            self.vmax_diff /= 1.1
+        else:
+            self.vmax_raw /= 1.1            
+        self.plot()
+        
+    def scale_min_up_e(self, event):
+        if (self.do_subtract):
+            self.vmin_diff *= 1.1
+        else:
+            self.vmin_raw *= 1.1            
+        self.plot()
+
+    def scale_min_down_e(self, event):
+        if (self.do_subtract):
+            self.vmin_diff /= 1.1
+        else:
+            self.vmin_raw /= 1.1            
+        self.plot()
+
 # =============================================================================
 # Key: Quit
 # =============================================================================
