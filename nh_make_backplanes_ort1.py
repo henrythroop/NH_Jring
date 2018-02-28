@@ -37,7 +37,6 @@ def nh_make_backplanes_ort1():
 
     do_plot    = False
     do_clobber = False
-    do_digit_filter = False
     
     name_target   = 'MU69'
     name_observer = 'New Horizons'
@@ -69,10 +68,12 @@ def nh_make_backplanes_ort1():
     # that only one CPU at a time can be used. To get around this, filter the files down,
     # and put each filter in its own Spyder tab.
     
-#    digit_filter = '12'
-#    digit_filter = '34'
-#    digit_filter = '56'
-#    digit_filter = '78'
+    do_digit_filter = False
+
+    digit_filter = '12'
+    digit_filter = '34'
+    digit_filter = '56'
+    digit_filter = '78'
     digit_filter = '90'
     
     if (do_digit_filter):
@@ -116,7 +117,7 @@ def nh_make_backplanes_ort1():
                 plot_backplanes(file_out, name_observer = name_observer, name_target = name_target)
      
         except FileExistsError:
-            print('File exists -- skipping. {}'.format(file_out))
+            print('File exists -- skipping. {}'.format(os.path.basename(file_out)))
     
        
 # =============================================================================
