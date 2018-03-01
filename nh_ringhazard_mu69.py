@@ -117,7 +117,7 @@ do_write_txt_file = True
 
 # Set the wavelength 'alam'
 
-alam		= 500 * u.nm
+alam		= 600 * u.nm
   
 # Set the plot thickness
 
@@ -141,12 +141,18 @@ albedo	= 0.05			# We pick the best-guess, which is Charon's albedo = 0.35. 0.05 
   					# but may be meaninglessly low.
 # Set the spacecraft area
 
-sarea = 5*(u.m)**2     # SS07 used 10 m^2. But SAS e-mail 27-Nov-2011 says to use 5.5 m^2 instead. Hersman sayd 3.5 m^2. 
-                    # So I call it 5.
+#sarea = 5*(u.m)**2     # SS07 used 10 m^2. But SAS e-mail 27-Nov-2011 says to use 5.5 m^2 instead. Hersman sayd 3.5 m^2.
+                       # So I call it 5.
+                       # Doug Mehoke's 'Damge Area.xls' lists the total damageable area as 1 m2 projected,
+                       # as per my read_mehoke_sizes.py routine.
+                       # That routine shows that at 600 um, affectable area is 0.2 m2. That is what I'll use.
+
+sarea = 0.2*(u.m)**2  # Revsied value as per Mehoke
 
 # Set the particle size range
 
-r_danger_1 = 0.2*u.mm   # This is the size defined as the critical size by SAS in Nov-2011 meeting
+#r_danger_1 = 0.2*u.mm   # This is the size defined as the critical size by SAS in Nov-2011 meeting
+r_danger_1 = 0.6*u.mm   # Updated value by my interpretation of Doug M's 'Damge Area.xls', 1-Mar-2018.
   
 nhits_1 = 0.1
 nhits_2 = 0.01
@@ -174,7 +180,7 @@ subobslat_nh  = -49.07*u.deg                 # 2015 Mar 26, Pluto from NH
 
 q         = np.array([1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7])			# 9 elements long
 
-q         = np.array([2, 3.5, 5, 7])			# 4 elements long
+q         = np.array([2, 3.5, 5])			# 4 elements long
   
 #p = plot([3,4], xtitle = 'Radius [$\mu$m]' ,$
 #      ytitle = 'Total number N > r impacting NH during encounter',xrange=[0.1,1000d],yrange=yrange, 
@@ -286,12 +292,13 @@ for q_i in q:
     else:
         linewidth = 2
         
-    n    = hbt.powerdist(r, q_i, rho=1, mass=1).value
+#    n    = hbt.powerdist(r, q_i, rho=1, mass=1).value  # Gives units error
+    n    = hbt.powerdist(r, q_i).value
   
 # Now normalize this to be number per cm2, in cross-section.
  
-    n_lambert = (n * tau_norm / np.sum(n * pi * r**2 * qsca_lambert * p11_lambert)).to('1/cm^2')    # Added P11 20-Nov-2012
-    n_mie     = (n * tau_norm / np.sum(n * pi * r**2 * qsca_mie     * p11_mie)).to('1/cm^2')        # Added P11 20-Nov-2012
+    n_lambert = (n * tau_norm / np.sum(n * pi * r**2 * qsca_lambert * p11_lambert)).to('1/cm^2') # Added P11 20-Nov-2012
+    n_mie     = (n * tau_norm / np.sum(n * pi * r**2 * qsca_mie     * p11_mie)).to('1/cm^2')     # Added P11 20-Nov-2012
     n_merged  = (n * tau_norm / np.sum(n * pi * r**2 * qsca_merged  * p11_merged)).to('1/cm^2')
 
 # Now convert into total hitting s/c -- that is, N > r, for many different values of r.
@@ -304,7 +311,7 @@ for q_i in q:
 # XXX Sep-2017. Now make a plot showing I/F vs. # of hits.
 # Plot a single point here.
     
-    xy = hbt.frange(1e-10, 1e10, 20, log=True)  # Make a trivial linear range array, so we can plot a linear relationship
+    xy = hbt.frange(1e-10, 1e10, 20, log=True)  # Make trivial linear range array, so we can plot a linear relationship
     
     axes[1].plot(iof_norm*xy, np.sum(n_cum_sc_merged[bin_r_danger_1:])*xy, label = 'q = {}'.format(q_i))
     print ("Adding point {}, {}".format(iof_norm, np.sum(n_cum_sc_merged[bin_r_danger_1:])))
@@ -371,7 +378,10 @@ axes[0].text(250, 1, 'Danger')
 axes[1].add_patch(Rectangle((1e-12, nhits_2), 100, 100, alpha=0.1, color='red'))
 axes[1].text(5e-12, 3e-1, 'Danger')
 
-axes[1].add_patch(Rectangle((1e-7, 1e-12), 100, 100, alpha=0.1, color='green'))
+#iof_limit_nh = 1e-7     # Original verison of our predicted MU69 limit
+iof_limit_nh = 0.5e-7   # Revised version, from ORT2 1-Mar-2018
+
+axes[1].add_patch(Rectangle((iof_limit_nh, 1e-12), 100, 100, alpha=0.1, color='green'))
 axes[1].text(1e-4, 3e-5, 'NH Observable')
     
 #class matplotlib.patches.Rectangle(xy, width, height, angle=0.0, **kwargs):
@@ -394,7 +404,8 @@ axes[1].set_ylim((1e-10, 10))
 axes[1].set_xlim((1e-12, 1))
 axes[1].set_xlabel('Observed dust I/F limit')
 axes[1].set_ylabel(r'Total N > $r_c$ impacting NH during encounter')
-axes[1].set_title(title + r', $r_c$ = {:.0f} $\mu$m, a = {}, $n(r) = r^{{-q}}$'.format(r_danger_1.to('micron').value, albedo))
+axes[1].set_title(title + r', $r_c$ = {:.0f} $\mu$m, a = {}, $n(r) = r^{{-q}}$, $A_{{sc}}$ = {} $m^2$'.format(
+                                                        r_danger_1.to('micron').value, albedo, sarea.value))
 axes[1].legend(loc = 'lower right')
 
 fig.show()
