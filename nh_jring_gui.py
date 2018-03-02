@@ -763,7 +763,12 @@ class App:
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            mm = hbt.mm(sigma_clip(dn_grid[mask_unwrapped], sigma_lower=1000, sigma_upper=3, iters=10))
+            isnan = np.isnan(mask_unwrapped)   # De-NaN it 
+            mask_unwrapped_denan = mask_unwrapped.copy()
+            mask_unwrapped_denan[isnan] = 0
+            mask_unwrapped_denan = mask_unwrapped_denan.astype('bool')
+            mm = hbt.mm(sigma_clip(dn_grid[mask_unwrapped_denan], sigma_lower=1000, sigma_upper=3, 
+                                           iters=10))
             
         stretch_mm = astropy.visualization.ManualInterval(vmin=mm[0], vmax=mm[1])        
         
