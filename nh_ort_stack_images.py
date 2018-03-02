@@ -59,12 +59,12 @@ from   get_radial_profile_circular import get_radial_profile_circular
 import hbt
 from image_stack import image_stack
 
-
+#def make_superstack((stacks)):
+    
+    
 # =============================================================================
-# Run the function. This just goes thru the motion of making some stacks.
-# It is not necessary to run this, but useful for diagnostics.
-#
-# Also, this code does some useful work for the ORTs: scaling stacks, making radial profiles, etc.        
+# This code does all the image stacking for the MU69 ORT's.
+# It also makes radial profiles.
 # =============================================================================
 
 if (True):
@@ -74,7 +74,7 @@ if (True):
     
     plt.set_cmap('Greys_r')
 
-    zoom = 2      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 1      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
     
 #    name_ort = 'ORT1'
@@ -171,7 +171,7 @@ if (True):
         
         # Save as FITS
     
-        file_out = '/Users/throop/Desktop/test_zoom{}.fits'.format(zoom)
+        file_out = os.path.join(dir_out, '{}_z{}.fits'.format(reqid_i, zoom)
         hdu = fits.PrimaryHDU(stretch(diff_trim))
         hdu.writeto(file_out, overwrite=True)
         print(f'Wrote: {file_out}')
@@ -240,6 +240,11 @@ if (True):
 # =============================================================================
 #     Make a 'superstack' -- ie stack of stacks, put on the same spatial scale and stacked
 # =============================================================================
+    
+#    list_stacks = ()
+#    for stack_i in stacks_haz:
+#        list_stacks.append(stack_i)
+#    stack_super = stack_haz(stack_haz['])
     
     # Now see if I can take all fields, zoom them appropriately, and sum them.
     # We want to scale them all to the scale of the final frame.
