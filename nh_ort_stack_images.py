@@ -59,9 +59,73 @@ from   get_radial_profile_circular import get_radial_profile_circular
 import hbt
 from image_stack import image_stack
 
-#def make_superstack((stacks)):
+def make_img_superstack(stack, img, img_field):
     
+    """
+    This makes a superstack image.
     
+    Parameters
+    -----
+    
+    stack:
+        A dictionary of `image_stack` objects.
+        
+    img:
+        A dictonary of 2D images, created by flattening the stacks above. The dictionary 
+        keys of `img` and `stack` must be the same.
+    
+    Optional parameters
+    -----
+    
+    zoom:
+        The zoom value to use when stacking.
+        
+    index_reference:
+        Index to which of the final images to use as the output scale.
+        (Alternatively, we might allow the dictionary to be passed)
+        
+    """
+    
+    keys = list(stack.keys())
+    
+    pixscale_km = {}
+    for key in keys:
+        pixscale_km[key] = stack[key].pixscale_x_km
+        
+    # Search for the lowest-res image, and output to that.
+    
+    pixscale_km_out = min(pixscale_km.values())
+    
+    # Look up what the index is for this image
+    
+    key_out = keys[np.where(pixscale_km_out == np.array(list(pixscale_km.values())))[0][0]]
+    
+    pixscale = stack[key_out].pixscale_x_km  # This is the pixel scale of the final stack.
+                                                                 # Zoom has not been applied yet.
+#    out = 0*img_haz['K1LR_HAZ02'].copy()
+    size_out = np.shape(img[key_out])
+    
+    img_rescale_3d = np.zeros((len(keys),size_out[0],size_out[1]))
+    img_rescale = {}
+    for i,key in enumerate(keys):
+        
+        magfac = stack[key].pixscale_x_km / pixscale_km_out
+        arr = scipy.ndimage.zoom(img[key] - img_field, magfac)
+        
+        size_in = np.shape(arr)
+        edge_left = int( (size_in[0]-size_out[0])/2)
+        edge_top  = int( (size_in[1]-size_out[1])/2)
+        
+        arr_out = arr[ edge_left : edge_left+size_out[0], 
+                       edge_top  : edge_left+size_out[1] ] 
+        img_rescale[reqid_i] = arr_out
+        img_rescale_3d[i,:,:] = arr_out
+
+        img_rescale_median = np.median(img_rescale_3d, axis=0)  
+        img_rescale_mean   = np.mean(img_rescale_3d, axis=0)  
+    
+    return((img_rescale_mean, img_rescale_median))
+   
 # =============================================================================
 # This code does all the image stacking for the MU69 ORT's.
 # It also makes radial profiles.
@@ -171,7 +235,7 @@ if (True):
         
         # Save as FITS
     
-        file_out = os.path.join(dir_out, '{}_z{}.fits'.format(reqid_i, zoom)
+        file_out = os.path.join(dir_out, '{}_z{}.fits'.format(reqid_i, zoom))
         hdu = fits.PrimaryHDU(stretch(diff_trim))
         hdu.writeto(file_out, overwrite=True)
         print(f'Wrote: {file_out}')
@@ -241,54 +305,25 @@ if (True):
 #     Make a 'superstack' -- ie stack of stacks, put on the same spatial scale and stacked
 # =============================================================================
     
-#    list_stacks = ()
-#    for stack_i in stacks_haz:
-#        list_stacks.append(stack_i)
-#    stack_super = stack_haz(stack_haz['])
-    
-    # Now see if I can take all fields, zoom them appropriately, and sum them.
-    # We want to scale them all to the scale of the final frame.
-    
-    pixscale_km_final = stack_haz[reqids_haz[-1]].pixscale_x_km  # This is the pixel scale of the final stack.
-                                                                 # Zoom has not been applied yet.
-#    out = 0*img_haz['K1LR_HAZ02'].copy()
-    size_out = np.shape(img_haz[reqids_haz[-1]])
-    
-    img_rescale_3d = np.zeros((len(reqids_haz),size_out[0],size_out[1]))
-    img_haz_rescale = {}
-    for i,reqid_i in enumerate(reqids_haz):
-        
-        magfac = stack_haz[reqid_i].pixscale_x_km / pixscale_km_final
-        arr = scipy.ndimage.zoom(img_haz[reqid_i] - img_field, magfac)
-        
-        size_in = np.shape(arr)
-        edge_left = int( (size_in[0]-size_out[0])/2)
-        edge_top = int( (size_in[1]-size_out[1])/2)
-        
-        arr_out = arr[ edge_left : edge_left+size_out[0], 
-                       edge_top  : edge_left+size_out[1] ] 
-        img_haz_rescale[reqid_i] = arr_out
-        img_rescale_3d[i,:,:] = arr_out
+    (img_superstack_mean, img_superstack_median) = make_img_superstack(stack_haz, img_haz, img_field)
   
-    # Create, display, and save the median stack of stacks
+    # Create, display, and save the median superstack
     
-    img_rescale_median = np.median(img_rescale_3d, axis=0)  
-    plt.imshow( stretch(img_rescale_median))
+    plt.imshow( stretch(img_superstack_median))
     plt.title(f'restretched and medianed, {name_ort}')
     plt.show()
-    file_out = os.path.join(dir_out, f'img_rescale_median_{name_ort}.fits')
-    hdu = fits.PrimaryHDU(img_rescale_median)
+    file_out = os.path.join(dir_out, f'img_superstack_median_{name_ort}.fits')
+    hdu = fits.PrimaryHDU(img_superstack_median)
     hdu.writeto(file_out, overwrite=True)
     print(f'Wrote: {file_out}')
  
-    # Create, display, and save the mean stack of stacks
+    # Create, display, and save the mean superstack
 
-    img_rescale_mean     = np.mean(img_rescale_3d, axis=0)    
-    plt.imshow( stretch(img_rescale_mean))
+    plt.imshow( stretch(img_superstack_mean))
     plt.title(f'restretched and mean, {name_ort}')
     plt.show()    
-    file_out = os.path.join(dir_out, f'img_rescale_mean_{name_ort}.fits')
-    hdu = fits.PrimaryHDU(img_rescale_mean)
+    file_out = os.path.join(dir_out, f'img_superstack_mean_{name_ort}.fits')
+    hdu = fits.PrimaryHDU(img_superstack_mean)
     hdu.writeto(file_out, overwrite=True)
     print(f'Wrote: {file_out}')
        
