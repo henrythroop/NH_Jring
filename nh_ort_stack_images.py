@@ -62,7 +62,8 @@ from image_stack import image_stack
 def make_img_superstack(stack, img, img_field):
     
     """
-    This makes a superstack image.
+    This makes a superstack image. The output image has resolution matching the lowest resolution 
+    of all the input images (that is, the closest to MU69).
     
     Parameters
     -----
@@ -102,7 +103,6 @@ def make_img_superstack(stack, img, img_field):
     
     pixscale = stack[key_out].pixscale_x_km  # This is the pixel scale of the final stack.
                                                                  # Zoom has not been applied yet.
-#    out = 0*img_haz['K1LR_HAZ02'].copy()
     size_out = np.shape(img[key_out])
     
     img_rescale_3d = np.zeros((len(keys),size_out[0],size_out[1]))
@@ -138,7 +138,7 @@ if (True):
     
     plt.set_cmap('Greys_r')
 
-    zoom = 1      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 2      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
     
 #    name_ort = 'ORT1'
@@ -327,7 +327,7 @@ if (True):
     hdu.writeto(file_out, overwrite=True)
     print(f'Wrote: {file_out}')
        
-    print(f'zooming by {magfac}, to size {np.shape(img_haz_rescale[reqid_i])}')
+#    print(f'zooming by {magfac}, to size {np.shape(img_haz_rescale[reqid_i])}')
     
 # =============================================================================
 #     Make a radial profile, in I/F units 
@@ -341,20 +341,21 @@ if (True):
     r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
     (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
     r_sun_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
-    pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming 4x4)
+    pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming LORRI 4x4)
     TEXP = stack_haz[reqid_i].t['exptime'][0]
-    I_median = img_rescale_median / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
-    I_mean   = img_rescale_mean   / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
+
+    I_median = img_superstack_median / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
+    I_mean   = img_superstack_mean   / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
     
-    img_rescale_median_iof = math.pi * I_median * r_sun_mu69**2 / F_solar # Equation from Hal's paper
-    img_rescale_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+    img_superstack_median_iof = math.pi * I_median * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+    img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
     
     binwidth = 1
-    (radius_median,  profile_iof_median) = get_radial_profile_circular(img_rescale_median_iof, pos=pos, width=binwidth)
-    (radius_mean,    profile_iof_mean)   = get_radial_profile_circular(img_rescale_mean_iof,   pos=pos, width=binwidth)
+    (radius_median,profile_iof_median) = get_radial_profile_circular(img_superstack_median_iof, pos=pos, width=binwidth)
+    (radius_mean,  profile_iof_mean)   = get_radial_profile_circular(img_superstack_mean_iof,   pos=pos, width=binwidth)
     
     hbt.figsize((8,6))
-    radius_profile_km = radius_median*pixscale_km_final/zoom
+    radius_profile_km = radius_median*pixscale_km
     plt.plot(radius_profile_km, profile_iof_median,label = 'All curves, Median')
     plt.plot(radius_profile_km, profile_iof_mean,  label = 'All curves, Mean')
     plt.xlim((0,20000))
