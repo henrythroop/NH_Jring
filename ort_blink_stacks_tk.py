@@ -100,8 +100,8 @@ class App:
             self.dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
 
         if (name_ort == 'ORT2'):
-            self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
-            #        self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
+#            self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
+            self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
             self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'        
             self.dir_data    = '/Users/throop/Data/ORT2/throop/backplaned/'
             
@@ -118,7 +118,7 @@ class App:
         # This value is easy to compute: loop over all stacks, and take max of stack.calc_padding()[0]
         
         self.padding     = 61 # Amount to pad the images by. This is the same as the max drift btwn all images in stacks
-        self.zoom        = 6  # Sub-pixel zoom to apply when shifting images. 1 for testing; 4 for production.
+        self.zoom        = 1  # Sub-pixel zoom to apply when shifting images. 1 for testing; 4 for production.
         self.num_image   = 0  # Which stack number to start on.
         self.zoom_screen = 1  # 'Screen zoom' amount to apply. This can be changed interactively.
         
@@ -227,7 +227,7 @@ class App:
         master.bind('-',       self.scale_min_up_e)
         master.bind('_',       self.scale_min_down_e)
         
-        
+        self.canvas1.get_tk_widget().bind("<Button 1>", self.click_e)        
         
 # Set the initial image index
         
@@ -284,9 +284,7 @@ class App:
     def plot(self):
 
         # Load the current image
-        
-#        self.img_haz = self.stack_haz.image_single(self.num_image, padding = self.padding, zoom = self.zoom)
-        
+                
         img_haz = self.img_haz[self.reqids_haz[self.num_image]]
         
         # Calculate and apply the 'screen zoom'
@@ -296,20 +294,35 @@ class App:
         min = int(dx/2 - dx_zoomed/2)
         max = int(dx/2 + dx_zoomed/2)
         
+        origin = 'upper'  # Set (0,0) to be uper-left corner, which is default. However, 
+        
         # Clear the existing image. Otherwise, we end up over-plotting, and the speed drops every time plot() called.
         
         self.ax1.clear()
         
         # Subtract the bg image, if requested, and display it
+        
+        # Note that we don't use xlim / ylim here. We just crop the array. I'm not sure about that -- I think 
+        # maybe we should use xlim / ylim, so as to keep the XY position of MU69 constant. It's just going to 
+        # make the math a lot easier.
 
         if (self.do_subtract):
-            im_disp = img_haz[min:max, min:max] - self.img_field[min:max, min:max]
-            self.plt1 = self.ax1.imshow(im_disp, interpolation=None, vmin=self.vmin_diff, vmax=self.vmax_diff)
+            im_disp = img_haz - self.img_field
+            self.plt1 = self.ax1.imshow(im_disp, interpolation=None, vmin=self.vmin_diff, vmax=self.vmax_diff,
+                                        origin = origin)
+            self.ax1.set_ylim((min, max))
+            self.ax1.set_xlim((min, max))
             
         else:
-            self.plt1 = self.ax1.imshow(img_haz[min:max, min:max], interpolation=None, 
-                                        vmin=self.vmin_raw, vmax=self.vmax_raw)
+            self.plt1 = self.ax1.imshow(img_haz, interpolation=None, 
+                                        vmin=self.vmin_raw, vmax=self.vmax_raw,
+                                        origin = origin)
             
+        # Set the axis limits
+        
+        self.ax1.set_ylim((min, max))
+        self.ax1.set_xlim((min, max))
+
         # Set the title, etc.
         
         self.ax1.set_title(self.make_title())
@@ -351,27 +364,29 @@ class App:
         
 #        self.img_haz = self.stack_haz.image_single(self.num_image, padding = self.padding, zoom = self.zoom)
 
-        dx = hbt.sizex(img)
-        dx_zoomed = dx / self.zoom_screen
-        min = int(dx/2 - dx_zoomed/2)
-        max = int(dx/2 + dx_zoomed/2)
+#        dx = hbt.sizex(img)
+#        dx_zoomed = dx / self.zoom_screen
+#        min = int(dx/2 - dx_zoomed/2)
+#        max = int(dx/2 + dx_zoomed/2)
         
         # Subtract the bg image, if requested, and display it
         
         if (self.do_subtract):
-            im_disp = img[min:max, min:max] - self.img_field[min:max, min:max]
+#            im_disp = img[ - self.img_field[min:max, min:max]
+            im_disp = img - self.img_field
             self.plt1.set_data(im_disp)
         else:
-            self.plt1.set_data(img[min:max, min:max]) # Like imshow, but faster
+#            self.plt1.set_data(img[min:max, min:max]) # Like imshow, but faster
+            self.plt1.set_data(img) # Like imshow, but faster
 
         # Set the title. This gets updated when using draw() or show() just fine.
+        
+        print(f'ax1_ylim {20-self.zoom_screen}')
         
         self.ax1.set_title(self.make_title())
         
         self.canvas1.draw()
         self.canvas1.show()  # Q: Do I need this:? A: Yes, even when using set_data().
-
-        
         
 # =============================================================================
 # Key: Help
@@ -473,7 +488,39 @@ class App:
             self.zoom_screen = 1
         print(self.zoom_screen)
         self.plot()
+
+# =============================================================================
+# Mouse click handler
+# =============================================================================
+
+    def click_e(self, event):
+
+        (x, y) = (event.x, event.y)        
         
+        tr_data_to_display   = self.ax1.transData               # Data = values of xlim, ylim
+        tr_display_to_data   = self.ax1.transData.inverted()
+        
+        tr_axes_to_display = self.ax1.transAxes                 # Axes = [0,1] within the plot data window itself.
+        tr_display_to_axes = self.ax1.transAxes.inverted()
+
+        tr_fig_to_display  = self.fig1.transFigure              # Figure = [0,1] in the figure, incl borders, etc.
+        tr_display_to_fig  = self.fig1.transFigure.inverted()
+        
+        (x_data, y_data) = tr_display_to_data.transform((x,y))
+        (x_axes, y_axes) = tr_display_to_axes.transform((x,y))
+        (x_fig, y_fig) = tr_display_to_fig.transform((x,y))
+        
+        
+        print(f'Raw: X={x}, Y={y}')
+        print(f'Display-to-data: X={x_data}, Y={y_data}') # Wow this actually works 100% right for x!
+                                                          # For y, it is inverted, and has an offset. But scale is ok. 
+
+        print(f'Display-to-axes: X={x_axes}, Y={y_axes}') # This is 100% correct. 
+                                                          # (0,0) = upper-left corner of image itself.
+                                                          # (1,1) = lower-right corner of image.
+        
+        print(f'Display-to-fig: X={x_fig}, Y={y_fig}')
+
 # =============================================================================
 # Key: Blink On/Off
 # =============================================================================
