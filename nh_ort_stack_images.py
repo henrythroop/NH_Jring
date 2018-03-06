@@ -125,10 +125,17 @@ def make_img_superstack(stack, img, img_field):
         img_rescale_mean   = np.mean(img_rescale_3d, axis=0)  
     
     return((img_rescale_mean, img_rescale_median))
-   
+ 
 # =============================================================================
-# This code does all the image stacking for the MU69 ORT's.
-# It also makes radial profiles.
+# End of function definition
+# =============================================================================
+    
+# =============================================================================
+# One-off code (not a function) that does all the image stacking for the MU69 ORT's.
+#   - Load stacks
+#   - Align them
+#   - Make superstacks
+#   - Make radial profile     
 # =============================================================================
 
 if (True):
@@ -147,7 +154,6 @@ if (True):
     initials_user = 'HBT'
     dir_data = '/Users/throop/Data'
 
-    
     if (name_ort == 'ORT1'):
         dir_images    = os.path.join(dir_data, name_ort, 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort)

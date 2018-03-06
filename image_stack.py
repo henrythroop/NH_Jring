@@ -210,7 +210,7 @@ class image_stack:
                 if do_lorri_destripe:
                     arr = hbt.lorri_destripe(arr)
                     
-                # Read the WCS coords
+                # Read the WCS coords of this file
                 
                 w = WCS(file)
                 
@@ -338,7 +338,8 @@ class image_stack:
         Does not actually perform the shifts, but updates internal shift settings
         for each image. The shifting only happens when image is flattened.
         
-        Updates the internal shift_x_pix, shift_y_pix.
+        Updates the internal shift_x_pix, shift_y_pix, accessible thru self.t[<number>]['shift_pix_x'].
+        These pixel shifts are raw, and do not reflect any zoom.
         
         Optional arguments
         ----
@@ -527,6 +528,14 @@ class image_stack:
         """
         Flatten a stack of images as per the currently-set shift values and indices.
         
+        Sets the value of self.wcs to reflect the output image.
+        
+        Return value
+        ----
+        
+        img_flat:
+            A 2D flattened image array. Not an object, just a simple 2D array.
+            
         Optional parameters
         ----
         method: 
@@ -621,7 +630,17 @@ class image_stack:
             
         if (method == 'median'):
             arr_flat = np.nanmedian(arr,0)  # Slow -- about 15x longer
-            
+        
+        # Copy the WCS over. Use the one from the first image.
+        
+        self.wcs = self.t[0]['wcs']
+        
+        # Adjust the WCS 
+        
+        wcs = self.wcs  # I now want to shift this by 10 pixels, or wahtever.
+        # we could take crpix, add shift to them, calc RA of that, and then set crval to that again.
+        
+        
         return arr_flat
 
 # =============================================================================
@@ -667,13 +686,54 @@ class image_stack:
 
         return(im_expand)
 
+    
+# =============================================================================
+# End of method definition
+# =============================================================================
+
 def dn2iof(val, mode):
 
     if (mode == '4X4'):
         # Convert DN values in array, to I/F values
             
         profile = val
-        
-# =============================================================================
-# End of method definition
-# =============================================================================
+    
+def wcs_translate_radec(wcs, dra, ddec):
+    
+def wcs_translate_pix(wcs, dx_pix, dy_pix):
+    """
+    Function takes a WCS header, and offsets it by a specified number of pixels.
+    
+    This changes the value of CRVAL. Nothing else is changed.
+    
+    The WCS passed is modified in place. 
+    
+    There is no return value.
+    
+    """
+    
+#    dy_pix = 100
+#    dx_pix = 1
+    
+    crpix = wcs.wcs.crpix  # Center pixels. Often 127.5, 127.5
+    crval = wcs.wcs.crval  # Center RA, Dec. In degrees
+    
+    # Calculate the new center position (in RA/Dec, based on the pixel shifts)
+    
+    radec_shifted = wcs.wcs_pix2world(np.array([[crpix[0] + dx_pix, crpix[1] + dy_pix]]), 0)
+    
+    # Set the new center position, in radec.
+    
+    wcs.wcs.crval = np.ndarray.flatten(radec_shifted)
+    
+    # Q: Does PC array need to change? PC = pixel coord transformation matrix.
+    # http://docs.astropy.org/en/stable/api/astropy.wcs.Wcsprm.html
+    # Might be deprecated. Well, no. has_pc(): 
+    #   "PCi_ja is the recommended way to specify the linear transformation matrix."
+    # http://www.stsci.edu/hst/HST_overview/documents/multidrizzle/ch44.html -- this looks like 
+    #   the CD matrix (which is similar to PC) specifies rotation, but not offsets.
+    # PC1_1 = CD1_1 if CDelt = 1, which it is. 
+    # http://docs.astropy.org/en/stable/api/astropy.wcs.Wcsprm.html#astropy.wcs.Wcsprm.has_cd
+    # So, I should be good to leave PC alone.
+
+#    return wcs

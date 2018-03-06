@@ -80,10 +80,12 @@ class App:
 # INIT CLASS
 ##########
 
-    def __init__(self, master):
+    def __init__(self, master, size_window):
 
         self.master = master   # This is the handle to the main Tk widget. I have to use it occasionally to 
                                # set up event handlers, so grab it and save it.
+
+        self.size_window = size_window # Save the size of the whole Tk window, in pixels.
         
         # Open the image stack
         
@@ -495,7 +497,12 @@ class App:
 
     def click_e(self, event):
 
-        (x, y) = (event.x, event.y)        
+        (x, y) = (event.x, event.y)                             # Event coords. These are pixels from upperleft.
+        
+        y = self.size_window[1]-y                               # Event.xy returns coords from upper left.
+                                                                # But transData assumes display coords from lower left.
+                                                                # So, need to invert the y axis. Not sure why, but
+                                                                # this correction does it properly.
         
         tr_data_to_display   = self.ax1.transData               # Data = values of xlim, ylim
         tr_display_to_data   = self.ax1.transData.inverted()
@@ -512,8 +519,8 @@ class App:
         
         
         print(f'Raw: X={x}, Y={y}')
-        print(f'Display-to-data: X={x_data}, Y={y_data}') # Wow this actually works 100% right for x!
-                                                          # For y, it is inverted, and has an offset. But scale is ok. 
+        print(f'Display-to-data: X={x_data}, Y={y_data}') # This works 100% right for x!
+                                                          # For y, it is inverted, and has an offset, w/ scale correct. 
 
         print(f'Display-to-axes: X={x_axes}, Y={y_axes}') # This is 100% correct. 
                                                           # (0,0) = upper-left corner of image itself.
@@ -648,14 +655,17 @@ class App:
 # Now start the main app
 ###########
 
+size_window = (1080, 1080) 
+
 # Start up the widget
 
 root = tkinter.Tk()
-app  = App(root)
+app  = App(root, size_window)
 
 # set the dimensions and position of the window
 
-root.geometry('%dx%d+%d+%d' % (1080, 1080, 2, 2)) # I chose this size experimentally so it would match the figsize().
+root.geometry('%dx%d+%d+%d' % (size_window[0], size_window[1], 2, 2)) # I chose this size 
+                                                    # experimentally so it would match the figsize().
 root.configure(background='#ECECEC')                # ECECEC is the 'default' background
                
 os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
