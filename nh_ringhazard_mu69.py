@@ -148,6 +148,7 @@ albedo	= 0.05			# We pick the best-guess, which is Charon's albedo = 0.35. 0.05 
                        # That routine shows that at 600 um, affectable area is 0.2 m2. That is what I'll use.
 
 sarea = 0.2*(u.m)**2  # Revsied value as per Mehoke
+#sarea = 2*(u.m)**2  # Worst possible value, using 2 m2 on -Y face as per Mehoke
 
 # Set the particle size range
 
