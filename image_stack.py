@@ -53,6 +53,9 @@ from   matplotlib.figure import Figure
 from   get_radial_profile_circular import get_radial_profile_circular
 
 from   get_radial_profile_circular import get_radial_profile_circular
+from   plot_img_wcs import plot_img_wcs
+from   wcs_translate_pix import wcs_translate_pix
+
 # HBT imports
 
 import hbt
@@ -530,11 +533,14 @@ class image_stack:
         
         Sets the value of self.wcs to reflect the output image.
         
-        Return value
+        Return values
         ----
         
         img_flat:
-            A 2D flattened image array. Not an object, just a simple 2D array.
+            A 2D flattened image array. Not an object, just a simple 2D array. This image is padded.
+        
+        wcs:
+            The WCS parameters for this image.
             
         Optional parameters
         ----
@@ -596,7 +602,7 @@ class image_stack:
 
             if not(do_wrap):
                 pad = np.array( ((pad_xy, pad_xy),(pad_xy, pad_xy)) ) * zoom
-                im_expand = np.pad(im_expand, pad, mode = 'constant')
+                im_expand = np.pad(im_expand, pad, mode = 'constant')   # This adds a const
                 
             # Look up the shift amount, and zoom it as necessary
             
@@ -623,7 +629,8 @@ class image_stack:
         
         # Merge all the individual frames, using mean or median
         
-        print("Flattening array with dimension {} using {}; zoom={}".format(np.shape(arr), method, zoom))
+        print(f'Flattening array with dimension {np.shape(arr)} using {method}; zoom={zoom}')
+        print(f'  Pad_xy = {pad_xy}')
         
         if (method == 'mean'):
             arr_flat   = np.nanmean(arr,0)    # Fast
@@ -631,18 +638,33 @@ class image_stack:
         if (method == 'median'):
             arr_flat = np.nanmedian(arr,0)  # Slow -- about 15x longer
         
-        # Copy the WCS over. Use the one from the first image.
+        # Copy the WCS over. Use the one from the 0th image.
         
-        self.wcs = self.t[0]['wcs']
+        wcs = self.t[0]['wcs']
+        
+        plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0')
         
         # Adjust the WCS 
         
-        wcs = self.wcs  # I now want to shift this by 10 pixels, or wahtever.
-        # we could take crpix, add shift to them, calc RA of that, and then set crval to that again.
+        # Change the center position, in RA/Dec, by applying the known offset in pixels
+        # Offset is in raw pixels (ie, not zoomed)
+        # Take shift amount from 0th image.
         
-        wcs_translate_pix(wcs, 5, 5)  # Need to put the right values in.
+        wcs_translate_pix(wcs, -self.t['shift_pix_y'][0]-pad_xy, -self.t['shift_pix_y'][0]-pad_xy) # Swap x and y?
         
-        return arr_flat
+        # Change the image size, in the WCS, to reflect the larger image size
+        
+        wcs.wcs.crpix = [(hbt.sizex(im_expand)-1)/2, (hbt.sizey(im_expand)-1)/2]
+        
+        # Change the pixel scale to reflect the zoom
+        
+        wcs.wcs.pc = wcs.wcs.pc / zoom
+        
+        # And return the WCS along with the image
+
+        plot_img_wcs(arr_flat, wcs, title = 'After zoom + adjust')
+        
+        return (arr_flat, wcs)
 
 # =============================================================================
 # Align and retrieve a single image from the stack.
@@ -702,47 +724,3 @@ def dn2iof(val, mode):
 def wcs_translate_radec(wcs, dra, ddec):
     pass
 
-def wcs_translate_pix(wcs, dx_pix, dy_pix):
-    """
-    Function takes a WCS header, and offsets it by a specified number of pixels.
-    
-    This changes the value of CRVAL. Nothing else is changed.
-    
-    The WCS passed is modified in place. 
-    
-    There is no return value.
-    
-    Parameters
-    -----
-    
-    dx_pix, dy_pix
-        Amount to translate by, in pixels in the x and y directions.
-        
-    
-    """
-    
-#    dy_pix = 100
-#    dx_pix = 1
-    
-    crpix = wcs.wcs.crpix  # Center pixels. Often 127.5, 127.5
-    crval = wcs.wcs.crval  # Center RA, Dec. In degrees
-    
-    # Calculate the new center position (in RA/Dec, based on the pixel shifts)
-    
-    radec_shifted = wcs.wcs_pix2world(np.array([[crpix[0] + dx_pix, crpix[1] + dy_pix]]), 0)
-    
-    # Set the new center position, in radec.
-    
-    wcs.wcs.crval = np.ndarray.flatten(radec_shifted)
-    
-    # Q: Does PC array need to change? PC = pixel coord transformation matrix.
-    # http://docs.astropy.org/en/stable/api/astropy.wcs.Wcsprm.html
-    # Might be deprecated. Well, no. has_pc(): 
-    #   "PCi_ja is the recommended way to specify the linear transformation matrix."
-    # http://www.stsci.edu/hst/HST_overview/documents/multidrizzle/ch44.html -- this looks like 
-    #   the CD matrix (which is similar to PC) specifies rotation, but not offsets.
-    # PC1_1 = CD1_1 if CDelt = 1, which it is. 
-    # http://docs.astropy.org/en/stable/api/astropy.wcs.Wcsprm.html#astropy.wcs.Wcsprm.has_cd
-    # So, I should be good to leave PC alone.
-
-#    return wcs

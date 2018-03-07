@@ -54,6 +54,8 @@ from   matplotlib.figure import Figure
 from   get_radial_profile_circular import get_radial_profile_circular
 
 from   get_radial_profile_circular import get_radial_profile_circular
+from   plot_img_wcs import plot_img_wcs
+
 # HBT imports
 
 import hbt
@@ -64,6 +66,8 @@ def make_img_superstack(stack, img, img_field):
     """
     This makes a superstack image. The output image has resolution matching the lowest resolution 
     of all the input images (that is, the closest to MU69).
+    
+    This is a standalone function -- not part of any class.
     
     Parameters
     -----
@@ -129,6 +133,8 @@ def make_img_superstack(stack, img, img_field):
 # =============================================================================
 # End of function definition
 # =============================================================================
+
+    
     
 # =============================================================================
 # One-off code (not a function) that does all the image stacking for the MU69 ORT's.
@@ -164,8 +170,9 @@ if (True):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort)
         reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
+        reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03']
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
-
+        
     if (name_ort == 'ORT2_OPNAV'):
         dir_images    = '/Users/throop/Data/ORT2/throop/backplaned/'
         dir_out       = os.path.join(dir_data, name_ort.split('_')[-1])
@@ -206,7 +213,7 @@ if (True):
     
     stack_field.align(method = 'wcs', center = (radec_mu69))
     for reqid_i in reqids_haz:
-        stack_haz[reqid_i].align(method  = 'wcs', center = (radec_mu69))
+        stack_haz[reqid_i].align(method  = 'wcs', center = (radec_mu69))  # In each individual stack, align all images
     
     # Calc the padding required. This can only be done after the images are loaded and aligned.
 
@@ -222,13 +229,25 @@ if (True):
     # If we get an error here, it is probably due to a too-small 'pad' value.
     # This step can be very slow. Right now results are not saved. In theory they could be.
     
-    img_field = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad)
+    # Flatten the field stack
+    
+    (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad)
+    
+    # Flatten the main hazard stacks
+    # When we do this, the output image is shifted around within the padding amount, so that *all* 
+    # ouput images have the same size. So, maybe flatten should return img *and* wcs?
+    # And the expectation would be that all of these individual WCS would match. That would be the point.
     
     img_haz = {}
+    wcs_haz = {}
     img_haz_diff = {}
+    
     for reqid_i in reqids_haz:
-        img_haz[reqid_i]  = stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad)
+        (img_haz[reqid_i], wcs_haz[reqid_i])  =\
+              stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad)
         img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field
+        
+        plot_img_wcs(img_haz[reqid_i], wcs_haz[reqid_i], title = reqid_i)
         
     # Plot the trimmed, flattened images. This is just for show. They are not scaled very well for ring search.
     
