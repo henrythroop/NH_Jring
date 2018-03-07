@@ -640,6 +640,7 @@ class image_stack:
         wcs = self.wcs  # I now want to shift this by 10 pixels, or wahtever.
         # we could take crpix, add shift to them, calc RA of that, and then set crval to that again.
         
+        wcs_translate_pix(wcs, 5, 5)  # Need to put the right values in.
         
         return arr_flat
 
@@ -699,7 +700,8 @@ def dn2iof(val, mode):
         profile = val
     
 def wcs_translate_radec(wcs, dra, ddec):
-    
+    pass
+
 def wcs_translate_pix(wcs, dx_pix, dy_pix):
     """
     Function takes a WCS header, and offsets it by a specified number of pixels.
@@ -709,6 +711,13 @@ def wcs_translate_pix(wcs, dx_pix, dy_pix):
     The WCS passed is modified in place. 
     
     There is no return value.
+    
+    Parameters
+    -----
+    
+    dx_pix, dy_pix
+        Amount to translate by, in pixels in the x and y directions.
+        
     
     """
     

@@ -528,6 +528,11 @@ class App:
         
         print(f'Display-to-fig: X={x_fig}, Y={y_fig}')
 
+        wcs = self.stack_haz.wcs  # This needs to be adjusted for the offset
+        radec = wcs.wcs_pix2world(x, y, 0)
+        print(f'RA = {radec[0]}, Dec = {radec[1]}')
+        
+        
 # =============================================================================
 # Key: Blink On/Off
 # =============================================================================
