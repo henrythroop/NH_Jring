@@ -98,12 +98,6 @@ do_force = False   # If set, reload the stacks from individual frames, rather th
 
 stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force, do_save=do_force)
 
-# Load and stack hazard images, several stacks.
-
-stack_haz = {}
-for reqid_i in reqids_haz:
-    stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force, do_save=do_force)
-
 # Plot some frames to check the WCS. Everything looks OK.
 
 plot_img_wcs(  (stack_field.t[0]['data']), stack_field.t[0]['wcs'])
@@ -111,47 +105,51 @@ plot_img_wcs(  (stack_field.t[1]['data']), stack_field.t[1]['wcs'])
 plot_img_wcs(  (stack_field.t[2]['data']), stack_field.t[2]['wcs'])
 plot_img_wcs(  (stack_field.t[2]['data']), stack_field.t[2]['wcs'])
 plot_img_wcs(  (stack_field.t[2]['data']), stack_field.t[2]['wcs'])
-
-plot_img_wcs(  (stack_haz['K1LR_HAZ02'].t[2]['data']), stack_haz['K1LR_HAZ02'].t[2]['wcs'])
-plot_img_wcs(  (stack_haz['K1LR_HAZ02'].t[3]['data']), stack_haz['K1LR_HAZ02'].t[3]['wcs'])
-plot_img_wcs(  (stack_haz['K1LR_HAZ02'].t[4]['data']), stack_haz['K1LR_HAZ02'].t[4]['wcs'])
         
-
 # Try doing a wcs translation on one image. Shift by fixed # of pixels.
 
-dx_pix = 20
-dy_pix = -20
+dx_pix = -40  # -10, -40 is the actual shift for field[0]
+dy_pix = -50
 
-pad = 50
-pad_xy = [[50,50], [50,50]]
+pad    = 50
+pad_xy = [[pad,pad], [pad,pad]]
+
+# Get field WCS
 
 wcs = stack_field.t[0]['wcs']
-img = (stack_field.t[0]['data'])
-plot_img_wcs(img, wcs)
+img = stack_field.t[0]['data']
+plot_img_wcs(img, wcs, title = 'Field 0')  # Plots the image, with a point indicated
+
+# Copy field WCS into new WCS2.
+
 wcs2 = wcs.deepcopy()
+
+# Apply translation to offset the WCS
+
 wcs_translate_pix(wcs2, -dy_pix-pad, -dx_pix-pad)
+
+# Apply roll to offset the image
 
 img2 = np.roll(np.roll(np.pad(img, pad_xy, mode='constant'), dx_pix, axis=0), dy_pix, axis=1)
 
-plot_img_wcs(img2, wcs2, title = 'Rolled dx = {dx_pix}, dy= {dy_pix}')  # Confirmed: this works. So, the basics of 
+# Now plot and see that they match. [A: Yes, it works, for many different combinations of dx dy.]
+
+plot_img_wcs(img2, wcs2, title = f'Rolled dx = {dx_pix}, dy= {dy_pix}')  # Confirmed: this works. So, the basics of 
                                                                         # my image translation work.
 
-# Look up the rough position of MU69
+# Look up the position of MU69
 
-et = stack_haz[reqids_haz[0]].t['et'][0] # Look up ET for first image in the Hazard stack
-(st, lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
-vec = st[0:3]
-(_, ra, dec) = sp.recrad(vec)
-radec_mu69 = (ra, dec) # Keep in radians
+radec_mu69 = (4.794984626030024, -0.364179487109049) # Keep in radians
 
 # Align the field frames on a specific RA/Dec. What this does is set the offset value in the stack
+# Output is visible in stack_field.t['shift_x_pix'][0]
 
 stack_field.align(method = 'wcs', center = (radec_mu69))
 
 # Align Hazard frames on specifc RA/Dec
 
-for reqid_i in reqids_haz:
-    stack_haz[reqid_i].align(method  = 'wcs', center = (radec_mu69))  # In each individual stack, align all images
+#for reqid_i in reqids_haz:
+#    stack_haz[reqid_i].align(method  = 'wcs', center = (radec_mu69))  # In each individual stack, align all images
 
 # Calc the padding required. This can only be done after the images are loaded and aligned.
 
@@ -166,9 +164,12 @@ pad = max(pad_haz)
 # Flatten the stacks into single output images
 
 # Flatten the field stack
+# This should return a correct WCS. But it does not! This is right here the problem.
+# XX stack_field.t['shift_x_pix'][0] = -10
+# XX stack_field.t['shift_y_pix'][0] = -40
+
 
 (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad)
-
 
 # Flatten the main hazard stacks
 # When we do this, the output image is shifted around within the padding amount, so that *all* 
