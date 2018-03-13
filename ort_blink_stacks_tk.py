@@ -243,7 +243,7 @@ class App:
         self.list_objects = {}
         
         for reqid_i in self.reqids_haz:
-            self.list_objects[reqid_i] = []  # Each entry here will be something like (x_pix, y_pix, dn)
+            self.list_objects[reqid_i] = []  # Each entry here will be something like [(x, y, dn), (x, y, dn)] 
             
 # Set a list of frame numbers to animate. For default, do them all.
 
@@ -335,6 +335,10 @@ class App:
         self.ax1.set_ylim((min, max))
         self.ax1.set_xlim((min, max))
 
+        # Plot any astrometric points that may exist
+        
+        self.plot_objects()
+        
         # Set the title, etc.
         
         self.ax1.set_title(self.make_title())
@@ -394,6 +398,10 @@ class App:
         # Set the title. This gets updated when using draw() or show() just fine.
                 
         self.ax1.set_title(self.make_title())
+        
+        # Draw the photometric points for this frame. I hope this clears the previous ones, but not sure.
+        
+        self.plot_objects()
         
         self.canvas1.draw()
         self.canvas1.show()  # Q: Do I need this:? A: Yes, even when using set_data().
@@ -538,14 +546,18 @@ class App:
 
         wcs = self.wcs_haz[self.reqid_haz]  # Get WCS of the current stack being displayed. Others should be the same.
         radec = wcs.wcs_pix2world(x_data, y_data, 0)
-        print(f'RA = {radec[0]}, Dec = {radec[1]} / x = {x}, Y = {y}')
-        self.ax1.plot([x], [y], marker = 'o', color = 'red', ms=5)
-        self.ax1.imshow()
+        print(f'RA = {radec[0]}, Dec = {radec[1]} / x = {x_data}, Y = {y_data}')
+#        self.ax1.plot([x_data], [y_data], marker = 'o', color = 'red', ms=5)
+#        self.canvas1.show()
+                
+        print(f'State for this event: {event.state}')   # Check if it was a shift-click, double-click, etc.
         
         # Now add this point to the list of points for this stack
         
-        self.list_objects[self.reqid_haz] = (x, y, 0)
+        self.list_objects[self.reqid_haz].append((x_data, y_data, 0))
         
+        self.plot()  # Replot the entire window, which will call plot_objects()
+
 # =============================================================================
 # Key: Blink On/Off
 # =============================================================================
@@ -560,7 +572,27 @@ class App:
             self.is_blink = True
             print("Blinking now on")
             self.show_next_frame()            # To turn on animation, set the flag, and call func to display next frame
-    
+
+# =============================================================================
+# Plot all of the astrometric points on this stack
+# =============================================================================
+
+    def plot_objects(self):
+                
+        for i,object in enumerate(self.list_objects[self.reqid_haz]):
+            print(f'plotting object {i}')
+            print(f'object = {object}')
+            self.ax1.plot(object[0], object[1], marker = 'o', color = 'red', markersize=4)
+
+# =============================================================================
+# Delete all of the astrometric points on this stack
+# =============================================================================
+
+    def unplot_objects(self):
+
+        # As needed, unplot these objects
+        return
+        
 # =============================================================================
 # Show next frame -- animation
 # =============================================================================
