@@ -6,8 +6,9 @@ Created on Wed Mar  7 15:24:45 2018
 @author: throop
 """
 
-def plot_img_wcs(img, wcs, ra=274.69185, dec=-20.752, title=None):
+def plot_img_wcs(img, wcs, ra=274.73238190163573, dec=-20.86594759658748, title=None):
 
+    # Default RA, Dec above is for MU69 on approach
     
     import matplotlib.pyplot as plt # pyplot
     import astropy.visualization

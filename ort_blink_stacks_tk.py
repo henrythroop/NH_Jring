@@ -170,17 +170,20 @@ class App:
             print("Stacking field images")        
             self.stack_field = image_stack(os.path.join(self.dir_data, self.reqid_field))    # The individual stack
             self.stack_field.align(method = 'wcs', center = self.radec_mu69)
-            self.img_field  = self.stack_field.flatten(zoom=self.zoom, padding=self.padding) # Save the stacked image
+            (self.img_field, self.wcs_field)  =\
+                self.stack_field.flatten(zoom=self.zoom, padding=self.padding) # Save the stacked image and WCS
         
             # Load and stack the Hazard images
             
             self.img_haz   = {} # Output dictionary for the stacked images
             self.stack_haz = {} # Output dictionary for the stacks themselves
+            self.wcs_haz   = {} # Output dictionary for WCS for the stacks
             
             for reqid in self.reqids_haz:
                 self.stack_haz[reqid] = image_stack(os.path.join(self.dir_data, reqid))    # The individual stack
                 self.stack_haz[reqid].align(method = 'wcs', center = self.radec_mu69)
-                self.img_haz[reqid]  = self.stack_haz[reqid].flatten(zoom=self.zoom, padding=self.padding) 
+                (self.img_haz[reqid], self.wcs_haz[reqid])  =\
+                    self.stack_haz[reqid].flatten(zoom=self.zoom, padding=self.padding) 
                 # Put them in a dictionary
 
             # Save the stacks to a pickle file, if requested
@@ -234,7 +237,14 @@ class App:
 # Set the initial image index
         
         self.reqid_haz = self.reqids_haz[self.num_image]  # Set it to 'K1LR_HAZ00', for instance.
+
+# Initialize the list of found objects for each stack
+
+        self.list_objects = {}
         
+        for reqid_i in self.reqids_haz:
+            self.list_objects[reqid_i] = []  # Each entry here will be something like (x_pix, y_pix, dn)
+            
 # Set a list of frame numbers to animate. For default, do them all.
 
         self.list_index_blink = hbt.frange(0, len(self.reqids_haz)-1) # List of indices ( [1, 2, 3] )
@@ -257,7 +267,7 @@ class App:
 
         print("Reading: " + self.file_save)           
         lun = open(self.file_save, 'rb')
-        (self.stack_field, self.img_field, self.stack_haz, self.img_haz) = pickle.load(lun)
+        (self.stack_field, self.img_field, self.stack_haz, self.img_haz, self.wcs_haz) = pickle.load(lun)
         lun.close()
 
         return
@@ -273,7 +283,7 @@ class App:
         """
 
         lun = open(self.file_save, 'wb')
-        pickle.dump((self.stack_field, self.img_field, self.stack_haz, self.img_haz), lun)
+        pickle.dump((self.stack_field, self.img_field, self.stack_haz, self.img_haz, self.wcs_haz), lun)
         lun.close()
         print("Wrote: " + self.file_save)
         
@@ -359,7 +369,7 @@ class App:
         # Figure out key for newest image to plot
         self.reqid_haz = self.reqids_haz[self.num_image]  # Set it to 'K1LR_HAZ00', for instance.
 
-        print(f'Plotting num_image={self.num_image} : self.reqid_haz={self.reqid_haz}')            
+#        print(f'Plotting num_image={self.num_image} : self.reqid_haz={self.reqid_haz}')            
         
         # Load the image
         img = self.img_haz[self.reqid_haz]
@@ -382,9 +392,7 @@ class App:
             self.plt1.set_data(img) # Like imshow, but faster
 
         # Set the title. This gets updated when using draw() or show() just fine.
-        
-        print(f'ax1_ylim {20-self.zoom_screen}')
-        
+                
         self.ax1.set_title(self.make_title())
         
         self.canvas1.draw()
@@ -513,25 +521,30 @@ class App:
         tr_fig_to_display  = self.fig1.transFigure              # Figure = [0,1] in the figure, incl borders, etc.
         tr_display_to_fig  = self.fig1.transFigure.inverted()
         
-        (x_data, y_data) = tr_display_to_data.transform((x,y))
+        (x_data, y_data) = tr_display_to_data.transform((x,y))  # *** This provides x+y values in image pixels. ***
         (x_axes, y_axes) = tr_display_to_axes.transform((x,y))
         (x_fig, y_fig) = tr_display_to_fig.transform((x,y))
         
         
-        print(f'Raw: X={x}, Y={y}')
+#        print(f'Raw: X={x}, Y={y}')
         print(f'Display-to-data: X={x_data}, Y={y_data}') # This works 100% right for x!
                                                           # For y, it is inverted, and has an offset, w/ scale correct. 
 
-        print(f'Display-to-axes: X={x_axes}, Y={y_axes}') # This is 100% correct. 
-                                                          # (0,0) = upper-left corner of image itself.
-                                                          # (1,1) = lower-right corner of image.
-        
-        print(f'Display-to-fig: X={x_fig}, Y={y_fig}')
+#        print(f'Display-to-axes: X={x_axes}, Y={y_axes}') # This is 100% correct. 
+#                                                          # (0,0) = upper-left corner of image itself.
+#                                                          # (1,1) = lower-right corner of image.
+#        
+#        print(f'Display-to-fig: X={x_fig}, Y={y_fig}')
 
-        wcs = self.stack_haz.wcs  # This needs to be adjusted for the offset
-        radec = wcs.wcs_pix2world(x, y, 0)
-        print(f'RA = {radec[0]}, Dec = {radec[1]}')
+        wcs = self.wcs_haz[self.reqid_haz]  # Get WCS of the current stack being displayed. Others should be the same.
+        radec = wcs.wcs_pix2world(x_data, y_data, 0)
+        print(f'RA = {radec[0]}, Dec = {radec[1]} / x = {x}, Y = {y}')
+        self.ax1.plot([x], [y], marker = 'o', color = 'red', ms=5)
+        self.ax1.imshow()
         
+        # Now add this point to the list of points for this stack
+        
+        self.list_objects[self.reqid_haz] = (x, y, 0)
         
 # =============================================================================
 # Key: Blink On/Off

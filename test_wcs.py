@@ -64,13 +64,15 @@ from wcs_translate_pix import wcs_translate_pix
 # =============================================================================
 # Start of code
 # =============================================================================
+
+#%%
    
 stretch_percent = 90    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
 plt.set_cmap('Greys_r')
 
-zoom = 1      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+zoom = 2      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
               # 1 is faster; 4 is slower but better.
 
 #    name_ort = 'ORT1'
@@ -126,50 +128,59 @@ wcs2 = wcs.deepcopy()
 
 # Apply translation to offset the WCS
 
-wcs_translate_pix(wcs2, -dy_pix-pad, -dx_pix-pad)
+wcs_translate_pix(wcs2, -dx_pix-pad, -dy_pix-pad)
 
 # Apply roll to offset the image
 
-img2 = np.roll(np.roll(np.pad(img, pad_xy, mode='constant'), dx_pix, axis=0), dy_pix, axis=1)
+img2 = np.roll(np.roll(np.pad(img, pad_xy, mode='constant'), dx_pix, axis=1), dy_pix, axis=0)  # 0 = y; 1 = x
 
 # Now plot and see that they match. [A: Yes, it works, for many different combinations of dx dy.]
 
 plot_img_wcs(img2, wcs2, title = f'Rolled dx = {dx_pix}, dy= {dy_pix}')  # Confirmed: this works. So, the basics of 
                                                                         # my image translation work.
 
-# Look up the position of MU69
+
+# =============================================================================
+# Now, do a totally unrelated second test
+# =============================================================================
+
+# Look up the position of MU69. We will put it at the center of the frames.
 
 radec_mu69 = (4.794984626030024, -0.364179487109049) # Keep in radians
+radec_mu69_deg = (radec_mu69[0] * hbt.r2d, radec_mu69[1] * hbt.r2d)
 
 # Align the field frames on a specific RA/Dec. What this does is set the offset value in the stack
 # Output is visible in stack_field.t['shift_x_pix'][0]
 
 stack_field.align(method = 'wcs', center = (radec_mu69))
 
+# Calc the padding required. This can only be done after the images are loaded and aligned.
+
+pad_field = stack_field.calc_padding()[0]  # Element 0 is the overall padding required, and equal in both dirs.
+
+(img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad_field)
+
+#%%
+
 # Align Hazard frames on specifc RA/Dec
 
 #for reqid_i in reqids_haz:
 #    stack_haz[reqid_i].align(method  = 'wcs', center = (radec_mu69))  # In each individual stack, align all images
 
-# Calc the padding required. This can only be done after the images are loaded and aligned.
-
-pad_field = stack_field.calc_padding()[0]
-pad_haz = []
-for reqid_i in reqids_haz:
-    pad_haz.append(stack_haz[reqid_i].calc_padding()[0])
-pad_haz.append(pad_field)
+#pad_haz = []
+#for reqid_i in reqids_haz:
+#    pad_haz.append(stack_haz[reqid_i].calc_padding()[0])
+#pad_haz.append(pad_field)
     
-pad = max(pad_haz)
+#pad = max(pad_haz)
 
 # Flatten the stacks into single output images
 
 # Flatten the field stack
 # This should return a correct WCS. But it does not! This is right here the problem.
-# XX stack_field.t['shift_x_pix'][0] = -10
+# XX stack_field.t['shift_x_pix'][0] = -10    # stack_field.t['shift_pix_x'] is the whole list of x vals
 # XX stack_field.t['shift_y_pix'][0] = -40
 
-
-(img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad)
 
 # Flatten the main hazard stacks
 # When we do this, the output image is shifted around within the padding amount, so that *all* 

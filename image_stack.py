@@ -608,7 +608,7 @@ class image_stack:
             
             dx = shift_x_pix[w_i]
             dy = shift_y_pix[w_i]
-            shift = (dy*zoom, dx*zoom)
+            shift = (dy*zoom, dx*zoom) # For roll(), axis=0 is y, and axis=1 is x! Opposite from normal, but easy to verify.
         
             # Apply the proper shift in X and Y. What I am calling 'x' and 'y'             
             # Sub-pixel shifting is in theory better. But in reality it makes a trivial difference over
@@ -622,6 +622,7 @@ class image_stack:
             
             else:
                 im_expand = np.roll(np.roll(im_expand, int(round(shift[0])), axis=0), int(round(shift[1])), axis=1)
+#                print(f'Adding image {j} with shifts dx {int(round(shift[0]))}, dy {int(round(shift[1]))}')
   
             # Copy the shifted, zoomed image into place
             
@@ -638,11 +639,15 @@ class image_stack:
         if (method == 'median'):
             arr_flat = np.nanmedian(arr,0)  # Slow -- about 15x longer
         
-        # Copy the WCS over. Use the one from the 0th image.
+        # Copy the WCS over. Use the one from the 0th image -- which is arbitrary, but as good as any.
         
         wcs = self.t[0]['wcs']
         
+        # Plot Plane 0 to verify accuracy of its WCS
+        
         plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0')
+        
+        print(f'WCS for above: {wcs}')
         
         # Adjust the WCS 
         
@@ -650,9 +655,16 @@ class image_stack:
         # Offset is in raw pixels (ie, not zoomed)
         # Take shift amount from 0th image.
         
-        wcs_translate_pix(wcs, -self.t['shift_pix_y'][0]-pad_xy, -self.t['shift_pix_y'][0]-pad_xy) # Swap x and y?
+        dx_wcs_pix =  self.t['shift_pix_x'][0]  # Experiment with these to get them right.
+        dy_wcs_pix =  self.t['shift_pix_y'][0]
         
-        # Change the image size, in the WCS, to reflect the larger image size
+        print(f'Calling wcs_translate_pix({-dy_wcs_pix} + {pad_xy}; {-dx_wcs_pix} + {pad_xy})')
+        
+        wcs_translate_pix(wcs, dy_wcs_pix + pad_xy, dx_wcs_pix + pad_xy)
+
+        print(f'WCS after above: {wcs}')
+        
+        # Change the image size, in the WCS, to reflect the larger image size. This is just the CRPIX value
         
         wcs.wcs.crpix = [(hbt.sizex(im_expand)-1)/2, (hbt.sizey(im_expand)-1)/2]
         
@@ -662,7 +674,9 @@ class image_stack:
         
         # And return the WCS along with the image
 
-        plot_img_wcs(arr_flat, wcs, title = 'After zoom + adjust')
+        plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust')
+
+        print(f'WCS after above: {wcs}')
         
         return (arr_flat, wcs)
 
