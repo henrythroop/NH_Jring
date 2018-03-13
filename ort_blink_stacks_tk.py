@@ -551,6 +551,7 @@ class App:
 #        self.canvas1.show()
                 
         print(f'State for this event: {event.state}')   # Check if it was a shift-click, double-click, etc.
+                                                        # Shift = 1. Cmd = 8. Alt = 16. Single = 0.
         
         # Now add this point to the list of points for this stack
         
