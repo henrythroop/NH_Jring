@@ -6,6 +6,7 @@ Created on Tue Feb 13 15:38:48 2018
 This reads the NH MU69 ORT 'Track 3' data, which is the output of N-Body simulations done by
 Doug Hamilton + David Kaufmann.
 
+Incorporates code fragment from DK 
 @author: throop
 """
 
@@ -68,10 +69,10 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
 # Read the specified track3 file into memory, from disk
 # =============================================================================
     
-    def __init__(self, name, dir_base='/Users/throop/data/ORT1/kaufmann/deliveries', binfmt = 2):
+    def __init__(self, name, dir_base='/Users/throop/data/ORT2/hamilton/deliveries', binfmt = 2):
         
         """
-        Initialize the method. Read in data from a specified file, and do initial processing on it.
+        Initialize the object. Read in data from a specified file, and do initial processing on it.
         
         Parameters
         ------
@@ -92,7 +93,10 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
         dir_base:
             The top-level directory that I download files from ixion into. Typically this ends in `deliveries`.
         """    
-            
+        
+        do_kaufmann  = ('kaufmann' in dir_base)
+        do_hamilton  = ('hamilton' in dir_base) 
+        
         self.name = name
     
         parts = name.split('/')
@@ -102,25 +106,26 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
         # Construct the filename for the 'header', which is a short text file. It is basically the same
         # as the entire directory tree, but with '/' → '_'.
         # There is one difference -- probably a bug -- in that 'speed' term is off by one, as per DK email. OBOB.
-        
-        file_header =(parts[0].replace('-', '_') + '_' + parts[1] + '_' + 
-                      parts[2].replace('1', '0').replace('2', '1') + '_' +
-                      parts[3] + '_' + parts[4] +
-                      '.header')
-
-        # Construct the filename for the data array itself. It is trivial.
+      
+        # Also, construct the filename for the data array itself. It is trivial.
         # As per the wiki, the data and header files should be identically named. They are not!
         # https://www.spaceops.swri.org/nh/wiki/index.php/KBO/Hazards/Pipeline/Integrations-to-Density
         
-        file_data = f'model.array{binfmt}'
-        
+        if do_kaufmann:
+            file_header = 'header.txt'
+            file_data   = f'model.array{binfmt}'
+
+        if do_hamilton:
+            file_header = 'header.txt'
+            file_data   = f'grid.array{binfmt}'
+                
         file_header_full = os.path.join(dir_base, dir, file_header)
         file_data_full   = os.path.join(dir_base, dir, file_data)
 
         self.file_header_full = file_header_full
         self.file_data_full   = file_data_full
         
-        # Read the datafiles. Using code fragment from DK email 13-Feb-2018
+        # Read the datafiles. Using code fragment from DK email 13-Feb-2018.
 
         # Read header file
         
@@ -176,8 +181,10 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
         self.beta      = self.get_header_val('beta')
         self.weight    = self.get_header_val('weight')   # Statistical weight of this solution
         self.speed     = self.get_header_val('speed')    # Should be 1 or 2 as per wiki. But is really 0 or 1.
-        self.ejected   = self.get_header_val('ejected')
-        self.gm        = self.get_header_val('gm')
+        self.subset    = self.get_header_val('subset')
+        self.grains    = self.get_header_val('grains')
+        self.state_file= self.get_header_val('state_file')
+        self.obj_file  = self.get_header_val('obj_file')
         
         # Do a calculation for particle radius
         
@@ -283,16 +290,61 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
 
     def print_info(self):
 
-        print(f'Name:     {self.name}')
-        print(f'Beta:     {self.beta}')
-        print(f'Duration: {self.duration}')
-        print(f'Speed:    {self.speed}')
-        print(f'Timestep: {self.time_step}')
-        print(f'Body ID:  {self.body_id}')
-        print(f'GM:       {self.gm}')
-        print(f'ejected:  {self.ejected}')
+        print(f'Name:       {self.name}')
+        print(f'Beta:       {self.beta}')
+        print(f'Duration:   {self.duration}')
+        print(f'Speed:      {self.speed}')
+        print(f'Timestep:   {self.time_step}')
+        print(f'Body ID:    {self.body_id}')
+        print(f'Subset:     {self.subset}')
+        print(f'# grains:   {self.grains}')
+        print(f'State file: {self.state_file}')
+        print(f'Obj   file: {self.obj_file}')
         
         return
+
+    def find_matching_indices(self, beta = None, speed = None, body_id = None, subset = None):
+        
+        mask_start = np.ones(self.num_)
+        mask_beta  = (beta  == self.beta)
+        mask_speed = (speed == self.speed)
+# =============================================================================
+# Make a plot showing all of the runs in the grid. 
+# =============================================================================
+
+def plot_flattened_grids(arr, stretch_percent=98):
+    
+    """
+    Plot all of the grids in an array of grids. This is just to give a quick 'family portrait' overview.
+    They are plotted in sequential order, but no attempt is made to list by beta, etc.
+    """
+    
+#    stretch_percent = 98  # Since bg is mostly black, this requires a slightly different stretch than normal!
+    stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+ 
+    num = hbt.sizex(arr) # Number of runs in the array
+    num_grid_x = math.ceil(math.sqrt(num))
+    num_grid_y = num_grid_x
+    dx_pix_grid = hbt.sizey(arr)
+    dy_pix_grid = dx_pix_grid
+    
+    img = np.zeros((num_grid_x*dx_pix_grid, num_grid_y*dy_pix_grid))
+    i = 0  # Row
+    j = 0  # Column
+    for k in range(len(runs_full)):
+        
+        # For each one, copy the grid, normalize it, and put it into out
+        
+        img[i*dx_pix_grid:(i+1)*dx_pix_grid, j*dy_pix_grid:(j+1)*dy_pix_grid] = \
+            hbt.normalize( density_flattened_arr[k,:,:] )                         
+        i += 1
+        
+        if (i > (num_grid_x-1)):
+            i = 0
+            j += 1
+            
+    plt.imshow(stretch(img))
+    plt.show()    
         
 # =============================================================================
 # Run the file
@@ -304,53 +356,127 @@ if __name__ == '__main__':
 
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+
+    pi = math.pi
     
-    dir_base='/Users/throop/data/ORT1/kaufmann/deliveries'
+# For Hamilton, sample is ~/Data/ORT2/hamilton/deliveries/sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/
+#                          ort2-0003/y2.2/beta2.2e-01/subset04/grid.array2'
     
-    runs_full = glob.glob(os.path.join(dir_base, '*', '*', '*', '*', '*'))
+    dir_base='/Users/throop/data/ORT2/hamilton/deliveries'    
+    runs_full = glob.glob(os.path.join(dir_base, '*', '*', '*', '*', '*', '*')) # Hamilton - ORT actual
+    
     if do_short:
         runs_full = runs_full[0:10]
         
-    run = runs_full[0].replace(dir_base, '')[1:]  # Populate one, just for cut & paste ease
-    
-    num_files             = len(runs_full)
-    density_flattened_arr = np.zeros((num_files, 200, 200))
-    beta_arr              = np.zeros(num_files)
-    time_step_arr         = np.zeros(num_files)
-    duration_arr          = np.zeros(num_files)
-    speed_arr             = np.zeros(num_files)
-    body_id_arr           = np.zeros(num_files)
-    ejected_arr           = np.zeros(num_files)
-    gm_arr                = np.zeros(num_files) 
+    num_files             = len(runs_full)                  # Scalar, number of files
+    density_flattened_arr = np.zeros((num_files, 200, 200)) # Actual data, vertically flattened
+    beta_arr              = np.zeros(num_files)             # Beta used for each run. Scalar.
+    time_step_arr         = np.zeros(num_files)             # Timestep. Each run uses a constant dt (!). Seconds.
+    duration_arr          = np.zeros(num_files)             # Total time, in yr.
+    speed_arr             = np.zeros(num_files)             # Exponent for speed ('y'). -3 or -2.2 
+    body_id_arr           = np.zeros(num_files, dtype='U30')# This is a string, like "ort2-0003".
+                                                            # All bodies are in all sims. But only body_id emits dust.  
+    subset_arr            = np.zeros(num_files)             # Subset, ie where in orbit does it start. Int, 0 ..7.
+    grains_arr            = np.zeros(num_files)             # Number of grains in the simulation. Typically 100. 
+    obj_file_arr          = np.zeros(num_files, dtype='U90')# File listing the objects themselves - photometry, Track1
+    state_file_arr        = np.zeros(num_files, dtype='U90')# State file -- orbit solution -- Track2
     
     weighting = np.zeros((len(runs_full), 1, 1)) # Weight each individual run. We make this into a funny shape
                                                  # so we can broadcast it with the full array easily.
     
+    run = runs_full[0].replace(dir_base, '')[1:]  # Populate one, just for cut & paste ease
+
+    rings = []     # Make a list with all of the ring objects in it. I guess this is handy?
+    
     for i,run_full in enumerate(runs_full):
-        run = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
-        ring = nh_ort_track3_read(run)            # Read the data array itself
-#        ring.plot()
+
+        run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
+        ring = nh_ort_track3_read(run)             # Read the data array itself
         ring.print_info()
+        
+        beta_arr[i]                  = ring.beta  # Take the params from individual runs, and stuff into an array   
+        time_step_arr[i]             = ring.time_step.value
+        duration_arr[i]              = ring.duration.value
+        speed_arr[i]                 = ring.speed
+        body_id_arr[i]               = ring.body_id
+        subset_arr[i]                = ring.subset
+        grains_arr[i]                = ring.grains
+
+        # Take the 3D arrays and flatten them, just so we can visualize more easily.
+        # Units of the 'density' array are 
         density_flattened_arr[i,:,:] = np.sum(ring.density, axis=0)
-        beta_arr[i] = ring.beta
-        time_step_arr[i] = ring.time_step.value
-        duration_arr[i] = ring.duration.value
-        speed_arr[i] = ring.speed
-        body_id_arr[i] = ring.body_id
-        gm_arr[i] = ring.gm
-        ejected_arr[i] = ring.ejected
         
         print('-----')
     
     print(f"Read {num_files} files.")
+    
+    # Now sum these. We have 4 input parameters → 4 x 2 x 4 x 2 = 64 output cases.
+    # Each output case yields an image in I/F. 
+    # I'll calibrate based on that I/F, and then create paths for Doug Mehoke to fly.
+    
+    # Q: Is albedo related to beta? Or are they 100% indep?
+    # 3.7. Beta depends on particle size.
+    # @3.6: Q_pr = f(p_v)
+    
+    ## These here are the parameters of my output
+    
+    albedo = [0.05, 0.1, 0.3, 0.7]
+    q      = [2, 3.5]
+    rho    = [1, 0.46, 0.21, 0.10]
+    speed  = [-2.2, -3]
+    orb_sol= [1]  # Just one case here for 14-Mar-2018 case
+    
+    ## Intrinsic parameters of each run that I care about:
+    #     Body id, speed, beta, subset
+    
+    # ** For this DPH test case, we have just one body ID. So, ignore that entirely for now.
+    
+    (albedo_i, q_i, rho_i, speed_i) = (albedo[0], q[0], rho[0], speed[0]) # Set up values for testing
+    
+    b      = hbt.frange(-13,3)  # Exponent for beta, and radius, and bin width
+    s      = 10.**b/3            # Particle size, some units?
+    ds     = 0.7865*s
+    
+    for albedo_i in albedo:
+        for q_i in q:
+            for rho_i in rho:
+                for speed_i in speed:
+                
+                img = np.zeros(200, 200)  # Create the output array
+                
+                for b_i in b:  # This is the loop over particle size.
+                    # Figure out which output array is for this combination of 
+                    # albedo, q, rho, y, and beta
+                    
+                    indices = find_matching_runs(ring, body_id = )
+                    img += (albedo_i * pi * s[b_i]**2 * ds * s**q_i *
+                            np.sum(density_flattened_arr[indices,:,:]) /
+                            (delta_x_km * delta_y_km) * 1e-12
+                    
+                    
+                # Here sum over all the moons in DPH sims, and sum 
+                # And sum over beta
+                
+    # - *Average* all of the subsets, 0 .. 7
+    # - 
+    # Iterate over beta       {-12 .. 1}
+    # Iterate over two speeds {-3, -2.2}
+    # 
+    # The output for each combination will a value of E0.
+    
+    
+    
     # Assign some (very arbitrary) weights to each plane
     
-    weighting[:,0,0] = beta_arr[:]
-    weighting[:,0,0] = (body_id_arr == 4)
+    weighting[:,0,0] = beta_arr[:]  # Just assign weighting, to be beta itself
+    weighting[:,0,0] = 1
     
     # Finally, do a weighted sum of all the planes, and plot it.
     # Based on the prelim data, we should 
     
+    plot_flattened_grids(np.sum(density_flattened_arr * weighting, axis=0))
+    
     plt.imshow(stretch(np.sum(density_flattened_arr * weighting, axis=0)))
+    plt.imshow((np.sum(density_flattened_arr * weighting, axis=0)))
     plt.show()
     
