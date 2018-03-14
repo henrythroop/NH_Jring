@@ -61,7 +61,7 @@ from   matplotlib.figure import Figure
 
 import hbt
 
-class nh_ort_read_track3:  # Q: Is this required to be same name as the file?
+class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
 
 # =============================================================================
 # Initialize the method.
@@ -328,7 +328,7 @@ if __name__ == '__main__':
     
     for i,run_full in enumerate(runs_full):
         run = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
-        ring = nh_ort_read_track3(run)            # Read the data array itself
+        ring = nh_ort_track3_read(run)            # Read the data array itself
 #        ring.plot()
         ring.print_info()
         density_flattened_arr[i,:,:] = np.sum(ring.density, axis=0)
