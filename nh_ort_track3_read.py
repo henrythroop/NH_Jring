@@ -254,8 +254,8 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
     
     def plot(self):
         
-        stretch_percent = 90    
-        stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+#        stretch_percent = 90    
+#        stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
  
         (nx, ny, nz) = np.shape(self.density)
         xpos = hbt.frange(-nx/2, nx/2)*self.km_per_cell_x
@@ -310,7 +310,7 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
 # Make a plot showing all of the runs in the grid. 
 # =============================================================================
 
-def plot_flattened_grids(arr, stretch_percent=98):
+def plot_flattened_grids(arr):
     
     """
     Plot all of the grids in an array of grids. This is just to give a quick 'family portrait' overview.
@@ -325,7 +325,7 @@ def plot_flattened_grids(arr, stretch_percent=98):
     """
     
 #    stretch_percent = 98  # Since bg is mostly black, this requires a slightly different stretch than normal!
-    stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+#    stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
  
     num = hbt.sizex(arr) # Number of runs in the array
     num_grid_x = math.ceil(math.sqrt(num))
@@ -369,7 +369,6 @@ def plot_flattened_grids_table(t, stretch_percent=96):
         Astropy table, with column 'img_2d' to be plotted.
     """
     
-    stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
  
     num = hbt.sizex(t['img_2d']) # Number of runs in the array
     num_grid_x = math.ceil(math.sqrt(num))
@@ -394,7 +393,13 @@ def plot_flattened_grids_table(t, stretch_percent=96):
             
     plt.imshow(stretch(img))
     plt.show()    
-    
+
+# =============================================================================
+# Define a good stretch to use. Same idea as the Astropy Visualization stretch, just better for these data.
+# =============================================================================
+
+def stretch(arr):
+    return np.log(10 + arr)
         
 # =============================================================================
 # Run the file
@@ -402,11 +407,9 @@ def plot_flattened_grids_table(t, stretch_percent=96):
     
 if __name__ == '__main__':
 
-    do_short = False
-
     plt.set_cmap('plasma')
-    stretch_percent = 96
-    stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+#    stretch_percent = 96
+#    stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 #    stretch = astropy.visualization.LinearStretch()
 
     pi = math.pi
@@ -416,11 +419,18 @@ if __name__ == '__main__':
     
     dir_base='/Users/throop/data/ORT2/hamilton/deliveries'    
     runs_full = glob.glob(os.path.join(dir_base, '*', '*', '*', '*', '*', '*')) # Hamilton - ORT actual
+
+    # Set the axis to sum along, based on who create the file. There is an inconsistency from DPH vs. DK in ORT2.
+    # This will probably be fixed in ORT3.
+    # If everyone uses Sunflower frame, then we should sum in the Y dir, which should be axis=1.
     
-    do_short = True
+    if ('hamilton' in dir_base):
+        axis_sum = 0
+        
+    do_short = False
     
     if do_short:
-        runs_full = runs_full[0:10]
+        runs_full = runs_full[7:9]
         
     num_files             = len(runs_full)                  # Scalar, number of files
     density_flattened_arr = np.zeros((num_files, 200, 200)) # Actual data, vertically flattened
@@ -440,9 +450,11 @@ if __name__ == '__main__':
     
     run = runs_full[0].replace(dir_base, '')[1:]  # Populate one, just for cut & paste ease
 
-    rings = []     # Make a list with all of the ring objects in it. I guess this is handy?
+    rings = []                                    # Make a list with all of the ring objects in it.
     
-    hbt.figsize((15,15))  # 
+    hbt.figsize((15,15))
+    
+    # Loop over all of the files, and read each one in.
     
     for i,run_full in enumerate(runs_full):
 
@@ -462,20 +474,21 @@ if __name__ == '__main__':
         grains_arr[i]                = ring.grains
 
         # Take the 3D arrays and flatten them, just so we can visualize more easily.
-        # In order to flatten, we sum in the X dir (axis 0). This means that the coordinates that DK/DPH
-        # give me must *not* be in sunflower frame. If they were, we'd want to sum in Y dir.
+        # To get a full picture, we sum along all three axes (X, Y, Z) and show each.
 
-        density_flattened_arr[i,:,:] = np.sum(ring.density, axis=0)   # Sum along X dir, in DPH coords. I think this
-        do_plot = True
-        if do_plot:
+        density_flattened_arr[i,:,:] = np.sum(ring.density, axis=axis_sum)
+        
+        do_plot_xyz_views = False
+        
+        if do_plot_xyz_views:
             plt.subplot(1,3,1)
             plt.imshow(stretch(np.sum(ring.density, axis=0)), extent=extent)
             plt.title('Summed along X')
             plt.subplot(1,3,2)
-            plt.imshow((np.sum(ring.density, axis=1)), extent=extent)
+            plt.imshow(stretch(np.sum(ring.density, axis=1)), extent=extent)
             plt.title('Summed along Y')
             plt.subplot(1,3,3)
-            plt.imshow((np.sum(ring.density, axis=2)), extent=extent)
+            plt.imshow(stretch(np.sum(ring.density, axis=2)), extent=extent)
             plt.title('Summed along Z')
             plt.show()
         
@@ -485,46 +498,12 @@ if __name__ == '__main__':
     
     num_subsets = len(np.unique(subset_arr))
     
-    # Now sum these. We have 4 input parameters → 4 x 2 x 4 x 2 = 64 output cases.
+    # Now that we have read all of the input files, we combine these in various ways to make 
+    # the output files. 
+    # We have 4 parameters to iterate over → 4 x 2 x 4 x 2 = 64 output cases.
     # Each output case yields an image in I/F. 
     # I'll calibrate based on that I/F, and then create paths for Doug Mehoke to fly.
-    
-    # Q: Is albedo related to beta? Or are they 100% indep?
-    # 3.7. Beta depends on particle size.
-    # @3.6: Q_pr = f(p_v)
-    
-    ## These here are the parameters of my output
-    
-    albedo = [0.05, 0.1, 0.3, 0.7]
-    q      = [-2, -3.5]              # Should be negative, since exponent in eq @ 6.4 is positive
-    rho    = [1, 0.46, 0.21, 0.10]
-    speed  = [-2.2, -3]
-    orb_sol= [1]  # Just one case here for 14-Mar-2018 case
-    
-    ## Intrinsic parameters of each run that I care about:
-    #     Body id, speed, beta, subset
-    
-    # ** For this DPH test case, we have just one body ID. So, ignore that entirely for now.
-    
-    (albedo_i, q_i, rho_i, speed_i) = (albedo[0], q[0], rho[0], speed[0]) # Set up values for testing
-    
-    b      = hbt.frange(-12,0)  # Exponent for beta, and radius, and bin width. 
-                                #  b=[-12,0] → beta=[1e-4,1], which is the range that DPH uses.
-                                
-    s      = 10.**b/3            # Particle size, some units?
-    
-    
-    epsilon = 1e-5               # Just a small value for numerical precision, and equality of floats.    
-    
-    # I guess we create an astropy table for the output?
-    # This will make it easy to tabulate, compare, output, etc. I guess?
-    
-    t = Table(names=['Albedo', 'q', 'rho', 'speed', 'img_max', 'img_2d', 'E_0'],
-              dtype = [float, float, float, float,    float,   'object',     float])
-    
-    sarea = pi * (5)**2  # First term in MRS eq @ Slide 6.4 . This is in km2. 
-                         # The actual value here should be taken from Track1, and I don't have it here. 
-    
+
     # Units of everything are:
     #  rho:        Density, g/cm3       [Slide 6.4]
     #  delta_{xy}: Grid sizes, km.      [Slide 6.4]
@@ -534,9 +513,36 @@ if __name__ == '__main__':
     #  ds:         Bin width. mm
     #  R:          Moon radius. km.     [Slide 6.4 inferred from E0.] [Also, 4.3 says that area is delivered in km2.]
     
+    albedo = [0.05, 0.1, 0.3, 0.7]   # Q: Are albedo and beta independent? A: Yes, completely indep -- see eq @ 3.7. 
+    q      = [-2, -3.5]              # Should be negative, since exponent in eq @ 6.4 is positive
+    rho    = [1, 0.46, 0.21, 0.10]
+    speed  = [-2.2, -3]
+    orb_sol= [1]                     # Just one case here for 14-Mar-2018 ORT2 case, but might have more in future.
+        
+    b      = hbt.frange(-12,0)  # Exponent for beta, and radius, and bin width. 
+                                #  b=[-12,0] → beta=[1e-4,1], which is the range that DPH uses.
+                                # We iterate over 'b', rather than over beta or size.
+                                
+#    s      = 10.**b/3            # Particle size, some units?
+    
+    
+    epsilon = 1e-5               # A small value for testing equality of floats.    
+    
+    # We create an astropy table for the output.
+    
+    t = Table(names=['Albedo', 'q', 'rho', 'speed', 'img_max', 'img_2d', 'E_0'],
+              dtype = [float, float, float, float,    float,   'object',     float])
+    
+    sarea = pi * (5)**2  # Moon surface area. First term in MRS eq @ Slide 6.4 . This is in km2. 
+                         # The actual value here should be taken from Track1, and I don't have it here. 
+    
     # Q: Don't we need another albedo term on sarea? Since if moons are dark, they may provide a lot more suface area.
     #    And, if dust is small, there can be a lot more dust. So, albedo might well enter as a square. I only have it
     #    as a single power.
+
+    (albedo_i, q_i, rho_i, speed_i) = (albedo[0], q[0], rho[0], speed[0]) # Set up values, for testing only. Can ignore.
+    
+    # Now, do the loop in output space
     
     for albedo_i in albedo:
         for q_i in q:
@@ -546,12 +552,10 @@ if __name__ == '__main__':
                     img = np.zeros((200, 200))  # Create the output array
                     
                     for b_i in b:  # This is the loop over particle size. b is index used for beta, particle size, etc.
-                        # Figure out which output array is for this combination of 
-                        # albedo, q, rho, y, and beta
                         
                         beta_i = 10**(b_i/3)
                       
-                        s_i      = 5.7e-4 * (1 + 1.36 * albedo_i) / (rho_i * beta_i)  # Particle size. From eq @ MRS slide 6.4
+                        s_i      = 5.7e-4 * (1 + 1.36 * albedo_i) / (rho_i * beta_i)  # Particle size. MRS slide 6.4
                         ds_i     = 0.7865*s_i
 
                         # Find all runs that match this set of parameters. Typically this will match 8 'subsets.'
@@ -565,15 +569,21 @@ if __name__ == '__main__':
                               f' rho={rho_i:4.2f}, albedo={albedo_i} ')
                         
                         # Now apply MRS eq @ slide 6.4. Divide by num_subsets so we don't sum.
+                        # The np.sum(axis=0) here does the sum over all the matching subsets.
+                        # They have already been flattened -- we are not summing in XYZ space again.
                         
                         img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
                                  np.sum(density_flattened_arr[is_good], axis=0) /
                                  (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_subsets
-                                 
+                        
+                        # Add this image (with one beta) to the existing image (with a dfft beta)
+                        
                         img += img_i
                         
-                        do_plot = False
-                        if do_plot:
+                        # If requested, make a plot of the running total for this array
+                        
+                        do_plot_running_total = False
+                        if do_plot_running_total:
                             plt.subplot(1,2,1)
                             plt.imshow(img_i)
                             plt.title(f'img_i, b_i = {b_i}, max={np.amax(img_i):5.2e}')
@@ -581,13 +591,12 @@ if __name__ == '__main__':
                             plt.imshow(img)
                             plt.title('Running total')
                             plt.show()
-                        
+                    
+                    # We are now finished with summing this array over particle size (ie, beta). Save it!
+                    
                     t.add_row((albedo_i, q_i, rho_i, speed_i, np.amax(img), img, 0))
                 
-                # Here sum over all the moons in DPH sims, and sum 
-                # And sum over beta
-    
-    # Now that it is done, make some plots correlating things
+    # Now that all combinations have been done, make some plots
 
     hbt.figsize((8,6))
     
@@ -621,4 +630,33 @@ if __name__ == '__main__':
 #    plt.imshow(stretch(np.sum(density_flattened_arr * weighting, axis=0)))
 #    plt.imshow((np.sum(density_flattened_arr * weighting, axis=0)))
 #    plt.show()
+    
+# =============================================================================
+# Now do a one-off test to make some plots to validate the XYZ orientation
+# =============================================================================
+    
+def tester():
+
+    dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
+    runs_full = [ dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset07',
+                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
+                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
+                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset05']
+    
+    num_axis = {}
+    num_axis = {'X' : 0, 'Y' : 1, 'Z' : 2}
+    axes     = ['X',     'Y',     'Z']
+    
+    for run_full in runs_full:
+        i = 1
+        ring.print_info()
+    
+        for axis in axes:
+            run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'           
+            ring = nh_ort_track3_read(run)
+            plt.subplot(1,3,i)
+            plt.imshow(stretch(np.sum(ring.density, axis=num_axis[axis])), extent=extent)
+            plt.title(f'Summed along {axis}')
+            i+=1
+        plt.show()
     
