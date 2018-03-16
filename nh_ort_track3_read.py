@@ -404,8 +404,10 @@ if __name__ == '__main__':
 
     do_short = False
 
-    stretch_percent = 90    
+    plt.set_cmap('plasma')
+    stretch_percent = 96
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+#    stretch = astropy.visualization.LinearStretch()
 
     pi = math.pi
     
@@ -414,6 +416,8 @@ if __name__ == '__main__':
     
     dir_base='/Users/throop/data/ORT2/hamilton/deliveries'    
     runs_full = glob.glob(os.path.join(dir_base, '*', '*', '*', '*', '*', '*')) # Hamilton - ORT actual
+    
+    do_short = True
     
     if do_short:
         runs_full = runs_full[0:10]
@@ -440,13 +444,14 @@ if __name__ == '__main__':
     
     hbt.figsize((15,15))  # 
     
-    halfwidth_km = ring.km_per_cell_x * hbt.sizex(ring.density) / 2
-    extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
     for i,run_full in enumerate(runs_full):
 
         run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
         ring = nh_ort_track3_read(run)             # Read the data array itself
         ring.print_info()
+
+        halfwidth_km = ring.km_per_cell_x * hbt.sizex(ring.density) / 2
+        extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
         
         beta_arr[i]                  = ring.beta  # Take the params from individual runs, and stuff into an array   
         time_step_arr[i]             = ring.time_step.value
@@ -467,10 +472,10 @@ if __name__ == '__main__':
             plt.imshow(stretch(np.sum(ring.density, axis=0)), extent=extent)
             plt.title('Summed along X')
             plt.subplot(1,3,2)
-            plt.imshow(stretch(np.sum(ring.density, axis=1)), extent=extent)
+            plt.imshow((np.sum(ring.density, axis=1)), extent=extent)
             plt.title('Summed along Y')
             plt.subplot(1,3,3)
-            plt.imshow(stretch(np.sum(ring.density, axis=2)), extent=extent)
+            plt.imshow((np.sum(ring.density, axis=2)), extent=extent)
             plt.title('Summed along Z')
             plt.show()
         
@@ -561,7 +566,7 @@ if __name__ == '__main__':
                         
                         # Now apply MRS eq @ slide 6.4. Divide by num_subsets so we don't sum.
                         
-                        img_i = (sarea * albedo_i * pi * s_i**2 * ds[b_i] * s_i**q_i *
+                        img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
                                  np.sum(density_flattened_arr[is_good], axis=0) /
                                  (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_subsets
                                  
@@ -606,20 +611,14 @@ if __name__ == '__main__':
     # Iterate over two speeds {-3, -2.2}
     # 
     # The output for each combination will a value of E0.
-    
-    
-    
-    # Assign some (very arbitrary) weights to each plane
-    
-    weighting[:,0,0] = beta_arr[:]  # Just assign weighting, to be beta itself
-    weighting[:,0,0] = 1
+        
     
     # Finally, do a weighted sum of all the planes, and plot it.
     # Based on the prelim data, we should 
     
-    plot_flattened_grids(np.sum(density_flattened_arr * weighting, axis=0))
-    
-    plt.imshow(stretch(np.sum(density_flattened_arr * weighting, axis=0)))
-    plt.imshow((np.sum(density_flattened_arr * weighting, axis=0)))
-    plt.show()
+#    plot_flattened_grids(np.sum(density_flattened_arr * weighting, axis=0))
+#    
+#    plt.imshow(stretch(np.sum(density_flattened_arr * weighting, axis=0)))
+#    plt.imshow((np.sum(density_flattened_arr * weighting, axis=0)))
+#    plt.show()
     
