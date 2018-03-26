@@ -654,6 +654,7 @@ if __name__ == '__main__':
     
 # =============================================================================
 # Now do a one-off test to make some plots to validate the XYZ orientation
+# NB: Large beta → Small grains    
 # =============================================================================
     
 def tester():
@@ -688,11 +689,12 @@ def tester():
     
     for run_full in runs_full:
         i = 1
+        run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'           
+        ring = nh_ort_track3_read(run)
         ring.print_info()
     
         for axis in axes:
-            run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'           
-            ring = nh_ort_track3_read(run)
+
             plt.subplot(1,3,i)
 
             # Plot the individual image. Start it with origin at lower-left corner.
@@ -737,31 +739,3 @@ def tester():
         plt.show()
         print('\n-----\n')
     
-
-# Figure out orientation here.
-# img[0:10,0] = 1e5
-#  
-        
-        
-#In [48]: img
-#Out[48]: 
-#array([[ 100000.,       0.,       0., ...,       0.,       0.,       0.],
-#       [ 100000.,       0.,       0., ...,       0.,       0.,       0.],
-#       [ 100000.,       0.,       0., ...,       0.,       0.,       0.],
-#       ..., 
-#       [      0.,       0.,       0., ...,       0.,       0.,       0.],
-#       [      0.,       0.,       0., ...,       0.,       0.,       0.],
-#       [      0.,       0.,       0., ...,       0.,       0.,       0.]], dtype=float32)
-#
-# When I do plt.imshow on this, the image is oriented in same direction as the array above.
-# Not flipped 90 deg.
-# But, this means that the 0:10 specifies the row. That is, indexing order is [row, column].
-# Which one is called X?
-        #
-# When I do np.sum( , axis=0) it sums along each column.
-        #
-# Row-major: This refers to how data of a 2D array is stored sequentially in memory.
-#   C and NumPy are row-major. 
-# In row-major, the right-most index [a, b] varies the fastest.
-        
-# If I sum along axis 
