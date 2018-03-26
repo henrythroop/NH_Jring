@@ -702,6 +702,7 @@ def tester():
             img = np.sum(ring.density, axis=num_axis[axis])  # Make the flattened image
             width_colorbar = 10
             img_stretch = stretch(img)
+            img_stretch = img
             
             # Create the colorbar, and superimpose it on the image
             
@@ -714,7 +715,7 @@ def tester():
             
             # Display the image
             
-            plt.imshow(img_stretch, extent=extent, origin='origin')
+            plt.imshow(img_stretch, extent=extent, origin=origin)
             
             # Create the labels for the colorbar, and individually place them
             
@@ -723,7 +724,7 @@ def tester():
             for j in range(num_ticks_colorbar):
                 val = stretch_invert(hbt.frange(np.amin(img_stretch), np.amax(img_stretch), num_ticks_colorbar)[j])
                 val = round(val)  # Convert to zero if it is very close
-                xval = 0.68*np.max(extent)
+                xval = 0.65*np.max(extent)
                 yrange = np.max(extent)-np.min(extent)
                 yval = np.min(extent) + 0.02*yrange + (j/(num_ticks_colorbar-1) * 0.92*yrange)
                 plt.text(xval, yval, f'{val:.1e}', color = 'white')
