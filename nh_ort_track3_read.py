@@ -128,6 +128,8 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
         
         # Read the datafiles. Using code fragment from DK email 13-Feb-2018.
 
+        #### START OF DK CODE FRAGMENT ####
+        
         # Read header file
         
         f = open(file_header_full, 'r')
@@ -167,6 +169,8 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
                 (ix,iy,iz) = struct.unpack('hhh', data[start:start+6])
                 (density[iz-1,iy-1,ix-1],) = struct.unpack('f', data[start+6:start+10])
     
+        #### END OF DK CODE FRAGMENT ####
+        
         self.density = density
         
         # Read a bunch of values from the header, and save them into the object
@@ -401,6 +405,9 @@ def plot_flattened_grids_table(t, stretch_percent=96):
 
 def stretch(arr):
     return np.log(10 + arr)
+
+def stretch_invert(arr):
+    return np.exp(arr) - 10
         
 # =============================================================================
 # Run the file
@@ -419,7 +426,7 @@ if __name__ == '__main__':
 #                          ort2-0003/y2.2/beta2.2e-01/subset04/grid.array2'
     
     dir_base='/Users/throop/data/ORT2/hamilton/deliveries'    
-    runs_full = glob.glob(os.path.join(dir_base, '*', '*', '*', '*', '*', '*')) # Hamilton - ORT actual
+    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003', '*', '*', '*')) # Hamilton - ORT actual
 
     # Set the axis to sum along, based on who create the file. There is an inconsistency from DPH vs. DK in ORT2.
     # This will probably be fixed in ORT3.
@@ -595,8 +602,8 @@ if __name__ == '__main__':
                     
                     # Take a radial profile
                     
-                    (radius_pix, profile) = get_radial_profile_circular(img)
-                    plt.imshow(scale(ring))
+#                    (radius_pix, profile) = get_radial_profile_circular(img)
+#                    plt.imshow(scale(ring))
                     
                     # We are now finished with summing this array over particle size (ie, beta). Save it!
                     
@@ -628,15 +635,6 @@ if __name__ == '__main__':
     
     plot_flattened_grids_table(t)
     
-    # Make radial profiles
-
-    binwidth = 1
-
-    radius = hbt.frange(1,100)
-    for 
-    profile 
-    
-    
     # - *Average* all of the subsets, 0 .. 7
     # - 
     # Iterate over beta       {-12 .. 1}
@@ -660,15 +658,33 @@ if __name__ == '__main__':
     
 def tester():
 
+    plt.set_cmap('plasma') 
     dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
     runs_full = [ dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset07',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
+                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset05']
+
+    # For the order, we always want (0,0) to be lower left.
     
-    num_axis = {}
-    num_axis = {'X' : 0, 'Y' : 1, 'Z' : 2}
-    axes     = ['X',     'Y',     'Z']
+    origin = 'lower'                               # Does imshow() plot start w/ (0,0) at lower-left, or upper-left?
+
+    # Define the axes. DK says that the array is delivered in order [x, y, z].
+    # That means that if I sum in the '0' direction, I will have a plot in Y and Z.    
+    axes           = ['X',     'Y',     'Z']    
+    num_axis       = {'X' : 0, 'Y' : 1, 'Z' : 2}
+    
+    # Now, make a dictionary to show us what the axes will be of the output image after doing np.sum().
+    # The dictionary here means: 
+    #     If we sum along the X axis (0), and we plot the result, what will be on vertical axis of the imshow() plot.
+    
+    axes_vertical  = {'X':'Y', 'Y':'X', 'Z':'X'}   
+    axes_horizontal= {'X':'Z', 'Y':'Z', 'Z':'Y'}
+    
+    hbt.figsize((18,10))
+    hbt.fontsize(10)  # Default
+    fontsize_axes = 15
     
     for run_full in runs_full:
         i = 1
@@ -678,8 +694,74 @@ def tester():
             run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'           
             ring = nh_ort_track3_read(run)
             plt.subplot(1,3,i)
-            plt.imshow(stretch(np.sum(ring.density, axis=num_axis[axis])), extent=extent)
-            plt.title(f'Summed along {axis}')
+
+            # Plot the individual image. Start it with origin at lower-left corner.
+
+            img = np.sum(ring.density, axis=num_axis[axis])  # Make the flattened image
+            width_colorbar = 10
+            img_stretch = stretch(img)
+            
+            # Create the colorbar, and superimpose it on the image
+            
+            colorbar = hbt.frange(np.amin(img_stretch), np.amax(img_stretch), hbt.sizey(img_stretch))
+            img_stretch[:,-1] = colorbar
+            img_stretch[:,-2] = colorbar
+            img_stretch[:,-3] = colorbar
+            img_stretch[:,-4] = colorbar
+            img_stretch[:,-5] = colorbar
+            
+            # Display the image
+            
+            plt.imshow(img_stretch, extent=extent, origin='origin')
+            
+            # Create the labels for the colorbar, and individually place them
+            
+            num_ticks_colorbar = 5 # Number of vertical value to put on our colorbar
+            
+            for j in range(num_ticks_colorbar):
+                val = stretch_invert(hbt.frange(np.amin(img_stretch), np.amax(img_stretch), num_ticks_colorbar)[j])
+                val = round(val)  # Convert to zero if it is very close
+                xval = 0.68*np.max(extent)
+                yrange = np.max(extent)-np.min(extent)
+                yval = np.min(extent) + 0.02*yrange + (j/(num_ticks_colorbar-1) * 0.92*yrange)
+                plt.text(xval, yval, f'{val:.1e}', color = 'white')
+            
+            # Label the axes and the plot
+            
+            plt.title(f'Summed along {axis}', fontsize=fontsize_axes)
+            plt.ylabel(axes_vertical[axis] + ' [km]', fontsize=fontsize_axes)
+            plt.xlabel(axes_horizontal[axis] + ' [km]', fontsize=fontsize_axes)
+            plt.tight_layout()
+            
             i+=1
         plt.show()
+        print('\n-----\n')
     
+
+# Figure out orientation here.
+# img[0:10,0] = 1e5
+#  
+        
+        
+#In [48]: img
+#Out[48]: 
+#array([[ 100000.,       0.,       0., ...,       0.,       0.,       0.],
+#       [ 100000.,       0.,       0., ...,       0.,       0.,       0.],
+#       [ 100000.,       0.,       0., ...,       0.,       0.,       0.],
+#       ..., 
+#       [      0.,       0.,       0., ...,       0.,       0.,       0.],
+#       [      0.,       0.,       0., ...,       0.,       0.,       0.],
+#       [      0.,       0.,       0., ...,       0.,       0.,       0.]], dtype=float32)
+#
+# When I do plt.imshow on this, the image is oriented in same direction as the array above.
+# Not flipped 90 deg.
+# But, this means that the 0:10 specifies the row. That is, indexing order is [row, column].
+# Which one is called X?
+        #
+# When I do np.sum( , axis=0) it sums along each column.
+        #
+# Row-major: This refers to how data of a 2D array is stored sequentially in memory.
+#   C and NumPy are row-major. 
+# In row-major, the right-most index [a, b] varies the fastest.
+        
+# If I sum along axis 
