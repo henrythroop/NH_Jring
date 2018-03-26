@@ -57,6 +57,7 @@ from   datetime import datetime
 import scipy
 
 from   matplotlib.figure import Figure
+from   get_radial_profile_circular import get_radial_profile_circular
 
 # HBT imports
 
@@ -530,8 +531,8 @@ if __name__ == '__main__':
     
     # We create an astropy table for the output.
     
-    t = Table(names=['Albedo', 'q', 'rho', 'speed', 'img_max', 'img_2d', 'E_0'],
-              dtype = [float, float, float, float,    float,   'object',     float])
+    t = Table(names=['Albedo', 'q', 'rho', 'speed', 'img_max', 'img_2d', 'E_0', 'profile'],
+              dtype = [float, float, float, float,    float,   'object',     float, 'object'])
     
     sarea = pi * (5)**2  # Moon surface area. First term in MRS eq @ Slide 6.4 . This is in km2. 
                          # The actual value here should be taken from Track1, and I don't have it here. 
@@ -592,13 +593,26 @@ if __name__ == '__main__':
                             plt.title('Running total')
                             plt.show()
                     
+                    # Take a radial profile
+                    
+                    (radius_pix, profile) = get_radial_profile_circular(img)
+                    plt.imshow(scale(ring))
+                    
                     # We are now finished with summing this array over particle size (ie, beta). Save it!
                     
-                    t.add_row((albedo_i, q_i, rho_i, speed_i, np.amax(img), img, 0))
+                    t.add_row((albedo_i, q_i, rho_i, speed_i, np.amax(img), img, 0, profile))
                 
     # Now that all combinations have been done, make some plots
 
     hbt.figsize((8,6))
+    for i in range(len(t)):        
+        plt.plot(radius_pix * ring.km_per_cell_x, t['profile'][i])
+    plt.yscale('log')    
+    plt.xlabel('Radius [km]')
+    plt.ylabel('I/F (non-normalized)')
+    plt.ylim((1e-12, 1e-6))
+    plt.show()
+    
     
     columns = ['Albedo', 'q', 'rho', 'speed']
     for column in columns:
@@ -612,8 +626,17 @@ if __name__ == '__main__':
     
     hbt.figsize((25,25))
     
-    plot_flattened_grids_table(t, stretch_percent=96)
-            
+    plot_flattened_grids_table(t)
+    
+    # Make radial profiles
+
+    binwidth = 1
+
+    radius = hbt.frange(1,100)
+    for 
+    profile 
+    
+    
     # - *Average* all of the subsets, 0 .. 7
     # - 
     # Iterate over beta       {-12 .. 1}
