@@ -168,8 +168,8 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
                 # Loop over list of non-empty cells. For each one, read xyz position (6 bytes), and density (4 bytes)
                 start = 10*i
                 (ix,iy,iz) = struct.unpack('hhh', data[start:start+6])   # h = short int
-#                (density[iz-1,iy-1,ix-1],) = struct.unpack('f', data[start+6:start+10])  # Original order
-                (density[ix-1,iy-1,iz-1],) = struct.unpack('f', data[start+6:start+10])   # HBT modified order, 
+#                (density[iz-1,iy-1,ix-1],) = struct.unpack('f', data[start+6:start+10])  # Original order ZYX
+                (density[ix-1,iy-1,iz-1],) = struct.unpack('f', data[start+6:start+10])   # HBT modified order XYZ, 
                                                                                           # to match wiki API.
                 
     
@@ -659,16 +659,17 @@ if __name__ == '__main__':
 # =============================================================================
 # Now do a one-off test to make some plots to validate the XYZ orientation.
 # This does not merge or do anything else. It just makes nicely scaled plots
-# of the Track-3 output, to visualize the axes.
+# of the Track-3 output, to visualize the trajectories and disk orientations.
 #    
 # NB: Large beta → Small grains    
 # =============================================================================
     
-def tester():
+def plot_trajectories():
 
     plt.set_cmap('plasma') 
     dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
     runs_full = [ dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset07',
+                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
@@ -678,14 +679,17 @@ def tester():
     
     origin = 'lower'                               # Does imshow() plot start w/ (0,0) at lower-left, or upper-left?
 
-    # Define the axes. DK says that the array is delivered in order [x, y, z].
-    # That means that if I sum in the '0' direction, I will have a plot in Y and Z.    
+    # Define the axes. DK says that the array is delivered in order [x, y, z], which are same as Mark's coord frame.
+    # That means that if I sum in the '0' direction, I will have a plot in Y and Z.
+    
     axes           = ['X',     'Y',     'Z']    
     num_axis       = {'X' : 0, 'Y' : 1, 'Z' : 2}
     
     # Now, make a dictionary to show us what the axes will be of the output image after doing np.sum().
     # The dictionary here means: 
     #     If we sum along the X axis (0), and we plot the result, what will be on vertical axis of the imshow() plot.
+    #     In this case, first remaining axis (Y) is on vertical, and second (Z) is on horizontal.
+    #     That is how imshow() works.
     
     axes_vertical  = {'X':'Y', 'Y':'X', 'Z':'X'}   
     axes_horizontal= {'X':'Z', 'Y':'Z', 'Z':'Y'}
@@ -711,18 +715,22 @@ def tester():
             img = np.sum(ring.density, axis=num_axis[axis])  # Make the flattened image
             width_colorbar = 10
             img_stretch = stretch(img)
-#            img_stretch = img
+            if do_stretch_linear:
+                img_stretch = astropy.visualization.PercentileInterval(98)(img)
             
             # Create the colorbar, and superimpose it on the image
             
             colorbar = hbt.frange(np.amin(img_stretch), np.amax(img_stretch), hbt.sizey(img_stretch))
-            img_stretch[:,-1] = colorbar
+            img_stretch[:,-1] = colorbar  # There is probably a better way to do this?
             img_stretch[:,-2] = colorbar
             img_stretch[:,-3] = colorbar
             img_stretch[:,-4] = colorbar
             img_stretch[:,-5] = colorbar
             
-            # Display the image
+            # Display the image.
+            # The image is displayed in exactly the same orientation as if I print it, with the exception
+            # that the origin={lower | upper} keyword can flip it vertically.
+            # When accessing the array elements, they are in order img[y, x] -- which is opposite IDL.
             
             plt.imshow(img_stretch, extent=extent, origin=origin)
             
@@ -736,7 +744,8 @@ def tester():
                 xval = 0.65*np.max(extent)
                 yrange = np.max(extent)-np.min(extent)
                 yval = np.min(extent) + 0.02*yrange + (j/(num_ticks_colorbar-1) * 0.92*yrange)
-                plt.text(xval, yval, f'{val:.1e}', color = 'white')
+                if not(do_stretch_linear):
+                    plt.text(xval, yval, f'{val:.1e}', color = 'white') # Label the colorbar, if log stretch only.
             
             # Label the axes and the plot
             
