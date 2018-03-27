@@ -165,9 +165,13 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
                                                   # int / int = float, in Python -- not sure why
                    
             for i in range(nentries):
+                # Loop over list of non-empty cells. For each one, read xyz position (6 bytes), and density (4 bytes)
                 start = 10*i
-                (ix,iy,iz) = struct.unpack('hhh', data[start:start+6])
-                (density[iz-1,iy-1,ix-1],) = struct.unpack('f', data[start+6:start+10])
+                (ix,iy,iz) = struct.unpack('hhh', data[start:start+6])   # h = short int
+#                (density[iz-1,iy-1,ix-1],) = struct.unpack('f', data[start+6:start+10])  # Original order
+                (density[ix-1,iy-1,iz-1],) = struct.unpack('f', data[start+6:start+10])   # HBT modified order, 
+                                                                                          # to match wiki API.
+                
     
         #### END OF DK CODE FRAGMENT ####
         
@@ -653,7 +657,10 @@ if __name__ == '__main__':
 #    plt.show()
     
 # =============================================================================
-# Now do a one-off test to make some plots to validate the XYZ orientation
+# Now do a one-off test to make some plots to validate the XYZ orientation.
+# This does not merge or do anything else. It just makes nicely scaled plots
+# of the Track-3 output, to visualize the axes.
+#    
 # NB: Large beta → Small grains    
 # =============================================================================
     
@@ -687,6 +694,8 @@ def tester():
     hbt.fontsize(10)  # Default
     fontsize_axes = 15
     
+    do_stretch_linear = False
+    
     for run_full in runs_full:
         i = 1
         run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'           
@@ -702,7 +711,7 @@ def tester():
             img = np.sum(ring.density, axis=num_axis[axis])  # Make the flattened image
             width_colorbar = 10
             img_stretch = stretch(img)
-            img_stretch = img
+#            img_stretch = img
             
             # Create the colorbar, and superimpose it on the image
             
