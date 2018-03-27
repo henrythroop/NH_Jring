@@ -51,6 +51,8 @@ from   scipy.stats import mode
 import time
 from   importlib import reload            # So I can do reload(module)
 
+import random
+
 import re # Regexp
 import pickle # For load/save
 import time
@@ -102,8 +104,8 @@ class App:
             self.dir_data    = '/Users/throop/Data/ORT1/throop/backplaned/'
 
         if (name_ort == 'ORT2'):
-#            self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
-            self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
+            self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
+#            self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
             self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'        
             self.dir_data    = '/Users/throop/Data/ORT2/throop/backplaned/'
             
@@ -120,7 +122,7 @@ class App:
         # This value is easy to compute: loop over all stacks, and take max of stack.calc_padding()[0]
         
         self.padding     = 61 # Amount to pad the images by. This is the same as the max drift btwn all images in stacks
-        self.zoom        = 1  # Sub-pixel zoom to apply when shifting images. 1 for testing; 4 for production.
+        self.zoom        = 4  # Sub-pixel zoom to apply when shifting images. 1 for testing; 4 for production.
         self.num_image   = 0  # Which stack number to start on.
         self.zoom_screen = 1  # 'Screen zoom' amount to apply. This can be changed interactively.
         
@@ -226,11 +228,15 @@ class App:
         master.bind('#',       self.blink_set_sequence_e)
         master.bind('z',       self.zoom_screen_up_e)
         master.bind('Z',       self.zoom_screen_down_e)
+        master.bind('x',       self.clear_current_objects_e)
+        master.bind('X',       self.clear_all_objects_e)
         
         master.bind('=',       self.scale_max_up_e)
         master.bind('+',       self.scale_max_down_e)
         master.bind('-',       self.scale_min_up_e)
         master.bind('_',       self.scale_min_down_e)
+        
+        master.bind('S',       self.save_output_e)
         
         self.canvas1.get_tk_widget().bind("<Button 1>", self.click_e)        
         
@@ -239,12 +245,21 @@ class App:
         self.reqid_haz = self.reqids_haz[self.num_image]  # Set it to 'K1LR_HAZ00', for instance.
 
 # Initialize the list of found objects for each stack
+# There is a list of objects for each individual stack (ie, for each frame in the blink)
 
         self.list_objects = {}
         
         for reqid_i in self.reqids_haz:
             self.list_objects[reqid_i] = []  # Each entry here will be something like [(x, y, dn), (x, y, dn)] 
+
+# Initialize a set of matplotlib 'line' objects for the image.
+# These correspond to the 'objects' above, which are really just points            
             
+        self.list_lines = {}
+
+        for reqid_i in self.reqids_haz:
+            self.list_lines[reqid_i] = []  # Each entry here will be a list of plot objects, of type 'line' 
+                    
 # Set a list of frame numbers to animate. For default, do them all.
 
         self.list_index_blink = hbt.frange(0, len(self.reqids_haz)-1) # List of indices ( [1, 2, 3] )
@@ -254,6 +269,7 @@ class App:
 # Plot the image
         
         self.plot()
+
 
 # =============================================================================
 # Restore all stacks from a single saved pickle array
@@ -295,6 +311,8 @@ class App:
         
     def plot(self):
 
+#        print("in self.plot()")
+        
         # Load the current image
                 
         img_haz = self.img_haz[self.reqids_haz[self.num_image]]
@@ -335,6 +353,8 @@ class App:
         self.ax1.set_ylim((min, max))
         self.ax1.set_xlim((min, max))
 
+#        print(f'Min={min}, max={max}')
+        
         # Plot any astrometric points that may exist
         
         self.plot_objects()
@@ -368,6 +388,12 @@ class App:
         
     def replot(self):
 
+#        print("in self.replot()")
+
+        # Remove all of the current points
+        
+        self.unplot_objects()
+        
         # Load the current image
 
         # Figure out key for newest image to plot
@@ -399,7 +425,9 @@ class App:
                 
         self.ax1.set_title(self.make_title())
         
-        # Draw the photometric points for this frame. I hope this clears the previous ones, but not sure.
+
+        
+        # Draw the photometric points for this frame. 
         
         self.plot_objects()
         
@@ -426,6 +454,10 @@ class App:
         print('#            ; Change blink sequence')
         print('+-           : Change vertical scaling')
         print('+- shifted   : Change vertical scaling')
+        print('x            : Clear all points from current frame')
+        print('X            : Clear all points from all     frames')
+        print('S            : Save astrometric output to a file')
+        
         print('------------------------------')
         print('CURRENT STATUS:')
         print(f'Blink sequence: {self.list_index_blink_str}')
@@ -464,6 +496,35 @@ class App:
         print(f'Prev: stack = {self.reqids_haz[self.num_image]}')
         self.replot()
 
+
+# =============================================================================
+# Key: Clear current objects
+# =============================================================================
+
+    def clear_all_objects_e(self, event):
+
+        s = input(f'Really clear all objects from all frames? ')
+
+        if ('y' in s):
+            for reqid_i in self.reqids_haz:
+                self.list_objects[reqid_i] = []
+            
+            self.unplot_objects()
+        
+# =============================================================================
+# Key: Clear current objects
+# =============================================================================
+
+    def clear_current_objects_e(self, event):
+
+        s = input(f'Really clear all objects from this frame? ')
+
+        if ('y' in s):    
+            self.list_objects[self.reqid_haz] = []            
+            self.unplot_objects()        
+        
+        self.plot()
+        
 # =============================================================================
 # Key: Change Stretch
 # =============================================================================
@@ -579,19 +640,32 @@ class App:
 # =============================================================================
 
     def plot_objects(self):
-                
+        
+        self.list_lines[self.reqid_haz] = []
+        
         for i,object in enumerate(self.list_objects[self.reqid_haz]):
-            print(f'plotting object {i}')
-            print(f'object = {object}')
-            self.ax1.plot(object[0], object[1], marker = 'o', color = 'red', markersize=4)
+#            print(f'plotting object {i}')
+#            print(f'object = {object}')
+            line = self.ax1.plot(object[0], object[1], marker = 'o', color = 'red', markersize=4)[0]
+            
+            # Add this 'line' object to the list of lines in this plane
+            
+            self.list_lines[self.reqid_haz].append(line)
 
 # =============================================================================
-# Delete all of the astrometric points on this stack
+# Remove the plotted points from the current image.
 # =============================================================================
 
     def unplot_objects(self):
 
         # As needed, unplot these objects
+        
+        lines = self.list_lines[self.reqid_haz]
+        
+        for i,line in enumerate(lines):
+#            print(f'Removing line {i} = {line}')
+            line.remove()
+        
         return
         
 # =============================================================================
@@ -687,6 +761,31 @@ class App:
             self.vmin_raw /= 1.1            
         self.plot()
 
+
+# =============================================================================
+# Key: Save Output to a file
+# =============================================================================
+        
+    def save_output_e(self, event):
+                
+        """
+        Write output to a file, using API as described in
+        https://www.spaceops.swri.org/nh/wiki/index.php/KBO/Hazards/Pipeline/Detection-to-Object
+        """
+        
+        id_user = 7  # HBT personal ID, as e
+        inits_user = 'hbt'
+        
+        for reqid_i in self.reqids_haz:
+            for i,pt_i in enumerate(self.list_objects[reqid_i]):
+                name_object = f'{id_user}{i:03}'
+                wcs = self.wcs_haz[reqid_i]  # Get the proper wcs
+                radec = wcs.pix2world(self.list_objects[reqid_i][i])
+                ra = radec[0]
+                dec = radec[1]
+                
+                
+
 # =============================================================================
 # Key: Quit
 # =============================================================================
@@ -734,3 +833,26 @@ while True:
 
 # https://stackoverflow.com/questions/292095/polling-the-keyboard-detect-a-keypress-in-python   
 #        https://stackoverflow.com/questions/29158220/tkinter-understanding-mainloop
+        
+    
+#def other
+#
+#    dx = 10
+#    arr = hbt.dist_center(dx)
+#    num_pts = 5
+#    
+#    pts = []
+#    
+#    ax = plt.imshow(arr)
+#    for i in range(num_pts):
+#        pt = plt.plot([random.random()*dx], [random.random()*dx], marker = 'o', ms = 6, ls = 'none', color = 'red')[0]
+#        pts.append(pt)
+#
+#    for i in range(num_pts):
+#        if (random.random() > 0.5):
+#            print (f'Removing point {i}')
+#            pt = pts[i]
+#            pt.remove()
+#            
+#    plt.show()
+    
