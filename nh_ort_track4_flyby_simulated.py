@@ -206,7 +206,8 @@ class nh_ort_track4_flyby:
         return
                 
 # =============================================================================
-# Set up the ring itself
+# Create a simulated 3D ring structure within the already defined 3D grid.
+# Reads from a radial profile on disk.        
 # =============================================================================
 
     def set_ring_parameters(self, file_profile_ring, albedo, q_dust, 
