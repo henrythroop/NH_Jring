@@ -143,7 +143,7 @@ def nh_ort_track4_flyby():
         
         # And fly through it
         
-        ring.fly_trajectory(name_observer, et_start, et_end, dt)
+        grid_i.fly_trajectory(name_observer, et_start, et_end, dt)
         
         # Make a few diagnostics plots of our path through the system
         
