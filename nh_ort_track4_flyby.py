@@ -115,140 +115,108 @@ def nh_ort_track4_flyby():
     # Define the number of grid locations on each side.
     # In the 'simulated' version, we used 200, not 201.
 
-    grid = nh_ort_track4_grid(None)
+    for file in files:
+        
+        grid_i = nh_ort_track4_grid(file)    # Load the grid from disk. Uses gzip, so it is quite slow (20 sec/file)
      
-    n_dx = n_dy = n_dz = 200  # This is 'multiple assignment' in Python. Unlike IDL, it is official and legal.
+        n_dx = hbt.sizex(grid_i.density[0])  # This is 'multiple assignment' in Python. Unlike IDL, it is official and legal.
+        n_dy = hbt.sizey(grid_i.density[0]) 
+        n_dz = hbt.sizez(grid_i.density[0]) 
     
     # Define the size of each grid box
+    # Wiki said 25 km, but should be 250.
+    # XYZ sizes are tracked separately, but really should be identical.
     
-    dx_bin = dy_bin = dz_bin = 250*u.km  # Distances are km. Not worth tracking the units. Consistent with SPICE.
-                                         # XXX Wiki said 25 km, but should be 250.
-                                         # XYZ sizes are tracked separately, but really should be identical.
-    
-    # Initialize the grid 
-    
-    num_pts_3d    = (n_dx,   n_dy,   n_dz)
-    binsize_3d    = (dx_bin, dy_bin, dz_bin)
-    
-    ring = nh_ort_track4_flyby_simulated(num_pts_3d, binsize_3d, frame, name_target)
-
-    self = ring # For debugging only!
-
+        dx_bin = grid_i.resolution_km[0]
+        dy_bin = grid_i.resolution_km[1]
+        dz_bin = grid_i.resolution_km[2]
+        
     # Load the trajectory
 
-    et_ca = int( sp.utc2et(utc_ca) )  # Force this to be an integer, just to make output cleaner.
-    
-    et_start = et_ca - dt_before.to('s').value
-    et_end   = et_ca + dt_after.to('s').value
-    
-    # Loop over the input parameters
-    
-    do_test = False
-    i       = 0            # Counter of index in which to store results
-    
-    for albedo_i in albedo:
-        for q_dust_i in q_dust:
-            for inclination_i in inclination:
-    
-                if do_test: # Do this only for debugging and diagnostics
-                    albedo_i = albedo[0]
-                    q_dust_i = q_dust[0]
-                    inclination_i = inclination[0]
-                    self = ring
-     
-                # Set up the ring itself
+        et_ca = int( sp.utc2et(utc_ca) )  # Force this to be an integer, just to make output cleaner.
+        
+        et_start = et_ca - dt_before.to('s').value
+        et_end   = et_ca + dt_after.to('s').value
                 
-                ring.set_ring_parameters(file_profile_ring, albedo_i, q_dust_i, 
-                                         area_sc=area_sc, inclination=inclination_i, name_trajectory=name_trajectory)
+        do_test = False
+        i       = 0            # Counter of index in which to store results
+        
+        # And fly through it
+        
+        ring.fly_trajectory(name_observer, et_start, et_end, dt)
+        
+        # Make a few diagnostics plots of our path through the system
+        
+        do_plots_geometry = True
+        
+        if do_plots_geometry:
+            plt.subplot(1,3,1)
+            plt.plot(ring.delta_et_t, ring.radius_t)
+            plt.ylim((0,np.amax(ring.radius_t)))
+            plt.title('Radius')
+            plt.xlabel('dt from CA [sec]')
+            
+            plt.subplot(1,3,2)
+            plt.plot(ring.delta_et_t, ring.lat_t)
+            plt.title('Lat')
+            
+            plt.subplot(1,3,3)
+            plt.plot(ring.delta_et_t, ring.lon_t)
+            plt.title('Lon')
+            
+            plt.tight_layout()
+            
+            plt.show()
 
-                ring.normalize()
-                
-                # Plot the ring profile
-                
-                r_crit = ring.r_dust[bin_r_crit]
-                
-                ring.plot_radial_profile(r_min=r_crit)
-                                
-                # Plot the PrLOM. This is *my* Q&D estimate of it -- not Doug Mehoke's careful assessment.
-                
-                ring.plot_prlom()
-                
-                # And fly through it
-                
-                ring.fly_trajectory(name_observer, et_start, et_end, dt)
-                
-                # Make a few diagnostics plots of our path through the system
-                
-                do_plots_geometry = True
-                
-                if do_plots_geometry:
-                    plt.subplot(1,3,1)
-                    plt.plot(ring.delta_et_t, ring.radius_t)
-                    plt.ylim((0,np.amax(ring.radius_t)))
-                    plt.title('Radius')
-                    plt.xlabel('dt from CA [sec]')
-                    
-                    plt.subplot(1,3,2)
-                    plt.plot(ring.delta_et_t, ring.lat_t)
-                    plt.title('Lat')
-                    
-                    plt.subplot(1,3,3)
-                    plt.plot(ring.delta_et_t, ring.lon_t)
-                    plt.title('Lon')
-                    
-                    plt.tight_layout()
-                    
-                    plt.show()
+        # Make a plot of the instantaneous count rate
 
-                # Make a plot of the instantaneous count rate
+        plt.plot(ring.delta_et_t, ring.number_sc_t)
+        plt.title('Number of Impacts per sec, A={}, i={}'.format(area_sc, inclination_i))
+        for i,r_dust_i in enumerate(self.r_dust):
+            plt.plot(ring.delta_et_t, ring.number_sc_t * ring.n_dust[i],
+                     label = 'r={}'.format(r_dust_i))
+        plt.yscale('log')    
+        plt.xlabel('ET')
+        plt.legend()
+        plt.ylabel('# of Impacts per sec')
+        plt.show()
 
-                plt.plot(ring.delta_et_t, ring.number_sc_t)
-                plt.title('Number of Impacts per sec, A={}, i={}'.format(area_sc, inclination_i))
-                for i,r_dust_i in enumerate(self.r_dust):
-                    plt.plot(ring.delta_et_t, ring.number_sc_t * ring.n_dust[i],
-                             label = 'r={}'.format(r_dust_i))
-                plt.yscale('log')    
-                plt.xlabel('ET')
-                plt.legend()
-                plt.ylabel('# of Impacts per sec')
-                plt.show()
+        # Make a plot of the cumulative count rate
+        
+        plt.plot(ring.delta_et_t, ring.number_sc_cum_t)
+        for i,r_dust_i in enumerate(self.r_dust):
+            plt.plot(ring.delta_et_t, ring.number_sc_cum_t * ring.n_dust[i],
+                     label = 'r={}'.format(r_dust_i))
+        plt.legend()    
+        plt.title('Number of Impacts (cumulative), A={}, i={}'.format(area_sc, inclination_i))
+        plt.xlabel('ET')
+        plt.yscale('log')
+        plt.ylabel('# of Impacts')
+        plt.axhline(y = 1, linestyle = '--', alpha = 0.1)    
+        plt.show()
+        
+        # Calculate the radial profiles explicitly, so I can extract the I/F, etc at the flyby distance,
+        # and save in a table as output.
+                            
+        (radius_ring_rc, IoF_rc, tau_rc, n_hits_rc, pr_lom_rc) = self.get_radial_profile(r_min=r_crit)
+        (radius_ring,    IoF,    tau,    n_hits,    pr_lom)    = self.get_radial_profile()
 
-                # Make a plot of the cumulative count rate
-                
-                plt.plot(ring.delta_et_t, ring.number_sc_cum_t)
-                for i,r_dust_i in enumerate(self.r_dust):
-                    plt.plot(ring.delta_et_t, ring.number_sc_cum_t * ring.n_dust[i],
-                             label = 'r={}'.format(r_dust_i))
-                plt.legend()    
-                plt.title('Number of Impacts (cumulative), A={}, i={}'.format(area_sc, inclination_i))
-                plt.xlabel('ET')
-                plt.yscale('log')
-                plt.ylabel('# of Impacts')
-                plt.axhline(y = 1, linestyle = '--', alpha = 0.1)    
-                plt.show()
-                
-                # Calculate the radial profiles explicitly, so I can extract the I/F, etc at the flyby distance,
-                # and save in a table as output.
-                                    
-                (radius_ring_rc, IoF_rc, tau_rc, n_hits_rc, pr_lom_rc) = self.get_radial_profile(r_min=r_crit)
-                (radius_ring,    IoF,    tau,    n_hits,    pr_lom)    = self.get_radial_profile()
+        # Calculate the proper radial bin to extract
+        # We want this to be the geometrically closest bin. 
+        
+        bin_a_flyby = np.digitize(ring.a_flyby[name_trajectory], radius_ring)
+        
+        # Now add an entry to the table
 
-                # Calculate the proper radial bin to extract
-                # We want this to be the geometrically closest bin. 
-                
-                bin_a_flyby = np.digitize(ring.a_flyby[name_trajectory], radius_ring)
-                
-                # Now add an entry to the table
+        t.add_row(vals=[name_trajectory, q_dust_i, inclination_i, albedo_i, r_crit,
+                        IoF_rc[bin_a_flyby], IoF[bin_a_flyby], 
+                        tau_rc[bin_a_flyby], 
+                        n_hits_rc[bin_a_flyby], n_hits[bin_a_flyby],
+                        pr_lom_rc[bin_a_flyby]])
 
-                t.add_row(vals=[name_trajectory, q_dust_i, inclination_i, albedo_i, r_crit,
-                                IoF_rc[bin_a_flyby], IoF[bin_a_flyby], 
-                                tau_rc[bin_a_flyby], 
-                                n_hits_rc[bin_a_flyby], n_hits[bin_a_flyby],
-                                pr_lom_rc[bin_a_flyby]])
-
-                # Output the dust population for this run to a file. This is the file that Doug Mehoke will read.
-                
-                ring.output_trajectory(suffix=f'{name_trajectory}', do_positions=False)
+        # Output the dust population for this run to a file. This is the file that Doug Mehoke will read.
+        
+        ring.output_trajectory(suffix=f'{name_trajectory}', do_positions=False)
                 
     # Print the table
     
