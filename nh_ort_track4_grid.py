@@ -74,7 +74,7 @@ from nh_ort_track3_read            import plot_flattened_grids_table
 #     
 # =============================================================================
     
-class ort_track4_grid():
+class nh_ort_track4_grid:
     
     def __init__(self, grid_4d):
     
@@ -102,13 +102,17 @@ class ort_track4_grid():
                              b=None, beta=None, s=None,                   # These are the particle sizes we sum over.
                                                                           # They are used for plotting, but not else. 
                              name_trajectory=None, 
-                             name_test=None)
+                             name_test=None):
+    
         """
         Save the parameters corresponding to a run.
 
         parameters:
             albedo, speed, q, rho    -- These are for the runs. One per 4D grid.
             b, beta, s    -- These are for particle size, one per grid.
+            
+            *** Note that for Python logic to work, the  arrays b, beta, s must be passed as lists, 
+                 and *not* NumPy arrays. Testing against None works on lists, but chokes on NumPy arrays.
         """
                                        
         if albedo:
@@ -144,17 +148,19 @@ class ort_track4_grid():
 # Make plots of flattened grids, one plot for each particle size
 # =============================================================================
                                                          
-    def plot(self):
+    def plot(self, stretch_percent=98):
         
         """
         Make a plot of all of the sub-grids in a grid. Each one is flattened, and they are all ganged up.
         """
         
+        stretch = astropy.visualization.PercentileInterval(stretch_percent)
+    
         hbt.figsize((15,15))
         for i in range(self.num_grids):
-            b_i     = self.amax(b) - i     # b goes in opposite order from size, so plot it backwards.
-            beta_i  = beta[i]              # Calc beta so we can get size. MRS slide 5.5
-            s_i     = s[i]                 # Particle size. MRS slide 6.4. Millimeters.
+            b_i     = np.amax(self.b) - i     # b goes in opposite order from size, so plot it backwards.
+            beta_i  = self.beta[i]              # Calc beta so we can get size. MRS slide 5.5
+            s_i     = self.s[i]                 # Particle size. MRS slide 6.4. Millimeters.
    
             plt.subplot(1, self.num_grids, i+1)
             plt.imshow(stretch(np.sum(self.grid_4d[i], axis=self.axis_sum)))
@@ -162,7 +168,6 @@ class ort_track4_grid():
             plt.tight_layout()
         plt.show()
         print(f'  albedo={self.albedo}, q={self.q}, rho={self.rho}, speed={self.speed}')
-        print('---') 
 
 
 # =============================================================================
@@ -177,31 +182,87 @@ class ort_track4_grid():
         
         str_speed = 'v2.2'
         
-        str_qej = 'q{:3.1f}'.format(self.q_dust)
+        str_q = 'q{:3.1f}'.format(self.q)
         
         str_albedo = 'pv{:4.2f}'.format(self.albedo)
         
-        str_rho = 'rho1.00'
+        str_rho = 'rho{:4.2f}'.format(self.rho)
         
-        str_inc = 'inc{:4.2f}'.format(self.inclination)
+#        str_inc = 'inc{:4.2f}'.format(self.inclination)
         
-        file_out = f"{str_test}_{str_traj}_{str_speed}_{str_qej}_{str_albedo}_{str_rho}_{str_inc}.dust"
+        file_out = f"{str_test}_{str_traj}_{str_speed}_{str_q}_{str_albedo}_{str_rho}.grid4d"
                         
         return file_out
+
+# =============================================================================
+# Write out the 4D grid to disk
+# =============================================================================
     
-    def write(self, file=None):
+    def write(self, file=None, dir=None):
         """
-        Write the 4D grid itself to a file. The run parameters (albedo, rho, q, v) are encoded into the filename.
+        Write the 4D grid itself to a file. The run parameters (albedo, rho, q, speed) are encoded into the filename.
         The remaining parameters (b, beta, s) are written.
         
-        Format of the file is a pickle tuple, with (grid_4d, b, beta, s, albedo, rho, q, v).
+        This file is only used for HBT's convenience. It is not given to Doug Mehoke nor is it the output of any 
+        step.
+        
+        Format of the file is a pickle tuple, with (grid_4d, albedo, rho, q, speed, b, beta, s).
+        
+        ** Warning: These are really big files! 400+ MB by default. Will 'compress' down to 7 MB.
+        
+        So, in general, we should not plan on using these.
         
         Optional Parameters:
-            file: filename. By default, it is auto-generated from the parameters.
+            file: Filename. By default, it is auto-generated from the parameters.
+            
+            dir:  Directory
         """
         
-        pass
-    
-    def read(self, file):
+        if not dir:
+            dir = os.path.expanduser('~/Data/ORT2/throop/track4/')
         
-    def fly_trajectory(self):      
+        if not file:
+            file = self.create_filename()
+            
+        lun = open(os.path.join(dir, file), 'wb')
+        
+        pickle.dump((self.grid_4d, self.albedo, self.rho, self.q, self.speed, self.b, self.beta, self.s), lun)
+        lun.close()
+        print("Wrote: " + os.path.join(dir,file))
+        
+        return
+
+# =============================================================================
+# Read a 4D grid file from disk
+# =============================================================================
+    
+    def read(self, file, dir=None):
+        """
+        Read a 4D grid file from disk
+
+        Format of the file is a pickle tuple, with (grid_4d, albedo, rho, q, v, b, beta, s).
+        
+        Optional Parameters:
+            dir: Directory
+            
+        """
+        
+        if not dir:
+            dir = '~/Data/ORT2/throop/track4/'
+
+        print("Reading: " + file)
+        lun = open(os.path.join(dir, file), 'rb')
+        (self.stack_field, self.img_field, self.stack_haz, self.img_haz, self.wcs_haz) = pickle.load(lun)
+        lun.close()
+
+        return
+
+# =============================================================================
+# Fly a trajectory through the grids
+# =============================================================================
+        
+    def fly_trajectory(self):
+        
+        pass 
+    
+        return
