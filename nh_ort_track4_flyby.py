@@ -115,8 +115,9 @@ def nh_ort_track4_flyby():
     # Define the number of grid locations on each side.
     # In the 'simulated' version, we used 200, not 201.
 
-    for file in files:
-        
+    for i,file in enumerate(files):
+        print(f'Starting file {i}/{len(files)}')
+              
         grid_i = nh_ort_track4_grid(file)    # Load the grid from disk. Uses gzip, so it is quite slow (20 sec/file)
      
         n_dx = hbt.sizex(grid_i.density[0])  # This is 'multiple assignment' in Python. Unlike IDL, it is official and legal.
@@ -141,27 +142,33 @@ def nh_ort_track4_flyby():
         do_test = False
         i       = 0            # Counter of index in which to store results
         
-        # And fly through it
+        # And call the method to fly through it!
+        # The returned density values etc are available within the instance variables, not returned explicitly.
         
+        grid_i.frame = frame
+        grid_i.name_target = name_target
+         
         grid_i.fly_trajectory(name_observer, et_start, et_end, dt)
-        
+ 
+        # The values from this 
+
         # Make a few diagnostics plots of our path through the system
         
         do_plots_geometry = True
         
         if do_plots_geometry:
             plt.subplot(1,3,1)
-            plt.plot(ring.delta_et_t, ring.radius_t)
-            plt.ylim((0,np.amax(ring.radius_t)))
+            plt.plot(grid_i.delta_et_t, grid_i.radius_t)
+            plt.ylim((0,np.amax(grid_i.radius_t)))
             plt.title('Radius')
             plt.xlabel('dt from CA [sec]')
             
             plt.subplot(1,3,2)
-            plt.plot(ring.delta_et_t, ring.lat_t)
+            plt.plot(grid_i.delta_et_t, grid_i.lat_t)
             plt.title('Lat')
             
             plt.subplot(1,3,3)
-            plt.plot(ring.delta_et_t, ring.lon_t)
+            plt.plot(grid_i.delta_et_t, grid_i.lon_t)
             plt.title('Lon')
             
             plt.tight_layout()
@@ -170,11 +177,11 @@ def nh_ort_track4_flyby():
 
         # Make a plot of the instantaneous count rate
 
-        plt.plot(ring.delta_et_t, ring.number_sc_t)
-        plt.title('Number of Impacts per sec, A={}, i={}'.format(area_sc, inclination_i))
-        for i,r_dust_i in enumerate(self.r_dust):
-            plt.plot(ring.delta_et_t, ring.number_sc_t * ring.n_dust[i],
-                     label = 'r={}'.format(r_dust_i))
+#        plt.plot(grid_i.delta_et_t, grid_i.number_sc_t[0])
+        for j,s in enumerate(self.s):   # 's' is dust size
+            plt.plot(grid_i.delta_et_t, grid_i.number_sc_t[j] * grid_i.number_t[j],
+                     label = f's={s:.2f} mm')
+        plt.title('Number of Impacts per sec, A={}'.format(self.area_sc))
         plt.yscale('log')    
         plt.xlabel('ET')
         plt.legend()
@@ -183,12 +190,12 @@ def nh_ort_track4_flyby():
 
         # Make a plot of the cumulative count rate
         
-        plt.plot(ring.delta_et_t, ring.number_sc_cum_t)
-        for i,r_dust_i in enumerate(self.r_dust):
-            plt.plot(ring.delta_et_t, ring.number_sc_cum_t * ring.n_dust[i],
-                     label = 'r={}'.format(r_dust_i))
-        plt.legend()    
-        plt.title('Number of Impacts (cumulative), A={}, i={}'.format(area_sc, inclination_i))
+#        plt.plot(grid_i.delta_et_t, grid_i.number_sc_cum_t)
+        for j,s in enumerate(grid_i.s):
+            plt.plot(grid_i.delta_et_t, grid_i.number_sc_cum_t[j] * grid_i.number_t[j],
+                     label = 's={:.2f} mm'.format(s))
+        plt.legend()
+        plt.title('Number of Impacts (cumulative), A={}'.format(self.area_sc))
         plt.xlabel('ET')
         plt.yscale('log')
         plt.ylabel('# of Impacts')
@@ -198,27 +205,31 @@ def nh_ort_track4_flyby():
         # Calculate the radial profiles explicitly, so I can extract the I/F, etc at the flyby distance,
         # and save in a table as output.
                             
-        (radius_ring_rc, IoF_rc, tau_rc, n_hits_rc, pr_lom_rc) = self.get_radial_profile(r_min=r_crit)
-        (radius_ring,    IoF,    tau,    n_hits,    pr_lom)    = self.get_radial_profile()
+#        (radius_ring_rc, IoF_rc, tau_rc, n_hits_rc, pr_lom_rc) = self.get_radial_profile(r_min=r_crit)
+#        (radius_ring,    IoF,    tau,    n_hits,    pr_lom)    = self.get_radial_profile()
 
         # Calculate the proper radial bin to extract
         # We want this to be the geometrically closest bin. 
         
-        bin_a_flyby = np.digitize(ring.a_flyby[name_trajectory], radius_ring)
+#        bin_a_flyby = np.digitize(grid_i.a_flyby[name_trajectory], radius_ring)
         
         # Now add an entry to the table
 
-        t.add_row(vals=[name_trajectory, q_dust_i, inclination_i, albedo_i, r_crit,
-                        IoF_rc[bin_a_flyby], IoF[bin_a_flyby], 
-                        tau_rc[bin_a_flyby], 
-                        n_hits_rc[bin_a_flyby], n_hits[bin_a_flyby],
-                        pr_lom_rc[bin_a_flyby]])
+#        t.add_row(vals=[name_trajectory, q_dust_i, inclination_i, albedo_i, r_crit,
+#                        IoF_rc[bin_a_flyby], IoF[bin_a_flyby], 
+#                        tau_rc[bin_a_flyby], 
+#                        n_hits_rc[bin_a_flyby], n_hits[bin_a_flyby],
+#                        pr_lom_rc[bin_a_flyby]])
 
         # Output the dust population for this run to a file. This is the file that Doug Mehoke will read.
         
-        ring.output_trajectory(suffix=f'{name_trajectory}', do_positions=False)
+        grid_i.output_trajectory(suffix=f'{name_trajectory}', do_positions=False)
                 
     # Print the table
     
     t.pprint(max_width=-1)
+
+
+if (__name__ == '__main__'):
+    nh_ort_track4_flyby()
     

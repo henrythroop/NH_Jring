@@ -397,12 +397,14 @@ def nh_ort_track4_calibrate():
     # At each of these combinations, we will want to find the *input* parameters that match this --
     # specifically, all of the subsets.
     
-    do_short = True
+    do_short = False
 
     if do_short:
         t = t[0:5]
         
-    for t_i in t:   # Loop 
+    for k,t_i in enumerate(t):   # Loop 
+        
+        print(f'Starting output {k}/{len(t)}')
         
         # Calculate the indices of the smallest and largest grains, based on table.
         # This is so that we use a consistent, limited size range for all obs -- rather than

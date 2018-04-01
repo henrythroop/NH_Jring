@@ -123,6 +123,9 @@ class nh_ort_track4_grid:
         """
         Save the parameters corresponding to a run.
 
+        I guess this is kind of a getter-setter function. It's really not necessary. But it does make 
+        for one easy line of code to set all variables, I guess.
+        
         parameters:
             albedo, speed, q, rho    -- These are for the runs. One per 4D grid.
             b, beta, s    -- These are for particle size, one per grid.
@@ -202,10 +205,24 @@ class nh_ort_track4_grid:
 
 # =============================================================================
 # Create the output filename automatically, based on the parameter values
+# This is a filename used for temporary storage.        
 # =============================================================================
 
-    def create_filename(self):
+    def create_filename_track3_grids4d(self):
                
+        file_out = self.create_filename_track4()
+        
+        file_out = file_out.replace('.dust', '.grid4d')
+                        
+        return file_out
+
+# =============================================================================
+# Create the output filename automatically, based on the parameter values
+# This is the filename used for Doug Mehoke        
+# =============================================================================
+
+    def create_filename_track4(self):
+        
         str_traj = self.name_trajectory
         
         str_test = 'ort2-ring'
@@ -218,12 +235,10 @@ class nh_ort_track4_grid:
         
         str_rho = 'rho{:4.2f}'.format(self.rho)
         
-#        str_inc = 'inc{:4.2f}'.format(self.inclination)
+        file_out = f"{str_test}_{str_traj}_{str_speed}_{str_q}_{str_albedo}_{str_rho}.dust"
         
-        file_out = f"{str_test}_{str_traj}_{str_speed}_{str_q}_{str_albedo}_{str_rho}.grid4d"
-                        
         return file_out
-
+    
 # =============================================================================
 # Write out the 4D grid to disk
 # =============================================================================
@@ -257,7 +272,7 @@ class nh_ort_track4_grid:
             dir = os.path.expanduser('~/Data/ORT2/throop/track4/')
         
         if not file:
-            file = self.create_filename()
+            file = self.create_filename_track3_grids4d()
                 
         do_compress = True
         
@@ -343,6 +358,10 @@ class nh_ort_track4_grid:
         
         self.name_observer = name_observer
         
+        self.area_sc  = 5*u.m**2
+        
+        self.abcorr = 'LT'
+        
         # Set up the output time array
         
         num = math.ceil( (et_end - et_start) / dt.to('s').value ) + 1
@@ -352,26 +371,39 @@ class nh_ort_track4_grid:
         # Calc offset in DT from C/A time
             
         delta_et_t = et_t - np.mean(et_t)
+
+        # Set up position arrays for center of bins
         
-        # Loop over et
+        self.x_1d = hbt.frange(-hbt.sizex(self.density[0])/2, hbt.sizex(self.density[0])/2-1)*self.resolution_km[0]
+        self.y_1d = hbt.frange(-hbt.sizey(self.density[0])/2, hbt.sizey(self.density[0])/2-1)*self.resolution_km[0]
+        self.z_1d = hbt.frange(-hbt.sizez(self.density[0])/2, hbt.sizez(self.density[0])/2-1)*self.resolution_km[0]
+        
+# Set up output arrays for all of the quantities. These will be time series.
         
         radius_t = []
         x_t      = []
         y_t      = []
         z_t      = []
-        v_t      = [] # Velocity
+        v_t      = [] # Velocity (scalar)
         lon_t    = []
         lat_t    = []
         density_t= []
         bin_x_t  = []
         bin_y_t  = []
         bin_z_t  = []
-        
+                
+        # Loop over et
+
         for i,et_i in enumerate(et_t):
-#            (st, lt) = sp.spkezr(self.name_target, et_i, 'J2000', self.abcorr, self.name_observer)  
-                                                                    # Gives RA/Dec of MU69 from NH
+
+    # Get the position of s/c in MU69 frame. We just look up XYZ position, in the frame.
+    # Then we figure out what box that is in, and look up the density there.
+    # This is really very simple, with no PXFORM required. All of it happens automatically after we 
+    # set the frame to be the sunflower frame.
+              
             (st, lt) = sp.spkezr(self.name_observer, et_i, self.frame, self.abcorr, self.name_target)
                                                                     # Get position of s/c in MU69 frame!
+                                                                    
             (radius, lon, lat) = sp.reclat(st[0:3])
             
             # Get the lon/lat wrt time. Note that for MU69 flyby, the lat is always positive.
@@ -390,7 +422,9 @@ class nh_ort_track4_grid:
             z_t.append(st[2])
             
             v_t.append( sp.vnorm(st[3:6]) )
-                
+        
+        # End of loop over t. Now that we have done the flythru, we look up all the index values.
+        
         # Convert into bin values. This is vectorized.
         # ** If values exceed the largest bin, then the index returned will be too large for the density lookup!
         
@@ -409,16 +443,14 @@ class nh_ort_track4_grid:
         # Now that we have all the XYZ bins that the s/c travels in, get the density for each one.
         # We should be able to do this vectorized -- but can't figure it out, so using a loop.
         
-        number_t = 0. * et_t
+        number_t = np.zeros((self.num_grids, len(et_t)))
         
         for i in range(len(et_t)):
-            number_t[i] = self.number_arr[bin_x_t[i], bin_y_t[i], bin_z_t[i]]  # Number per km3
+            number_t[:,i] = self.density[:,bin_x_t[i], bin_y_t[i], bin_z_t[i]]  # Number per km3
 
-        # ** This gives us number density at the smallest binsize. We then need to apply n(r), to get 
-        # density at all other bin sizes.
-        # Make a cumulative sum of the density. We don't really need this, but just for fun.
+        # Calculate cumulative number sum. Just for fun.
         
-        number_cum_t       = np.cumsum(number_t)
+        number_cum_t       = np.cumsum(number_t, axis=1)
     
         # Now for fun, calculate the number of grains that intercept a s/c of a given area.
         # We do this calc very crudely, just by taking the area of s/c vs area of a bin edge. We are ignoring
@@ -428,19 +460,20 @@ class nh_ort_track4_grid:
         
         # Get the binvolume, in km3, as an integer
         
-        binvol = (self.binsize_3d[0] * self.binsize_3d[1] * self.binsize_3d[2])
+        binvol = (self.resolution_km[0] * self.resolution_km[1] * self.resolution_km[2]) * u.km**3
     
         # Calc the fractional ratio between volume of a bin, and volume that s/c sweeps up in its path thru the bin.
+        # This quantity does not have any dust information in it.
         
         fracvol_t = ( (self.area_sc * v_t * self.dt) / (binvol) ).to(1).value
     
         number_sc_t = number_t * fracvol_t
         
-        number_sc_cum_t = np.cumsum(number_sc_t)
+        number_sc_cum_t = np.cumsum(number_sc_t, axis=1)
             
         # Save all variables so they can be retrieved
         
-        self.radius_t      = radius_t
+        self.radius_t      = radius_t  # This is distance from the center, in 3D coords. Not 'ring radius.'
         self.et_t          = et_t
         self.delta_et_t    = delta_et_t
         self.bin_x_t       = bin_x_t
@@ -457,13 +490,6 @@ class nh_ort_track4_grid:
         self.z_t           = z_t
         self.v_t           = v_t
         
-        self.radius_t = radius_t  # This is distance from the center, in 3D coords. Not 'ring radius.'
-        
-#        return()
-
-        
-        pass 
-    
         return
     
 # =============================================================================
@@ -512,13 +538,15 @@ class nh_ort_track4_grid:
         
         # Get the binvolume, in km3, as an integer
         
-        binvol_km3 = (self.binsize_3d[0] * self.binsize_3d[1] * self.binsize_3d[2]).to('km^3').value
+        binvol_km3 = (self.resolution_km[0] * self.resolution_km[1] * self.resolution_km[2])
         
         # For each bin, output the # of particles, divided by the bin volume, to get particles/km3.
         
-        for i in range(len(self.n_dust)):
-                t['n_{}, {:.3f}, # per km3'.format(i, self.r_dust[i])] = \
-                                       np.array(self.number_t * self.n_dust[i] / binvol_km3).astype(int)
+#        FUDGEFACTOR = 1e6
+        
+        for i in range(len(self.s)):    # Loop over particle size, and add a new table column for each particle size.
+                t['n_{}, {:.3f}, # per km3'.format(i, self.s[i])] = \
+                                       np.array(self.number_t[i] / binvol_km3).astype(int)
         
         # Create the output filename
         
@@ -550,13 +578,13 @@ class nh_ort_track4_grid:
             lun.write("#    n(r) are number per km3\n")
             lun.write("#    Henry Throop {}\n".format(str(datetime.now())))          
             lun.write("{} {} {} {} {} {} {} {}\n".format(0, 
-                                                    self.r_dust[0].to('mm').value,
-                                                    self.r_dust[1].to('mm').value,
-                                                    self.r_dust[2].to('mm').value,
-                                                    self.r_dust[3].to('mm').value,
-                                                    self.r_dust[4].to('mm').value,
-                                                    self.r_dust[5].to('mm').value,
-                                                    self.r_dust[6].to('mm').value))
+                                                    self.s[0],
+                                                    self.s[1],
+                                                    self.s[2],
+                                                    self.s[3],
+                                                    self.s[4],
+                                                    self.s[5],
+                                                    self.s[6]))
             for i in range(len(t)):                                                
                 lun.write("{} {} {} {} {} {} {} {}\n".format(
                         t[i][1],
