@@ -118,10 +118,12 @@ def nh_ort_track4_calibrate():
     
     # Define the axis to sum over: 0 → X axis, 1 → Y axis, 2 → Z axis.
     # Usually this will be Y dir (axis=1), but for ORT2, DPH's axes are incorrect, so we use X dir instead.
+#    
+#    if ('hamilton' in dir_base):
+#        axis_sum = 0
+
+    axis_sum = 1                                            # In general sum in the y direction. Do not correct for DPH.
     
-    if ('hamilton' in dir_base):
-        axis_sum = 0
-        
     do_short = False
     
     if do_short:
@@ -177,12 +179,15 @@ def nh_ort_track4_calibrate():
         subset_arr[i]                = ring.subset
         grains_arr[i]                = ring.grains
 
+        # Flatten the arrays, along the axis of the viewer (ie, the sun).
+        # The output to this is bascially D2D of MRS slide 6.4 -- called 'density_flattened_arr' here.
+        
+        density_flattened_arr[i,:,:] = np.sum(ring.density, axis=axis_sum)
+
         # Take the 3D arrays and flatten them, just so we can visualize more easily.
         # To get a full picture, we sum along all three axes (X, Y, Z) and show each.
-        # XXX This code should be deprecated. Use the coe in nh_ort_track3_plot_trajectory instead.
+        # XXX This code should be deprecated. Use the code in nh_ort_track3_plot_trajectory instead.
 
-        density_flattened_arr[i,:,:] = np.sum(ring.density, axis=axis_sum)
-        
         do_plot_xyz_views = False
         
         if do_plot_xyz_views:
@@ -198,7 +203,6 @@ def nh_ort_track4_calibrate():
             plt.show()
         
         print('-----')
-    
 
     print(f"Read {num_files} files.")
     
@@ -277,7 +281,11 @@ def nh_ort_track4_calibrate():
                         
                         # Now apply MRS eq @ slide 6.4. Divide by num_subsets so we don't sum.
                         # The np.sum(axis=0) here does the sum over all the matching subsets.
-                        # They have already been flattened -- we are not summing in XYZ space again.
+                        # They have already been flattened -- we are not summing in XYZ space again
+                        # This time we want to pick ut the density_flattened_array for the proper size.
+                        
+                        # Axis=0 means to sum along all of the 'is_good' arrays -- that is, ones that
+                        # match the proper subset.
                         
                         img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
                                  np.sum(density_flattened_arr[is_good], axis=0) /
@@ -288,7 +296,7 @@ def nh_ort_track4_calibrate():
                         img += img_i
                         
                         # If requested, make a plot of the running total for this array
-                        
+                
                         do_plot_running_total = False
                         
                         if do_plot_running_total:
@@ -310,6 +318,9 @@ def nh_ort_track4_calibrate():
                     # Now calculate the actual calibration coefficient
                     
                     E_0_i = iof_limit_ring / val_img_typical
+                    
+                    # XXX Validated! The quantity np.percentile(E_0 * img,99) now is exactly the target I/F.
+                    # E0 is a constant for the ring. It is not size-dependent (not a func of b, aka s).
                     
                     # Take a radial profile
                     
@@ -383,8 +394,11 @@ def nh_ort_track4_calibrate():
 # Make a plot showing all of the flattened disks. This plots the t['img_2d'] field from the table.
 # Each disk is stretched individually.
     
-    hbt.figsize((30,30)) 
-    plot_flattened_grids_table(t,stretch_percent=98)
+    do_plot_flattened_grids = False
+    
+    if (do_plot_flattened_grids):
+        hbt.figsize((30,30)) 
+        plot_flattened_grids_table(t,stretch_percent=98)
      
 # =============================================================================
 # Now loop over the table of E0, and create the output files for DM
@@ -400,7 +414,7 @@ def nh_ort_track4_calibrate():
     do_short = False
 
     if do_short:
-        t = t[0:5]
+        t = t[4:5]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
         
     for k,t_i in enumerate(t):   # Loop 
         
@@ -462,11 +476,17 @@ def nh_ort_track4_calibrate():
                                           (body_id_arr == 'ort2-0003') ) ) )
             # Finally, sum up all of the appropriate subsets, weighted by q, E_0, sarea, etc., into an output array
             # This array is in units of # per km3.  MRS slide 6.6.
-            # The index 
             
             for j in np.where(is_good)[0]:
-                D3D += E_0_i * sarea * (s_i**q_i) * rings[j].density / dxdydz_km3
-            
+                D3D += E_0_i * sarea * (s_i**q_i) * ds_i * rings[j].density / dxdydz_km3
+
+# ** For reference, the equation from above, for calculating E0:
+#                        img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
+#                                 np.sum(density_flattened_arr[is_good], axis=0) /
+#                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_subsets
+#                        E_0_i = iof_limit_ring / max(img)
+
+                
             # And save to the 4D array
             
             D4D[i] = D3D
@@ -492,11 +512,18 @@ def nh_ort_track4_calibrate():
         
         hbt.figsize((20,20))
         hbt.set_fontsize(7)
-        grids_i.plot()
+        grids_i.plot(axis_sum=0)
+        grids_i.plot(axis_sum=1)
+        grids_i.plot(axis_sum=2)
         grids_i.write()
+        
+        # Now plot the max optical depth summed for all sizes, as a reality check
+        
+        hbt.set_fontsize(10)
+        hbt.figsize((6,6))
+        grids_i.plot_tau()
+
         print('---')
-        
-        
         
     # Finally, do a weighted sum of all the planes, and plot it.
     # Based on the prelim data, we should 

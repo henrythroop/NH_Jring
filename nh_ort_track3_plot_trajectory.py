@@ -59,6 +59,8 @@ from   get_radial_profile_circular import get_radial_profile_circular
 
 import hbt
 
+from nh_ort_track3_read import nh_ort_track3_read
+
 # =============================================================================
 # Do a one-off test to make some plots to validate the XYZ orientation.
 # This does not merge or do anything else. It just makes nicely scaled plots
@@ -72,9 +74,9 @@ def nh_ort_track3_plot_trajectory():
     plt.set_cmap('plasma') 
     dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
     runs_full = [ dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset07',
-                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
+#                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
-                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
+#                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset05']
 
@@ -105,9 +107,12 @@ def nh_ort_track3_plot_trajectory():
     
     for run_full in runs_full:
         i = 1
-        run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'           
+        run  = run_full.replace(dir, '')  # Remove the base pathname from this, and initial '/'           
         ring = nh_ort_track3_read(run)
         ring.print_info()
+
+        halfwidth_km = ring.km_per_cell_x * hbt.sizex(ring.density) / 2
+        extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
     
         for axis in axes:
 
@@ -142,7 +147,7 @@ def nh_ort_track3_plot_trajectory():
             num_ticks_colorbar = 5 # Number of vertical value to put on our colorbar
             
             for j in range(num_ticks_colorbar):
-                val = stretch_invert(hbt.frange(np.amin(img_stretch), np.amax(img_stretch), num_ticks_colorbar)[j])
+                val = stretch_hbt_invert(hbt.frange(np.amin(img_stretch), np.amax(img_stretch), num_ticks_colorbar)[j])
                 val = round(val)  # Convert to zero if it is very close
                 xval = 0.65*np.max(extent)
                 yrange = np.max(extent)-np.min(extent)
@@ -161,6 +166,19 @@ def nh_ort_track3_plot_trajectory():
         plt.show()
         print('\n-----\n')
         
+# =============================================================================
+# Define a good stretch to use. Same idea as the Astropy Visualization stretch, just better for these data.
+# =============================================================================
+
+def stretch_hbt(arr):
+    return np.log(10 + arr)
+
+def stretch_hbt_invert(arr):
+    return np.exp(arr) - 10
+
+# =============================================================================
+# Run the file
+# =============================================================================
 
 if (__name__ == '__main__'):
     nh_ort_track3_plot_trajectory()

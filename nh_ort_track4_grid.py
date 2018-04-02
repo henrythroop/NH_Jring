@@ -104,7 +104,8 @@ class nh_ort_track4_grid:
         self.num_grids = hbt.sizex(self.density)
         self.name_trajectory = 'primary'        
         self.name_test       = 'ort2-ring'         
-        self.axis_sum = 0   # Which axis do we sum along for images? Should be as visible from Sun and/or SC.
+        self.axis_sum = 1   # Which axis do we sum along for images? Should be as visible from Sun and/or SC.
+                            # 1 → Sum along Y dir, which is Sun dir. This will make sunflower rings visible.  
             
         
 # =============================================================================
@@ -170,12 +171,22 @@ class nh_ort_track4_grid:
 # Make plots of flattened grids, one plot for each particle size
 # =============================================================================
                                                          
-    def plot(self, stretch_percent=98):
+    def plot(self, stretch_percent=98, axis_sum = None):
         
         """
         Make a plot of all of the sub-grids in a grid. Each one is flattened, and they are all ganged up.
+        
+        Optional parameters
+        ---
+        
+        axis_sum:
+            0=X, 1=Y, 2=Z
+            
         """
 
+        if axis_sum is None:
+            axis_sum = self.axis_sum
+            
         (_, nx, ny, nz) = np.shape(self.density)
         
         xpos = hbt.frange(-nx/2, nx/2)*self.resolution_km[0]
@@ -183,6 +194,10 @@ class nh_ort_track4_grid:
         zpos = hbt.frange(-nz/2, nz/2)*self.resolution_km[2]
 
         extent = (ypos[0], ypos[-1], zpos[0], zpos[-1])
+        
+        origin = 'lower'  # Need this to flip vertical axis properly
+        
+        extent = np.array(extent)/1000   # Truncate to units of 1000 km, not km.
         
         stretch = astropy.visualization.PercentileInterval(stretch_percent)
     
@@ -193,15 +208,58 @@ class nh_ort_track4_grid:
             s_i     = self.s[i]                 # Particle size. MRS slide 6.4. Millimeters.
    
             plt.subplot(1, self.num_grids, i+1)
-            plt.imshow(stretch(np.sum(self.density[i], axis=self.axis_sum)), extent=extent)
-            plt.title(r's={:.2f} mm, $\beta$={:.4f}'.format(s_i, beta_i))
+            plt.imshow(stretch(np.sum(self.density[i], axis=axis_sum)), extent=extent, origin=origin)
+            plt.title(r's={:.2f} mm, $\beta$={:.1e}'.format(s_i, beta_i))
             plt.tight_layout()
-            if (self.axis_sum == 0):
-                plt.xlabel('Z [km]')
-                plt.ylabel('Y [km]')
+
+            if (axis_sum == 0):  # If summing along X
+                plt.ylabel('Y [Mm]')
+                plt.xlabel('Z [Mm]')
+            if (axis_sum == 1):  # If summing along Y
+                plt.ylabel('X [Mm]')
+                plt.xlabel('Z [Mm]')
+            if (axis_sum == 2):  # If summing along Z
+                plt.ylabel('X [Mm]')
+                plt.xlabel('Y [Mm]')
+
         plt.show()
         print(f'  albedo={self.albedo}, q={self.q}, rho={self.rho}, speed={self.speed}')
 
+# =============================================================================
+#  Make a Q&D plot of line-of-sight optical depth through the grid
+# =============================================================================
+        
+    def plot_tau(self, stretch_percent=98):
+        """
+        Do a Q&D sum to plot line-of-sight optical depth through the grid. 
+        Sum in the Y dir.
+        Units of 'density' are particles per km3  [MRS slide 6.6] 
+        """
+        origin = 'lower'
+        
+        (_, nx, ny, nz) = np.shape(self.density)
+        
+        xpos = hbt.frange(-nx/2, nx/2)*self.resolution_km[0]
+        ypos = hbt.frange(-ny/2, ny/2)*self.resolution_km[1]
+        zpos = hbt.frange(-nz/2, nz/2)*self.resolution_km[2]
+
+        extent = np.array((ypos[0], ypos[-1], zpos[0], zpos[-1]))/1000
+        
+        stretch = astropy.visualization.PercentileInterval(stretch_percent)
+        
+        tau = np.zeros((200,200))
+
+        for j,s in enumerate(self.s):  # Loop over particle size 's' in mm
+            tau_i = np.sum(self.density[j], axis=1) * math.pi * (s*u.mm)**2 / (self.resolution_km[0]*u.km)**2
+            tau_i = tau_i.to('1').value  
+            tau += tau_i
+        
+        plt.imshow(stretch(tau), origin=origin, extent=extent)
+        plt.title(f'Optical Depth, all sizes, max = {np.amax(tau):.2e}')
+        plt.xlabel('Z [km]')
+        plt.ylabel('X [km]')
+        plt.show()
+        
 
 # =============================================================================
 # Create the output filename automatically, based on the parameter values
@@ -415,6 +473,14 @@ class nh_ort_track4_grid:
             lon_t.append(lon)
             lat_t.append(lat)
 
+            ### If requested, send the s/c right down the midplane, at impact parameter zero.
+            ### This is just for testing, and should never be used in production.
+            
+            DO_OVERRIDE_XZ = True
+            if (DO_OVERRIDE_XZ):
+                st[0] = 0
+                st[2] = 0
+                
             # Get the XYZ positions wrt time.
         
             x_t.append(st[0])
@@ -597,7 +663,6 @@ class nh_ort_track4_grid:
                         t[i][8]))
             lun.close()
             print("Wrote: {} using manual writer".format(path_out))
-           
-         
+                   
         return
     
