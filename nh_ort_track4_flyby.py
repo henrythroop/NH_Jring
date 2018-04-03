@@ -136,7 +136,7 @@ def nh_ort_track4_flyby():
               
         grid = nh_ort_track4_grid(file)    # Load the grid from disk. Uses gzip, so it is quite slow (10 sec/file)
      
-        do_adjust_iof = True
+        do_adjust_iof = False
         
         if do_adjust_iof:
             grid.calc_tau()
@@ -281,8 +281,7 @@ def nh_ort_track4_flyby():
         plt.ylabel('# of Impacts')
         plt.axhline(y = 1, linestyle = '--', alpha = 0.1)    
 
-        plt.show()
-        
+        plt.show()        
         
         # Now add an entry to the table. This is a table that lists all of the results -- e.g., max_tau, count rate etc
         # one line per grid

@@ -325,6 +325,10 @@ class nh_ort_track4_grid:
         """
         Calculate optical depth tau and iof in various ways through the grid
         
+        Note that this tau (and I/F) is summed only over a limited set of particle size bins.
+        So, this tau will necessarily be less than the tau of the ring that we 
+        orignally were trying to match. That is just how MRS's eq's 6.4 + 6.6 work.
+        
         Save results as variables in the method:
             tau_2d
             tau_max
@@ -340,6 +344,7 @@ class nh_ort_track4_grid:
                         
             tau_i = np.sum(self.density[j], axis=1) * (math.pi * s**2) * 1e-12  # units of mm2/km2, so then convert
             tau += tau_i
+            print(f'Summing with size = {s} mm')
         
         tau_max     = np.amax(tau)
         iof_max     = tau_max * self.albedo
@@ -570,10 +575,13 @@ class nh_ort_track4_grid:
             ### If requested, send the s/c right down the midplane, at impact parameter zero.
             ### This is just for testing, and should never be used in production.
             
-            DO_OVERRIDE_XZ = True
+            DO_OVERRIDE_XZ = False
+            
             if (DO_OVERRIDE_XZ):
                 st[0] = 0
                 st[2] = 0
+                
+                print("Warning: Setting X = Z = 0 for trajectory. Do not use this in production!!")
                 
             # Get the XYZ positions wrt time.
         

@@ -227,7 +227,7 @@ def nh_ort_track4_calibrate():
     
     albedo = [0.05, 0.1, 0.3, 0.7]   # Q: Are albedo and beta independent? A: Yes, completely indep -- see eq @ 3.7. 
     q      = [-2, -3.5]              # Should be negative, since exponent in eq @ 6.4 is positive
-    rho    = [1, 0.46, 0.21, 0.10]
+    rho    = [1, 0.4641588, 0.2154434, 0.10000]   # 10**(-1/3), 10**(-2/3)
     speed  = [-2.2, -3]
     orb_sol= [1]                     # Just one case here for 14-Mar-2018 ORT2 case, but might have more in future.
         
@@ -298,6 +298,7 @@ def nh_ort_track4_calibrate():
                         # Add this image (with one beta) to the existing image (with a dfft beta)
                         
                         img += img_i
+#                        print(f'Adding bin for size {s_i} mm')
                         
                         # If requested, make a plot of the running total for this array
                 
@@ -416,10 +417,10 @@ def nh_ort_track4_calibrate():
     # At each of these combinations, we will want to find the *input* parameters that match this --
     # specifically, all of the subsets.
     
-    do_short = True
+    do_short = False
 
     if do_short:
-        t = t[0:1]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
+        t = t[0:5]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
         
     for k,t_i in enumerate(t):   # Loop over every element in the combination of output parameters,
                                  # which have already been tabulated in table 't'.  
@@ -448,8 +449,12 @@ def nh_ort_track4_calibrate():
         
         b_max = arr[index_column, index_row]
         b_min = b_max - 6
+        beta_min = 10**(b_min/3)
+        beta_max = 10**(b_max/3)
+        s_min = 5.7e-4 * (1 + 1.36 * albedo_i) / (rho_i * beta_max)
+        s_max = 5.7e-4 * (1 + 1.36 * albedo_i) / (rho_i * beta_min)
         
-#        print(f'Using b = {b_min} .. {b_max} → s = ')
+        print(f'Using b = {b_min} .. {b_max} → s = {s_min:.3f} .. {s_max:.3f} mm')
 
         # Get the volume of each cell. It is fixed -- no need to calc in every loop iteration.
         
@@ -466,7 +471,7 @@ def nh_ort_track4_calibrate():
         
         # Now that we have found the values of b (=size), loop over them
         
-        i = 0  # i stores the particle size index
+        i = 0  # i stores the particle size index, that we loop over to sum.
         
         for b_i in np.arange(b_min, b_max+1):  # Sum over particle size
             
