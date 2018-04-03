@@ -102,7 +102,7 @@ class nh_ort_track4_grid:
             self.density = arg
             
         self.num_grids = hbt.sizex(self.density)
-        self.name_trajectory = 'primary'        
+        self.name_trajectory = 'prime'        
         self.name_test       = 'ort2-ring'         
         self.axis_sum = 1   # Which axis do we sum along for images? Should be as visible from Sun and/or SC.
                             # 1 → Sum along Y dir, which is Sun dir. This will make sunflower rings visible.  
@@ -225,17 +225,77 @@ class nh_ort_track4_grid:
         plt.show()
         print(f'  albedo={self.albedo}, q={self.q}, rho={self.rho}, speed={self.speed}')
 
+
+# =============================================================================
+# Make a plot showing the geometry of the path thru the system
+# =============================================================================
+
+    def plot_trajectory_geometry(self):
+    
+        """
+        Make a plot showing the geometry of the path thru the system
+        Six plots, showing Radius, Velocity, X Y Z position, etc.
+        """
+        
+        hbt.figsize((8,5))
+        plt.subplot(2,3,1)
+        plt.plot(self.delta_et_t, np.array(self.radius_t)/1000)
+        plt.ylim((0,np.amax(self.radius_t)/1000))
+        plt.title('Radius')
+        plt.xlabel('dt from CA [sec]')
+        plt.ylabel('Radius [Mm]')
+        
+        plt.subplot(2,3,2)
+        plt.plot(self.delta_et_t, np.array(self.lat_t) * hbt.r2d)
+        plt.title('Lat [deg]')
+        
+        plt.subplot(2,3,3)
+        plt.plot(self.delta_et_t, np.array(self.lon_t) * hbt.r2d)
+        plt.title('Lon [deg]')
+        
+        plt.subplot(2,3,4)
+        plt.plot(self.delta_et_t, np.array(self.x_t)/1000)
+        plt.title('X')
+        plt.xlabel('dt from CA [sec]')
+        plt.ylabel('Radius [Mm]')
+        
+        plt.subplot(2,3,5)
+        plt.plot(self.delta_et_t, np.array(self.y_t)/1000)
+        plt.title('Y')
+        
+        plt.subplot(2,3,6)
+        plt.plot(self.delta_et_t, np.array(self.z_t)/1000)
+        plt.title('Z')
+        
+        plt.tight_layout()
+                    
+        plt.show()
+
 # =============================================================================
 #  Make a Q&D plot of line-of-sight optical depth through the grid
 # =============================================================================
         
-    def plot_tau(self, stretch_percent=98):
+    def plot_tau(self, stretch_percent=98, axis_sum = 1):
         """
         Do a Q&D sum to plot line-of-sight optical depth through the grid. 
-        Sum in the Y dir.
+        
+        Sum in the Y dir, which is the line-of-sight from sun or observer.
+        
         Units of 'density' are particles per km3  [MRS slide 6.6] 
+        
+        Optional inputs
+        ----
+        
+        stretch_percent:
+            Amount to scale by
+            
+        axis_sum:
+            Axis along which to sum. 0=X, 1=Y, 2=Z.
+            
+            
         """
-        origin = 'lower'
+
+        origin = 'lower'  # Make sure the plot is oriented the right way for imshow.
         
         (_, nx, ny, nz) = np.shape(self.density)
         
@@ -247,20 +307,54 @@ class nh_ort_track4_grid:
         
         stretch = astropy.visualization.PercentileInterval(stretch_percent)
         
-        tau = np.zeros((200,200))
-
-        for j,s in enumerate(self.s):  # Loop over particle size 's' in mm
-            tau_i = np.sum(self.density[j], axis=1) * math.pi * (s*u.mm)**2 / (self.resolution_km[0]*u.km)**2
-            tau_i = tau_i.to('1').value  
-            tau += tau_i
+        self.calc_tau()
         
-        plt.imshow(stretch(tau), origin=origin, extent=extent)
-        plt.title(f'Optical Depth, all sizes, max = {np.amax(tau):.2e}')
+        plt.imshow(stretch(self.tau_2d), origin=origin, extent=extent)
+        
+        plt.title(f'All sizes, tau_(max,typ) = ({self.tau_max:.2e}, {self.tau_typ:.2e}), ' + 
+                  f'I/F_(max,typ) = ({self.iof_max:.2e}, {self.iof_typ:.2e})')
         plt.xlabel('Z [km]')
         plt.ylabel('X [km]')
         plt.show()
-        
 
+# =============================================================================
+# Calculate optical depth tau and iof in various ways through the grid
+# =============================================================================
+        
+    def calc_tau(self):
+        """
+        Calculate optical depth tau and iof in various ways through the grid
+        
+        Save results as variables in the method:
+            tau_2d
+            tau_max
+            iof_max
+            tau_typ
+            iof_typ
+            
+        """
+        
+        tau = np.zeros((200,200))
+
+        for j,s in enumerate(self.s):  # Loop over particle size 's' in mm
+                        
+            tau_i = np.sum(self.density[j], axis=1) * (math.pi * s**2) * 1e-12  # units of mm2/km2, so then convert
+            tau += tau_i
+        
+        tau_max     = np.amax(tau)
+        iof_max     = tau_max * self.albedo
+        tau_typ     = np.percentile(tau, 99)
+        iof_typ     = tau_typ * self.albedo
+        
+        # Save values to the class, if we need them later
+        
+        self.iof_max = iof_max
+        self.iof_typ = iof_typ
+        self.tau_max = tau_max
+        self.tau_typ = tau_typ
+        
+        self.tau_2d = tau
+        
 # =============================================================================
 # Create the output filename automatically, based on the parameter values
 # This is a filename used for temporary storage.        
@@ -416,7 +510,7 @@ class nh_ort_track4_grid:
         
         self.name_observer = name_observer
         
-        self.area_sc  = 5*u.m**2
+        self.area_sc  = 5*u.m**2              # Area of spacecraft
         
         self.abcorr = 'LT'
         
@@ -521,19 +615,14 @@ class nh_ort_track4_grid:
         # Now for fun, calculate the number of grains that intercept a s/c of a given area.
         # We do this calc very crudely, just by taking the area of s/c vs area of a bin edge. We are ignoring
         # the slant path of the s/c, so we could underestimate the flux by up to sqrt(3).
-        
-        # Calc the fraction of the bin volume that the s/c sweeps up during its passage. 
-        
-        # Get the binvolume, in km3, as an integer
-        
-        binvol = (self.resolution_km[0] * self.resolution_km[1] * self.resolution_km[2]) * u.km**3
     
-        # Calc the fractional ratio between volume of a bin, and volume that s/c sweeps up in its path thru the bin.
-        # This quantity does not have any dust information in it.
+        # Get the volume swept up by the sc at each timestep. It is in km3.
         
-        fracvol_t = ( (self.area_sc * v_t * self.dt) / (binvol) ).to(1).value
-    
-        number_sc_t = number_t * fracvol_t
+        vol_t = (self.area_sc * v_t * self.dt).to('km^3')
+        
+        # Get total number swept up: (# per km3) (volume of path)
+        
+        number_sc_t = number_t * vol_t
         
         number_sc_cum_t = np.cumsum(number_sc_t, axis=1)
             
@@ -567,15 +656,8 @@ class nh_ort_track4_grid:
         """
         Write an output table. The filename is auto-generated based on the parameters already supplied.
         
-        The output value is typically in particles per km3.
-          ** That is my memory from MRS. But, his email 5-Dec-2017 says 
-             "Once the numbers are calibrated to particles per size bin per cubic meter, we tabulate those numbers 
-             vs. time along each trajectory and hand them off to Doug M"
-          ** Wiki says "Units are TBD"
-          ** MRS's code nhdust.py (?) uses #/km3 at one point.
-             
-             ** For now I will assume # per km3, but this can be trivially changed later.
-          
+        The output value is in particles per km3.
+                            
         Parameters
         -----
         do_positions:
@@ -602,17 +684,8 @@ class nh_ort_track4_grid:
             t['Y [km]'] = np.array(self.y_t).astype(int)
             t['Z [km]'] = np.array(self.z_t).astype(int)
         
-        # Get the binvolume, in km3, as an integer
-        
-        binvol_km3 = (self.resolution_km[0] * self.resolution_km[1] * self.resolution_km[2])
-        
-        # For each bin, output the # of particles, divided by the bin volume, to get particles/km3.
-        
-#        FUDGEFACTOR = 1e6
-        
         for i in range(len(self.s)):    # Loop over particle size, and add a new table column for each particle size.
-                t['n_{}, {:.3f}, # per km3'.format(i, self.s[i])] = \
-                                       np.array(self.number_t[i] / binvol_km3).astype(int)
+                t['n_{}, {:.3f}, # per km3'.format(i, self.s[i])] = np.array(self.number_t[i]).astype(int)
         
         # Create the output filename
         
@@ -636,7 +709,7 @@ class nh_ort_track4_grid:
         else:
 
             # Write the file using explicit manual formatting
-            # There are seven size radial bins, as per MRS e-mail 2-Feb-2018.
+            # There are seven size radial bins.
             
             lun = open(path_out, "w")
             lun.write("#    First line is '0' and then size bins, in mm\n")

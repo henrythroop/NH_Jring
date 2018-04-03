@@ -154,11 +154,13 @@ def nh_ort_track4_calibrate():
     hbt.figsize((10,10))
     
     # Loop over all of the files, and read each one in.
+    # We read these into a list called 'ring' and rings'. Maybe 'grid' would be a better name, but we
+    # use that below already.
     
     for i,run_full in enumerate(runs_full):
 
         run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
-        ring = nh_ort_track3_read(run)             # Read the data array itself
+        ring = nh_ort_track3_read(run)             # Read the data array itself.
         ring.print_info()
 
         # Save this entire ring (including 3D density array) to memory. 
@@ -287,6 +289,8 @@ def nh_ort_track4_calibrate():
                         # Axis=0 means to sum along all of the 'is_good' arrays -- that is, ones that
                         # match the proper subset.
                         
+                        # Units of 'img' are s.t. img * E_0 = unitless.
+                        
                         img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
                                  np.sum(density_flattened_arr[is_good], axis=0) /
                                  (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_subsets
@@ -315,7 +319,8 @@ def nh_ort_track4_calibrate():
                     val_img_typical = np.percentile(img, 99)     # Get 'brightest region' level. Good to use.
                     val_img_med     = np.median(img[img != 0])   # Get median of non-zero pixels. Usually too low.
 
-                    # Now calculate the actual calibration coefficient
+                    # Now calculate the actual calibration coefficient. 
+                    # E_0 is the dust production rate, particles/km2/sec. 
                     
                     E_0_i = iof_limit_ring / val_img_typical
                     
@@ -411,12 +416,13 @@ def nh_ort_track4_calibrate():
     # At each of these combinations, we will want to find the *input* parameters that match this --
     # specifically, all of the subsets.
     
-    do_short = False
+    do_short = True
 
     if do_short:
-        t = t[4:5]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
+        t = t[0:1]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
         
-    for k,t_i in enumerate(t):   # Loop 
+    for k,t_i in enumerate(t):   # Loop over every element in the combination of output parameters,
+                                 # which have already been tabulated in table 't'.  
         
         print(f'Starting output {k}/{len(t)}')
         
@@ -457,9 +463,12 @@ def nh_ort_track4_calibrate():
         D4D   = np.zeros((num_b, 200, 200, 200))
         
         hbt.figsize((6,6))
+        
         # Now that we have found the values of b (=size), loop over them
-        i = 0
-        for b_i in np.arange(b_min, b_max+1):
+        
+        i = 0  # i stores the particle size index
+        
+        for b_i in np.arange(b_min, b_max+1):  # Sum over particle size
             
             D3D     = np.zeros((200, 200, 200))   # Create the 3D distribution, for a given particle size
             
@@ -474,26 +483,23 @@ def nh_ort_track4_calibrate():
             is_good = ( np.logical_and( (speed_arr == speed_i),
                           np.logical_and( ((np.abs(beta_i - beta_arr) / beta_i) < epsilon),
                                           (body_id_arr == 'ort2-0003') ) ) )
+
             # Finally, sum up all of the appropriate subsets, weighted by q, E_0, sarea, etc., into an output array
             # This array is in units of # per km3.  MRS slide 6.6.
             
             for j in np.where(is_good)[0]:
                 D3D += E_0_i * sarea * (s_i**q_i) * ds_i * rings[j].density / dxdydz_km3
 
-# ** For reference, the equation from above, for calculating E0:
+# ** For reference, the equation for calculating E0 is:
 #                        img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
 #                                 np.sum(density_flattened_arr[is_good], axis=0) /
 #                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_subsets
 #                        E_0_i = iof_limit_ring / max(img)
 
-                
-            # And save to the 4D array
+            # And save the 3D array for this particle size, into the 4D array
             
             D4D[i] = D3D
             i += 1
-#            print(f'Created ouput array D3D for s={s_i:.2} mm')
-#            print(f'  Copied into D4D for albedo={albedo_i}, q={q_i}, rho={rho_i}, speed={speed_i}')
-#            print('---')
         
         # Plot slices thru these cubes, to the screen
         
@@ -503,21 +509,30 @@ def nh_ort_track4_calibrate():
         beta = 10**(b/3)                                        # QR parameter. Larger, for smaller grains
         s    = 5.7e-4 * (1 + 1.36 * albedo_i) / (rho_i * beta)  # Particle size, in mm
         
-        # Now call a routine to write the 4D  
+        # Now created a 'track4_grid' object to store this new 4D array  
 
         grids_i = nh_ort_track4_grid(D4D)
         grids_i.set_parameters(albedo = albedo_i, speed=speed_i, q=q_i, rho=rho_i, 
                                b = list(b), s = list(s), beta = list(beta),
                                resolution_km = (ring.km_per_cell_x, ring.km_per_cell_y, ring.km_per_cell_z))  
         
-        hbt.figsize((20,20))
-        hbt.set_fontsize(7)
-        grids_i.plot(axis_sum=0)
-        grids_i.plot(axis_sum=1)
-        grids_i.plot(axis_sum=2)
+        # Make a plot of this array, in various slices
+        
+        do_plot_xyz_slices = False
+
+        if do_plot_xyz_slices:
+            hbt.figsize((20,20))
+            hbt.set_fontsize(7)
+            grids_i.plot(axis_sum=0)
+            grids_i.plot(axis_sum=1)
+            grids_i.plot(axis_sum=2)
+        
+        # Save the array to disk. We will use this saved file to create output for Doug Mehoke.
+        
         grids_i.write()
         
         # Now plot the max optical depth summed for all sizes, as a reality check
+    
         
         hbt.set_fontsize(10)
         hbt.figsize((6,6))
@@ -525,296 +540,6 @@ def nh_ort_track4_calibrate():
 
         print('---')
         
-    # Finally, do a weighted sum of all the planes, and plot it.
-    # Based on the prelim data, we should 
-    
-#    plot_flattened_grids(np.sum(density_flattened_arr * weighting, axis=0))
-#    
-#    plt.imshow(stretch(np.sum(density_flattened_arr * weighting, axis=0)))
-#    plt.imshow((np.sum(density_flattened_arr * weighting, axis=0)))
-#    plt.show()
-
-# =============================================================================
-# Define a class to handle all of the details of the Track-4 grids.
-# This class does not create the grids, but it does read, write, plot, and fly thru.
-# The ultimate goal of this class is to create the time-dependent particle densities that
-# get given to Doug Mehoke for Track 5.
-#     
-# =============================================================================
-    
-#class ort_track4_grid():
-#    
-#    def __init__(self, grid_4d):
-#    
-#        """
-#        Save the grid to the class, and do any initialization.
-#        """
-#        
-#        self.grid_4d = grid_4d
-#        
-#        self.num_grids = hbt.sizex(grid_4d)
-#        
-#        self.name_trajectory = 'primary'
-#        
-#        self.name_test       = 'ort2-ring' 
-#        
-#        self.axis_sum = 0   # Which axis do we sum along for images? Should be as visible from Sun and/or SC.
-#        
-## =============================================================================
-## Set all ring parameters based on passed-in values
-## =============================================================================
-#    
-#    def set_parameters(self, 
-#                             albedo=None, speed=None, q=None, rho=None,   # These are the physical params,
-#                                                                          # and they go into the filename and DPH sims.
-#                             b=None, beta=None, s=None,                   # These are the particle sizes we sum over.
-#                                                                          # They are used for plotting, but not else.
-#                             name_trajectory=None,
-#                             name_test=None):
-#        """
-#        Save the parameters corresponding to a run.
-#
-#        parameters:
-#            albedo, speed, q, rho    -- These are for the runs. One per 4D grid.
-#            b, beta, s    -- These are for particle size, one per grid.
-#        """
-#                                       
-#        if albedo:
-#            self.albedo = albedo
-#
-#        if speed:
-#            self.speed = speed
-#                                                                                      
-#        if q:
-#            self.q = q
-#
-#        if speed:
-#            self.rho = rho
-#            
-#        # Now process the keywords related to particle size. These should each have the same length as .num_grids.
-#        
-#        if b:
-#            self.b = b
-#
-#        if beta:
-#            self.beta = beta
-#                                                                                      
-#        if s:
-#            self.s = s
-#
-#        if name_test:
-#            self.beta = beta
-#                                                                                      
-#        if name_test:
-#            self.s = s
-#
-## =============================================================================
-## Make plots of flattened grids, one plot for each particle size
-## =============================================================================
-#                                                         
-#    def plot(self):
-#        
-#        """
-#        Make a plot of all of the sub-grids in a grid. Each one is flattened, and they are all ganged up.
-#        """
-#        
-#        hbt.figsize((15,15))
-#        for i in range(self.num_grids):
-#            b_i     = self.amax(b) - i     # b goes in opposite order from size, so plot it backwards.
-#            beta_i  = beta[i]              # Calc beta so we can get size. MRS slide 5.5
-#            s_i     = s[i]                 # Particle size. MRS slide 6.4. Millimeters.
-#   
-#            plt.subplot(1, self.num_grids, i+1)
-#            plt.imshow(stretch(np.sum(self.grid_4d[i], axis=self.axis_sum)))
-#            plt.title(r's={:.2f} mm, $\beta$={:.4f}'.format(s_i, beta_i))
-#            plt.tight_layout()
-#        plt.show()
-#        print(f'  albedo={self.albedo}, q={self.q}, rho={self.rho}, speed={self.speed}')
-#        print('---') 
-#
-#
-## =============================================================================
-## Create the output filename automatically, based on the parameter values
-## =============================================================================
-#
-#    def create_filename(self):
-#               
-#        str_traj = self.name_trajectory
-#        
-#        str_test = 'ort2-ring'
-#        
-#        str_speed = 'v2.2'
-#        
-#        str_qej = 'q{:3.1f}'.format(self.q_dust)
-#        
-#        str_albedo = 'pv{:4.2f}'.format(self.albedo)
-#        
-#        str_rho = 'rho1.00'
-#        
-#        str_inc = 'inc{:4.2f}'.format(self.inclination)
-#        
-#        file_out = f"{str_test}_{str_traj}_{str_speed}_{str_qej}_{str_albedo}_{str_rho}_{str_inc}.dust"
-#                        
-#        return file_out
-#    
-## =============================================================================
-## Fly a trajectory through the grids and sample it
-## =============================================================================
-#        
-#    def fly_trajectory(self, density_4d, name_observer, et_start, et_end, dt):
-#        """
-#        Now that all parameters are set, sample the ring along a flight path.
-#        
-#        Frame is assumed to be MU69 sunflower frame. XYZ are defined as per that.
-#        
-#        MU69 is assumed to be at the central cell of this current array.
-#        
-#        
-#        Parameters
-#        ----
-#        
-#        density_4d: 
-#            4D array of shape (n_planes, num_dx, num_dy, num_dz). Typically (7, 200, 200, 200).
-#        
-#        name_observer:
-#            Name of the spacecraft. Typically 'New Horizons.'
-#            
-#        et_start:
-#            Start of sampling time
-#            
-#        et_end:
-#            End of sampling time
-#            
-#        dt:
-#            Sampling interval
-#            
-#        dx_km, dy_km, dz_km: grid sizes in km
-#        
-#        """
-#    
-#        # Save the passed-in parameters in case we need them 
-#        
-#        self.et_start = et_start
-#        self.et_end   = et_end
-#        self.dt       = dt
-#        
-#        self.name_observer = name_observer
-#        
-#        # Set up the output time array
-#        
-#        num = math.ceil( (et_end - et_start) / dt.to('s').value ) + 1
-#        
-#        et_t = hbt.frange(int(et_start), int(et_end), num)
-#        
-#        # Calc offset in DT from C/A time
-#            
-#        delta_et_t = et_t - np.mean(et_t)
-#        
-#        # Loop over et
-#        
-#        radius_t = []
-#        x_t      = []
-#        y_t      = []
-#        z_t      = []
-#        v_t      = [] # Velocity
-#        lon_t    = []
-#        lat_t    = []
-#        density_t= []
-#        bin_x_t  = []
-#        bin_y_t  = []
-#        bin_z_t  = []
-#        
-#        for i,et_i in enumerate(et_t):
-#    #            (st, lt) = sp.spkezr(self.name_target, et_i, 'J2000', self.abcorr, self.name_observer)  
-#                                                                    # Gives RA/Dec of MU69 from NH
-#            (st, lt) = sp.spkezr(self.name_observer, et_i, self.frame, self.abcorr, self.name_target)
-#                                                                    # Get position of s/c in MU69 frame!
-#            (radius, lon, lat) = sp.reclat(st[0:3])
-#            
-#            # Get the lon/lat wrt time. Note that for MU69 flyby, the lat is always positive.
-#            # This is non-intuituve, but it is because the MU69 Sunflower frame is defined s.t. the ring
-#            # is in the XZ plane. 
-#            # In this plane, indeed NH stays 'above' MU69 the whole flyby, with lat always positive.
-#            
-#            radius_t.append(radius)
-#            lon_t.append(lon)
-#            lat_t.append(lat)
-#    
-#            # Get the XYZ positions wrt time.
-#        
-#            x_t.append(st[0])
-#            y_t.append(st[1])
-#            z_t.append(st[2])
-#            
-#            v_t.append( sp.vnorm(st[3:6]) )
-#                
-#        # Convert into bin values. This is vectorized.
-#        # ** If values exceed the largest bin, then the index returned will be too large for the density lookup!
-#        
-#        bin_x_t = np.digitize(x_t, self.x_1d)
-#        bin_y_t = np.digitize(y_t, self.y_1d)
-#        bin_z_t = np.digitize(z_t, self.z_1d)
-#        
-#        v_t = np.array(v_t) * u.km/u.s
-#        
-#        # If indices are too large, drop them by one. This just handles the edge cases so the code doesn't crash.
-#        
-#        bin_x_t[bin_x_t >= len(self.x_1d)] = len(self.x_1d)-1
-#        bin_y_t[bin_y_t >= len(self.y_1d)] = len(self.y_1d)-1
-#        bin_z_t[bin_z_t >= len(self.z_1d)] = len(self.z_1d)-1
-#        
-#        # Now that we have all the XYZ bins that the s/c travels in, get the density for each one.
-#        # We should be able to do this vectorized -- but can't figure it out, so using a loop.
-#        
-#        number_t = 0. * et_t
-#        
-#        for i in range(len(et_t)):
-#            number_t[i] = self.number_arr[bin_x_t[i], bin_y_t[i], bin_z_t[i]]  # Number per km3
-#    
-#        # ** This gives us number density at the smallest binsize. We then need to apply n(r), to get 
-#        # density at all other bin sizes.
-#        # Make a cumulative sum of the density. We don't really need this, but just for fun.
-#        
-#        number_cum_t       = np.cumsum(number_t)
-#    
-#        # Now for fun, calculate the number of grains that intercept a s/c of a given area.
-#        # We do this calc very crudely, just by taking the area of s/c vs area of a bin edge. We are ignoring
-#        # the slant path of the s/c, so we could underestimate the flux by up to sqrt(3).
-#        
-#        # Calc the fraction of the bin volume that the s/c sweeps up during its passage. 
-#        
-#        # Get the binvolume, in km3, as an integer
-#        
-#        binvol = (self.binsize_3d[0] * self.binsize_3d[1] * self.binsize_3d[2])
-#    
-#        # Calc the fractional ratio between volume of a bin, and volume that s/c sweeps up in its path thru the bin.
-#        
-#        fracvol_t = ( (self.area_sc * v_t * self.dt) / (binvol) ).to(1).value
-#    
-#        number_sc_t = number_t * fracvol_t
-#        
-#        number_sc_cum_t = np.cumsum(number_sc_t)
-#            
-#        # Save all variables so they can be retrieved
-#        
-#        self.radius_t      = radius_t
-#        self.et_t          = et_t
-#        self.delta_et_t    = delta_et_t
-#        self.bin_x_t       = bin_x_t
-#        self.bin_y_t       = bin_y_t
-#        self.bin_z_t       = bin_z_t
-#        self.number_t      = number_t
-#        self.number_sc_t   = number_sc_t
-#        self.number_sc_cum_t=number_sc_cum_t
-#        self.number_cum_t  = number_cum_t
-#        self.lon_t         = lon_t
-#        self.lat_t         = lat_t
-#        self.x_t           = x_t
-#        self.y_t           = y_t
-#        self.z_t           = z_t
-#        self.v_t           = v_t
-#        
-#        self.radius_t = radius_t  # This is distance from the center, in 3D coords. Not 'ring radius.'
            
 # =============================================================================
 # Run the function

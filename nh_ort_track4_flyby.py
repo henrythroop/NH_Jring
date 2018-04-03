@@ -108,9 +108,10 @@ def nh_ort_track4_flyby():
 
     # Create an output table, Astropy format
     
-    t = Table(names = ['trajectory', 'q_dust', 'inclination', 'albedo', 'r_c [mm]', 
-                       'IoF > r_c', 'IoF full', 'tau > r_c', 'n_hits > r_c', 'n_hits full', f'PrLOM > r_c'],
-              dtype = ['U30', float, float, float, float, float, float, float, float, float, float]  )
+    t = Table(names = ['trajectory', 'speed', 'q_dust', 'albedo', 'rho',
+                       'tau_max', 'tau_typical', 'iof_max', 'iof_typical'],
+              dtype = ['U30', float, float, float, float, 
+                       float, float, float, float]  )
     
     # Start up SPICE if needed. If we change the kernel file, we need to restart python.
     
@@ -120,11 +121,38 @@ def nh_ort_track4_flyby():
     # Define the number of grid locations on each side.
     # In the 'simulated' version, we used 200, not 201.
 
+    do_short = False
+    
+    if do_short:
+        files = files[0:5]
+
+    iof_ring = 2e-8
+    
+    file = files[0]  # Just for testing. Can ignore these.
+    i=0
+    
     for i,file in enumerate(files):
         print(f'Starting file {i}/{len(files)}')
               
         grid = nh_ort_track4_grid(file)    # Load the grid from disk. Uses gzip, so it is quite slow (10 sec/file)
      
+        do_adjust_iof = True
+        
+        if do_adjust_iof:
+            grid.calc_tau()
+            print(f'XXX WARNING: GRID I/F_TYP = {grid.iof_typ:.2e} !!!')       
+            factor = iof_ring / grid.iof_typ   
+            grid.density *= factor               # Change the grid density to match the intended density
+            grid.calc_tau()
+            
+            print(f'XXX WARNING: ADJUSTED GRID DENSITY TO MATCH I/F = {iof_ring} !!!')
+            
+            
+        do_plot = False                    # Make a plot of optical depth?
+        
+        if do_plot:
+            grid.plot_tau()
+        
         n_dx = hbt.sizex(grid.density[0])
         n_dy = hbt.sizey(grid.density[0]) 
         n_dz = hbt.sizez(grid.density[0]) 
@@ -156,7 +184,7 @@ def nh_ort_track4_flyby():
  
         # Make a few diagnostics plots of our path through the system
         # Only do this on the first time thru the loop.
-        
+     
         do_plots_geometry = True
         
         if (do_plots_geometry and (i==0)):
@@ -197,23 +225,40 @@ def nh_ort_track4_flyby():
 
         # Make slice plots thru the grid
         
-        hbt.fontsize(8)
-        hbt.figsize((20,5))
-        grid.plot(axis_sum=0)
-        grid.plot(axis_sum=1)
-        grid.plot(axis_sum=2)
-        
-        hbt.fontsize(10)
+        do_plot_slices_xyz = False
+
+        if do_plot_slices_xyz:
+            hbt.fontsize(8)
+            hbt.figsize((20,5))
+            grid.plot(axis_sum=0)
+            grid.plot(axis_sum=1)
+            grid.plot(axis_sum=2)
+            
+            hbt.fontsize(10)
         
         # Make a plot of optical depth
         
-        grid.plot_tau()
+        do_plot_tau = True
+        if do_plot_tau:
+            grid.plot_tau()
                 
         # Make a plot of the instantaneous count rate
 
-        hbt.figsize((12,5))
+        hbt.figsize((18,5))
 
-        plt.subplot(1,2,1)
+        # Make a plot of the actual density that we give to Doug Mehoke
+        
+        plt.subplot(1,3,1)
+        for j,s in enumerate(grid.s):
+            plt.plot(grid.delta_et_t, grid.number_t[j],
+                     label = 's={:.2f} mm'.format(s))
+        plt.legend()
+        plt.title('Number density [# per km3]'.format(grid.area_sc))
+        plt.xlabel('ET')
+        plt.yscale('log')
+        plt.ylabel('# of Impacts')
+
+        plt.subplot(1,3,2)
         for j,s in enumerate(grid.s):   # 's' is dust size
             plt.plot(grid.delta_et_t, grid.number_sc_t[j],
                      label = f's={s:.2f} mm')
@@ -225,7 +270,7 @@ def nh_ort_track4_flyby():
 
         # Make a plot of the cumulative count rate
         
-        plt.subplot(1,2,2)
+        plt.subplot(1,3,3)
         for j,s in enumerate(grid.s):
             plt.plot(grid.delta_et_t, grid.number_sc_cum_t[j],
                      label = 's={:.2f} mm'.format(s))
@@ -235,16 +280,17 @@ def nh_ort_track4_flyby():
         plt.yscale('log')
         plt.ylabel('# of Impacts')
         plt.axhline(y = 1, linestyle = '--', alpha = 0.1)    
+
         plt.show()
         
-        # Now add an entry to the table. This is a table that lists all of the results -- e.g., 
+        
+        # Now add an entry to the table. This is a table that lists all of the results -- e.g., max_tau, count rate etc
         # one line per grid
 
-#        t.add_row(vals=[name_trajectory, q_dust_i, inclination_i, albedo_i, r_crit,
-#                        IoF_rc[bin_a_flyby], IoF[bin_a_flyby], 
-#                        tau_rc[bin_a_flyby], 
-#                        n_hits_rc[bin_a_flyby], n_hits[bin_a_flyby],
-#                        pr_lom_rc[bin_a_flyby]])
+        t.add_row(vals=[grid.name_trajectory, grid.speed, grid.q, grid.albedo, grid.rho, 
+                        grid.tau_max, grid.tau_typ,
+                        grid.iof_max, grid.iof_typ])
+                        
 
         # Output the dust population for this run to a file. This is the file that Doug Mehoke will read.
         
@@ -255,8 +301,50 @@ def nh_ort_track4_flyby():
     # Print the table
     
     t.pprint(max_width=-1)
+    
+    # Save the table as output
+    
+    file_out = os.path.join(os.path.expanduser(dir), 'nh_ort_track4_table.pkl')
+    
+    lun = open(file_out, 'wb')
+    pickle.dump(t,lun)
+    lun.close()
+    print(f'Wrote: {file_out}')
 
+# =============================================================================
+# Plot some tabulated results.
+# One-off function.
+# =============================================================================
 
+def plot_table():
+    file_in = '/Users/throop/Data/ORT2/throop/track4/nh_ort_track4_table.pkl'
+    
+    lun = open(file_in, 'rb')
+    t = pickle.load(lun)
+    lun.close()
+    
+    hbt.figsize((10,8))
+    
+    xvals = ['albedo', 'speed', 'rho', 'q_dust']
+    i = 0
+    for xval in xvals:
+        plt.subplot(2,2,i+1)
+        plt.plot(t[xval], t['iof_max'], marker = 'o', linestyle='none', label = 'I/F Max')
+        plt.plot(t[xval], t['iof_typical'], marker = 'o', linestyle='none', label = 'I/F Typ')
+        plt.xlabel(xval)
+        plt.yscale('log')
+        plt.legend()
+        i +=1
+    plt.tight_layout()    
+    plt.show()
+
+    t.sort(['speed', 'q_dust', 'albedo', 'rho'])
+    t.pprint(max_width=-1, max_lines=-1)
+
+# =============================================================================
+# Call the main function when this program as run
+# =============================================================================
+    
 if (__name__ == '__main__'):
     nh_ort_track4_flyby()
     
