@@ -384,9 +384,9 @@ class nh_ort_track4_grid:
         
         str_test = 'ort2-ring'
         
-        str_speed = 'v{:3.1f}'.format(self.speed)
+        str_speed = 'v{:3.1f}'.format(abs(self.speed))
         
-        str_q = 'q{:3.1f}'.format(self.q)
+        str_q = 'q{:3.1f}'.format(abs(self.q))
         
         str_albedo = 'pv{:4.2f}'.format(self.albedo)
         
