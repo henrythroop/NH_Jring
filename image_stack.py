@@ -96,6 +96,14 @@ class image_stack:
             
         """
         
+        # If we are passed a pickel file, then restore the file from pickle, rather than by reading in explicity.
+        # I haven't tested this -- not sure if it works.
+        
+        if 'pkl' in dir:
+            self.file_save = dir
+            self.load()
+            return
+        
         name_target = 'MU69'
             
         do_lorri_destripe = True  # I didn't use this at first, but it is a clear improvement.
@@ -533,6 +541,9 @@ class image_stack:
         
         Sets the value of self.wcs to reflect the output image.
         
+        As per Amanda Zangari's rules for the ORT, the parameters should be chosen to match the central
+        value of the stack -- not the first or last elements.
+        
         Return values
         ----
         
@@ -608,7 +619,7 @@ class image_stack:
             
             dx = shift_x_pix[w_i]
             dy = shift_y_pix[w_i]
-            shift = (dy*zoom, dx*zoom) # For roll(), axis=0 is y, and axis=1 is x! Opposite from normal, but easy to verify.
+            shift = (dy*zoom, dx*zoom) # For roll(), axis=0 is y, and axis=1 is x! Opp. from normal, but easy to verify.
         
             # Apply the proper shift in X and Y. What I am calling 'x' and 'y'             
             # Sub-pixel shifting is in theory better. But in reality it makes a trivial difference over
@@ -738,3 +749,69 @@ def dn2iof(val, mode):
 def wcs_translate_radec(wcs, dra, ddec):
     pass
 
+# =============================================================================
+# Define a test function which is called when we run this file. This is just an example of using the class.
+# =============================================================================
+    
+if (__name__ == '__main__'):
+
+    # Restore a bunch of stacks from a pickle file. This is not the usual way to to this.
+    
+#    file = '/Users/throop/Data/ORT2/throop/backplaned/stacks_blink_ORT2_n5_z4.pkl'
+#    print("Reading: " + file)           
+#    lun = open(file, 'rb')
+#    (stack_field, img_field, stack_haz, img_haz, wcs_haz) = pickle.load(lun)
+#    lun.close()
+    
+    # Load a stack
+    
+    dir = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ03/'
+    stack = image_stack(dir)
+    
+    # Plot a set of images from it
+    
+    i = 1
+    for i in range(4):
+        plt.subplot(2,2,i+1)
+        plt.imshow(stretch(stack.image_single(i)))
+        plt.title(f"i={i}, et = {stack.t['et'][i]}")
+    plt.show()
+
+    # Align the stack
+    
+    radec_mu69 = (4.794979838984583, -0.3641418801015417)    
+    stack.align(method = 'WCS', center = radec_mu69)
+
+    # Flatten the stack
+    
+    stack.padding = 55
+    zoom = 2
+    (arr_flat, wcs) = stack.flatten(zoom=zoom)
+    
+    
+    # Flatten it
+    
+    stack_flat = stack.flatten()
+    
+#    dir = /Users/throop/Data/ORT2/throop/backplaned/'
+    
+#            lun = open(self.file_save, 'rb')
+#        self = pickle.load(lun)
+#        (self.t, self.indices, 
+#                     self.et,
+#                     self.pixscale_x_km,
+#                     self.pixscale_y_km,
+#                     self.pixscale_x,
+#                     self.pixscale_y,
+#                     self.dist_target_km,
+#                     self.dx_pix, self.dy_pix, self.size) =\
+#          pickle.load(lun)
+#        lun.close() 
+
+
+
+#    s = image_stack(dir)
+#        /Users/throop/Data/ORT2/throop/backplaned/stacks_blink_ORT2_n5_z4.pkl            
+#
+#    stacks_blink_ORT2_n5_z4.pkl
+#    dir = /Users/throop/Data/ORT2/throop/backplaned/stacks_blink_ORT2_n5_z4.pkl
