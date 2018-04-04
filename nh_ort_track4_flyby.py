@@ -71,6 +71,18 @@ from nh_ort_track4_grid            import nh_ort_track4_grid    # Includes .read
 # be generated and saved to disk. This routine loops over them, and creates the 
 # output files for Doug Mehoke, of particle density vs. time.   
 #
+# To run Track 4:
+#
+#   - Execute nh_track4_calibrate.py . This reads in all of DPH/DK's individual dust trajectories,
+#     and merges them into '4D' dust grids, which are properly calibrated to match a given I/F.
+#     Typically this reads in 108 files, and outputs 64 files, named *.grids4d.gz. These grids
+#     are essentially just matrices (7, 200, 200, 200) with the dust density as a func of XYZ and grain size.
+#
+#   - Then execute nh_ort_track4_flyby.py. This reads all of the 64 grids files, and 
+#     outputs a list of dust densities vs. time, for each one. 
+#     Output is a table, essentially showing dust density (in # km-3) as a func of grain size, and time.
+#     Typically 64 files, *.dust .
+#
 # This is a regular function, but it calls the class method nh_ort_track4_grid.fly_trajectory().
 # =============================================================================
 
