@@ -74,6 +74,20 @@ from nh_ort_track3_read            import plot_flattened_grids_table
 # This class does not create the grids, but it does read, write, plot, and fly thru.
 # The ultimate goal of this class is to create the time-dependent particle densities that
 # get given to Doug Mehoke for Track 5.
+#
+# To run Track 4:
+#
+#   - Execute nh_track4_calibrate.py . This reads in all of DPH/DK's individual dust trajectories,
+#     and merges them into '4D' dust grids, which are properly calibrated to match a given I/F.
+#     Typically this reads in 108 files, and outputs 64 files, named *.grids4d.gz. These grids
+#     are essentially just matrices (7, 200, 200, 200) with the dust density as a func of XYZ and grain size.
+#
+#   - Then execute nh_ort_track4_flyby.py. This reads all of the 64 grids files, and 
+#     outputs a list of dust densities vs. time, for each one. 
+#     Output is a table, essentially showing dust density (in # km-3) as a func of grain size, and time.
+#     Typically 64 files, *.dust .
+#
+# The class definition and function are in the current file (NH_ORT_TRACK4_GRID.PY).
 #     
 # =============================================================================
     
@@ -304,18 +318,60 @@ class nh_ort_track4_grid:
         zpos = hbt.frange(-nz/2, nz/2)*self.resolution_km[2]
 
         extent = np.array((ypos[0], ypos[-1], zpos[0], zpos[-1]))/1000
-        
-        stretch = astropy.visualization.PercentileInterval(stretch_percent)
-        
+
         self.calc_tau()
         
-        plt.imshow(stretch(self.tau_2d), origin=origin, extent=extent)
+        do_stretch_linear = False
+
+        img = self.tau_2d
         
-        plt.title(f'All sizes, tau_(max,typ) = ({self.tau_max:.2e}, {self.tau_typ:.2e}), ' + 
-                  f'I/F_(max,typ) = ({self.iof_max:.2e}, {self.iof_typ:.2e})')
-        plt.xlabel('Z [km]')
-        plt.ylabel('X [km]')
+        # Stretch the image, as appropriate
+        
+        val = np.percentile(img[img > 0], 50)  # Set a constant offset for the log stretch
+
+        img_stretch = hbt.logstretch(img, val)
+        if do_stretch_linear:
+            img_stretch = astropy.visualization.PercentileInterval(98)(img)
+      
+        # Create a colorbar, in the plot itself
+        
+        colorbar = hbt.frange(np.amin(img_stretch), np.amax(img_stretch), hbt.sizey(img_stretch))
+        img_stretch[:,-1] = colorbar  # There is probably a better way to do this?
+        img_stretch[:,-2] = colorbar
+        img_stretch[:,-3] = colorbar
+        img_stretch[:,-4] = colorbar
+        img_stretch[:,-5] = colorbar
+
+        # Render the image
+        
+        plt.imshow(img_stretch, origin=origin, extent=extent)
+                
+        # Create the labels for the colorbar, and individually place them
+            
+        num_ticks_colorbar = 5 # Number of vertical value to put on our colorbar
+        
+        for j in range(num_ticks_colorbar):
+            range_stretch = hbt.frange(np.amin(img_stretch), np.amax(img_stretch), num_ticks_colorbar)
+            val_text = hbt.logstretch_invert(range_stretch[j], val)
+#            val = round(val)  # Convert to zero if it is very close
+            xval = 0.55*np.max(extent)
+            yrange = np.max(extent)-np.min(extent)
+            yval = np.min(extent) + 0.02*yrange + (j/(num_ticks_colorbar-1) * 0.92*yrange)
+            if not(do_stretch_linear):
+                plt.text(xval, yval, f'{val_text:.2e}', color = 'white') # Label the colorbar, if log stretch only.
+                    
+        
+        plt.title(f'Tau, Merged, {len(self.s)} sizes')
+        
+#        tau_(max,typ) = ({self.tau_max:.1e}, {self.tau_typ:.1e}), ' + 
+#                  f'I/F_(max,typ) = ({self.iof_max:.1e}, {self.iof_typ:.1e})')
+        
+        plt.xlabel('Z [1000 km]')
+        plt.ylabel('X [1000 km]')
         plt.show()
+
+
+
 
 # =============================================================================
 # Calculate optical depth tau and iof in various ways through the grid
@@ -344,7 +400,7 @@ class nh_ort_track4_grid:
                         
             tau_i = np.sum(self.density[j], axis=1) * (math.pi * s**2) * 1e-12  # units of mm2/km2, so then convert
             tau += tau_i
-            print(f'Summing with size = {s} mm')
+#            print(f'Summing with size = {s} mm')
         
         tau_max     = np.amax(tau)
         iof_max     = tau_max * self.albedo

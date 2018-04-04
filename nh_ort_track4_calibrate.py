@@ -417,10 +417,10 @@ def nh_ort_track4_calibrate():
     # At each of these combinations, we will want to find the *input* parameters that match this --
     # specifically, all of the subsets.
     
-    do_short = False
+    do_short = True
 
     if do_short:
-        t = t[0:5]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
+        t = t[52:55]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
         
     for k,t_i in enumerate(t):   # Loop over every element in the combination of output parameters,
                                  # which have already been tabulated in table 't'.  
@@ -523,7 +523,7 @@ def nh_ort_track4_calibrate():
         
         # Make a plot of this array, in various slices
         
-        do_plot_xyz_slices = False
+        do_plot_xyz_slices = True
 
         if do_plot_xyz_slices:
             hbt.figsize((20,20))
@@ -538,7 +538,6 @@ def nh_ort_track4_calibrate():
         
         # Now plot the max optical depth summed for all sizes, as a reality check
     
-        
         hbt.set_fontsize(10)
         hbt.figsize((6,6))
         grids_i.plot_tau()

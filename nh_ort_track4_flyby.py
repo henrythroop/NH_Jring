@@ -73,10 +73,13 @@ from nh_ort_track4_grid            import nh_ort_track4_grid    # Includes .read
 #
 # This is a regular function, but it calls the class method nh_ort_track4_grid.fly_trajectory().
 # =============================================================================
+
+
     
 def nh_ort_track4_flyby():
 
 #    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
+    
     name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
 
     stretch_percent = 99
@@ -128,7 +131,7 @@ def nh_ort_track4_flyby():
 
     iof_ring = 2e-8
     
-    file = files[0]  # Just for testing. Can ignore these.
+    file = files[54]  # Just for testing. Can ignore these.
     i=0
     
     for i,file in enumerate(files):
@@ -146,34 +149,14 @@ def nh_ort_track4_flyby():
             grid.calc_tau()
             
             print(f'XXX WARNING: ADJUSTED GRID DENSITY TO MATCH I/F = {iof_ring} !!!')
-            
-            
-        do_plot = False                    # Make a plot of optical depth?
-        
-        if do_plot:
-            grid.plot_tau()
-        
-        n_dx = hbt.sizex(grid.density[0])
-        n_dy = hbt.sizey(grid.density[0]) 
-        n_dz = hbt.sizez(grid.density[0]) 
     
-    # Define the size of each grid box
-    # Wiki said 25 km, but should be 250.
-    # XYZ sizes are tracked separately, but really should be identical.
-    
-        dx_bin = grid.resolution_km[0]
-        dy_bin = grid.resolution_km[1]
-        dz_bin = grid.resolution_km[2]
-        
     # Load the trajectory parameters
 
         et_ca = int( sp.utc2et(utc_ca) )  # Force this to be an integer, just to make output cleaner.
         
         et_start = et_ca - dt_before.to('s').value
         et_end   = et_ca + dt_after.to('s').value
-                
-        do_test = False
-        
+                        
         grid.frame       = frame
         grid.name_target = name_target
         
@@ -182,46 +165,13 @@ def nh_ort_track4_flyby():
 
         grid.fly_trajectory(name_observer, et_start, et_end, dt)
  
-        # Make a few diagnostics plots of our path through the system
-        # Only do this on the first time thru the loop.
+        # If the first time thru loop, make plot of our path through the system
      
         do_plots_geometry = True
         
         if (do_plots_geometry and (i==0)):
             
-            hbt.figsize((8,5))
-            plt.subplot(2,3,1)
-            plt.plot(grid.delta_et_t, np.array(grid.radius_t)/1000)
-            plt.ylim((0,np.amax(grid.radius_t)/1000))
-            plt.title('Radius')
-            plt.xlabel('dt from CA [sec]')
-            plt.ylabel('Radius [Mm]')
-            
-            plt.subplot(2,3,2)
-            plt.plot(grid.delta_et_t, np.array(grid.lat_t) * hbt.r2d)
-            plt.title('Lat [deg]')
-            
-            plt.subplot(2,3,3)
-            plt.plot(grid.delta_et_t, np.array(grid.lon_t) * hbt.r2d)
-            plt.title('Lon [deg]')
-            
-            plt.subplot(2,3,4)
-            plt.plot(grid.delta_et_t, np.array(grid.x_t)/1000)
-            plt.title('X')
-            plt.xlabel('dt from CA [sec]')
-            plt.ylabel('Radius [Mm]')
-            
-            plt.subplot(2,3,5)
-            plt.plot(grid.delta_et_t, np.array(grid.y_t)/1000)
-            plt.title('Y')
-            
-            plt.subplot(2,3,6)
-            plt.plot(grid.delta_et_t, np.array(grid.z_t)/1000)
-            plt.title('Z')
-            
-            plt.tight_layout()
-                        
-            plt.show()
+            grid.plot_trajectory_geometry()
 
         # Make slice plots thru the grid
         
@@ -241,46 +191,61 @@ def nh_ort_track4_flyby():
         do_plot_tau = True
         if do_plot_tau:
             grid.plot_tau()
-                
+
+# =============================================================================
+# Make some plots of count rate vs. time!
+# =============================================================================
+                    
         # Make a plot of the instantaneous count rate
 
         hbt.figsize((18,5))
 
         # Make a plot of the actual density that we give to Doug Mehoke
         
+        # Define a list of colors. This is so we can use colors= argument to set
+        # a marker to show grain size, rather than let plot() auto-assign.
+        
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']  # This is the default color iterator.
+        
         plt.subplot(1,3,1)
         for j,s in enumerate(grid.s):
             plt.plot(grid.delta_et_t, grid.number_t[j],
                      label = 's={:.2f} mm'.format(s))
         plt.legend()
-        plt.title('Number density [# per km3]'.format(grid.area_sc))
-        plt.xlabel('ET')
+        plt.title('Dust number density'.format(grid.area_sc))
+        plt.xlabel('ET from C/A')
         plt.yscale('log')
-        plt.ylabel('# of Impacts')
+        plt.ylabel(r'Dust,, # km$^{-3}$')
 
         plt.subplot(1,3,2)
         for j,s in enumerate(grid.s):   # 's' is dust size
             plt.plot(grid.delta_et_t, grid.number_sc_t[j],
                      label = f's={s:.2f} mm')
-        plt.title('Number of Impacts per sec, A={}'.format(grid.area_sc))
+        plt.title('Impact rate, A={}'.format(grid.area_sc))
         plt.yscale('log')    
-        plt.xlabel('ET')
+        plt.xlabel('ET from C/A')
         plt.legend()
-        plt.ylabel('# of Impacts per sec')
+        plt.ylabel(r'Dust, # Impacts sec$^{{-1}}$')
 
-        # Make a plot of the cumulative count rate
+        # Make a plot of the cumulative count rate. Mark grain sizes here too.
         
         plt.subplot(1,3,3)
         for j,s in enumerate(grid.s):
-            plt.plot(grid.delta_et_t, grid.number_sc_cum_t[j],
-                     label = 's={:.2f} mm'.format(s))
+            plt.plot(grid.delta_et_t, grid.number_sc_cum_t[j],                    # Main plot line
+                     label = 's={:.2f} mm'.format(s), color=colors[j])
+            plt.plot([grid.delta_et_t[-1]], [grid.number_sc_cum_t[j,-1].value],   # Circle to indicate grain size
+                     markersize=(7-j)*2, marker = 'o',                            # Use same color as prev line! 
+                     color=colors[j])
+
         plt.legend()
-        plt.title('Number of Impacts (cumulative), A={}'.format(grid.area_sc))
-        plt.xlabel('ET')
+        plt.title('Number of impacts (cumulative), A={}'.format(grid.area_sc))
+        plt.xlabel('ET from C/A')
         plt.yscale('log')
         plt.ylabel('# of Impacts')
         plt.axhline(y = 1, linestyle = '--', alpha = 0.1)    
 
+        plt.tight_layout()
+        
         plt.show()        
         
         # Now add an entry to the table. This is a table that lists all of the results -- e.g., max_tau, count rate etc
@@ -316,6 +281,7 @@ def nh_ort_track4_flyby():
 # =============================================================================
 
 def plot_table():
+    
     file_in = '/Users/throop/Data/ORT2/throop/track4/nh_ort_track4_table.pkl'
     
     lun = open(file_in, 'rb')
@@ -328,8 +294,8 @@ def plot_table():
     i = 0
     for xval in xvals:
         plt.subplot(2,2,i+1)
-        plt.plot(t[xval], t['iof_max'], marker = 'o', linestyle='none', label = 'I/F Max')
-        plt.plot(t[xval], t['iof_typical'], marker = 'o', linestyle='none', label = 'I/F Typ')
+#        plt.plot(t[xval], t['iof_max'], marker = 'o', linestyle='none', label = 'I/F Max')
+        plt.plot(t[xval], t['iof_typical'], marker = '+', linestyle='none', label = 'I/F Typical')
         plt.xlabel(xval)
         plt.yscale('log')
         plt.legend()
