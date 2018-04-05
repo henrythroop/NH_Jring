@@ -132,6 +132,10 @@ class image_stack:
         
         self.zoom = 1
         
+        # Set a flag to indicate if flattened or not
+        
+        self.flattened = False
+        
         # If a save file exists, then load it, and immediately return
         
         if (os.path.isfile(self.file_save)) and not(do_force):
@@ -534,7 +538,7 @@ class image_stack:
 # Flatten a stack of images as per the currently-set indices
 # =============================================================================
 
-    def flatten(self, method='median', zoom=1, do_subpixel=False, do_wrap=False, padding = 'Auto'):
+    def flatten(self, method='median', zoom=1, do_subpixel=False, do_wrap=False, padding = 'Auto', do_plot=True):
         
         """
         Flatten a stack of images as per the currently-set shift values and indices.
@@ -582,6 +586,10 @@ class image_stack:
             
         """    
         
+        if self.flattened:
+            print('Already flattened!')
+            return
+        
         self.num_planes = np.sum(self.indices)
 
         # Create a 3D output array for all of the images to go into. 
@@ -597,6 +605,7 @@ class image_stack:
         if type(padding) == str:
             if (padding == 'Auto'):
                 pad_xy = (self.calc_padding())[0]
+                print(f'Calculated padding: {pad_xy}')
 
         else:        
             pad_xy = padding
@@ -655,10 +664,11 @@ class image_stack:
         wcs = self.t[0]['wcs']
         
         # Plot Plane 0 to verify accuracy of its WCS
+    
+        if do_plot:    
+            plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0')
         
-        plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0')
-        
-        print(f'WCS for above: {wcs}')
+#        print(f'WCS for above: {wcs}')
         
         # Adjust the WCS 
         
@@ -669,11 +679,11 @@ class image_stack:
         dx_wcs_pix =  self.t['shift_pix_x'][0]  # Experiment with these to get them right.
         dy_wcs_pix =  self.t['shift_pix_y'][0]
         
-        print(f'Calling wcs_translate_pix({-dy_wcs_pix} + {pad_xy}; {-dx_wcs_pix} + {pad_xy})')
+        print(f'Calling wcs_translate_pix({-dy_wcs_pix:.1f} + {pad_xy:.1f}; {-dx_wcs_pix:.1f} + {pad_xy:.1f})')
         
         wcs_translate_pix(wcs, dy_wcs_pix + pad_xy, dx_wcs_pix + pad_xy)
 
-        print(f'WCS after above: {wcs}')
+#        print(f'WCS after above: {wcs}')
         
         # Change the image size, in the WCS, to reflect the larger image size. This is just the CRPIX value
         
@@ -681,13 +691,19 @@ class image_stack:
         
         # Change the pixel scale to reflect the zoom
         
-        wcs.wcs.pc = wcs.wcs.pc / zoom
-        
+        try:
+            wcs.wcs.pc = wcs.wcs.pc / zoom
+        except AttributeError:
+            wcs.wcs.cd = wcs.wcs.cd / zoom
+            
         # And return the WCS along with the image
 
-        plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust')
+        if do_plot:
+            plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust')
 
         print(f'WCS after above: {wcs}')
+        
+        self.flattened = True
         
         return (arr_flat, wcs)
 
@@ -755,18 +771,28 @@ def wcs_translate_radec(wcs, dra, ddec):
     
 if (__name__ == '__main__'):
 
-    # Restore a bunch of stacks from a pickle file. This is not the usual way to to this.
+
+    # Demo function to try out the stack functionality
+
+    plt.set_cmap('Greys_r')
     
-#    file = '/Users/throop/Data/ORT2/throop/backplaned/stacks_blink_ORT2_n5_z4.pkl'
-#    print("Reading: " + file)           
-#    lun = open(file, 'rb')
-#    (stack_field, img_field, stack_haz, img_haz, wcs_haz) = pickle.load(lun)
-#    lun.close()
+    hbt.figsize((10,10))
+    
+    # Start up SPICE if needed
+    
+    if (sp.ktotal('ALL') == 0):
+        sp.furnsh('kernels_kem_prime.tm')
+        
+    stretch_percent = 90    
+    stretch = astropy.visualization.PercentileInterval(stretch_percent) 
     
     # Load a stack
     
+    do_force = True
+    
     dir = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ03/'
-    stack = image_stack(dir)
+#    stack = image_stack(dir, do_force=True, do_save=True)
+    stack = image_stack(dir, do_force=False)
     
     # Plot a set of images from it
     
@@ -777,7 +803,9 @@ if (__name__ == '__main__'):
         plt.title(f"i={i}, et = {stack.t['et'][i]}")
     plt.show()
 
-    # Align the stack
+    # Align the stack.
+    # The values for the shifts (in pixels) are calculated based 
+    # on putting MU69's ra/dec in the center of each frame.
     
     radec_mu69 = (4.794979838984583, -0.3641418801015417)    
     stack.align(method = 'WCS', center = radec_mu69)
@@ -785,33 +813,61 @@ if (__name__ == '__main__'):
     # Flatten the stack
     
     stack.padding = 55
-    zoom = 2
+    zoom = 1
     (arr_flat, wcs) = stack.flatten(zoom=zoom)
+        
+    # Make a plot of ET, showing it for each image and the whole stack
     
+    plt.plot(stack.t['et'], marker = 'o')
+    plt.xlabel('Image number')
+    plt.ylabel('ET')
+    plt.plot(stack.index_central, [stack.et], marker = 'o', color = 'red')
+    plt.show()    
     
-    # Flatten it
-    
-    stack_flat = stack.flatten()
-    
-#    dir = /Users/throop/Data/ORT2/throop/backplaned/'
-    
-#            lun = open(self.file_save, 'rb')
-#        self = pickle.load(lun)
-#        (self.t, self.indices, 
-#                     self.et,
-#                     self.pixscale_x_km,
-#                     self.pixscale_y_km,
-#                     self.pixscale_x,
-#                     self.pixscale_y,
-#                     self.dist_target_km,
-#                     self.dx_pix, self.dy_pix, self.size) =\
-#          pickle.load(lun)
-#        lun.close() 
+# =============================================================================
+#     Now try out stack alignment
+# =============================================================================
 
+    dir1 = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ01/'
+    stack1 = image_stack(dir1, nmax=3, do_force=1)
+    
+    dir3 = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ03/'
+    stack3 = image_stack(dir3)
 
+    radec_mu69 = (4.794979838984583, -0.3641418801015417)    
+    stack1.align(method = 'WCS', center = radec_mu69)  # This sets values stack1.t[0]['shift_pix_x']
+    stack3.align(method = 'WCS', center = radec_mu69)
+    
+    print("Stack 1: padding = {}".format(stack1.calc_padding()[0]))
+    print("Stack 1: shift_pix_xy = {}, {}".format(stack1.t[0]['shift_pix_x'], stack1.t[0]['shift_pix_y']))
+    
+    zoom = 1
+    
+    hbt.figsize((12,12))
+    
+    # Plot individual frames. These work.
+    
+    plot_img_wcs(stretch(stack1.t[0]['data']), stack1.t[0]['wcs'])
+    plot_img_wcs(stretch(stack1.t[1]['data']), stack1.t[1]['wcs'])
+    
+    # Flatten the frames
+    
+    (arr_flat_1, wcs1) = stack1.flatten(zoom = 1)  # Bug: calling this over and over will shift WCS again and again.
+    (arr_flat_3, wcs3) = stack3.flatten(zoom = 1)
+    
+    # Plot the frames afterwards
+    # XXX THESE ARE CORRECT! THE image shifting is done properly.
+    # It is only the WCS translation which is getting messed up.
+    # That is, it is a problem in wcs_translate_pix, or the inputs into it. 
 
-#    s = image_stack(dir)
-#        /Users/throop/Data/ORT2/throop/backplaned/stacks_blink_ORT2_n5_z4.pkl            
-#
-#    stacks_blink_ORT2_n5_z4.pkl
-#    dir = /Users/throop/Data/ORT2/throop/backplaned/stacks_blink_ORT2_n5_z4.pkl
+    plt.imshow(stretch(stack1.image_single(0)))
+    plt.imshow(stretch(stack1.image_single(1)))
+    plt.imshow(stretch(stack1.image_single(2)))
+    
+    
+    # Now WCS is messed up.
+    
+    plot_img_wcs(arr_flat_1, wcs1, title = f'After zoom x{zoom} + adjust')
+    plot_img_wcs(arr_flat_3, wcs3, title = f'After zoom x{zoom} + adjust')
+    
+    plot_img_wcs(arr_flat_3, stack3.t[22]['wcs'], title = f'After zoom x{zoom} + adjust')
