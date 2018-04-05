@@ -116,7 +116,7 @@ class nh_ort_track4_grid:
             self.density = arg
             
         self.num_grids = hbt.sizex(self.density)
-        self.name_trajectory = 'prime'        
+        self.name_trajectory = 'prime'                 # Set as default, but will be changed later     
         self.name_test       = 'ort2-ring'         
         self.axis_sum = 1   # Which axis do we sum along for images? Should be as visible from Sun and/or SC.
                             # 1 → Sum along Y dir, which is Sun dir. This will make sunflower rings visible.  
@@ -424,7 +424,14 @@ class nh_ort_track4_grid:
     def create_filename_track3_grids4d(self):
                
         file_out = self.create_filename_track4()
+                
+        # Remove the 'prime' or 'alternate'
         
+        file_out = file_out.replace('_prime_', '_')
+        file_out = file_out.replace('_alternate_', '_')
+        
+        # Change the suffix
+
         file_out = file_out.replace('.dust', '.grid4d')
                         
         return file_out

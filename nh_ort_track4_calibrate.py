@@ -423,7 +423,7 @@ def nh_ort_track4_calibrate():
     # At each of these combinations, we will want to find the *input* parameters that match this --
     # specifically, all of the subsets.
     
-    do_short = True
+    do_short = False
 
     if do_short:
         t = t[52:55]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
@@ -529,7 +529,7 @@ def nh_ort_track4_calibrate():
         
         # Make a plot of this array, in various slices
         
-        do_plot_xyz_slices = True
+        do_plot_xyz_slices = False
 
         if do_plot_xyz_slices:
             hbt.figsize((20,20))
@@ -537,17 +537,21 @@ def nh_ort_track4_calibrate():
             grids_i.plot(axis_sum=0)
             grids_i.plot(axis_sum=1)
             grids_i.plot(axis_sum=2)
+
+        # Now plot the max optical depth summed for all sizes, as a reality check
+
+        do_plot_tau = False
         
-        # Save the array to disk. We will use this saved file to create output for Doug Mehoke.
+        if (do_plot_tau):
+            hbt.set_fontsize(10)
+            hbt.figsize((6,6))
+            grids_i.plot_tau()
+        
+        # Save the array to disk. Files are written as .grid4d.gz
+        # These .grids4d.gz files are read by nh_org_track4_flyby.py, and create output for Doug Mehoke.
         
         grids_i.write()
         
-        # Now plot the max optical depth summed for all sizes, as a reality check
-    
-        hbt.set_fontsize(10)
-        hbt.figsize((6,6))
-        grids_i.plot_tau()
-
         print('---')
         
            

@@ -90,9 +90,9 @@ from nh_ort_track4_grid            import nh_ort_track4_grid    # Includes .read
     
 def nh_ort_track4_flyby():
 
-#    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
+    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
     
-    name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
+#    name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
 
     stretch_percent = 99
     stretch = astropy.visualization.PercentileInterval(stretch_percent)
@@ -128,14 +128,13 @@ def nh_ort_track4_flyby():
               dtype = ['U30', float, float, float, float, 
                        float, float, float, float]  )
     
-    # Start up SPICE if needed. If we change the kernel file, we need to restart python.
+    # Start up SPICE if needed. Unload old kernels just as a safety precaution.
     
-    if (sp.ktotal('ALL') == 0):
-        sp.furnsh(f'kernels_kem_{name_trajectory}.tm')
+    sp.unload('kernels_kem_prime.tm')
+    sp.unload('kernels_kem_alternate.tm')
     
-    # Define the number of grid locations on each side.
-    # In the 'simulated' version, we used 200, not 201.
-
+    sp.furnsh(f'kernels_kem_{name_trajectory}.tm')
+    
     do_short = False
     
     if do_short:
@@ -143,7 +142,8 @@ def nh_ort_track4_flyby():
 
     iof_ring = 2e-8
     
-    file = files[54]  # Just for testing. Can ignore these.
+    file = files[54]  # Just for testing w cut+paste. Can ignore these.
+    
     i=0
     
     for i,file in enumerate(files):
@@ -171,6 +171,7 @@ def nh_ort_track4_flyby():
                         
         grid.frame       = frame
         grid.name_target = name_target
+        grid.name_trajectory = name_trajectory
         
         # And call the method to fly through it!
         # The returned density values etc are available within the instance variables, not returned explicitly.
