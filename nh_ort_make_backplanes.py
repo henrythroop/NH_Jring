@@ -21,10 +21,10 @@ import glob
 from create_backplanes_fits import create_backplanes_fits
 from plot_backplanes        import plot_backplanes
 
-def nh_make_backplanes_ort1():
+def nh_make_backplanes_ort():
     
     """
-    Process all of the MU69 ORT1 files. 
+    Process all of the MU69 ORT files. 
     
     Takes Simon's WCS'd FITS files as inputs, and creates backplaned FITS as output.
     
@@ -57,7 +57,11 @@ def nh_make_backplanes_ort1():
     dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort2')
     dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
     
-    files = glob.glob(os.path.join(dir_in, '*','*_pwcs.fits'))
+    dir_data_ort = '/Users/throop/Data/ORT3'
+    dir_in  = os.path.join(dir_data_ort, 'wcs_buie') # Using Buie backplanes, not Simon's.
+    dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
+    
+    files = glob.glob(os.path.join(dir_in, '*','*_ort3.fit'))
     
 # =============================================================================
 #     Filter files if needed
@@ -103,6 +107,7 @@ def nh_make_backplanes_ort1():
         print("{}/{}".format(i,len(files))) 
         file_out = file_in.replace(dir_in, dir_out)
         file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned.fit') # Works for both .fit and .fits
+        file_out = file_out.replace('_ort3.fit', '_ort3_backplaned.fit') # Works for both .fit and .fits
     
         try:
             create_backplanes_fits(file_in, 
@@ -123,11 +128,16 @@ def nh_make_backplanes_ort1():
 # =============================================================================
 # End of function
 # =============================================================================
+
+def test():
+
+    dir = '/Users/throop/Data/ORT3/throop/backplaned'
+    file = 'lor_0406991502_0x633_wcs_HAZARD_ort3_backplaned.fit'
     
 # =============================================================================
 # Run the function if requested
 # =============================================================================
            
 if (__name__ == '__main__'):
-    nh_make_backplanes_ort1()
+    nh_make_backplanes_ort()
             

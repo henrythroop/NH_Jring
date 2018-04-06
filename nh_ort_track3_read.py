@@ -106,7 +106,6 @@ class nh_ort_track3_read:  # Q: Is this required to be same name as the file?
         
         # Construct the filename for the 'header', which is a short text file. It is basically the same
         # as the entire directory tree, but with '/' → '_'.
-        # There is one difference -- probably a bug -- in that 'speed' term is off by one, as per DK email. OBOB.
       
         # Also, construct the filename for the data array itself. It is trivial.
         # As per the wiki, the data and header files should be identically named. They are not!

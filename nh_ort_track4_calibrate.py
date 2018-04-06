@@ -117,6 +117,7 @@ def nh_ort_track4_calibrate():
     
     dir_base='/Users/throop/data/ORT2/hamilton/deliveries'    
     runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003', '*', '*', '*')) # Hamilton - ORT actual
+    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_6apr18', '*', '*', '*')) # Hamilton - ORT actual
 
     stretch_percent = 98
     
@@ -529,7 +530,7 @@ def nh_ort_track4_calibrate():
         
         # Make a plot of this array, in various slices
         
-        do_plot_xyz_slices = False
+        do_plot_xyz_slices = True
 
         if do_plot_xyz_slices:
             hbt.figsize((20,20))
@@ -540,7 +541,7 @@ def nh_ort_track4_calibrate():
 
         # Now plot the max optical depth summed for all sizes, as a reality check
 
-        do_plot_tau = False
+        do_plot_tau = True
         
         if (do_plot_tau):
             hbt.set_fontsize(10)

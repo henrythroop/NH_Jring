@@ -123,8 +123,10 @@ def plot_backplanes(file,
 # =============================================================================
 
 if (__name__ == '__main__'):
-    
-    file = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405178272_0x633_pwcs_backplaned.fits'
+        
+#    file = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405178272_0x633_pwcs_backplaned.fits'
+
+    file  = '/Users/throop/Data/ORT3/throop/backplaned/lor_0406991502_0x633_wcs_HAZARD_ort3_backplaned.fit'
     
     name_observer = 'New Horizons'
     name_target = 'MU69'
