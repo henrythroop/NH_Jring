@@ -199,17 +199,17 @@ def nh_ort_track4_calibrate():
 
         do_plot_xyz_views = False
         
-        if do_plot_xyz_views:
-            plt.subplot(1,3,1)
-            plt.imshow(stretch_hbt(np.sum(ring.density, axis=0)), extent=extent)
-            plt.title('Summed along X')
-            plt.subplot(1,3,2)
-            plt.imshow(stretch_hbt(np.sum(ring.density, axis=1)), extent=extent)
-            plt.title('Summed along Y')
-            plt.subplot(1,3,3)
-            plt.imshow(stretch_hbt(np.sum(ring.density, axis=2)), extent=extent)
-            plt.title('Summed along Z')
-            plt.show()
+#        if do_plot_xyz_views:
+#            plt.subplot(1,3,1)
+#            plt.imshow(stretch_hbt(np.sum(ring.density, axis=0)), extent=extent)
+#            plt.title('Summed along X')
+#            plt.subplot(1,3,2)
+#            plt.imshow(stretch_hbt(np.sum(ring.density, axis=1)), extent=extent)
+#            plt.title('Summed along Y')
+#            plt.subplot(1,3,3)
+#            plt.imshow(stretch_hbt(np.sum(ring.density, axis=2)), extent=extent)
+#            plt.title('Summed along Z')
+#            plt.show()
         
         print('-----')
 

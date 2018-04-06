@@ -78,7 +78,7 @@ def nh_ort_track3_plot_trajectory():
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
 #                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
                   dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
-                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset05']
+                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_6apr18/y3.0/beta2.2e-02/subset05']
 
     # For the order, we always want (0,0) to be lower left.
     
@@ -98,6 +98,7 @@ def nh_ort_track3_plot_trajectory():
     
     axes_vertical  = {'X':'Y', 'Y':'X', 'Z':'X'}   
     axes_horizontal= {'X':'Z', 'Y':'Z', 'Z':'Y'}
+    axes_transpose = {'X':True,'Y':True,'Z':True}
     
     hbt.figsize((18,10))
     hbt.fontsize(10)  # Default
@@ -129,18 +130,30 @@ def nh_ort_track3_plot_trajectory():
             # Create the colorbar, and superimpose it on the image
             
             colorbar = hbt.frange(np.amin(img_stretch), np.amax(img_stretch), hbt.sizey(img_stretch))
-            img_stretch[:,-1] = colorbar  # There is probably a better way to do this?
-            img_stretch[:,-2] = colorbar
-            img_stretch[:,-3] = colorbar
-            img_stretch[:,-4] = colorbar
-            img_stretch[:,-5] = colorbar
             
+            if axes_transpose[axis]:
+                img_stretch[-1,:] = colorbar  # There is probably a better way to do this?
+                img_stretch[-2,:] = colorbar
+                img_stretch[-3,:] = colorbar
+                img_stretch[-4,:] = colorbar
+                img_stretch[-5,:] = colorbar
+            
+            else:
+                img_stretch[:,-1] = colorbar  # There is probably a better way to do this?
+                img_stretch[:,-2] = colorbar
+                img_stretch[:,-3] = colorbar
+                img_stretch[:,-4] = colorbar
+                img_stretch[:,-5] = colorbar
+                
             # Display the image.
             # The image is displayed in exactly the same orientation as if I print it, with the exception
             # that the origin={lower | upper} keyword can flip it vertically.
             # When accessing the array elements, they are in order img[y, x] -- which is opposite IDL.
             
-            plt.imshow(img_stretch, extent=extent, origin=origin)
+            if axes_transpose[axis]:
+                plt.imshow(np.transpose(img_stretch), extent=extent, origin=origin)
+            else:
+                plt.imshow(             img_stretch,  extent=extent, origin=origin)
             
             # Create the labels for the colorbar, and individually place them
             
@@ -157,10 +170,17 @@ def nh_ort_track3_plot_trajectory():
             
             # Label the axes and the plot
             
-            plt.title(f'Summed along {axis}', fontsize=fontsize_axes)
-            plt.ylabel(axes_vertical[axis] + ' [km]', fontsize=fontsize_axes)
-            plt.xlabel(axes_horizontal[axis] + ' [km]', fontsize=fontsize_axes)
-            plt.tight_layout()
+            if axes_transpose[axis]:
+                plt.title(f'Summed along {axis}', fontsize=fontsize_axes)
+                plt.xlabel(axes_vertical[axis] + ' [km]', fontsize=fontsize_axes)
+                plt.ylabel(axes_horizontal[axis] + ' [km]', fontsize=fontsize_axes)
+                plt.tight_layout()
+
+            else:
+                plt.title(f'Summed along {axis}', fontsize=fontsize_axes)
+                plt.ylabel(axes_vertical[axis] + ' [km]', fontsize=fontsize_axes)
+                plt.xlabel(axes_horizontal[axis] + ' [km]', fontsize=fontsize_axes)
+                plt.tight_layout()
             
             i+=1
         plt.show()

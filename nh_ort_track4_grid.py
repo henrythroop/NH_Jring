@@ -198,6 +198,13 @@ class nh_ort_track4_grid:
             
         """
 
+# Here is how the order of plotting works.
+# - Grid start out as a 3D array, in XYZ.
+# - If we flatten in one axis, then the other two are left. e.g., flatten in Y, and then array is an XZ array.
+# - Then when we imshow(), the first axis is vertical, and second is horizontal. e.g., X on vert, Z on horizontal.
+# - If we do a transpose() on the array before imshow(), then order above is reversed (first is on horizont, etc).
+# - Finally, if we pass the 'origin=lower' keyword, then the vertical axes will be drawn bottom-up, not top-down.
+        
         if axis_sum is None:
             axis_sum = self.axis_sum
             
@@ -222,19 +229,19 @@ class nh_ort_track4_grid:
             s_i     = self.s[i]                 # Particle size. MRS slide 6.4. Millimeters.
    
             plt.subplot(1, self.num_grids, i+1)
-            plt.imshow(stretch(np.sum(self.density[i], axis=axis_sum)), extent=extent, origin=origin)
+            plt.imshow(np.transpose(stretch(np.sum(self.density[i], axis=axis_sum))), extent=extent, origin=origin)
             plt.title(r's={:.2f} mm, $\beta$={:.1e}'.format(s_i, beta_i))
             plt.tight_layout()
 
             if (axis_sum == 0):  # If summing along X
-                plt.ylabel('Y [Mm]')
-                plt.xlabel('Z [Mm]')
-            if (axis_sum == 1):  # If summing along Y
-                plt.ylabel('X [Mm]')
-                plt.xlabel('Z [Mm]')
-            if (axis_sum == 2):  # If summing along Z
-                plt.ylabel('X [Mm]')
+                plt.ylabel('Z [Mm]')   # We *always* use np.transpose() above, so that reverses usual axis plot order!
                 plt.xlabel('Y [Mm]')
+            if (axis_sum == 1):  # If summing along Y
+                plt.ylabel('Z [Mm]')
+                plt.xlabel('X [Mm]')
+            if (axis_sum == 2):  # If summing along Z
+                plt.ylabel('Y [Mm]')
+                plt.xlabel('X [Mm]')
 
         plt.show()
         print(f'  albedo={self.albedo}, q={self.q}, rho={self.rho}, speed={self.speed}')
@@ -335,23 +342,25 @@ class nh_ort_track4_grid:
       
         # Create a colorbar, in the plot itself
         
-        colorbar = hbt.frange(np.amin(img_stretch), np.amax(img_stretch), hbt.sizey(img_stretch))
-        img_stretch[:,-1] = colorbar  # There is probably a better way to do this?
-        img_stretch[:,-2] = colorbar
-        img_stretch[:,-3] = colorbar
-        img_stretch[:,-4] = colorbar
-        img_stretch[:,-5] = colorbar
+        img_stretch_t = np.transpose(img_stretch)  # Transpose the image, swapping X and Y axes, so Z is vertical axis.
+        
+        colorbar = hbt.frange(np.amin(img_stretch_t), np.amax(img_stretch_t), hbt.sizey(img_stretch_t))
+        img_stretch_t[:,-1] = colorbar  # There is probably a better way to do this?
+        img_stretch_t[:,-2] = colorbar
+        img_stretch_t[:,-3] = colorbar
+        img_stretch_t[:,-4] = colorbar
+        img_stretch_t[:,-5] = colorbar
 
         # Render the image
         
-        plt.imshow(img_stretch, origin=origin, extent=extent)
+        plt.imshow(img_stretch_t, origin=origin, extent=extent)
                 
         # Create the labels for the colorbar, and individually place them
             
         num_ticks_colorbar = 5 # Number of vertical value to put on our colorbar
         
         for j in range(num_ticks_colorbar):
-            range_stretch = hbt.frange(np.amin(img_stretch), np.amax(img_stretch), num_ticks_colorbar)
+            range_stretch = hbt.frange(np.amin(img_stretch_t), np.amax(img_stretch), num_ticks_colorbar)
             val_text = hbt.logstretch_invert(range_stretch[j], val)
 #            val = round(val)  # Convert to zero if it is very close
             xval = 0.55*np.max(extent)
@@ -366,8 +375,8 @@ class nh_ort_track4_grid:
 #        tau_(max,typ) = ({self.tau_max:.1e}, {self.tau_typ:.1e}), ' + 
 #                  f'I/F_(max,typ) = ({self.iof_max:.1e}, {self.iof_typ:.1e})')
         
-        plt.xlabel('Z [1000 km]')
-        plt.ylabel('X [1000 km]')
+        plt.xlabel('X [1000 km]')
+        plt.ylabel('Z [1000 km]')
         plt.show()
 
 

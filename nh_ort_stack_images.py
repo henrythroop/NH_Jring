@@ -156,7 +156,7 @@ if (True):
     
 #    name_ort = 'ORT1'
 #    name_ort = 'ORT2_OPNAV'
-    name_ort = 'ORT2'
+    name_ort = 'ORT3'
     initials_user = 'HBT'
     dir_data = '/Users/throop/Data'
 
@@ -172,6 +172,14 @@ if (True):
         reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
         reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03']
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+ 
+    if (name_ort == 'ORT3'):
+        dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
+        dir_out       = os.path.join(dir_data, name_ort)
+        reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
+        reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03']
+        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+        
         
     if (name_ort == 'ORT2_OPNAV'):
         dir_images    = '/Users/throop/Data/ORT2/throop/backplaned/'
@@ -384,7 +392,7 @@ if (True):
     plt.plot(radius_profile_km, profile_iof_median,label = 'All curves, Median')
     plt.plot(radius_profile_km, profile_iof_mean,  label = 'All curves, Mean')
     plt.xlim((0,20000))
-    plt.ylim((-0.5e-7,1e-7))
+    plt.ylim((-0.5e-7,3e-7))
     plt.legend(loc = 'upper right')
     plt.ylabel('I/F')
     plt.title(f'{name_ort}, binwidth={binwidth} pix, zoom={zoom}')
@@ -404,4 +412,5 @@ if (True):
     lun.close()
     print(f'Wrote: {file_out}')
     print(f' scp {file_out} ixion:\~/astrometry' )  # We don't copy it, but we put up the string so user can.
+
     
