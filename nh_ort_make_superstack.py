@@ -61,7 +61,7 @@ from   plot_img_wcs import plot_img_wcs
 import hbt
 from image_stack import image_stack
 
-def make_img_superstack(stack, img, img_field):
+def nh_ort_make_superstack(stack, img, img_field):
     
     """
     This makes a superstack image. The output image has resolution matching the lowest resolution 
@@ -151,7 +151,7 @@ if (True):
     
     plt.set_cmap('Greys_r')
 
-    zoom = 2      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 4      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
     
 #    name_ort = 'ORT1'
@@ -177,7 +177,7 @@ if (True):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort)
         reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
-        reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03']
+#        reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03']
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         
         
@@ -413,4 +413,78 @@ if (True):
     print(f'Wrote: {file_out}')
     print(f' scp {file_out} ixion:\~/astrometry' )  # We don't copy it, but we put up the string so user can.
 
+# =============================================================================
+# Now, as a one-off for ORT3, try to measure the I/F of this edge-on boxy looking ring
+# =============================================================================
+
+    if (name_ort == 'ORT3'):
+        ring_extract_large      = img_superstack_mean_iof[325:440,310:500]
+        ring_extract_xprofile   = img_superstack_mean_iof[375:390,360:450]  # An extract, useful for calc x profile
+        ring_extract_yprofile   = img_superstack_mean_iof[355:410,364:400]  # An extract, useful for calc y profile
     
+        plt.imshow(stretch(ring_extract_large))
+        plt.show()
+        
+        # Make profile in X dir
+        
+        profile_x = np.median(ring_extract_xprofile, axis=0)
+    
+        profile_x_masked = profile_x.copy()
+        profile_x_masked[16:24] = np.nan # Mask out MU69
+        profile_x_masked[35:39] = np.nan # Mask out satellite
+        profile_x_masked[0:3]   = np.nan # Mask out sky on LHS
+        
+        x_km = np.arange(len(profile_x)) * pixscale_km
+        
+        plt.plot(x_km, profile_x, color='pink', lw=5)
+        plt.plot(x_km, profile_x_masked, color='blue', lw=2)
+        plt.xlabel('km')
+        plt.title('Profile, X dir')
+        plt.ylabel('I/F')
+    
+        plt.ylim((-4e-7, 6e-7))
+        plt.show()
+        
+        # Make profile in Y dir
+        
+        ring_extract_yprofile_m = ring_extract_yprofile.copy()
+        ring_extract_yprofile_m[20:30, 10:19] = np.nan          # Mask out UT itself
+        
+        profile_y   = np.median(ring_extract_yprofile, axis=1)
+        profile_y_m = np.median(ring_extract_yprofile_m, axis=1)
+        
+        plt.imshow(stretch(ring_extract_yprofile_m))
+        plt.show()
+        
+        y_km = np.arange(len(profile_y)) * pixscale_km
+    
+        plt.plot(y_km, profile_y, color = 'pink', lw=5)
+        plt.plot(y_km, profile_y_m, color = 'blue', lw=2)         
+        plt.xlabel('km')
+        plt.title('Profile, Y dir')
+        plt.ylabel('I/F')
+        plt.show()
+        
+        profile_y_masked = profile_y.copy()
+        profile_y_masked[16:24] = np.nan # Mask out MU69
+        profile_y_masked[35:39] = np.nan # Mask out satellite
+        profile_y_masked[0:3]   = np.nan # Mask out sky on LHS
+        
+        x_km = np.arange(len(profile_x)) * pixscale_km
+        
+        plt.plot(x_km, profile_x, color='pink', lw=5)
+        plt.plot(x_km, profile_x_masked, color='blue', lw=2)
+        plt.xlabel('km')
+        plt.title('Profile, X dir')
+        plt.ylabel('I/F')
+    
+        plt.ylim((-4e-7, 6e-7))
+        plt.show()
+        
+        iof_ring = np.nanmedian(profile_x[5:35])
+        iof_bg   = np.nanmedian(profile_x[60:80]) 
+    
+        print(f'I/F on  ring = {iof_ring:.2e}')
+        print(f'I/F off ring = {iof_bg:.2e}')
+        
+        print(f'→ I/F net = {(iof_ring - iof_bg):.2e}')
