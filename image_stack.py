@@ -225,9 +225,13 @@ class image_stack:
                 if do_lorri_destripe:
                     arr = hbt.lorri_destripe(arr)
                     
-                # Read the WCS coords of this file
+                # Read the WCS coords of this file.
+                # XXX Suppress warnings about WCS SIP coords which Buie's files get.
+                # However, looks like AstroPy doesn't use proper warning mechanism??
                 
-                w = WCS(file)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    w = WCS(file)
                 
                 # Get the RA/Dec location of the central pixel, in radians
                 
@@ -316,7 +320,8 @@ class image_stack:
         # If we generated the files manually (not by reloading), and flag is not set, then offer to save them
         
         if not(do_save):
-            answer = input("Save to pickle file? ")
+            print(f'File to save: {self.file_save}')
+            answer = input("Save to pickle file self? ")
             if ('y' in answer):
                 do_save = True
                 
