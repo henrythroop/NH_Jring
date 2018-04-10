@@ -61,13 +61,15 @@ from   plot_img_wcs import plot_img_wcs
 import hbt
 from image_stack import image_stack
 
-def nh_ort_make_superstack(stack, img, img_field):
+def nh_ort_make_superstack(stack, img, img_field, do_save_all=False, dir='', str_name='', do_center=True):
     
     """
     This makes a superstack image. The output image has resolution matching the lowest resolution 
     of all the input images (that is, the closest to MU69).
     
     This is a standalone function -- not part of any class.
+    
+    If requested, the superstacks *and* the rescaled individual stacks, are all written to disk.
     
     Parameters
     -----
@@ -89,6 +91,17 @@ def nh_ort_make_superstack(stack, img, img_field):
         Index to which of the final images to use as the output scale.
         (Alternatively, we might allow the dictionary to be passed)
         
+    do_save_all:
+        Boolean. If set, write all of the rescaled stacks, and superstacks, to disk.
+        
+    str_name:
+        String. A prefix to use in writing the filenames for the stacks.
+        
+    do_center:
+        Boolean. If set, code will do a centroiding on the central region of each image and center each 
+        stack based on that. This is Q&D, but works if the brightest object is moving, and near the center,
+        such as is the case for MU69 ORT.
+        
     """
     
     keys = list(stack.keys())
@@ -105,12 +118,15 @@ def nh_ort_make_superstack(stack, img, img_field):
     
     key_out = keys[np.where(pixscale_km_out == np.array(list(pixscale_km.values())))[0][0]]
     
-    pixscale = stack[key_out].pixscale_x_km  # This is the pixel scale of the final stack.
+#    pixscale = stack[key_out].pixscale_x_km  # This is the pixel scale of the final stack.
                                                                  # Zoom has not been applied yet.
     size_out = np.shape(img[key_out])
     
     img_rescale_3d = np.zeros((len(keys),size_out[0],size_out[1]))
     img_rescale = {}
+    
+    # Loop over every individual stack
+    
     for i,key in enumerate(keys):
         
         magfac = stack[key].pixscale_x_km / pixscale_km_out
@@ -121,13 +137,49 @@ def nh_ort_make_superstack(stack, img, img_field):
         edge_top  = int( (size_in[1]-size_out[1])/2)
         
         arr_out = arr[ edge_left : edge_left+size_out[0], 
-                       edge_top  : edge_left+size_out[1] ] 
-        img_rescale[reqid_i] = arr_out
+                       edge_top  : edge_left+size_out[1] ]
+        
+        # If requested, do a centroid on the central region of the image. 
+        # Then shift the entire image based on this, to put brightest object at center of frame.
+    
+        if do_center:
+            extract = arr_out[int(size_out[0]/2)-50:int(size_out[0]/2+50),    # 100x100 pixel region. Hardcoded, ugh.
+                              int(size_out[0]/2)-50:int(size_out[0]/2+50)]
+            shift_x = 50 - hbt.wheremax(np.sum(extract, axis=0))
+            shift_y = 50 - hbt.wheremax(np.sum(extract, axis=1))  # vertical axis on screen. 
+                                                                  #  Axis=0. - means value is too large. 
+            arr_out = np.roll(np.roll(arr_out, shift_x, axis=1), shift_y, axis=0)
+            
+        img_rescale[reqid_i]  = arr_out
         img_rescale_3d[i,:,:] = arr_out
 
-        img_rescale_median = np.median(img_rescale_3d, axis=0)  
-        img_rescale_mean   = np.mean(img_rescale_3d, axis=0)  
+        # Write the scaled stacks to disk, if requested
+        
+        if do_save_all:
+            file_out = f'stack_{key}_{str_name}_rescaled_hbt.fits'
+            path_out = os.path.join(dir_out, file_out)
+            hdu = fits.PrimaryHDU(arr_out) 
+            hdu.writeto(path_out, overwrite=True)
+            print(f'Wrote: {path_out}')
+            
+    img_rescale_median = np.median(img_rescale_3d, axis=0)  
+    img_rescale_mean   = np.mean(img_rescale_3d, axis=0)
     
+    # Write the superstacks to disk, if requested
+    
+    if do_save_all:
+        file_out = f'superstack_{str_name}_median_hbt.fits'
+        hdu = fits.PrimaryHDU(img_superstack_median_iof)
+        path_out = os.path.join(dir_out, file_out)
+        hdu.writeto(path_out, overwrite=True)
+        print(f'Wrote: {path_out}')
+      
+        file_out = f'superstack_{str_name}_mean_hbt.fits'
+        hdu = fits.PrimaryHDU(img_superstack_mean_iof)
+        path_out = os.path.join(dir_out, file_out)
+        hdu.writeto(path_out, overwrite=True)
+        print(f'Wrote: {path_out}')
+        
     return((img_rescale_mean, img_rescale_median))
  
 # =============================================================================
@@ -268,7 +320,7 @@ if (__name__ == '__main__'):
         
         # Save as FITS
     
-        file_out = os.path.join(dir_out, '{}_z{}.fits'.format(reqid_i, zoom))
+        file_out = os.path.join(dir_out, 'stack_{}_{}_z{}_hbt.fits'.format(reqid_i, name_ort, zoom))
         hdu = fits.PrimaryHDU(stretch(diff_trim))
         hdu.writeto(file_out, overwrite=True)
         print(f'Wrote: {file_out}')
@@ -338,7 +390,10 @@ if (__name__ == '__main__'):
 #     Make a 'superstack' -- ie stack of stacks, put on the same spatial scale and stacked
 # =============================================================================
     
-    (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field)
+    str_name = f'{name_ort}_z{zoom}'
+    (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
+                                                                          do_save_all=True, dir=dir_out,
+                                                                          str_name = str_name, do_center=True)
   
     # Create, display, and save the median superstack
     
@@ -420,29 +475,63 @@ if (__name__ == '__main__'):
     if (name_ort == 'ORT3'):
 #        ring_extract_large      = img_superstack_mean_iof[325:440,310:500]
         
-        img_extract_large      = img_superstack_mean_iof[660:880,653:1000]  # MU69 is centered on 100, 100
-        plt.imshow(stretch(img_extract_large), origin='lower')
-
-        img_extract_xprofile   = img_superstack_mean_iof[750:780,720:900]  # An extract, useful for calc x profile
-        img_extract_yprofile   = img_superstack_mean_iof[710:820,728:800]  # An extract, useful for calc y profile
+        hbt.figsize((8,8))
+        hbt.fontsize(12)
+        center_x = int(hbt.sizex(img_superstack_mean)/2)
+        center_y = int(hbt.sizex(img_superstack_mean)/2)
         
-        ring_extract_xprofile  = ring
+        pos_mu69 = ( center_x, center_y )   # x, y 
+        dy = 200
+        dx = 200
+        img_extract_large      = img_superstack_median_iof[pos_mu69[1]-int(dy/2):pos_mu69[1]+int(dy/2),
+                                                         pos_mu69[0]-int(dx/2):pos_mu69[0]+int(dx/2)]  
+        
+                                                                # MU69 is centered on 100, 100
+
+        mask = hbt.dist_center(dx) > 0  # Mask anything this far from MU69 as True
+        m = img_extract_large.copy()
+        m[mask == False] = np.nan
+        plt.imshow(stretch(m))
+        
+        img_extract_large = m.copy()     # Copy the masked image back to the full extracted image
+        
         plt.imshow(stretch(img_extract_large), origin='lower')
         plt.show()
         
+        plt.imshow(stretch(img_superstack_mean_iof), origin='lower')
+
+        width_ring = 100
+        height_ring = 30
+        padding_x = 20         # Padding on each edge (half-padding)
+        padding_y = 30
+        
+        img_extract_yprofile   = img_extract_large[
+                          int(dy/2 - height_ring/2-padding_y):int(dy/2+height_ring/2+padding_y),
+                          int(dx/2 - width_ring/2):int(dx/2+width_ring/2)]
+        plt.imshow(stretch(img_extract_yprofile), origin='lower')                  
+        plt.show()
+                          
+        img_extract_xprofile   = img_extract_large[
+                          int(dy/2 - height_ring/2):int(dy/2+height_ring/2),
+                          int(dx/2 - width_ring/2-padding_x):int(dx/2+width_ring/2+padding_x)]
+        plt.imshow(stretch(img_extract_xprofile), origin='lower')
+        plt.show()
+                
         # Make profile in X dir
         
-        profile_x = np.median(ring_extract_xprofile, axis=0)
+        profile_x = np.nanmedian(img_extract_xprofile, axis=0)
     
-        profile_x_masked = profile_x.copy()
-        profile_x_masked[25:48] = np.nan # Mask out MU69
-        profile_x_masked[70:76] = np.nan # Mask out satellite
+#        profile_x_masked = profile_x.copy()
+#        profile_x_masked[25:48] = np.nan # Mask out MU69
+#        profile_x_masked[70:76] = np.nan # Mask out satellite
 #        profile_x_masked[0:10]   = np.nan # Mask out sky on LHS
         
         x_km = np.arange(len(profile_x)) * pixscale_km
+        x_km -= np.mean(x_km)
         
+        plt.subplot(2,1,1)
         plt.plot(x_km, profile_x, color='pink', lw=5)
-        plt.plot(x_km, profile_x_masked, color='blue', lw=2)
+#        plt.plot(x_km, profile_x_masked, color='blue', lw=2)
 
 #        plt.plot(profile_x, color='pink', lw=5)
 #        plt.plot(profile_x_masked, color='blue', lw=2)
@@ -452,43 +541,73 @@ if (__name__ == '__main__'):
         plt.ylabel('I/F')
     
         plt.ylim((-4e-7, 6e-7))
-        plt.show()
+        
         
         # Make profile in Y dir
         
-        ring_extract_yprofile_m = ring_extract_yprofile.copy()
-        ring_extract_yprofile_m[40:60, 20:38] = np.nan          # Mask out UT itself
+        profile_y = np.nanmedian(img_extract_yprofile, axis=1)
+    
+#        profile_x_masked = profile_x.copy()
+#        profile_x_masked[25:48] = np.nan # Mask out MU69
+#        profile_x_masked[70:76] = np.nan # Mask out satellite
+#        profile_x_masked[0:10]   = np.nan # Mask out sky on LHS
+        
+        y_km = np.arange(len(profile_y)) * pixscale_km
+        y_km -= np.mean(y_km)
+
+        plt.subplot(2,1,2)        
+        plt.plot(y_km, profile_y, color='pink', lw=5)
+#        plt.plot(y_km, profile_y_masked, color='blue', lw=2)
+
+#        plt.plot(profile_x, color='pink', lw=5)
+#        plt.plot(profile_x_masked, color='blue', lw=2)
+
+        plt.xlabel('km')
+        plt.title('Profile, Y dir')
+        plt.ylabel('I/F')
+    
+        plt.ylim((-4e-7, 6e-7))
+        plt.tight_layout()
+        plt.show()
+        
+        
+        
+        ring_extract_yprofile_m = img_extract_yprofile.copy()
+#        ring_extract_yprofile_m[40:60, 20:38] = np.nan          # Mask out UT itself
         
         profile_y   = np.median(ring_extract_yprofile, axis=1)
-        profile_y_m = np.median(ring_extract_yprofile_m, axis=1)
+#        profile_y_m = np.median(ring_extract_yprofile_m, axis=1)
         
         plt.imshow(stretch(ring_extract_yprofile_m), origin='lower')
         plt.show()
         
-        y_km = np.arange(len(profile_y)) * pixscale_km
-    
-        plt.plot(y_km, profile_y, color = 'pink', lw=5)
-        plt.plot(y_km, profile_y_m, color = 'blue', lw=2)         
-        plt.xlabel('km')
-        plt.title('Profile, Y dir')
-        plt.ylabel('I/F')
-        plt.show()
         
-        profile_y_masked = profile_y.copy()
-        profile_y_masked[32:48] = np.nan # Mask out MU69
-        profile_y_masked[70:78] = np.nan # Mask out satellite
-        profile_y_masked[0:6]   = np.nan # Mask out sky on LHS
+#        
+#        
+#        y_km = np.arange(len(profile_y)) * pixscale_km
+#    
+#        plt.plot(y_km, profile_y, color = 'pink', lw=5)
+##        plt.plot(y_km, profile_y_m, color = 'blue', lw=2)         
+#        plt.xlabel('km')
+#        plt.title('Profile, Y dir')
+#        plt.ylabel('I/F')
+#        plt.show()
+#        
+#        profile_y_masked = profile_y.copy()
+#        profile_y_masked[32:48] = np.nan # Mask out MU69
+#        profile_y_masked[70:78] = np.nan # Mask out satellite
+#        profile_y_masked[0:6]   = np.nan # Mask out sky on LHS
         
-        x_km = np.arange(len(profile_x)) * pixscale_km
-        
-        plt.plot(x_km, profile_x, color='pink', lw=5)
-        plt.plot(x_km, profile_x_masked, color='blue', lw=2)
-        plt.xlabel('km')
-        plt.title('Profile, X dir')
-        plt.ylabel('I/F')
-    
-        plt.ylim((-4e-7, 6e-7))
-        plt.show()
+#        x_km = np.arange(len(profile_x)) * pixscale_km
+#        
+#        plt.plot(x_km, profile_x, color='pink', lw=5)
+#        plt.plot(x_km, profile_x_masked, color='blue', lw=2)
+#        plt.xlabel('km')
+#        plt.title('Profile, X dir')
+#        plt.ylabel('I/F')
+#    
+#        plt.ylim((-4e-7, 6e-7))
+#        plt.show()
         
         iof_ring = np.nanmedian(profile_x[5:35])
         iof_bg   = np.nanmedian(profile_x[60:80]) 
@@ -503,14 +622,7 @@ if (__name__ == '__main__'):
         #   - No WCS
         #   - No target motion compensation. That is, stars are aligned perfectly, but MU69 moves.
         
-        file_out = f'superstack_{name_ort}_hbt_median.fits'
-        hdu = fits.PrimaryHDU(img_superstack_median_iof)
-        path_out = os.path.join(dir_out, file_out)
-        hdu.writeto(path_out, overwrite=True)
-        print(f'Wrote: {path_out}')
-      
-        file_out = f'superstack_{name_ort}_hbt_mean.fits'
-        hdu = fits.PrimaryHDU(img_superstack_mean_iof)
-        path_out = os.path.join(dir_out, file_out)
-        hdu.writeto(path_out, overwrite=True)
-        print(f'Wrote: {path_out}')
+
+
+ (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, do_center=True)
+ 
