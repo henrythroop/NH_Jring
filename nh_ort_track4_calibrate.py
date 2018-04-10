@@ -106,7 +106,7 @@ def nh_ort_track4_calibrate():
     
     # Define the limit for the I/F we want to match.
     
-    iof_limit_ring = 2e-8  # The actual observed ring in ORT2 Track1 was 5e-8.
+    iof_limit_ring = 5e-8  # The actual observed ring in ORT2 Track1 was 5e-8.
                            # So, for the ORT2 'test' case, since we are using DPH's ring which is oriented
                            # differently and was not detected, I'll take a bit less than this -- say, I/F = 2e-8.
     
@@ -118,6 +118,8 @@ def nh_ort_track4_calibrate():
     dir_base='/Users/throop/data/ORT2/hamilton/deliveries'    
     runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003', '*', '*', '*')) # Hamilton - ORT actual
     runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_6apr18', '*', '*', '*')) # Hamilton - ORT actual
+    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_9apr18', '*', '*', '*')) # Hamilton - ORT actual
+    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_inc45', '*', '*', '*')) # Hamilton - ORT actual
 
     stretch_percent = 98
     
@@ -308,6 +310,8 @@ def nh_ort_track4_calibrate():
 #                        print(f'Adding bin for size {s_i} mm')
                         
                         # If requested, make a plot of the running total for this array
+                        # This will make one plot per beta bin. Each plot wil have all 
+                        # subsets already summed.
                 
                         do_plot_running_total = False
                         
@@ -530,7 +534,7 @@ def nh_ort_track4_calibrate():
         
         # Make a plot of this array, in various slices
         
-        do_plot_xyz_slices = True
+        do_plot_xyz_slices = False
 
         if do_plot_xyz_slices:
             hbt.figsize((20,20))
