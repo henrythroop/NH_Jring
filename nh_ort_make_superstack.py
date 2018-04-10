@@ -144,7 +144,7 @@ def nh_ort_make_superstack(stack, img, img_field):
 #   - Make radial profile     
 # =============================================================================
 
-if (True):
+if (__name__ == '__main__'):
     
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
@@ -338,7 +338,7 @@ if (True):
 #     Make a 'superstack' -- ie stack of stacks, put on the same spatial scale and stacked
 # =============================================================================
     
-    (img_superstack_mean, img_superstack_median) = make_img_superstack(stack_haz, img_haz, img_field)
+    (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field)
   
     # Create, display, and save the median superstack
     
@@ -418,11 +418,16 @@ if (True):
 # =============================================================================
 
     if (name_ort == 'ORT3'):
-        ring_extract_large      = img_superstack_mean_iof[325:440,310:500]
-        ring_extract_xprofile   = img_superstack_mean_iof[375:390,360:450]  # An extract, useful for calc x profile
-        ring_extract_yprofile   = img_superstack_mean_iof[355:410,364:400]  # An extract, useful for calc y profile
-    
-        plt.imshow(stretch(ring_extract_large))
+#        ring_extract_large      = img_superstack_mean_iof[325:440,310:500]
+        
+        img_extract_large      = img_superstack_mean_iof[660:880,653:1000]  # MU69 is centered on 100, 100
+        plt.imshow(stretch(img_extract_large), origin='lower')
+
+        img_extract_xprofile   = img_superstack_mean_iof[750:780,720:900]  # An extract, useful for calc x profile
+        img_extract_yprofile   = img_superstack_mean_iof[710:820,728:800]  # An extract, useful for calc y profile
+        
+        ring_extract_xprofile  = ring
+        plt.imshow(stretch(img_extract_large), origin='lower')
         plt.show()
         
         # Make profile in X dir
@@ -430,14 +435,18 @@ if (True):
         profile_x = np.median(ring_extract_xprofile, axis=0)
     
         profile_x_masked = profile_x.copy()
-        profile_x_masked[16:24] = np.nan # Mask out MU69
-        profile_x_masked[35:39] = np.nan # Mask out satellite
-        profile_x_masked[0:3]   = np.nan # Mask out sky on LHS
+        profile_x_masked[25:48] = np.nan # Mask out MU69
+        profile_x_masked[70:76] = np.nan # Mask out satellite
+#        profile_x_masked[0:10]   = np.nan # Mask out sky on LHS
         
         x_km = np.arange(len(profile_x)) * pixscale_km
         
         plt.plot(x_km, profile_x, color='pink', lw=5)
         plt.plot(x_km, profile_x_masked, color='blue', lw=2)
+
+#        plt.plot(profile_x, color='pink', lw=5)
+#        plt.plot(profile_x_masked, color='blue', lw=2)
+
         plt.xlabel('km')
         plt.title('Profile, X dir')
         plt.ylabel('I/F')
@@ -448,12 +457,12 @@ if (True):
         # Make profile in Y dir
         
         ring_extract_yprofile_m = ring_extract_yprofile.copy()
-        ring_extract_yprofile_m[20:30, 10:19] = np.nan          # Mask out UT itself
+        ring_extract_yprofile_m[40:60, 20:38] = np.nan          # Mask out UT itself
         
         profile_y   = np.median(ring_extract_yprofile, axis=1)
         profile_y_m = np.median(ring_extract_yprofile_m, axis=1)
         
-        plt.imshow(stretch(ring_extract_yprofile_m))
+        plt.imshow(stretch(ring_extract_yprofile_m), origin='lower')
         plt.show()
         
         y_km = np.arange(len(profile_y)) * pixscale_km
@@ -466,9 +475,9 @@ if (True):
         plt.show()
         
         profile_y_masked = profile_y.copy()
-        profile_y_masked[16:24] = np.nan # Mask out MU69
-        profile_y_masked[35:39] = np.nan # Mask out satellite
-        profile_y_masked[0:3]   = np.nan # Mask out sky on LHS
+        profile_y_masked[32:48] = np.nan # Mask out MU69
+        profile_y_masked[70:78] = np.nan # Mask out satellite
+        profile_y_masked[0:6]   = np.nan # Mask out sky on LHS
         
         x_km = np.arange(len(profile_x)) * pixscale_km
         
@@ -488,3 +497,20 @@ if (True):
         print(f'I/F off ring = {iof_bg:.2e}')
         
         print(f'→ I/F net = {(iof_ring - iof_bg):.2e}')
+
+        # Save the superstack images to FITS files that can be put on ixion
+        # NB: There are two liens against these currently that I would like to fix:
+        #   - No WCS
+        #   - No target motion compensation. That is, stars are aligned perfectly, but MU69 moves.
+        
+        file_out = f'superstack_{name_ort}_hbt_median.fits'
+        hdu = fits.PrimaryHDU(img_superstack_median_iof)
+        path_out = os.path.join(dir_out, file_out)
+        hdu.writeto(path_out, overwrite=True)
+        print(f'Wrote: {path_out}')
+      
+        file_out = f'superstack_{name_ort}_hbt_mean.fits'
+        hdu = fits.PrimaryHDU(img_superstack_mean_iof)
+        path_out = os.path.join(dir_out, file_out)
+        hdu.writeto(path_out, overwrite=True)
+        print(f'Wrote: {path_out}')
