@@ -86,8 +86,6 @@ from nh_ort_track4_grid            import nh_ort_track4_grid    # Includes .read
 # This is a regular function, but it calls the class method nh_ort_track4_grid.fly_trajectory().
 # =============================================================================
 
-
-    
 def nh_ort_track4_flyby():
 
     name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
@@ -97,9 +95,12 @@ def nh_ort_track4_flyby():
     stretch_percent = 99
     stretch = astropy.visualization.PercentileInterval(stretch_percent)
 
-    dir = '~/Data/ORT2/throop/track4'
+    name_ort = 'ORT2'
+    dir_data = os.path.expanduser('~/Data/')
     
-    files = glob.glob(os.path.join(os.path.expanduser(dir), '*.grid4d.gz'))
+    dir_track4 = os.path.join(dir_data, name_ort, 'throop', 'track4')
+    
+    files = glob.glob(os.path.join(dir_track4, '*.grid4d.gz'))
     
     plt.set_cmap('plasma')
 
@@ -142,7 +143,7 @@ def nh_ort_track4_flyby():
 
     iof_ring = 2e-8
     
-    file = files[54]  # Just for testing w cut+paste. Can ignore these.
+    file = files[0]  # Just for testing w cut+paste. Can ignore these.
     
     i=0
     
@@ -281,7 +282,7 @@ def nh_ort_track4_flyby():
     
     # Save the table as output
     
-    file_out = os.path.join(os.path.expanduser(dir), 'nh_ort_track4_table.pkl')
+    file_out = os.path.join(dir_track4, f'nh_{name_ort}_{name_trajectory}_track4_table.pkl')
     
     lun = open(file_out, 'wb')
     pickle.dump(t,lun)
