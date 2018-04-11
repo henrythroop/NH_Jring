@@ -149,6 +149,7 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=False, dir='', str
             shift_y = 50 - hbt.wheremax(np.sum(extract, axis=1))  # vertical axis on screen. 
                                                                   #  Axis=0. - means value is too large. 
             arr_out = np.roll(np.roll(arr_out, shift_x, axis=1), shift_y, axis=0)
+            print(f'Rolling by {shift_x}, {shift_y}')
             
         img_rescale[reqid_i]  = arr_out
         img_rescale_3d[i,:,:] = arr_out
@@ -169,13 +170,13 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=False, dir='', str
     
     if do_save_all:
         file_out = f'superstack_{str_name}_median_hbt.fits'
-        hdu = fits.PrimaryHDU(img_superstack_median_iof)
+        hdu = fits.PrimaryHDU(img_rescale_median)
         path_out = os.path.join(dir_out, file_out)
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
       
         file_out = f'superstack_{str_name}_mean_hbt.fits'
-        hdu = fits.PrimaryHDU(img_superstack_mean_iof)
+        hdu = fits.PrimaryHDU(img_rescale_mean)
         path_out = os.path.join(dir_out, file_out)
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
@@ -393,28 +394,28 @@ if (__name__ == '__main__'):
     str_name = f'{name_ort}_z{zoom}'
     (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
                                                                           do_save_all=True, dir=dir_out,
-                                                                          str_name = str_name, qter=True)
+                                                                          str_name = str_name, do_center=True)
   
     # Create, display, and save the median superstack
     
     plt.imshow( stretch(img_superstack_median))
     plt.title(f'restretched and medianed, {name_ort}')
     plt.show()
-    file_out = os.path.join(dir_out, f'img_superstack_median_{name_ort}.fits')
-    hdu = fits.PrimaryHDU(img_superstack_median)
-    hdu.writeto(file_out, overwrite=True)
-    print(f'Wrote: {file_out}')
- 
+#    file_out = os.path.join(dir_out, f'img_superstack_median_{name_ort}.fits')
+#    hdu = fits.PrimaryHDU(img_superstack_median)
+#    hdu.writeto(file_out, overwrite=True)
+#    print(f'Wrote: {file_out}')
+# 
     # Create, display, and save the mean superstack
 
     plt.imshow( stretch(img_superstack_mean))
     plt.title(f'restretched and mean, {name_ort}')
     plt.show()    
-    file_out = os.path.join(dir_out, f'img_superstack_mean_{name_ort}.fits')
-    hdu = fits.PrimaryHDU(img_superstack_mean)
-    hdu.writeto(file_out, overwrite=True)
-    print(f'Wrote: {file_out}')
-       
+#    file_out = os.path.join(dir_out, f'img_superstack_mean_{name_ort}.fits')
+#    hdu = fits.PrimaryHDU(img_superstack_mean)
+#    hdu.writeto(file_out, overwrite=True)
+#    print(f'Wrote: {file_out}')
+#       
 #    print(f'zooming by {magfac}, to size {np.shape(img_haz_rescale[reqid_i])}')
     
 # =============================================================================
@@ -548,3 +549,5 @@ if (__name__ == '__main__'):
         plt.ylim((-4e-7, 6e-7))
         plt.tight_layout()
         plt.show()
+        
+ 
