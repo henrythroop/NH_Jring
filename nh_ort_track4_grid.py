@@ -472,7 +472,7 @@ class nh_ort_track4_grid:
 # Write out the 4D grid to disk
 # =============================================================================
     
-    def write(self, file=None, dir=None):
+    def write(self, file=None, dir=None, do_compress=False):
         """
         Write the 4D grid itself to a file. The run parameters (albedo, rho, q, speed) are encoded into the filename.
         The remaining parameters (b, beta, s) are written.
@@ -495,6 +495,10 @@ class nh_ort_track4_grid:
             file: Filename. By default, it is auto-generated from the parameters.
             
             dir:  Directory
+            
+            do_compress: 
+                Boolean. Do we use gzip compression on the output grids, or not?
+                
         """
         
         if not dir:
@@ -503,7 +507,7 @@ class nh_ort_track4_grid:
         if not file:
             file = self.create_filename_track3_grids4d()
                 
-        do_compress = True
+#        do_compress = True
         
         if do_compress:
             
@@ -540,6 +544,8 @@ class nh_ort_track4_grid:
 
         Format of the file is a pickle tuple, with (grid_4d, albedo, rho, q, v, b, beta, s).
         
+        File may be either .grid4d or .grid4d.gz . Reader will decompress if needed.
+        
         Optional Parameters:
             dir: Directory
             
@@ -550,13 +556,20 @@ class nh_ort_track4_grid:
 
         print("Reading: " + file)
 
-        with gzip.open(os.path.join(dir, file), 'rb') as f:
-             (self.density, 
+        if 'gz' in file:
+            with gzip.open(os.path.join(dir, file), 'rb') as f:
+                 (self.density, 
+                                 self.albedo, self.rho, self.q, self.speed, 
+                                 self.b, self.beta, self.s, 
+                                 self.resolution_km) = pickle.load(f)
+            f.close()
+        else:
+            f = open(os.path.join(dir, file), 'rb')
+            (self.density, 
                              self.albedo, self.rho, self.q, self.speed, 
                              self.b, self.beta, self.s, 
-                             self.resolution_km) = pickle.load(f)
-        f.close()
-
+                             self.resolution_km) = pickle.load(f)            
+            f.close() 
         return        
     
 # =============================================================================

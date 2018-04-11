@@ -104,6 +104,9 @@ def nh_ort_track4_calibrate():
 
     pi = math.pi
     
+    do_compress = False             # Do we do .gzip compression on the output grids?
+                                    # This is good for flexibility, but slows things down a lot.
+    
     # Define the limit for the I/F we want to match.
     
     iof_limit_ring = 5e-8  # The actual observed ring in ORT2 Track1 was 5e-8.
@@ -199,19 +202,19 @@ def nh_ort_track4_calibrate():
         # To get a full picture, we sum along all three axes (X, Y, Z) and show each.
         # XXX This code should be deprecated. Use the code in nh_ort_track3_plot_trajectory instead.
 
-        do_plot_xyz_views = False
+        do_plot_xyz_views_individual_trajectories = False
         
-#        if do_plot_xyz_views:
-#            plt.subplot(1,3,1)
-#            plt.imshow(stretch_hbt(np.sum(ring.density, axis=0)), extent=extent)
-#            plt.title('Summed along X')
-#            plt.subplot(1,3,2)
-#            plt.imshow(stretch_hbt(np.sum(ring.density, axis=1)), extent=extent)
-#            plt.title('Summed along Y')
-#            plt.subplot(1,3,3)
-#            plt.imshow(stretch_hbt(np.sum(ring.density, axis=2)), extent=extent)
-#            plt.title('Summed along Z')
-#            plt.show()
+        if do_plot_xyz_views_individual_trajectories:
+            plt.subplot(1,3,1)
+            plt.imshow(stretch_hbt(np.sum(ring.density, axis=0)), extent=extent)
+            plt.title('Summed along X')
+            plt.subplot(1,3,2)
+            plt.imshow(stretch_hbt(np.sum(ring.density, axis=1)), extent=extent)
+            plt.title('Summed along Y')
+            plt.subplot(1,3,3)
+            plt.imshow(stretch_hbt(np.sum(ring.density, axis=2)), extent=extent)
+            plt.title('Summed along Z')
+            plt.show()
         
         print('-----')
 
@@ -533,10 +536,11 @@ def nh_ort_track4_calibrate():
                                resolution_km = (ring.km_per_cell_x, ring.km_per_cell_y, ring.km_per_cell_z))  
         
         # Make a plot of this array, in various slices
+        # This will plot the final merged data arrays
         
-        do_plot_xyz_slices = False
+        do_plot_xyz_slices_merged = False
 
-        if do_plot_xyz_slices:
+        if do_plot_xyz_slices_merged:
             hbt.figsize((20,20))
             hbt.set_fontsize(7)
             grids_i.plot(axis_sum=0)
@@ -544,10 +548,13 @@ def nh_ort_track4_calibrate():
             grids_i.plot(axis_sum=2)
 
         # Now plot the max optical depth summed for all sizes, as a reality check
-
-        do_plot_tau = True
+        # This tau should be 'almost' the same as the target tau. Usually it will be slightly less.
+        # due to the fact that the target tau si normalized using all bins of beta, and this output grid
+        # excludes the smallest grains (which don't stick around for long anyhow, so only minor difference).
         
-        if (do_plot_tau):
+        do_plot_tau_merged = True
+        
+        if (do_plot_tau_merged):
             hbt.set_fontsize(10)
             hbt.figsize((6,6))
             grids_i.plot_tau()
@@ -555,7 +562,7 @@ def nh_ort_track4_calibrate():
         # Save the array to disk. Files are written as .grid4d.gz
         # These .grids4d.gz files are read by nh_org_track4_flyby.py, and create output for Doug Mehoke.
         
-        grids_i.write()
+        grids_i.write(do_compress=do_compress)
         
         print('---')
         

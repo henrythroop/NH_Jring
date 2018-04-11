@@ -98,10 +98,17 @@ def nh_ort_track4_flyby():
     name_ort = 'ORT2'
     dir_data = os.path.expanduser('~/Data/')
     
+    do_compress = False   # Do we use .gzip compression on the Track-4 input grids?
+                          # If we used compression on the track4_calibrate routine, we must use it here too.
+    
     dir_track4 = os.path.join(dir_data, name_ort, 'throop', 'track4')
     
-    files = glob.glob(os.path.join(dir_track4, '*.grid4d.gz'))
+    if do_compress:
+        files = glob.glob(os.path.join(dir_track4, '*.grid4d.gz'))
     
+    else:
+        files = glob.glob(os.path.join(dir_track4, '*.grid4d'))
+
     plt.set_cmap('plasma')
 
     utc_ca = '2019 1 Jan 05:33:00'
@@ -140,8 +147,6 @@ def nh_ort_track4_flyby():
     
     if do_short:
         files = files[0:5]
-
-    iof_ring = 2e-8
     
     file = files[0]  # Just for testing w cut+paste. Can ignore these.
     
@@ -151,18 +156,7 @@ def nh_ort_track4_flyby():
         print(f'Starting file {i}/{len(files)}')
               
         grid = nh_ort_track4_grid(file)    # Load the grid from disk. Uses gzip, so it is quite slow (10 sec/file)
-     
-        do_adjust_iof = False
-        
-        if do_adjust_iof:
-            grid.calc_tau()
-            print(f'XXX WARNING: GRID I/F_TYP = {grid.iof_typ:.2e} !!!')       
-            factor = iof_ring / grid.iof_typ   
-            grid.density *= factor               # Change the grid density to match the intended density
-            grid.calc_tau()
-            
-            print(f'XXX WARNING: ADJUSTED GRID DENSITY TO MATCH I/F = {iof_ring} !!!')
-    
+         
     # Load the trajectory parameters
 
         et_ca = int( sp.utc2et(utc_ca) )  # Force this to be an integer, just to make output cleaner.
