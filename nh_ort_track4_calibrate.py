@@ -238,7 +238,7 @@ def nh_ort_track4_calibrate():
     #  R:          Moon radius. km.     [Slide 6.4 inferred from E0.] [Also, 4.3 says that area is delivered in km2.]
     
     albedo = [0.05, 0.1, 0.3, 0.7]   # Q: Are albedo and beta independent? A: Yes, completely indep -- see eq @ 3.7. 
-    q      = [-2, -3.5]              # Should be negative, since exponent in eq @ 6.4 is positive
+    q      = [-2.5, -3.5]            # Should be negative, since exponent in eq @ 6.4 is positive
     rho    = [1, 0.4641588, 0.2154434, 0.10000]   # 10**(-1/3), 10**(-2/3)
     speed  = [-2.2, -3]
     orb_sol= [1]                     # Just one case here for 14-Mar-2018 ORT2 case, but might have more in future.

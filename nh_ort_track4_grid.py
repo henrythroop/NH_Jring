@@ -411,6 +411,8 @@ class nh_ort_track4_grid:
             tau += tau_i
 #            print(f'Summing with size = {s} mm')
         
+        tau *= 250   # Adjust for fact that bin density is # per km^3, but bin size is 250 km
+        
         tau_max     = np.amax(tau)
         iof_max     = tau_max * self.albedo
         tau_typ     = np.percentile(tau, 99)
@@ -456,7 +458,7 @@ class nh_ort_track4_grid:
         
         str_test = 'ort2-ring'
         
-        str_speed = 'v{:3.1f}'.format(abs(self.speed))
+        str_speed = 'y{:3.1f}'.format(abs(self.speed))
         
         str_q = 'q{:3.1f}'.format(abs(self.q))
         

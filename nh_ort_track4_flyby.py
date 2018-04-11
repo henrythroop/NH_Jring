@@ -109,6 +109,10 @@ def nh_ort_track4_flyby():
     else:
         files = glob.glob(os.path.join(dir_track4, '*.grid4d'))
 
+    # Alphabetize file list
+    
+    files = sorted(files)
+    
     plt.set_cmap('plasma')
 
     utc_ca = '2019 1 Jan 05:33:00'
@@ -146,9 +150,9 @@ def nh_ort_track4_flyby():
     do_short = False
     
     if do_short:
-        files = files[0:5]
+        files = files[0]
     
-    file = files[0]  # Just for testing w cut+paste. Can ignore these.
+    file = files[27]  # Just for testing w cut+paste. Can ignore these.
     
     i=0
     
@@ -294,7 +298,7 @@ def plot_table():
     file_in = '/Users/throop/Data/ORT2/throop/track4/nh_ort_track4_table.pkl'
     
     lun = open(file_in, 'rb')
-    t = pickle.load(lun)
+    t = ge.load(lun)
     lun.close()
     
     hbt.figsize((10,8))
@@ -335,7 +339,7 @@ def make_table_grid_positions():
     
     """
      
-    name_trajectory = 'prime'  # ← Set this to 'prime' or 'alternate'
+    name_trajectory = 'alternate'  # ← Set this to 'prime' or 'alternate'
    
     sp.unload('kernels_kem_prime.tm')
     sp.unload('kernels_kem_alternate.tm')
