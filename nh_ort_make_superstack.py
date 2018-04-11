@@ -393,7 +393,7 @@ if (__name__ == '__main__'):
     str_name = f'{name_ort}_z{zoom}'
     (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
                                                                           do_save_all=True, dir=dir_out,
-                                                                          str_name = str_name, do_center=True)
+                                                                          str_name = str_name, qter=True)
   
     # Create, display, and save the median superstack
     
@@ -521,46 +521,25 @@ if (__name__ == '__main__'):
         
         profile_x = np.nanmedian(img_extract_xprofile, axis=0)
     
-#        profile_x_masked = profile_x.copy()
-#        profile_x_masked[25:48] = np.nan # Mask out MU69
-#        profile_x_masked[70:76] = np.nan # Mask out satellite
-#        profile_x_masked[0:10]   = np.nan # Mask out sky on LHS
-        
         x_km = np.arange(len(profile_x)) * pixscale_km
         x_km -= np.mean(x_km)
         
         plt.subplot(2,1,1)
         plt.plot(x_km, profile_x, color='pink', lw=5)
-#        plt.plot(x_km, profile_x_masked, color='blue', lw=2)
-
-#        plt.plot(profile_x, color='pink', lw=5)
-#        plt.plot(profile_x_masked, color='blue', lw=2)
-
         plt.xlabel('km')
         plt.title('Profile, X dir')
-        plt.ylabel('I/F')
-    
+        plt.ylabel('I/F')    
         plt.ylim((-4e-7, 6e-7))
-        
-        
+            
         # Make profile in Y dir
         
         profile_y = np.nanmedian(img_extract_yprofile, axis=1)
-    
-#        profile_x_masked = profile_x.copy()
-#        profile_x_masked[25:48] = np.nan # Mask out MU69
-#        profile_x_masked[70:76] = np.nan # Mask out satellite
-#        profile_x_masked[0:10]   = np.nan # Mask out sky on LHS
         
         y_km = np.arange(len(profile_y)) * pixscale_km
         y_km -= np.mean(y_km)
 
         plt.subplot(2,1,2)        
         plt.plot(y_km, profile_y, color='pink', lw=5)
-#        plt.plot(y_km, profile_y_masked, color='blue', lw=2)
-
-#        plt.plot(profile_x, color='pink', lw=5)
-#        plt.plot(profile_x_masked, color='blue', lw=2)
 
         plt.xlabel('km')
         plt.title('Profile, Y dir')
@@ -569,60 +548,3 @@ if (__name__ == '__main__'):
         plt.ylim((-4e-7, 6e-7))
         plt.tight_layout()
         plt.show()
-        
-        
-        
-        ring_extract_yprofile_m = img_extract_yprofile.copy()
-#        ring_extract_yprofile_m[40:60, 20:38] = np.nan          # Mask out UT itself
-        
-        profile_y   = np.median(ring_extract_yprofile, axis=1)
-#        profile_y_m = np.median(ring_extract_yprofile_m, axis=1)
-        
-        plt.imshow(stretch(ring_extract_yprofile_m), origin='lower')
-        plt.show()
-        
-        
-#        
-#        
-#        y_km = np.arange(len(profile_y)) * pixscale_km
-#    
-#        plt.plot(y_km, profile_y, color = 'pink', lw=5)
-##        plt.plot(y_km, profile_y_m, color = 'blue', lw=2)         
-#        plt.xlabel('km')
-#        plt.title('Profile, Y dir')
-#        plt.ylabel('I/F')
-#        plt.show()
-#        
-#        profile_y_masked = profile_y.copy()
-#        profile_y_masked[32:48] = np.nan # Mask out MU69
-#        profile_y_masked[70:78] = np.nan # Mask out satellite
-#        profile_y_masked[0:6]   = np.nan # Mask out sky on LHS
-        
-#        x_km = np.arange(len(profile_x)) * pixscale_km
-#        
-#        plt.plot(x_km, profile_x, color='pink', lw=5)
-#        plt.plot(x_km, profile_x_masked, color='blue', lw=2)
-#        plt.xlabel('km')
-#        plt.title('Profile, X dir')
-#        plt.ylabel('I/F')
-#    
-#        plt.ylim((-4e-7, 6e-7))
-#        plt.show()
-        
-        iof_ring = np.nanmedian(profile_x[5:35])
-        iof_bg   = np.nanmedian(profile_x[60:80]) 
-    
-        print(f'I/F on  ring = {iof_ring:.2e}')
-        print(f'I/F off ring = {iof_bg:.2e}')
-        
-        print(f'→ I/F net = {(iof_ring - iof_bg):.2e}')
-
-        # Save the superstack images to FITS files that can be put on ixion
-        # NB: There are two liens against these currently that I would like to fix:
-        #   - No WCS
-        #   - No target motion compensation. That is, stars are aligned perfectly, but MU69 moves.
-        
-
-
- (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, do_center=True)
- 
