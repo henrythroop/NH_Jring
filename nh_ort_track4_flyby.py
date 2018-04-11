@@ -262,8 +262,9 @@ def nh_ort_track4_flyby():
         
         plt.show()        
         
-        # Now add an entry to the table. This is a table that lists all of the results -- e.g., max_tau, count rate etc
-        # one line per grid
+        # Now add an entry to the table. This is a table that lists all of the results --
+        #     e.g., max_tau, count rate etc
+        # One line per grid.
 
         t.add_row(vals=[grid.name_trajectory, grid.speed, grid.q, grid.albedo, grid.rho, 
                         grid.tau_max, grid.tau_typ,
@@ -320,6 +321,137 @@ def plot_table():
     t.sort(['speed', 'q_dust', 'albedo', 'rho'])
     t.pprint(max_width=-1, max_lines=-1)
 
+# =============================================================================
+# Output table indices for MRS
+# =============================================================================
+
+def make_table_grid_positions():
+    
+    """
+    This is a one-off utility function for MRS. 
+    In it, I just do a flyby of MU69, and output the X Y Z grid indices (as well as positions and timestamps).
+    I don't output density at all -- just the s/c positions.
+    
+    I do this for both prime and alternate trajectories.
+    
+    This is just because he hasn't integrated SPICE into his grid code.
+    
+    This function is stand-alone. It doesn't rely on the grid class.
+    It is included in this file because it directly relates to the grids.
+    
+    """
+     
+    name_trajectory = 'prime'  # ← Set this to 'prime' or 'alternate'
+   
+    sp.unload('kernels_kem_prime.tm')
+    sp.unload('kernels_kem_alternate.tm')
+   
+    frame = '2014_MU69_SUNFLOWER_ROT'
+    
+    name_observer = 'New Horizons'
+
+    name_target = 'MU69'
+ 
+    sp.furnsh(f'kernels_kem_{name_trajectory}.tm')
+    
+    file_in = '/Users/throop/Data/ORT2/throop/track4/ort2-ring_v2.2_q2.0_pv0.10_rho0.22.grid4d.gz'
+    
+    grid = nh_ort_track4_grid(file_in)    # Load the grid from disk. Uses gzip, so it is quite slow (10 sec/file)
+
+    utc_ca = '2019 1 Jan 05:33:00'
+    dt_before = 1*u.hour
+    dt_after  = 1*u.hour
+    dt = 1*u.s         # Sampling time through the flyby. Astropy units.
+    
+    et_ca = int( sp.utc2et(utc_ca) )  # Force this to be an integer, just to make output cleaner.
+        
+    et_start = et_ca - dt_before.to('s').value
+    et_end   = et_ca + dt_after.to('s').value
+                    
+    grid.frame       = frame
+    grid.name_target = name_target
+    grid.name_trajectory = name_trajectory
+    
+    # And call the method to fly through it!
+    # The returned density values etc are available within the instance variables, not returned explicitly.
+
+    grid.fly_trajectory(name_observer, et_start, et_end, dt)
+
+    # Make plots
+    
+    hbt.figsize((9,9))
+    hbt.fontsize(12)
+
+    plt.subplot(3,2,1)
+    plt.plot(grid.bin_x_t)
+    plt.ylabel('X Bin #')
+    plt.title(f'MU69, Trajectory = {name_trajectory}, frame = {frame}')
+    
+    plt.subplot(3,2,3)
+    plt.plot(grid.bin_y_t)
+    plt.ylabel('Y Bin #')
+
+    plt.subplot(3,2,5)
+    plt.plot(grid.bin_z_t)
+    plt.ylabel('Z Bin #')
+    plt.xlabel('Timestep #')
+
+    t_t = grid.et_t - np.mean(grid.et_t)
+    bin_t = range(len(t_t))
+    plt.subplot(3,2,2)
+    plt.axhline(0, color='pink')
+    plt.axvline(0, color='pink')
+    plt.plot(t_t, grid.x_t)
+
+    plt.ylabel('X [km]')
+
+    plt.xlabel('t [sec]')
+    
+    plt.subplot(3,2,4)
+    plt.axhline(0, color='pink')
+    plt.axvline(0, color='pink')
+    plt.plot(t_t, grid.y_t)
+    plt.ylabel('Y [km]')
+
+    plt.subplot(3,2,6)
+    plt.axhline(0, color='pink')
+    plt.axvline(0, color='pink')
+    plt.plot(t_t, grid.z_t)
+    plt.ylabel('Z [km]')
+    plt.xlabel('Time from C/A [sec]')
+    plt.tight_layout()
+
+    # Save the plot to a file
+    
+    file_out = f'positions_trajectory_{name_trajectory}.png'
+    path_out = os.path.join(dir_out, file_out)
+     
+    plt.savefig(path_out)
+    print(f'Wrote: {path_out}')
+    plt.show()
+    
+    # Make a table
+    
+    arr = {'bin' : bin_t, 
+           'delta_et' : t_t,
+           'X_km' : grid.x_t,
+           'Y_km' : grid.y_t,
+           'Z_km' : grid.z_t,
+           'Bin_X' : grid.bin_x_t,
+           'Bin_Y' : grid.bin_y_t,
+           'Bin_Z' : grid.bin_z_t}
+   
+    t = Table(arr, names=['bin', 'delta_et', 'X_km', 'Y_km', 'Z_km', 'Bin_X', 'Bin_Y', 'Bin_Z'],
+              dtype=['int', 'int', 'float', 'float', 'float', 'int', 'int', 'int'])
+  
+    # Save the table toa  file
+    
+    file_out = f'positions_trajectory_{name_trajectory}.txt'
+    path_out = os.path.join(dir_out, file_out)
+    
+    t.write(path_out, format = 'ascii.csv', overwrite=True)
+    print(f'Wrote: {path_out}')
+         
 # =============================================================================
 # Call the main function when this program as run
 # =============================================================================
