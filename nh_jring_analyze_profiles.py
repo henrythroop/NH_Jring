@@ -38,6 +38,7 @@ import spiceypy as sp
 from   astropy.wcs import WCS
 from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
+from   astropy import constants as c
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 #from   photutils import datasets
 from   scipy.stats import mode
@@ -68,6 +69,8 @@ from  nh_jring_mask_from_objectlist            import nh_jring_mask_from_objectl
 from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
 from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
 
+from nh_jring_extract_profile_from_unwrapped   import nh_jring_extract_profile_from_unwrapped
+
 from scatter_mie_ensemble                      import scatter_mie_ensemble
 from area_between_line_curve                   import area_between_line_curve
 
@@ -75,6 +78,10 @@ from area_between_line_curve                   import area_between_line_curve
 # params back and forth, I guess. [A: Yes, this is a great place for a class -- very clean.]
 
 class ring_profile:
+
+    """
+    This is a class to store ring profiles. They may be printed, aligned, loaded, averaged, etc.
+    """    
     
 # =============================================================================
 #     Init method: load the main table file
@@ -112,13 +119,14 @@ class ring_profile:
                self.index_image_arr[-1])) 
 
 # =============================================================================
-# Define the 'string' for the class. This is theory should be a string to reconstruct the object... hopeless, here,
-# so we just reutrn the string instead.
+# Define the 'string' for the class, which is what is shown when we type its name on the commandline.
+#   This in theory should be a string to reconstruct the object... hopeless, here,
+#   so we just return the string instead.
 # =============================================================================
 
     def __repr__(self):
-        return("Ring profile, {}/{}".format(self.index_group_arr[0], self.index_image_arr[0])) 
-        
+        return(self.__str__())
+                
 # =============================================================================
 # Define an __iter__ function so we can iterate over our individual radial profile
 # =============================================================================
@@ -175,7 +183,11 @@ class ring_profile:
                       key_azimuth = 'net',  # Of the azimuthal profiles, which one to read?
                       verbose = False,      # Verbose: List the filename as loading?
                       **kwargs):
-
+        """
+        This loads a set of profiles from disk, into the object.
+        It does not append in memory. It overwrites anything already loaded into that object.
+        """
+        
         # Each file on disk has several different extractions:
         #
         #   Radial profile has 'core', 'full', 'half, etc.
@@ -633,7 +645,7 @@ class ring_profile:
                 axes.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
             
             if plot_legend:
-                plt.legend(loc='upper left')
+                plt.legend(loc='upper left', fontsize=8)
             if (title is not None):
                 plt.title(title)    
             plt.show()
@@ -642,8 +654,22 @@ class ring_profile:
         # Make a consolidated plot of azimuthal profile
         #==============================================================================
         
+        # This involves unwrapping the longitudes to a given ET, assuming a specified orbital distance.
+        
         if (plot_azimuthal):
             hbt.figsize((18,2))
+            
+            utc_ref = '1 Jan 2000 00:00:00'
+#            et_ref  = sp.utc2et(utc_ref)       # Define a reference time
+            et_ref  = self.t['ET'][0]
+            a_metis = self.A_METIS*u.km        # Define a reference orbital distance
+            m_jup   = 1.8982e27*u.kg
+            
+            a_ref   = a_metis
+            
+            p_ref   = (np.sqrt(a_ref**3 / (c.G * m_jup))).to('s')
+          
+            d_theta_dt_ref = 2*math.pi / p_ref   # Orbital motion at the 
             
             for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
                 plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
@@ -657,10 +683,35 @@ class ring_profile:
             plt.xlabel('Azimuth [deg]')
             plt.ylabel(self.profile_azimuth_units)
             if plot_legend:
-                plt.legend()
+                plt.legend(fontsize=8)
             if (title is not None):
                 plt.title(title)
             plt.show()
+            
+            # Now do unwrapped, aka unphased. I will have to check this against a Metis sequence.
+            
+            for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
+                dt_i = et_ref - self.t['ET'][i]   # Get dt between reference time and time of this obs
+                d_theta = (d_theta_dt_ref*dt_i).value  # Total offset in radians
+                d_theta = np.mod( d_theta, math.pi * 2 )
+                
+                plt.plot( (self.azimuth_arr[i,:] - d_theta)*hbt.r2d,
+                         (i * dy_azimuthal) + profile_azimuth, 
+                         label = '{}/{}, {:.2f}°'.format(
+                                 self.index_group_arr[i], 
+                                 self.index_image_arr[i], 
+                                 self.ang_phase_arr[i]*hbt.r2d),
+                         **kwargs)
+                
+            plt.xlabel('Azimuth Unwrapped [deg]')
+            plt.ylabel(self.profile_azimuth_units)
+            if plot_legend:
+                plt.legend(fontsize=8)
+            if (title is not None):
+                plt.title(title)
+            plt.show()
+            
+            hbt.figsize_restore()
 
         return self
 
@@ -690,9 +741,15 @@ class ring_profile:
             
         return area
         
-        
 # =============================================================================
-# Now read in the data and plot it
+# # ===========================================================================
+# # END OF CLASS DEFINITION ###################################################
+# # ===========================================================================
+# =============================================================================
+
+
+# =============================================================================
+# Now read in some rings data and plot it
 # =============================================================================
     
 # Invoke the class
@@ -1136,7 +1193,7 @@ if False:
     a.load(7, hbt.frange(40,42),key_radius='full').flatten().plot()
 
 # =============================================================================
-# Now make a 'best possible radial profile'
+# Now construct a 'best possible radial profile'
 # =============================================================================
 
 a = ring_profile()
@@ -1155,7 +1212,7 @@ shift               = [0, 0, 0, 2, 0, 0, 0, 1]     # This is the # of bins to sh
 
 images = np.delete(hbt.frange(0,47),16)  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
 images = np.delete(hbt.frange(0,47),(16,18,19))  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
-images = np.delete(hbt.frange(0,47),(16,18,19,29))  # 0-47, but exclude a few spefic bad profiles (bg, or satellites)
+images = np.delete(hbt.frange(0,47),(16,18,19,29))  # 0-47, but exclude a few specific bad profiles (bg, or satellites)
 
 a.load(8, images, key_radius='full')
 shift = np.zeros(48)
@@ -1171,14 +1228,14 @@ bin1  = int(a.num_bins_azimuth/2 + num_bins_az_central/2)
            
 for i in range(a.num_profiles):        
     image_i = a.image_unwrapped_arr[i] 
-    mask = hbt.nanlogical_and(a.mask_stray_unwrapped_arr[i,:,:], 
-                          a.mask_objects_unwrapped_arr[i,:,:])  # XXX This mask mergering isn't working right.
+    mask = hbt.nanlogical_and(a.mask_stray_unwrapped_arr[i][:,:], 
+                              a.mask_objects_unwrapped_arr[i][:,:])  # XXX This mask mergering isn't working right.
 
     # Now actually sum to get the radial profile. These two should give identical results.
     profile_i = np.nanmean( image_i[:,bin0:bin1], axis=1)
     profile_i2 = nh_jring_extract_profile_from_unwrapped(a.image_unwrapped_arr[i],
-                                                        a.radius_arr[i,:],
-                                                        a.azimuth_arr[i,:],
+                                                        a.radius_arr[i][:],
+                                                        a.azimuth_arr[i][:],
                                                         0.047,
                                                         'radial',
                                                         mask_unwrapped=mask)
@@ -1198,7 +1255,7 @@ profile_mean = profile_sum / i
 
 plt.plot(a.radius_arr[0]/1000, profile_mean + dy*i, label = 'Mean', lw=lw)
 plt.xlim((127.5, 130))
-plt.title("{}, central {} az bins".format(a, num_bins_az_central))
+plt.title("{}, shifted by preset, central {} az bins".format(a, num_bins_az_central))
 plt.xlabel('Radius [1000 km]')
 plt.show()
 
@@ -1216,7 +1273,7 @@ plt.plot(a.radius_arr[0]/1000, profile_mean + dy*i, label = 'Mean', lw=lw)
 plt.xlim((127.5,130))
 plt.ylabel(a.profile_radius_units)
 plt.xlabel('Radius [1000 km]')
-plt.title("{}, central {} az bins".format(a, num_bins_az_central))
+plt.title("{}, shifted by preset, central {} az bins".format(a, num_bins_az_central))
 plt.ylim((0, np.amax(profile_mean + dy*(i+3))))
 plt.show()
 
@@ -1294,7 +1351,7 @@ plt.plot(a.radius_arr[0]/1000, profile_mean + dy*i, label = 'Mean', lw=lw)
 plt.xlim((127.5,130))
 plt.ylabel(a.profile_radius_units)
 plt.xlabel('Radius [1000 km]')
-plt.title("{}, central {} az bins".format(a, num_bins_az_central))
+plt.title("{}, shifted by centroid, central {} az bins".format(a, num_bins_az_central))
 plt.ylim((0, np.amax(profile_mean + dy*(i+3))))
 plt.show()
 
@@ -1311,4 +1368,7 @@ a.load(8,images,key_radius='full').flatten().plot(xlim=(120000,131000))
 a.load(8,hbt.frange(10,40),key_radius='full').plot(xlim=(115000,131000), plot_legend=False)
 
 a.load(8,hbt.frange(13,23)).plot(plot_legend=True, plot_azimuthal=True)
+
+# Do a test with Metis in the frame
+a.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=True, plot_azimuthal=True)
 
