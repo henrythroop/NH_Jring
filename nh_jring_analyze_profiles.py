@@ -93,7 +93,7 @@ class ring_profile:
         dir_out     = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
             
         lun = open(dir_out + file_pickle, 'rb')
-        self.t = pickle.load(lun)
+        self.t = pickle.load(lun)                        # Self.t is the *entire* table for all J-ring obs, not subset.
         lun.close()
         
         # Process the group names. Some of this is duplicated logic -- depends on how we want to use it.
@@ -203,7 +203,7 @@ class ring_profile:
         # Define t_group, since we'll reference it a lot
         
         self.groupmask = self.t['Desc'] == self.groups[index_group]
-        self.t_group = self.t[self.groupmask]  # 
+        self.t_group = self.t[self.groupmask]
         
         self.num_images_group = np.size(self.t_group)
         
@@ -220,6 +220,7 @@ class ring_profile:
         self.index_group_arr        = []
         self.dt_arr                 = [] # dt is the time since the datafile was written. 
         self.dt_str_arr             = []
+        self.et_arr                 = []
         self.image_unwrapped_arr    = []
         self.mask_objects_unwrapped_arr = []
         self.mask_stray_unwrapped_arr = []
@@ -275,6 +276,7 @@ class ring_profile:
             self.index_image_arr.append(index_image)
             self.index_group_arr.append(index_group)
             self.dt_arr.append(dt)
+            self.et_arr.append(et)
             self.dt_str_arr.append(dt_str)
             self.image_unwrapped_arr.append(image_unwrapped)
             self.mask_stray_unwrapped_arr.append(mask_stray_unwrapped)
@@ -657,19 +659,21 @@ class ring_profile:
         # This involves unwrapping the longitudes to a given ET, assuming a specified orbital distance.
         
         if (plot_azimuthal):
-            hbt.figsize((18,2))
+            hbt.figsize((18,5))
             
             utc_ref = '1 Jan 2000 00:00:00'
 #            et_ref  = sp.utc2et(utc_ref)       # Define a reference time
-            et_ref  = self.t['ET'][0]
+            et_ref  = self.et_arr[0]
             a_metis = self.A_METIS*u.km        # Define a reference orbital distance
-            m_jup   = 1.8982e27*u.kg
+            m_jup   = 1.8982e27*u.kg           # Jovian mass, to calc 
             
-            a_ref   = a_metis
+            a_ref   = self.A_METIS*u.km
+#            a_ref   = self.A_ADRASTEA*u.km
             
-            p_ref   = (np.sqrt(a_ref**3 / (c.G * m_jup))).to('s')
+            p_ref   = 2*math.pi * (np.sqrt(a_ref**3 / (c.G * m_jup))).to('s')  # Orbital period at Metis: approx 7 hr.
           
-            d_theta_dt_ref = 2*math.pi / p_ref   # Orbital motion at the 
+            dtheta_dt_ref = 2*math.pi / p_ref   # Orbital motion at the given orbital distance
+            dtheta_dt_jup = 2*math.pi / (9.925*u.hour).to('s')  # Jupiter internal rotation rate
             
             for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
                 plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
@@ -688,20 +692,43 @@ class ring_profile:
                 plt.title(title)
             plt.show()
             
-            # Now do unwrapped, aka unphased. I will have to check this against a Metis sequence.
+            # Now do unwrapped, aka unphased. 
+            
+            num_az_unwrapped = 360
+            
+            azimuth_unwrapped = hbt.frange(0,math.pi *2, num_az_unwrapped+1)[0:-1]
+            unwrapped_2d = np.zeros( (len(self.profile_azimuth_arr), num_az_unwrapped) )
             
             for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
-                dt_i = et_ref - self.t['ET'][i]   # Get dt between reference time and time of this obs
-                d_theta = (d_theta_dt_ref*dt_i).value  # Total offset in radians
-                d_theta = np.mod( d_theta, math.pi * 2 )
+                dt_i = et_ref - self.et_arr[i]   # Get dt between reference time and time of this obs
+                d_theta = ((dtheta_dt_ref - dtheta_dt_jup)*dt_i)  .value  # Total offset in radians
+#                d_theta = np.mod( d_theta, math.pi * 2 )
+                theta_i = self.azimuth_arr[i,:] + d_theta
+                theta_i += math.pi  # XXX delete this -- justadded for temporary offset
+                theta_i = np.mod(theta_i, math.pi * 2)
+                print(f'i={i}, dt_i={dt_i}, d_theta = {d_theta}')
                 
-                plt.plot( (self.azimuth_arr[i,:] - d_theta)*hbt.r2d,
+                plt.plot( theta_i*hbt.r2d,
                          (i * dy_azimuthal) + profile_azimuth, 
                          label = '{}/{}, {:.2f}°'.format(
                                  self.index_group_arr[i], 
                                  self.index_image_arr[i], 
                                  self.ang_phase_arr[i]*hbt.r2d),
+                         marker = '.', linestyle='none',  
+                         markersize=1,
                          **kwargs)
+                         
+               # Now rebin this into the regridded output, and lay it down.
+               
+#               y_out = np.interp(x_out, x_in, y_in)
+               
+#               unwrapped_1d = np.interp(azimuth_unwrapped[50:60], theta_i[50:60], profile_azimuth[50:60])
+                indices = np.logical_not(np.isnan(profile_azimuth))
+                f = interp1d(theta_i[indices], profile_azimuth[indices])
+                
+                unwrapped_1d = f(azimuth_unwrapped)
+                unwrapped_2d[i,:] = np.array(unwrapped_1d)
+               
                 
             plt.xlabel('Azimuth Unwrapped [deg]')
             plt.ylabel(self.profile_azimuth_units)
@@ -1225,7 +1252,6 @@ profile = []
 bin0  = int(a.num_bins_azimuth/2 - num_bins_az_central/2)
 bin1  = int(a.num_bins_azimuth/2 + num_bins_az_central/2)
 
-           
 for i in range(a.num_profiles):        
     image_i = a.image_unwrapped_arr[i] 
     mask = hbt.nanlogical_and(a.mask_stray_unwrapped_arr[i][:,:], 
@@ -1370,5 +1396,22 @@ a.load(8,hbt.frange(10,40),key_radius='full').plot(xlim=(115000,131000), plot_le
 a.load(8,hbt.frange(13,23)).plot(plot_legend=True, plot_azimuthal=True)
 
 # Do a test with Metis in the frame
-a.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=True, plot_azimuthal=True)
+a = ring_profile()
+self = a
+plot_azimuthal=True
+plot_legend=True
+a.load(8,hbt.frange(0,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a)
+
+# Plot some images and masks to explore what is happening here.
+
+hbt.figsize((10,5))
+plt.subplot(2,2,1)
+plt.imshow(stretch(a.image_unwrapped_arr[8]), aspect=0.3)
+plt.subplot(2,2,2)
+plt.imshow(a.mask_objects_unwrapped_arr[8], aspect=0.3)
+plt.subplot(2,2,3)
+plt.imshow(stretch(a.image_unwrapped_arr[9]), aspect=0.3)
+plt.subplot(2,2,4)
+plt.imshow(a.mask_objects_unwrapped_arr[9], aspect=0.3)
+plt.show()
 
