@@ -57,6 +57,7 @@ import re # Regexp
 import pickle # For load/save
 
 from   matplotlib.figure import Figure
+from scipy import interpolate
 
 # HBT imports
 
@@ -599,6 +600,7 @@ class ring_profile:
                       title=None,
                       xlim=None,
                       plot_legend=True,
+                      a_unwrap=None,      # Reference distance for unwrapping
                       **kwargs):
 
         #==============================================================================
@@ -659,15 +661,22 @@ class ring_profile:
         # This involves unwrapping the longitudes to a given ET, assuming a specified orbital distance.
         
         if (plot_azimuthal):
+            
             hbt.figsize((18,5))
             
-            utc_ref = '1 Jan 2000 00:00:00'
+#            utc_ref = '1 Jan 2000 00:00:00'
 #            et_ref  = sp.utc2et(utc_ref)       # Define a reference time
-            et_ref  = self.et_arr[0]
+
+            # Set the zero point for the time (and thus longitude)
+            
+            et_ref  = self.et_arr[0]          # 35 is good for 8/0-48. 48 is good for 8/54-107
             a_metis = self.A_METIS*u.km        # Define a reference orbital distance
             m_jup   = 1.8982e27*u.kg           # Jovian mass, to calc 
             
-            a_ref   = self.A_METIS*u.km
+            if a_unwrap:
+                a_ref = a_unwrap
+            else:    
+                a_ref   = self.A_METIS*u.km
 #            a_ref   = self.A_ADRASTEA*u.km
             
             p_ref   = 2*math.pi * (np.sqrt(a_ref**3 / (c.G * m_jup))).to('s')  # Orbital period at Metis: approx 7 hr.
@@ -694,7 +703,7 @@ class ring_profile:
             
             # Now do unwrapped, aka unphased. 
             
-            num_az_unwrapped = 360
+            num_az_unwrapped = 3600
             
             azimuth_unwrapped = hbt.frange(0,math.pi *2, num_az_unwrapped+1)[0:-1]
             unwrapped_2d = np.zeros( (len(self.profile_azimuth_arr), num_az_unwrapped) )
@@ -718,17 +727,28 @@ class ring_profile:
                          markersize=1,
                          **kwargs)
                          
-               # Now rebin this into the regridded output, and lay it down.
+                # Now rebin this into the regridded output, and lay it down.
                
 #               y_out = np.interp(x_out, x_in, y_in)
                
 #               unwrapped_1d = np.interp(azimuth_unwrapped[50:60], theta_i[50:60], profile_azimuth[50:60])
                 indices = np.logical_not(np.isnan(profile_azimuth))
-                f = interp1d(theta_i[indices], profile_azimuth[indices])
+                
+                xs = theta_i[indices]
+                ys = profile_azimuth[indices]
+                
+#                wm = hbt.wheremax(xs)
+#                if wm != len(xs):
+                    
+                xs = np.concatenate([[-20],      theta_i[indices],         [20]])
+                ys = np.concatenate([[np.nan], profile_azimuth[indices], [np.nan]])
+                
+                f = interpolate.interp1d( xs, ys )
                 
                 unwrapped_1d = f(azimuth_unwrapped)
+                delta = unwrapped_1d - np.roll(unwrapped_1d, 1)
+                unwrapped_1d[ np.abs(delta- np.nanmedian(delta)) < 1e-6 ] = np.nan
                 unwrapped_2d[i,:] = np.array(unwrapped_1d)
-               
                 
             plt.xlabel('Azimuth Unwrapped [deg]')
             plt.ylabel(self.profile_azimuth_units)
@@ -736,6 +756,53 @@ class ring_profile:
                 plt.legend(fontsize=8)
             if (title is not None):
                 plt.title(title)
+            plt.show()
+            
+            unwrapped_2d_ur = unwrapped_2d.copy()
+            unwrapped_2d_ll = unwrapped_2d.copy()
+            unwrapped_2d_center = unwrapped_2d.copy()
+
+#            unwrapped_2d_ur[0:30,:] = np.nan   # zero out bottom half
+#            unwrapped_2d_ur[0:, 0:2000] = np.nan  # zero out left half
+
+            unwrapped_2d_ll[20:,:] = np.nan # Remove top half
+            unwrapped_2d_ll[:,1500:] = np.nan
+            
+            unwrapped_2d_center[0:20,0:1500] = np.nan
+
+            plt.imshow(unwrapped_2d, aspect=0.05, origin='lower',
+                       extent=(0,math.pi*2, 0, self.num_profiles-1))
+            plt.ylabel('Image Number')
+            plt.xlabel('Azimuth [radians]')
+            plt.title(title)            
+            plt.ylabel('DN arbitrary')
+            plt.show()
+
+            profile        = np.nanmean(unwrapped_2d,        axis=0)
+            profile_center = np.nanmean(unwrapped_2d_center, axis=0)
+            profile_ll     = np.nanmean(unwrapped_2d_ll,     axis=0)
+            profile_ur     = np.nanmean(unwrapped_2d_ur,     axis=0)
+            
+            plt.plot(azimuth_unwrapped, profile_center, alpha=0.2, label = 'Full orbit')
+            plt.plot(azimuth_unwrapped, profile_ll, alpha=0.2, label = 'Second partial orbit')
+            plt.title(f'Azimuthal Brightness, {self}')
+            plt.xlabel('Radians')
+            plt.title(title.__str__() + f', Keplerian @ {a_ref}')
+            plt.legend()
+            plt.show()
+            
+#            plt.plot(azimuth_unwrapped, profile_ll)
+#            plt.plot(azimuth_unwrapped, profile_ur)
+            
+            width = 100
+            
+            plt.plot(azimuth_unwrapped, convolve(profile,        Gaussian1DKernel(50), boundary='wrap'))
+            plt.plot(azimuth_unwrapped, convolve(profile_center, Gaussian1DKernel(50), boundary='wrap'))
+            plt.title(f'Unwrapped, a = {a_ref}, {self}')
+            plt.show()
+            
+            plt.plot(azimuth_unwrapped, convolve(profile_center, Gaussian1DKernel(10), boundary='wrap'))
+            plt.plot(azimuth_unwrapped, convolve(profile_ll,     Gaussian1DKernel(10), preserve_nan=True))
             plt.show()
             
             hbt.figsize_restore()
@@ -1400,7 +1467,13 @@ a = ring_profile()
 self = a
 plot_azimuthal=True
 plot_legend=True
-a.load(8,hbt.frange(0,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a)
+a.load(8,hbt.frange(0,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+
+
+a.load(8,hbt.frange(54,107), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+
+a.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+
 
 # Plot some images and masks to explore what is happening here.
 
