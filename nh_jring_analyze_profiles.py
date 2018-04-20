@@ -450,29 +450,83 @@ class ring_profile:
 # Flatten the profiles -- that is, if there are N profiles, flatten to one, with mean value
 # =============================================================================
 
-    def flatten(self):
+    def flatten(self, a_ref = 129_700*u.km):
         
         """ Flatten the profile, from N profile, into one mean (or median) profile.
             Applies to radial and azimuthal and all other quantities.
             Result is returned, and internal values are changed as well.
-            After flattening, most outputs are as 1-element arrays (not scalars)."""
+            After flattening, most outputs are as 1-element arrays (not scalars).
+            
+            Parameters
+            ---    
+            
+            a_ref:
+                Reference distance for doing the unwrapping. Astropy units. e.g., 127,500 km.
+
+            Return value:
+                self : Newly flattened object, with one profile, rather than N.
+                
+        """
+        
         
         # If is is already flattened (or a single profile), return without changing anything
         
         if (self.num_profiles == 1):
             return self
         
-        # First do radial profiles
+        # First do radial profiles. This is easy -- we just take the mean of all the profiles.
                 
         self.profile_radius_arr[0] = np.mean(self.profile_radius_arr, axis=0) # Save the flattened profile
 
-        # Then do the azimuthal profiles
+        # Then do the azimuthal profiles. This is much harder, since we need to unwrap them to make sense of them.
+
+        num_az_unwrapped = 3600
+
+        # Set up a uniformly spaced azimuthal grid.
+            
+        azimuth_unwrapped = hbt.frange(0,math.pi *2, num_az_unwrapped+1)[0:-1]
+ 
+        # Also, set up a 2D grid, where we make an 'image' of the azimuthal output
         
-        self.profile_azimuth_arr[0] = np.mean(self.profile_azimuth_arr, axis=0) # Save the flattened profile
+        unwrapped_2d = np.zeros( (len(self.profile_azimuth_arr), num_az_unwrapped) )
+        
+        # Loop over every azimuthal profile. For each one, unwrap it properly to a common ET, then put it on a 
+        # common grid. Then merge all of them.
+                
+        for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
+            
+            # Unwrap the longitudes. self.azimuth_arr is in radians, and covers only the observed longitudes
+            #   (ie, not 0 .. 2pi)
+            
+            theta_i = unwrap_orbital_longitude(self.azimuth_arr[i,:], self.et_arr[i], 'Jupiter', a_ref)
+                         
+            # Now rebin this into the regridded output, and lay it down.
+           
+            indices = np.logical_not(np.isnan(profile_azimuth))   # Get the non-NAN indices. NAN are from masking.
 
+            # Use interp1d() to map the points onto a uniformly spaced azimuthal grid
+             
+            xs = theta_i[indices]
+            ys = profile_azimuth[indices]                
+            xs = np.concatenate([[-20],      theta_i[indices],         [20]])    # Set up some fake boundary cond's
+            ys = np.concatenate([[np.nan], profile_azimuth[indices], [np.nan]])  # Set up some fake boundary cond's                
+            f = interpolate.interp1d( xs, ys )                
+            unwrapped_1d = f(azimuth_unwrapped)
+
+            delta = unwrapped_1d - np.roll(unwrapped_1d, 1)
+            unwrapped_1d[ np.abs(delta- np.nanmedian(delta)) < 1e-6 ] = np.nan   # Zero out un-obs'vd region, ugh
+            unwrapped_2d[i,:] = np.array(unwrapped_1d)
+
+        # Save the 2D azimuth 'image' 
+        
+        self.profile_azimuth_arr_2d = unwrapped_2d
+
+        # Flatten the 'image' of azimuth down into a 1D array
+        # XXX I think for consistency 
+        
+        self.profile_azimuth_arr = np.array([np.nanmean(unwrapped_2d,        axis=0)])    # Save the flattened profile
         self.profile_radius_arr  = np.array([self.profile_radius_arr[0]])
-        self.profile_azimuth_arr = np.array([self.profile_azimuth_arr[0]])
-
+        
         # For some quantities, like angles, take the mean and save that.
         # NB: If we add any new fields to the object, we need to add a corresponding new line to this method!
         
@@ -483,7 +537,7 @@ class ring_profile:
         # For other fields, take one entry, and save that.
         # This is a bit crude, but probably OK.
                         
-        self.azimuth_arr     = np.array([self.azimuth_arr[0]])
+        self.azimuth_arr     = np.array([azimuth_unwrapped])  # The newly unwrapped az grid values
         self.radius_arr      = np.array([self.radius_arr[0]])
         self.index_image_arr = np.array(["{}-{}".format(self.index_image_arr[0], self.index_image_arr[-1])])
         self.index_group_arr = np.array([self.index_group_arr[0]]) 
@@ -664,26 +718,6 @@ class ring_profile:
             
             hbt.figsize((18,5))
             
-#            utc_ref = '1 Jan 2000 00:00:00'
-#            et_ref  = sp.utc2et(utc_ref)       # Define a reference time
-
-            # Set the zero point for the time (and thus longitude)
-            
-            et_ref  = self.et_arr[0]          # 35 is good for 8/0-48. 48 is good for 8/54-107
-            a_metis = self.A_METIS*u.km        # Define a reference orbital distance
-            m_jup   = 1.8982e27*u.kg           # Jovian mass, to calc 
-            
-            if a_unwrap:
-                a_ref = a_unwrap
-            else:    
-                a_ref   = self.A_METIS*u.km
-#            a_ref   = self.A_ADRASTEA*u.km
-            
-            p_ref   = 2*math.pi * (np.sqrt(a_ref**3 / (c.G * m_jup))).to('s')  # Orbital period at Metis: approx 7 hr.
-          
-            dtheta_dt_ref = 2*math.pi / p_ref   # Orbital motion at the given orbital distance
-            dtheta_dt_jup = 2*math.pi / (9.925*u.hour).to('s')  # Jupiter internal rotation rate
-            
             for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
                 plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
                          (i * dy_azimuthal) + profile_azimuth, 
@@ -701,21 +735,28 @@ class ring_profile:
                 plt.title(title)
             plt.show()
             
-            # Now do unwrapped, aka unphased. 
+            # Now unwrap these longitudes, and makes some plots. 
+            
+            a_ref = 129_700*u.km
+            
+            # Create some output arrays
             
             num_az_unwrapped = 3600
             
             azimuth_unwrapped = hbt.frange(0,math.pi *2, num_az_unwrapped+1)[0:-1]
             unwrapped_2d = np.zeros( (len(self.profile_azimuth_arr), num_az_unwrapped) )
             
+            
             for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
-                dt_i = et_ref - self.et_arr[i]   # Get dt between reference time and time of this obs
-                d_theta = ((dtheta_dt_ref - dtheta_dt_jup)*dt_i)  .value  # Total offset in radians
-#                d_theta = np.mod( d_theta, math.pi * 2 )
-                theta_i = self.azimuth_arr[i,:] + d_theta
-                theta_i += math.pi  # XXX delete this -- justadded for temporary offset
-                theta_i = np.mod(theta_i, math.pi * 2)
-                print(f'i={i}, dt_i={dt_i}, d_theta = {d_theta}')
+#                dt_i = et_ref - self.et_arr[i]   # Get dt between reference time and time of this obs
+#                d_theta = ((dtheta_dt_ref - dtheta_dt_jup)*dt_i)  .value  # Total offset in radians
+##                d_theta = np.mod( d_theta, math.pi * 2 )
+#                theta_i = self.azimuth_arr[i,:] + d_theta
+#                theta_i += math.pi  # XXX delete this -- justadded for temporary offset
+#                theta_i = np.mod(theta_i, math.pi * 2)
+#                print(f'i={i}, dt_i={dt_i}, d_theta = {d_theta}')
+                
+                theta_i = unwrap_orbital_longitude(self.azimuth_arr[i,:], self.et_arr[i], 'Jupiter', a_ref)
                 
                 plt.plot( theta_i*hbt.r2d,
                          (i * dy_azimuthal) + profile_azimuth, 
@@ -783,28 +824,32 @@ class ring_profile:
             profile_ll     = np.nanmean(unwrapped_2d_ll,     axis=0)
             profile_ur     = np.nanmean(unwrapped_2d_ur,     axis=0)
             
-            plt.plot(azimuth_unwrapped, profile_center, alpha=0.2, label = 'Full orbit')
-            plt.plot(azimuth_unwrapped, profile_ll, alpha=0.2, label = 'Second partial orbit')
-            plt.title(f'Azimuthal Brightness, {self}')
-            plt.xlabel('Radians')
-            plt.title(title.__str__() + f', Keplerian @ {a_ref}')
-            plt.legend()
-            plt.show()
+            do_plot_az_raw = False
             
-#            plt.plot(azimuth_unwrapped, profile_ll)
-#            plt.plot(azimuth_unwrapped, profile_ur)
+            if do_plot_az_raw:
+                plt.plot(azimuth_unwrapped, profile_center, alpha=0.2, label = 'Full orbit')
+                plt.plot(azimuth_unwrapped, profile_ll, alpha=0.2, label = 'Second partial orbit')
+                plt.title(f'Azimuthal Brightness, {self}')
+                plt.xlabel('Radians')
+                plt.title(title.__str__() + f', Keplerian @ {a_ref}')
+                plt.legend()
+                plt.show()
+                
+            do_plot_az_smoothed = False
             
-            width = 100
-            
-            plt.plot(azimuth_unwrapped, convolve(profile,        Gaussian1DKernel(50), boundary='wrap'))
-            plt.plot(azimuth_unwrapped, convolve(profile_center, Gaussian1DKernel(50), boundary='wrap'))
-            plt.title(f'Unwrapped, a = {a_ref}, {self}')
-            plt.show()
-            
-            plt.plot(azimuth_unwrapped, convolve(profile_center, Gaussian1DKernel(10), boundary='wrap'))
-            plt.plot(azimuth_unwrapped, convolve(profile_ll,     Gaussian1DKernel(10), preserve_nan=True))
-            plt.show()
-            
+            if do_plot_az_smoothed:
+
+                width = 100
+                
+                plt.plot(azimuth_unwrapped, convolve(profile,        Gaussian1DKernel(50), boundary='wrap'))
+                plt.plot(azimuth_unwrapped, convolve(profile_center, Gaussian1DKernel(50), boundary='wrap'))
+                plt.title(f'Unwrapped, a = {a_ref}, {self}')
+                plt.show()
+                
+                plt.plot(azimuth_unwrapped, convolve(profile_center, Gaussian1DKernel(10), boundary='wrap'))
+                plt.plot(azimuth_unwrapped, convolve(profile_ll,     Gaussian1DKernel(10), preserve_nan=True))
+                plt.show()
+                
             hbt.figsize_restore()
 
         return self
@@ -834,7 +879,91 @@ class ring_profile:
             area.append(area_out)                 
             
         return area
+
+
+# =============================================================================
+# Unwrap an orbital longitude back to a common time frame
+# =============================================================================
+
+def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit, et_ref=0):
+    """
+    Takes a set of longitudes, and unwraps them back to a given frame, incorporating
+    both body rotation, and keplerian orbital motion. Both are assumed to be constant.
+    
+    That is, it takes the preset longitudes lon_in at time et_in of a satellite 
+    in orbit above a rotating body, and it maps them backward to determine their longitudes at time et_out.
+    
+    "The object is currently in orbit and is at this longitude above the body. 
+      If we go back to ET_OUT, what longitude will it be at?"
+    
+    Typically et_out will be some common reference, like '1 Jan 2000 12:00:00'. But, it can be anything.
+    
+    The calculation requires the central body mass and rotation rate. These are
+    determined from SPICE.
+    
+    The orbital period is determined from the orbital distance `a_orbit`.
+    
+    SPICE is assumed to be loaded, and have all of the necessary kernels.
+    
+    This is a standalone function, not part of any class.
+    
+    Parameters
+    -----
+    
+    lon_in:
+        Longitude, in radians. The longitude of the observations.
+    
+    et_in:
+        ET, in seconds. This is the time at which the observations were taken.
+    
+    name_body:
+        String
         
+    et_ref:
+        ET, in seconds. This is the ET for which we want to put everything into the time base of.
+        Default value is 0 (ie, roughly 1 Jan 2000 12:00:00, but about 64 sec from that, due to leap seconds etc.)
+    
+        
+    """
+    
+    name_body = 'jupiter'
+    a_orbit = 129_700*u.km
+    
+    masses = {'JUPITER': c.M_jup,
+              'EARTH':   c.M_earth,
+              'PLUTO':   1.303e22*u.kg,
+              'SUN':     c.M_sun}
+    
+    m_body = masses[name_body.upper()]
+    
+    dt = et_ref - et_in                # Time shift to apply. Typically will be negative, 
+                                     # since we usually go back in time.
+                                     
+  
+#    print(f'dt = {dt} sec')
+    
+    (_, pm) = sp.bodvrd(name_body.upper(), 'PM', 3)
+        
+    p_orbit =  2*math.pi * (np.sqrt(a_orbit**3 / (c.G * m_body))).to('s')  # Orbital period at Metis: approx 7 hr.
+    
+    dtheta_dt_rot = pm[1] * hbt.d2r / (u.day.to(u.s))  # Convert rotation rate from deg/day (spice) to rad/sec (hbt)
+                                                       # We ignore the pm[0] component since that's offset, and 
+                                                       # it is already programmed into our original longitudes.
+
+    dtheta_dt_orbit = (2*math.pi / p_orbit.to('s')).value
+    
+    lon_out = lon_in + (dtheta_dt_orbit - dtheta_dt_rot)*dt
+
+    # Put in range 0 .. 2pi
+    
+    lon_out = np.mod(lon_out, 2*math.pi)     
+    
+    return lon_out
+
+    
+    ###  Jupiter Prime Meridian:      W       =  284.95  + 870.5366420 d"  pm[0] = 284; pm[1] = 870.
+                
+    
 # =============================================================================
 # # ===========================================================================
 # # END OF CLASS DEFINITION ###################################################
@@ -845,6 +974,24 @@ class ring_profile:
 # =============================================================================
 # Now read in some rings data and plot it
 # =============================================================================
+
+
+# Do a test with Metis in the frame
+    
+a = ring_profile()
+self = a
+plot_azimuthal=True
+plot_legend=True
+a.load(8,hbt.frange(0,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=False, title=a, a_unwrap=129700*u.km)
+
+
+
+# Load SPICE, if it isn't started already
+        
+file_tm = 'kernels_nh_jupiter.tm'  # SPICE metakernel
+sp.unload(file_tm)                 # Pre-emptively unload .tm file, to prevent polluting the kernel pool 
+sp.furnsh(file_tm)
     
 # Invoke the class
         
@@ -1463,16 +1610,50 @@ a.load(8,hbt.frange(10,40),key_radius='full').plot(xlim=(115000,131000), plot_le
 a.load(8,hbt.frange(13,23)).plot(plot_legend=True, plot_azimuthal=True)
 
 # Do a test with Metis in the frame
+
 a = ring_profile()
 self = a
 plot_azimuthal=True
 plot_legend=True
-a.load(8,hbt.frange(0,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+a.load(8,hbt.frange(8,28), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=True, title=a, a_unwrap=129700*u.km)
+a.flatten()
+plt.plot(a.azimuth_arr[0], a.profile_azimuth_arr[0])
+plt.show()
+plt.imshow(a.profile_azimuth_arr_2d, aspect=30)
+plt.show()
+
+
+
+
+ring2 = ring_profile()
+ring2.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=False, plot_azimuthal=False, plot_radial=False, title=a, a_unwrap=129700*u.km)
+ring2.flatten()
+plt.plot(ring2.azimuth_arr[0], ring2.profile_azimuth_arr[0])
+plt.show()
+plt.imshow(ring2.profile_azimuth_arr_2d, aspect=30)
+plt.show()
+
+
+ring3 = ring_profile()
+ring3.load(8,hbt.frange(54,107), key_radius='full').plot(plot_legend=False, plot_azimuthal=False, plot_radial=False, title=a, a_unwrap=129700*u.km)
+ring3.flatten()
+plt.plot(ring3.azimuth_arr[0], ring3.profile_azimuth_arr[0])
+plt.show()
+plt.imshow(ring3.profile_azimuth_arr_2d, aspect=30)
+plt.show()
+
+
+ring2.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+
+
+a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
 
 
 a.load(8,hbt.frange(54,107), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
 
 a.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+
+a.load(5,hbt.frange(1,7), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
 
 
 # Plot some images and masks to explore what is happening here.
