@@ -180,19 +180,35 @@ class ring_profile:
 # =============================================================================
     
     def load(self, index_group, index_images, 
-                      key_radius = 'core',  # Of the radial profiles, which one to read?
+                      key_radius = 'core',  # Which of the radial profiles to read? 'full', 'center', or 'core'
                       key_azimuth = 'net',  # Of the azimuthal profiles, which one to read?
                       verbose = False,      # Verbose: List the filename as loading?
                       **kwargs):
         """
         This loads a set of profiles from disk, into the object.
         It does not append in memory. It overwrites anything already loaded into that object.
+        
+        Parameters
+        ----
+        
+        key_radius:
+            String. Which of several pre-extracted radial profiles to use.
+            - 'core'   : Uses the central 10% of the full azimuthal range.
+            - 'center' : Uses the central 25% of the full azimuthal range.
+            - 'full'   : Uses all of the data.
+            
+        verbose: 
+            Boolean. List each file as it loads?
+        
+        key_azimuth:
+            String. Which of several pre-extracted azimuthal profiles to use. Almost always 'net' is best.
+            
         """
         
         # Each file on disk has several different extractions:
         #
-        #   Radial profile has 'core', 'full', 'half, etc.
-        #   Az     profile has 'inner', 'outer', 'net', etc. 
+        #   Radial profile has 'core',  'full',  'half', etc.
+        #   Az     profile has 'inner', 'outer', 'net',  etc. 
         #
         # Since we usually need just one of these, this routine *only* reads one.
         # The individual one read can be controlled with key_radius and key_azimuth
@@ -236,7 +252,8 @@ class ring_profile:
             vals = pickle.load(lun)
             lun.close()
 
-            print("Loaded pickle file {}/{} {}".format(index_group, index_image, file))
+            if verbose: 
+                print("Loaded pickle file {}/{} {}".format(index_group, index_image, file))
             
             (image_unwrapped,                # Unwrapped image itself
                         mask_objects_unwrapped,  # Boolean mask: True = good pixel
@@ -292,6 +309,8 @@ class ring_profile:
                     index_group, index_image, ang_phase*hbt.r2d, file_short, bg_method, bg_argument))
                 print("{}".format(file))
         
+        print(f'Loaded {self.__str__()}: {len(index_images)} images')
+        
         #==============================================================================
         # Now put these into arrays (not lists). Ideally we'd put these into an astropy table (so we can sort, etc.)
         #==============================================================================
@@ -314,7 +333,6 @@ class ring_profile:
         
         return np.shape(self.profile_radius_arr)[1]
 
- 
 # =============================================================================
 # Return size of azimuthal array
 # =============================================================================
@@ -420,7 +438,7 @@ class ring_profile:
 # current state, overwriting it with a new state.
 # =============================================================================
 
-    def smooth(self, width=1, kernel=None):
+    def smooth_azimuthal(self, width=1, kernel=None):
 
         if not width:     # If missing, None, 0, etc.
             return self
@@ -434,11 +452,11 @@ class ring_profile:
         
             # First do radial kernels
 
-            self.profile_radius_arr[i,:]  = convolve(self.profile_radius_arr[i,:],  kernel)
+#            self.profile_radius_arr[i,:]  = convolve(self.profile_radius_arr[i,:],  kernel)
 
             # Then do azimuthal kernels
             
-            self.profile_azimuth_arr[i,:] = convolve(self.profile_azimuth_arr[i,:], kernel)
+            self.profile_azimuth_arr[i,:] = convolve(self.profile_azimuth_arr[i,:], kernel, boundary='wrap')
 
         return self
     
@@ -450,7 +468,7 @@ class ring_profile:
 # Flatten the profiles -- that is, if there are N profiles, flatten to one, with mean value
 # =============================================================================
 
-    def flatten(self, a_ref = 129_700*u.km):
+    def flatten(self, a = 129_700*u.km):
         
         """ Flatten the profile, from N profile, into one mean (or median) profile.
             Applies to radial and azimuthal and all other quantities.
@@ -460,25 +478,30 @@ class ring_profile:
             Parameters
             ---    
             
-            a_ref:
-                Reference distance for doing the unwrapping. Astropy units. e.g., 127,500 km.
+            a:
+                Reference distance for doing the unwrapping in the azimuthal direction. Mandatory.
+                Astropy units. e.g., 127,500 km.
 
             Return value:
                 self : Newly flattened object, with one profile, rather than N.
                 
         """
         
+        # Set up the reference distance
+        
+        a_ref = a
         
         # If is is already flattened (or a single profile), return without changing anything
         
         if (self.num_profiles == 1):
+            raise(ValueError('Profile has already been flattened'))
             return self
         
-        # First do radial profiles. This is easy -- we just take the mean of all the profiles.
+        # First flatten radial profiles. This is easy -- we just take the mean of all the profiles.
                 
-        self.profile_radius_arr[0] = np.mean(self.profile_radius_arr, axis=0) # Save the flattened profile
+        self.profile_radius_arr[0] = np.nanmean(self.profile_radius_arr, axis=0) # Save the flattened profile
 
-        # Then do the azimuthal profiles. This is much harder, since we need to unwrap them to make sense of them.
+        # Now do the azimuthal profiles. This is much harder, since we need to unwrap them to make sense of them.
 
         num_az_unwrapped = 3600
 
@@ -492,7 +515,9 @@ class ring_profile:
         
         # Loop over every azimuthal profile. For each one, unwrap it properly to a common ET, then put it on a 
         # common grid. Then merge all of them.
-                
+        
+        print(f'Flattening with reference radius {a_ref}')
+    
         for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
             
             # Unwrap the longitudes. self.azimuth_arr is in radians, and covers only the observed longitudes
@@ -513,9 +538,13 @@ class ring_profile:
             f = interpolate.interp1d( xs, ys )                
             unwrapped_1d = f(azimuth_unwrapped)
 
+            warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
+
             delta = unwrapped_1d - np.roll(unwrapped_1d, 1)
             unwrapped_1d[ np.abs(delta- np.nanmedian(delta)) < 1e-6 ] = np.nan   # Zero out un-obs'vd region, ugh
             unwrapped_2d[i,:] = np.array(unwrapped_1d)
+            
+            warnings.simplefilter(action = "default", category = RuntimeWarning) # Turn back to warning first-time only
 
         # Save the 2D azimuth 'image' 
         
@@ -523,9 +552,13 @@ class ring_profile:
 
         # Flatten the 'image' of azimuth down into a 1D array
         # XXX I think for consistency 
+
+        warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
         
         self.profile_azimuth_arr = np.array([np.nanmean(unwrapped_2d,        axis=0)])    # Save the flattened profile
         self.profile_radius_arr  = np.array([self.profile_radius_arr[0]])
+
+        warnings.simplefilter(action = "default", category = RuntimeWarning)  # "<" causes a warning with NaN's...
         
         # For some quantities, like angles, take the mean and save that.
         # NB: If we add any new fields to the object, we need to add a corresponding new line to this method!
@@ -553,14 +586,16 @@ class ring_profile:
         return self          # The value is returned, so that commands can be chained.
                              # Also, the value of all quantities (e.g., profile_azimuth_arr) is changed internally.
 
-    
 # =============================================================================
 # Copy the object
 # =============================================================================
 
     def copy(self):
         
-        """ Copy an object to a new object (not a reference). """
+        """ 
+        Copy an object to a new object (not a reference).
+        This is useful do to before flattening, so that we can retain a copy of the original unflattened object.
+        """
         
         import copy
         
@@ -642,101 +677,182 @@ class ring_profile:
         return self 
 
 # =============================================================================
-# Plot the profiles
+# Plot the radial profile
 # =============================================================================
-    
-    def plot(self,    plot_radial=True, 
-                      plot_azimuthal=True, 
-                      dy_radial=0,  # Default vertical offset between plots 
-                      dy_azimuthal=3,
-                      plot_sats=True,  # Plot the location of Metis / Adrastea on radial profile?
-                      smooth=None,
-                      title=None,
-                      xlim=None,
-                      plot_legend=True,
-                      a_unwrap=None,      # Reference distance for unwrapping
-                      **kwargs):
 
-        #==============================================================================
-        # Make plot of radial profile. Plot one line per profile (or one, if flattened)
-        #==============================================================================
+    def plot_radial(self, 
+                    dy = 0, 
+                    plot_sats = True,
+                    smooth = None,
+                    title = None,
+                    xlim = (120000, 131000),
+                    plot_legend = True,
+                    **kwargs):
+        """
+        Just a helper routine to plot the radial profile.
+        """
         
-        if (plot_radial):
-#            hbt.figsize((10,8))
-                                                
-            for i,index_image in enumerate(self.index_image_arr):
+        for i,index_image in enumerate(self.index_image_arr):
 
-                radius = self.radius_arr[i]
-                profile_radius = self.profile_radius_arr[i]
-                
-                p = plt.plot(radius, 
-                         np.roll( (i * dy_radial) + profile_radius, self.shift_bin[i]),  
-                         label = r'{}/{}, $\alpha$={:.2f}°, e={:.2f}°, {}'.format(
-                                       self.index_group_arr[i], 
-                                       self.index_image_arr[i], 
-                                       self.ang_phase_arr[i]*hbt.r2d,
-                                       self.ang_elev_arr[i]*hbt.r2d,
-                                       self.dt_str_arr[i]),
-                         **kwargs)
-
-                # Set the xlimit explicitly. This is stupid that it cannot be passed as a kwarg...
-                
-                if (xlim):
-                    plt.xlim(xlim)
-                   
-            # Plot Metis and Adrastea
+            radius = self.radius_arr[i]
+            profile_radius = self.profile_radius_arr[i]
             
-            if (plot_sats):
+            p = plt.plot(radius, 
+                     np.roll( (i * dy) + profile_radius, self.shift_bin[i]),  
+                     label = r'{}/{}, $\alpha$={:.2f}°, e={:.2f}°, {}'.format(
+                                   self.index_group_arr[i], 
+                                   self.index_image_arr[i], 
+                                   self.ang_phase_arr[i]*hbt.r2d,
+                                   self.ang_elev_arr[i]*hbt.r2d,
+                                   self.dt_str_arr[i]),
+                     **kwargs)
+
+            # Set the xlimit explicitly. This is stupid that it cannot be passed as a kwarg...
+            
+            if (xlim):
+                plt.xlim(xlim)
+               
+        # Plot Metis and Adrastea on the radial plot
+        
+        if (plot_sats):
 
 #                args = {'linestyle': 'dash', 'alpha':0.5, 'color':'black'}
-                plt.axvline(x=self.A_METIS,    linestyle='dashed', alpha=0.2, color='black')
-                plt.axvline(x=self.A_ADRASTEA, linestyle='dashed', alpha=0.2, color='black')
-                
-            plt.xlabel('Radial Distance [km]')
-            plt.ylabel(self.profile_radius_units)
+            plt.axvline(x=self.A_METIS,    linestyle='dashed', alpha=0.2, color='black')
+            plt.axvline(x=self.A_ADRASTEA, linestyle='dashed', alpha=0.2, color='black')
+            
+        plt.xlabel('Radial Distance [km]')
+        plt.ylabel(self.profile_radius_units)
  
-            # Set scientific notation on the Y axis, if appropriate
-            
-            axes = plt.gca()
-            
-            if ('I/F' in self.profile_radius_units):       
-                axes.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
-            
-            if plot_legend:
-                plt.legend(loc='upper left', fontsize=8)
-            if (title is not None):
-                plt.title(title)    
-            plt.show()
+        # Set scientific notation on the Y axis, if appropriate
+        
+        axes = plt.gca()
+        
+        if ('I/F' in self.profile_radius_units):       
+            axes.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+        
+        if plot_legend:
+            plt.legend(loc='upper left', fontsize=8)
+        if (title is not None):
+            plt.title(title)    
+        plt.show()
+
+# =============================================================================
+# Plot the azimuthal profile 
+# =============================================================================
+
+    def plot_azimuthal(self, 
+                    dy = 3, 
+                    plot_sats = True,
+                    smooth = None,
+                    title = None,
+                    xlim = None,
+                    plot_legend = True,
+                    **kwargs):
+        """
+        Plot the azimuthal profile.
+        
+        Parameters
+        -----
+        
+        smooth:
+            Integer. If set, this is the width of a Gaussian used for smoothing the data.
+        """
         
         #==============================================================================
         # Make a plot of azimuthal profile. Don't flatten -- just plot all the data
         #==============================================================================
         
+        hbt.figsize((18,5))
         
-        if (plot_azimuthal):
+        # Loop over all the az profiles we have, and plot each one.
+        # If array is flattened, there will be just one. If raw, then there might be 30 to do.
+
+        if (smooth):
+            kernel = Gaussian1DKernel(smooth)
+        
+#        for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
+#            y = profile_azimuth
+#         
+#            if smooth:
+#                y = convolve(self.profile_azimuth_arr[i,:], kernel)
+
+        num_profiles = self.num_profiles
+
+        for i in range(num_profiles):
+        
+            # Loop over azimuthal profiles
             
-            hbt.figsize((18,5))
+            y = self.profile_azimuth_arr[i,:]
+         
+            if smooth:
+                y = convolve(y, kernel, boundary='wrap')
+
+            plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
+                     (i * dy) + y,  
+                     label = '{}/{}, {:.2f}°'.format(
+                             self.index_group_arr[i], 
+                             self.index_image_arr[i], 
+                             self.ang_phase_arr[i]*hbt.r2d),
+                     **kwargs)
+
+        # Set the xlimit explicitly. This is stupid that it cannot be passed as a kwarg...
             
-            for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
-                plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
-                         (i * dy_azimuthal) + profile_azimuth, 
-                         label = '{}/{}, {:.2f}°'.format(
-                                 self.index_group_arr[i], 
-                                 self.index_image_arr[i], 
-                                 self.ang_phase_arr[i]*hbt.r2d),
-                         **kwargs)
-                
-            plt.xlabel('Azimuth [deg]')
-            plt.ylabel(self.profile_azimuth_units)
-            if plot_legend:
-                plt.legend(fontsize=8)
-            if (title is not None):
-                plt.title(title)
-            plt.show()
-                
-            hbt.figsize_restore()
+        if (xlim):
+            plt.xlim(xlim)
+        
+        # Calculate and plot the Metis and Adrastea positions.
+        
+        if plot_sats:
+            
+            pass
+        
+            # Look up sub-satellite longitude at time of the 'current' observation
+            # Unwrap this longitude back to 2000, using Metis or Adrastea's orbital distance
+            # Plot it
+        
+            # XXX Right now I'm not really sure of the point of this, so we do not do it.
+            
+        plt.xlabel('Azimuth [deg]')
+        plt.ylabel(self.profile_azimuth_units)
+        if plot_legend:
+            plt.legend(fontsize=8)
+        if (title is not None):
+            plt.title(title)
+        plt.show()
+            
+        hbt.figsize_restore()
 
         return self
+
+# =============================================================================
+# Plot the radial and azimuthal profile together
+# =============================================================================
+        
+    def plot(self,    plot_radial    = True, 
+                      plot_azimuthal = True, 
+                      dy_radial      = 0,  # Default vertical offset between plots 
+                      plot_sats      = True,  # Plot the location of Metis / Adrastea on radial profile?
+                      smooth         = None,  # Width of any smoothing to apply, in pixel. For Az profile only. 
+                      title          = None,      # String to print above the plots
+                      xlim_a         = (120000,131000),     # Limit for radial distance
+                      xlim_az        = None, 
+                      plot_legend    = False,
+#                      a_unwrap       = None,      # Reference distance for unwrapping
+                      **kwargs):   
+                              
+        if (plot_radial):
+            self.plot_radial(plot_sats=plot_sats, 
+                             title=title, 
+                             xlim=xlim_a, 
+                             plot_legend=plot_legend,
+                             smooth=smooth)
+
+        if (plot_azimuthal):
+            self.plot_azimuthal(plot_sats=plot_sats, 
+                                title=title, 
+                                xlim=xlim_az, 
+                                plot_legend=plot_legend,
+                                smooth=smooth)
 
 # =============================================================================
 # Calculate the radial area under a curve
@@ -769,7 +885,7 @@ class ring_profile:
 # Unwrap an orbital longitude back to a common time frame
 # =============================================================================
 
-def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit, et_ref=0):
+def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, et_ref=0):
     """
     Takes a set of longitudes, and unwraps them back to a given frame, incorporating
     both body rotation, and keplerian orbital motion. Both are assumed to be constant.
@@ -811,7 +927,7 @@ def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit, et_ref=0):
     """
     
     name_body = 'jupiter'
-    a_orbit = 129_700*u.km
+#    a_orbit = 129_700*u.km
     
     masses = {'JUPITER': c.M_jup,
               'EARTH':   c.M_earth,
@@ -867,7 +983,8 @@ self = a
 plot_azimuthal=True
 plot_legend=True
 a.load(8,hbt.frange(0,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
-a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=False, title=a, a_unwrap=129700*u.km)
+a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=False, title=a, 
+      a_unwrap=129700*u.km)
 
 
 
@@ -1484,14 +1601,70 @@ plt.show()
 # Now make an azimuthal profile, with all the data
 # =============================================================================
 
-#hbt.set_fontsize(9)
+
 images = np.delete(hbt.frange(0,47),16)  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
 
-#a.load(8, hbt.frange(0,10),key_radius='full').plot(plot_legend=False)
-a.load(8,images,key_radius='full').flatten().plot(xlim=(120000,131000))
-a.load(8,hbt.frange(10,40),key_radius='full').plot(xlim=(115000,131000), plot_legend=False)
+a = ring_profile()
 
-a.load(8,hbt.frange(13,23)).plot(plot_legend=True, plot_azimuthal=True)
+#a.load(8, hbt.frange(0,10),key_radius='full').plot(plot_legend=False)
+
+a.load(8,images,key_radius='full', verbose=False).flatten().plot_azimuthal()
+
+a2 = ring_profile()
+a2.load(8,hbt.frange(0,48),key_radius='core').plot(plot_legend=False)
+#a2.plot()
+a2.flatten()
+a2.plot_azimuthal(smooth=1)
+
+# Test different smoothing algorithms
+
+a3 = ring_profile()
+a3.load(8,hbt.frange(0,48),key_radius='full').plot(plot_legend=False)
+a3.flatten()
+a3.plot_azimuthal(smooth=1)
+a3.plot_azimuthal(smooth=10)
+a3.plot_azimuthal(smooth=100)
+
+
+a3 = ring_profile()
+a3.load(8,[13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29],key_radius='core')
+a3.flatten()
+a3.plot()
+a3.plot_azimuthal(smooth=10)
+
+#.flatten().plot_radial()
+
+a2 = ring_profile()
+a2.load(8,hbt.frange(0,30),key_radius='core').plot(plot_legend=False)
+a2_flat1 = a2.copy()
+a2_flat1.flatten(a=129_700*u.km).plot_azimuthal()
+
+a2 = ring_profile()
+a2.load(8,hbt.frange(30,48),key_radius='core').plot(plot_legend=False)
+a2_flat2 = a2.copy()
+a2_flat2.flatten(a=129_700*u.km).plot_azimuthal()
+
+
+a3 = ring_profile()
+a3.load(8,hbt.frange(49,53),key_radius='full', verbose=True)
+
+a4 = ring_profile()
+a4.load(8,hbt.frange(54,107),key_radius='full', verbose=False)
+a4.flatten(a=110_000*u.km).plot_azimuthal()
+
+
+a2.plot_azimuthal()
+a2.flatten(a=129_700*u.km).plot_azimuthal()
+
+a3 = ring_profile()
+a3.load(8,hbt.frange(36,49),key_radius='full').flatten(a=129_700*u.km).plot_azimuthal()
+
+a.plot(plot_legend=False)
+a_flat = a.copy().flatten()
+a_flat.plot()
+
+a3 = ring_profile()
+a3.load(8,hbt.frange(13,23)).flatten().plot_azimuthal()
 
 # Do a test with Metis in the frame
 
@@ -1499,7 +1672,8 @@ a = ring_profile()
 self = a
 plot_azimuthal=True
 plot_legend=True
-a.load(8,hbt.frange(8,28), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=True, title=a, a_unwrap=129700*u.km)
+a.load(8,hbt.frange(8,28), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=True, title=a, 
+      a_unwrap=129700*u.km)
 a.flatten()
 plt.plot(a.azimuth_arr[0], a.profile_azimuth_arr[0])
 plt.show()
@@ -1510,7 +1684,13 @@ plt.show()
 
 
 ring2 = ring_profile()
-ring2.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=False, plot_azimuthal=False, plot_radial=False, title=a, a_unwrap=129700*u.km)
+ring2.load(7,hbt.frange(24,31), key_radius='full').flatten().plot()
+ring2.plot_azimuthal(xlim=(0,340))
+
+flatten().plot_azimuthal()
+
+plot(plot_legend=False, plot_azimuthal=False, plot_radial=False, 
+          title=a, a_unwrap=129700*u.km)
 ring2.flatten()
 plt.plot(ring2.azimuth_arr[0], ring2.profile_azimuth_arr[0])
 plt.show()
@@ -1519,7 +1699,8 @@ plt.show()
 
 
 ring3 = ring_profile()
-ring3.load(8,hbt.frange(54,107), key_radius='full').plot(plot_legend=False, plot_azimuthal=False, plot_radial=False, title=a, a_unwrap=129700*u.km)
+ring3.load(8,hbt.frange(54,107), key_radius='full').plot(plot_legend=False, plot_azimuthal=False, plot_radial=False, 
+          title=a, a_unwrap=129700*u.km)
 ring3.flatten()
 plt.plot(ring3.azimuth_arr[0], ring3.profile_azimuth_arr[0])
 plt.show()
@@ -1534,8 +1715,12 @@ ring2.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=False, plot_
 
 a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
 
+a_8_1 = ring_profile()
+a_8_1.load(8,hbt.frange(0,48), key_radius='full').flatten().plot_azimuthal()
 
-a.load(8,hbt.frange(54,107), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+
+a_8_2 = ring_profile()
+a_8_2.load(8,hbt.frange(54,107), key_radius='full').flatten().plot_azimuthal()
 
 a.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
 
