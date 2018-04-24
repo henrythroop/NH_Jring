@@ -93,9 +93,12 @@ class ring_profile:
         file_pickle = 'nh_jring_read_params_571.pkl'     # Filename to read to get filenames, etc.
         dir_out     = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
             
+        self.is_flattened = False
+        
         lun = open(dir_out + file_pickle, 'rb')
         self.t = pickle.load(lun)                        # Self.t is the *entire* table for all J-ring obs, not subset.
         lun.close()
+        
         
         # Process the group names. Some of this is duplicated logic -- depends on how we want to use it.
         
@@ -115,7 +118,13 @@ class ring_profile:
 # =============================================================================
 
     def __str__(self):
-        return("Ring profile, {}/{}-{}".format(self.index_group_arr[0], 
+        
+        if self.is_flattened:
+           return("Ring profile, {}/{}".format(self.index_group_arr[0], 
+               self.index_image_arr[0]))
+
+        else:
+            return("Ring profile, {}/{}-{}".format(self.index_group_arr[0], 
                self.index_image_arr[0],
                self.index_image_arr[-1])) 
 
@@ -450,13 +459,14 @@ class ring_profile:
 
         for i in range(num_profiles):
         
-            # First do radial kernels
-
-#            self.profile_radius_arr[i,:]  = convolve(self.profile_radius_arr[i,:],  kernel)
-
-            # Then do azimuthal kernels
+            # Smooth over azimuth. Do this carefully: wrap the boundary conditions, but any NaNs in the input,
+            # remain NaN in the output. This is so we don't make up any data in the wide unobserved gaps.
             
-            self.profile_azimuth_arr[i,:] = convolve(self.profile_azimuth_arr[i,:], kernel, boundary='wrap')
+            self.profile_azimuth_arr[i,:] = convolve(self.profile_azimuth_arr[i,:], 
+                                    kernel, 
+                                    boundary='wrap', 
+                                    preserve_nan=True)
+#                                    p)
 
         return self
     
@@ -491,12 +501,13 @@ class ring_profile:
         
         a_ref = a
         
-        # If is is already flattened (or a single profile), return without changing anything
+        # If is is already flattened (or a single profile), return without changing anything.
+        # Flag as a warning, but do not cause error.
         
         if (self.num_profiles == 1):
-            raise(ValueError('Profile has already been flattened'))
+            warnings.warn('Warning: Profile has already been flattened')
             return self
-        
+                 
         # First flatten radial profiles. This is easy -- we just take the mean of all the profiles.
                 
         self.profile_radius_arr[0] = np.nanmean(self.profile_radius_arr, axis=0) # Save the flattened profile
@@ -530,18 +541,44 @@ class ring_profile:
             indices = np.logical_not(np.isnan(profile_azimuth))   # Get the non-NAN indices. NAN are from masking.
 
             # Use interp1d() to map the points onto a uniformly spaced azimuthal grid
+            # OK, here is the main problem. The data is just a list of azimuths and list of DN's.
+            # If there is a big gap in azimuth, we want to fill that with NaN's. If we dont', then interp1d
+            # will blindly interpolate over the whole gap.
              
             xs = theta_i[indices]
             ys = profile_azimuth[indices]                
             xs = np.concatenate([[-20],      theta_i[indices],         [20]])    # Set up some fake boundary cond's
             ys = np.concatenate([[np.nan], profile_azimuth[indices], [np.nan]])  # Set up some fake boundary cond's                
+            
+            # Detect gaps, and flag as NaN
+
+            dx = xs - np.roll(xs,1)     # Get the increment in azimuth angle, for this bin            
+            is_gap = np.abs(dx) > 1e-2
+            is_gap_wide = np.logical_or(np.logical_or(is_gap, np.roll(is_gap,1)), np.roll(is_gap,-1))
+            is_gap_wide = is_gap
+            
+            # Flag the endpoints of the array as OK. This will break in case of a gap that actually goes at array end.
+            # XXX Logic wasn't working here. As a result, we are improperly flagging as bad several points at the 
+            # 0-360 transition. I guess this doens't matter that much, but it's sort of un-perfect.
+            
+#            is_gap_wide[1:3] = False
+#            is_gap_wide[-3:-2] = False
+            ys[is_gap_wide] = np.nan
+        
             f = interpolate.interp1d( xs, ys )                
             unwrapped_1d = f(azimuth_unwrapped)
-
+#            plt.plot(xs, ys)
+#            plt.show()
+            
+            
             warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
 
-            delta = unwrapped_1d - np.roll(unwrapped_1d, 1)
-            unwrapped_1d[ np.abs(delta- np.nanmedian(delta)) < 1e-6 ] = np.nan   # Zero out un-obs'vd region, ugh
+#            slope = unwrapped_1d - np.roll(unwrapped_1d,1)  # Get the slope at each point
+#            dslope = np.abs(slope - np.roll(slope, 1))      # Get the change in slope (ie, is it a straight line)
+            
+#            delta = unwrapped_1d - np.roll(unwrapped_1d, 1)  # Get the slope at each point
+#            unwrapped_1d[ dslope < 1e-14 ] = np.nan   # Zero out un-obs'vd region, ugh
+            
             unwrapped_2d[i,:] = np.array(unwrapped_1d)
             
             warnings.simplefilter(action = "default", category = RuntimeWarning) # Turn back to warning first-time only
@@ -550,8 +587,8 @@ class ring_profile:
         
         self.profile_azimuth_arr_2d = unwrapped_2d
 
-        # Flatten the 'image' of azimuth down into a 1D array
-        # XXX I think for consistency 
+        # Flatten the 'image' of azimuth down into an array of size (1,3600), for instance.
+        # This is just so the profile can be extracted consistently.
 
         warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
         
@@ -582,6 +619,8 @@ class ring_profile:
         self.image_unwrapped_arr = np.array([np.nanmedian(self.image_unwrapped_arr, axis=0)])
         self.mask_objects_unwrapped_arr = np.array([np.nanmedian(self.mask_objects_unwrapped_arr, axis=0)])
         self.mask_stray_unwrapped_arr = np.array([np.nanmedian(self.mask_stray_unwrapped_arr, axis=0)])
+        
+        self.is_flattened    = True
         
         return self          # The value is returned, so that commands can be chained.
                              # Also, the value of all quantities (e.g., profile_azimuth_arr) is changed internally.
@@ -686,7 +725,7 @@ class ring_profile:
                     smooth = None,
                     title = None,
                     xlim = (120000, 131000),
-                    plot_legend = True,
+                    plot_legend = False,
                     **kwargs):
         """
         Just a helper routine to plot the radial profile.
@@ -746,7 +785,7 @@ class ring_profile:
                     smooth = None,
                     title = None,
                     xlim = None,
-                    plot_legend = True,
+                    plot_legend = False,
                     **kwargs):
         """
         Plot the azimuthal profile.
@@ -785,7 +824,7 @@ class ring_profile:
             y = self.profile_azimuth_arr[i,:]
          
             if smooth:
-                y = convolve(y, kernel, boundary='wrap')
+                y = convolve(y, kernel, boundary='wrap', preserve_nan=True)
 
             plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
                      (i * dy) + y,  
@@ -1598,17 +1637,87 @@ plt.show()
 
 
 # =============================================================================
-# Now make an azimuthal profile, with all the data
+# Plot radial profile vs. Extraction Region
+# =============================================================================
+
+plt.set_cmap('plasma')
+a_ref = 129_700*u.km
+
+images0 = hbt.frange(0, 47)  # Entire range 
+keys = ['center', 'full', 'core']        # Interate over the 'key_radius' field. This affects radial extraction.
+do_flatten = [True, False]
+
+for do_flatten_i in do_flatten:
+    for key in keys:
+        a0 = ring_profile()
+        a0.load(8, images0, key_radius=key, verbose=False)
+    #    a0.plot_radial(dy=1)
+        if do_flatten_i:
+            a0.flatten()
+        plt.plot(a0.radius_arr[0], a0.profile_radius_arr[0], label = key)
+    plt.title(f'Radial Profile vs Extraction Region, {a0.__str__()}')
+    plt.xlabel('Radius [km]')
+    plt.ylabel('DN')    
+    plt.axvline(a0.A_METIS, alpha=0.2)
+    plt.axvline(a0.A_ADRASTEA, alpha=0.2)
+    plt.xlim((122_000, 132_000))
+    plt.legend()    
+    plt.show()    
+
+
+# =============================================================================
+# Now make some azimuthal profile plots, with all the data
 # =============================================================================
 
 
-images = np.delete(hbt.frange(0,47),16)  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
+plt.set_cmap('plasma')
+a_ref = 129_700*u.km
 
-a = ring_profile()
 
-#a.load(8, hbt.frange(0,10),key_radius='full').plot(plot_legend=False)
+# Look at sequence 8.
+# Load it in three segments: Entire range
+images0 = hbt.frange(0, 47)  # Entire range 
+images1 = hbt.frange(0, 20)  # First half
+images2 = hbt.frange(35,47)  # Second half
 
-a.load(8,images,key_radius='full', verbose=False).flatten().plot_azimuthal()
+
+images = [images0, images1, images2]
+
+for images_i in images:
+    a0 = ring_profile()
+    a0.load(8,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0.flatten(a=a_ref)
+    plt.imshow(a0.profile_azimuth_arr_2d, aspect=20, origin='lower')
+    plt.title(a0)
+    plt.show()
+    a0.plot_azimuthal(xlim={0,360}, title=a0,smooth=3)
+
+for images_i in images:
+    a0 = ring_profile()
+    a0.load(8,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0.flatten(a=a_ref)
+    a0.smooth_azimuthal(5)
+    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0])
+    plt.title(a0)
+plt.show()
+    
+
+a2 = ring_profile()
+a2.load(8,images2, key_radius='full', verbose=False).plot_azimuthal(smooth=3)
+
+a1.flatten(a=a_ref)
+a0.flatten(a=a_ref)
+a2.flatten(a=a_ref)
+
+plt.imshow(a0.profile_azimuth_arr_2d, aspect=20, origin='lower')
+plt.show()
+plt.imshow(a1.profile_azimuth_arr_2d, aspect=20, origin='lower')
+plt.show()
+plt.imshow(a2.profile_azimuth_arr_2d, aspect=20, origin='lower')
+plt.show()
+
+plt.plot
+
 
 a2 = ring_profile()
 a2.load(8,hbt.frange(0,48),key_radius='core').plot(plot_legend=False)
@@ -1619,7 +1728,7 @@ a2.plot_azimuthal(smooth=1)
 # Test different smoothing algorithms
 
 a3 = ring_profile()
-a3.load(8,hbt.frange(0,48),key_radius='full').plot(plot_legend=False)
+a3.load(8,hbt.frange(0,28),key_radius='full').plot(plot_legend=False)
 a3.flatten()
 a3.plot_azimuthal(smooth=1)
 a3.plot_azimuthal(smooth=10)
@@ -1630,19 +1739,34 @@ a3 = ring_profile()
 a3.load(8,[13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29],key_radius='core')
 a3.flatten()
 a3.plot()
-a3.plot_azimuthal(smooth=10)
+a3.plot_azimuthal(smooth=10,xlim=(0,360))
 
 #.flatten().plot_radial()
 
+a1 = ring_profile()
+a1.load(8,hbt.frange(0,48),key_radius='core').flatten(a=a1.A_METIS*u.km)
+
 a2 = ring_profile()
-a2.load(8,hbt.frange(0,30),key_radius='core').plot(plot_legend=False)
+a2.load(8,hbt.frange(54,107),key_radius='core').flatten(a=a1.A_METIS*u.km).plot_azimuthal(xlim=(0,360),smooth=3)
+
+plt.plot(a1.azimuth_arr[0], a1.profile_azimuth_arr[0])
+plt.plot(a2.azimuth_arr[0], a2.profile_azimuth_arr[0])
+plt.plot(a2.azimuth_arr[0], np.roll(a2.profile_azimuth_arr[0],2150))
+plt.show()
+
+plt.xlim((0,360)*hbt.r2d)
+
+
+flatten(a=129_700*u.km).plot_azimuthal(xlim=(0,360))
+
 a2_flat1 = a2.copy()
-a2_flat1.flatten(a=129_700*u.km).plot_azimuthal()
+a2_flat1.flatten(a=129_700*u.km).plot_azimuthal(xlim=(0,360))
 
 a2 = ring_profile()
 a2.load(8,hbt.frange(30,48),key_radius='core').plot(plot_legend=False)
 a2_flat2 = a2.copy()
 a2_flat2.flatten(a=129_700*u.km).plot_azimuthal()
+a2_flat2.plot_azimuthal(smooth=5)
 
 
 a3 = ring_profile()
