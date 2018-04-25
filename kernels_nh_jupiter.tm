@@ -3,14 +3,13 @@
 KERNELS_TO_LOAD = (
      'kernels/pck00010.tpc',
      'kernels/de418.bsp',
-     'kernels/jup260.bsp',
-     'kernels/jup204.bsp',
 
      'kernels/naif0012.tls',
      'kernels/new-horizons_1121.tsc',
 
      'kernels/nh_nom_20060119_20150727_v03.bsp',
      'kernels/nh_recon_e2j_v1.bsp'
+     'kernels/jup310.bsp',
 
       )
 \begintext
@@ -26,8 +25,9 @@ I need:
   - Jupiter system kernel including Adrastea
   - NH .bsp kernel
   
-jup204: Jupiter and      sats (incl Galilean + Adrastea)
-jup260: Jupiter and many sats (incl Galilean, smalls, *not* Adrastea)
+jup310: Jupiter, Metis, Adrastea -- updated 2013 R Jacobsen. Replaces old
+jup204 + jup260. [Changed this 25-Apr-2018]
+
 de413:  Barycenters incl Jupiter bary. ** Brian C is using de418. Doesn't make a difference?
 pck09:  pck10 is newer. Use it now.
 naif0012: Latest
