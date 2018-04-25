@@ -567,20 +567,9 @@ class ring_profile:
         
             f = interpolate.interp1d( xs, ys )                
             unwrapped_1d = f(azimuth_unwrapped)
-#            plt.plot(xs, ys)
-#            plt.show()
-            
-            
-            warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
 
-#            slope = unwrapped_1d - np.roll(unwrapped_1d,1)  # Get the slope at each point
-#            dslope = np.abs(slope - np.roll(slope, 1))      # Get the change in slope (ie, is it a straight line)
-            
-#            delta = unwrapped_1d - np.roll(unwrapped_1d, 1)  # Get the slope at each point
-#            unwrapped_1d[ dslope < 1e-14 ] = np.nan   # Zero out un-obs'vd region, ugh
-            
+            warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
             unwrapped_2d[i,:] = np.array(unwrapped_1d)
-            
             warnings.simplefilter(action = "default", category = RuntimeWarning) # Turn back to warning first-time only
 
         # Save the 2D azimuth 'image' 
@@ -595,7 +584,11 @@ class ring_profile:
         self.profile_azimuth_arr = np.array([np.nanmean(unwrapped_2d,        axis=0)])    # Save the flattened profile
         self.profile_radius_arr  = np.array([self.profile_radius_arr[0]])
 
-        warnings.simplefilter(action = "default", category = RuntimeWarning)  # "<" causes a warning with NaN's...
+        # For statistics, count up how many datapoints went into each az bin.
+        
+        self.num_profile_azimuth_arr = np.array([np.sum(np.logical_not(np.isnan(unwrapped_2d)), axis=0)])
+        
+        warnings.simplefilter(action = "default", category = RuntimeWarning)  # "<" or 'less' causes warning w/ NaN's...
         
         # For some quantities, like angles, take the mean and save that.
         # NB: If we add any new fields to the object, we need to add a corresponding new line to this method!
@@ -1014,6 +1007,7 @@ def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, e
 # Now read in some rings data and plot it
 # =============================================================================
 
+stretch = astropy.visualization.PercentileInterval(95)
 
 # Do a test with Metis in the frame
     
@@ -1100,7 +1094,7 @@ for param_i in params:
     # Load the profile from disk.
     
     ring = ring_profile()
-    ring.load(index_group, index_images, key_radius = key_radius).smooth(BINS_SMOOTH)
+    ring.load(index_group, index_images, key_radius = key_radius).smooth_azimuthal(BINS_SMOOTH)
     
     # Copy the profile, and sum all the individual curves in it.
     
@@ -1669,17 +1663,16 @@ for do_flatten_i in do_flatten:
 # Now make some azimuthal profile plots, with all the data
 # =============================================================================
 
-
 plt.set_cmap('plasma')
 a_ref = 129_700*u.km
 
-
 # Look at sequence 8.
-# Load it in three segments: Entire range
+# Load it in three segments: Entire range, beginning, and end. Make plots of all of these, separately.
+# Then make a nice plot with all of the data, so we can see the correlations
+
 images0 = hbt.frange(0, 47)  # Entire range 
 images1 = hbt.frange(0, 20)  # First half
 images2 = hbt.frange(35,47)  # Second half
-
 
 images = [images0, images1, images2]
 
@@ -1692,18 +1685,282 @@ for images_i in images:
     plt.show()
     a0.plot_azimuthal(xlim={0,360}, title=a0,smooth=3)
 
-for images_i in images:
+# Make a plot superimposing the data (three curves, group 8)
+
+images = [images0, images1, images2]
+smoothing = 5
+group = 8
+
+for i,images_i in enumerate(images):
     a0 = ring_profile()
-    a0.load(8,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
     a0.flatten(a=a_ref)
-    a0.smooth_azimuthal(5)
-    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0])
-    plt.title(a0)
+    if (smoothing):
+        a0.smooth_azimuthal(smoothing)
+    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
+    plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+plt.legend(fontsize=8)
+plt.xlabel('Az [rad]')
+plt.ylabel('DN')
+plt.show()
+    
+# Now make a plot showing just a zoom of the range where the data actually overlap (two curves, group 8)
+    
+images1 = hbt.frange(0, 20)  # First half
+images2 = hbt.frange(35,47)  # Second half
+
+images = [images1, images2]
+
+smoothing = None
+group = 8
+y = np.zeros((len(images), 3600))   # Save the data here so we can calc the Correlation Coeff afterwards
+xlim = (5,6.3)                        # If desired, constrain the xlim to just a small region
+
+for i,images_i in enumerate(images):
+    a0 = ring_profile()
+    a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0.flatten(a=a_ref)
+    if (smoothing):
+        a0.smooth_azimuthal(smoothing)
+    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
+    plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+plt.legend(fontsize=8)
+plt.xlim(xlim)
+plt.xlabel('Az [rad]')
+plt.ylabel('DN')
 plt.show()
     
 
+# =============================================================================
+# Now see if we can find correlations between adjacent sequences (ie, not in the same sequence).
+# Compare 8/0-48, and 8/54-107. These are separated by ~33 hours.
+# =============================================================================
+images = [
+          hbt.frange(0, 48),   # One entire orbit
+          hbt.frange(54,107)]  # A second entire orbit, 33 hours later
+
+group = 8
+smoothing = 2
+a_ref = a0.A_METIS*u.km
+a_ref = a0.A_ADRASTEA*u.km
+
+for i,images_i in enumerate(images):
+    a0 = ring_profile()
+    a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0.flatten(a=a_ref)
+    if (smoothing):
+        a0.smooth_azimuthal(smoothing)
+    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
+    plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+    x = a0.azimuth_arr[0]
+    y[i] = a0.profile_azimuth_arr[0]
+plt.legend(fontsize=8)
+#plt.xlim(xlim)
+plt.xlabel('Az [rad]')
+plt.ylabel('DN')
+plt.show()
+
+# =============================================================================
+# Plot sets of nearby subsequent images, unwrapped in az. 
+# This is a check to see that the same things are in next-door images!
+# =============================================================================
+
+images = [hbt.frange(0,10),
+          hbt.frange(11,21)]
+
+hbt.figsize((18,6))
+hbt.fontsize(15)
+a_ref = 129_700*u.km
+xlim  = (3.9, 5.2)
+smoothing = None
+group = 8
+
+for i,images_i in enumerate(images):
+    a0 = ring_profile()
+    a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0.flatten(a=a_ref)
+    if (smoothing):
+        a0.smooth_azimuthal(smoothing)
+    
+    # Plot the # of data points that were summed for each DN value 
+    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
+    
+    # Plot the DN values themselves
+    plt.plot(a0.azimuth_arr[0], a0.num_profile_azimuth_arr[0], label=f'Number of pts for {a0.__str__()}')
+
+plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+    
+plt.legend(fontsize=8)
+plt.xlim(xlim)
+plt.xlabel('Az [rad]')
+plt.ylabel('DN; # of Data Points')
+plt.legend(fontsize=10)
+plt.show()
+
+# =============================================================================
+# Now make plot where we do show actual DN of Metis and Adrastea.
+# This is as a dummy check to make sure we are summing on them properly, esp. over different sequences.
+# =============================================================================
+
+images = [hbt.frange(0,48),
+          hbt.frange(54,107)]
+
+hbt.figsize((18,6))
+hbt.fontsize(15)
+xlim  = (3.9, 5.2)
+smoothing = None
+group = 8
+
+a_ref = a0.A_METIS*u.km
+bodies = ['Metis']
+
+#a_ref = a0.A_ADRASTEA*u.km
+#bodies = ['Adrastea']
+
+for i,images_i in enumerate(images):
+    a0 = ring_profile()
+    a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+
+    # Now that we have read in all the profiles (and their pre-unwrapped images),
+    # loop over them, and extract the profile from the images. This will not apply stray light corrections,
+    # and is very crude. But it should show the big sats.
+    
+    profiles = a0.profile_azimuth_arr
+
+    for i in range(len(profiles)):
+        
+        profile_i = nh_jring_extract_profile_from_unwrapped(a0.image_unwrapped_arr[i], 
+                                                          a0.radius_arr[i],
+                                                          a0.azimuth_arr[i],
+                                                          1,
+                                                          'azimuthal',
+                                                          a0.mask_stray_unwrapped_arr[i])
+        profiles[i] = profile_i
+    a0.profile_azimuth_arr = profiles
+    do_plot_raw_phased = False
+    
+    if do_plot_raw_phased:
+        plt.imshow(profiles)
+        plt.show()
+    
+    # Unroll the images, applying keplerian motion
+    
+    a0.flatten(a=a_ref)
+
+    # Map Metis, Adrasta back to this time
+    # What we want to do is use SPICE to calc Metis' longitude at the time of observation, and then use
+    # func to wrap this back to J2000 common time.
+    
+    (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', a0.et_arr[0], 'IAU_JUPITER', 'LT', body.upper())
+    (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
+    lon_unwrap = unwrap_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a_ref)
+    print(f'Unwrapped lon + pi = {lon_unwrap + math.pi}')
+    
+    # Plot the map
+    
+    plt.imshow(stretch(a0.profile_azimuth_arr_2d),aspect=.030, extent=(0,2*math.pi,0,len(profiles)))
+    
+    # Plot moon
+    
+    plt.axvline(lon_unwrap + math.pi, alpha=0.1, lw=10)
+    
+    plt.xlabel('Azimuth [rad]')
+    plt.ylabel('Image #')
+    plt.title(f'{a0.__str__()}, Unwrapping wrt {body}')
+    plt.show()
+
+
+#plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+#    
+#plt.legend(fontsize=8)
+#plt.xlim(xlim)
+#plt.xlabel('Az [rad]')
+#plt.ylabel('DN; # of Data Points')
+#plt.legend(fontsize=10)
+#plt.show()
+
+
+# Just a quick test routine to unwrap orbital longitudes
+# This function below should give the same result for any ET at all! But it doesnt, which is the problem.
+# Maybe... perhaps longitude does not increase at the same rate as it is supposed to?
+# What I am doing is getting the sub-Metis longitude on Jupiter, and mapping that back in time to 1 Jan 2000,
+# to see what Jovian lon Metis would be over at that time.
+# This seems reasonable and corect - I should be able to do this, really.
+    
+et = 1000
+    
+(pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', et, 'IAU_JUPITER', 'LT', 'METIS')
+(rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
+lon_unwrap = unwrap_orbital_longitude(lon, et, 'Jupiter', a_ref)
+print(f'Unwrapped lon + pi = {lon_unwrap + math.pi}')
+
+
+
+
+
+
+
+images = [hbt.frange(1,3),
+          hbt.frange(4,6)]
+
+a_ref = 129_700*u.km
+xlim  = (5, 6.5)
+smoothing = 2
+group = 5
+
+for i,images_i in enumerate(images):
+    a0 = ring_profile()
+    a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0.flatten(a=a_ref)
+    if (smoothing):
+        a0.smooth_azimuthal(smoothing)
+    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
+    plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+    
+plt.legend(fontsize=8)
+plt.xlim(xlim)
+plt.xlabel('Az [rad]')
+plt.ylabel('DN')
+plt.legend(fontsize=10)
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# =============================================================================
+# Now make a plot which does show Metis / Adrastea locations. This is just as a dummy check
+# =============================================================================
+
+profile_i2 = nh_jring_extract_profile_from_unwrapped(a.image_unwrapped_arr[i],
+                                                    a.radius_arr[i][:],
+                                                    a.azimuth_arr[i][:],
+                                                    0.047,
+                                                    'radial',
+                                                    mask_unwrapped=mask)
+    
 a2 = ring_profile()
-a2.load(8,images2, key_radius='full', verbose=False).plot_azimuthal(smooth=3)
+a0.load(8,images2, key_radius='full', verbose=False).plot_azimuthal(smooth=3)
+
+groups = [7,8]
+
+
 
 a1.flatten(a=a_ref)
 a0.flatten(a=a_ref)
@@ -1864,3 +2121,18 @@ plt.subplot(2,2,4)
 plt.imshow(a.mask_objects_unwrapped_arr[9], aspect=0.3)
 plt.show()
 
+
+# =============================================================================
+# One-off to compare versions of Jupiter kernels to get Metis / Adrastea sub-lons for right now
+# =============================================================================
+
+kernel_files = np.array(['kernels_nh_jupiter.tm', 'kernels/jup310.bsp'])
+for file in kernel_files:
+    sp.furnsh(file)
+    bodies = ['Adrastea', 'Metis']
+    for body in bodies:
+        (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', sp.utc2et('25 Apr 2007'), 'IAU_JUPITER', 'LT', body.upper())
+        (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
+        print(f'With file {file}, body={body} → lon = {lon*hbt.r2d}')
+#        lon_unwrap = unwrap_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a0.A_METIS*u.km)
+    
