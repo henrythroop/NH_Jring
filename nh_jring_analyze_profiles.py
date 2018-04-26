@@ -107,11 +107,11 @@ class ring_profile:
         stretch_percent = 90    
         self.stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
-        # Define a few constsants within the method. We're going to keep using these in many places,
-        # so best to set them up here. As per PEP-8, constants can be ALL_CAPS.
+        # Define a few constants within the method. We're going to keep using these in many places,
+        # so best to set them up here. As per PEP-8, constants should be ALL_CAPS.
         
-        self.A_METIS    = 127980        # Orbital distance, in km. From SCW07
-        self.A_ADRASTEA = 128981        # Orbital distance, in km. From SCW07
+        self.A_METIS    = 127979.8*u.km        # Orbital distance, in km. From SCW07
+        self.A_ADRASTEA = 128980.5*u.km        # Orbital distance, in km. From SCW07
 
 # =============================================================================
 # Define the 'string' for the class. This is the human-readable value returned when we do   print(ring)
@@ -478,7 +478,7 @@ class ring_profile:
 # Flatten the profiles -- that is, if there are N profiles, flatten to one, with mean value
 # =============================================================================
 
-    def flatten(self, a = 129_700*u.km):
+    def flatten(self, a = 129_700*u.km, et=0):
         
         """ Flatten the profile, from N profile, into one mean (or median) profile.
             Applies to radial and azimuthal and all other quantities.
@@ -492,6 +492,9 @@ class ring_profile:
                 Reference distance for doing the unwrapping in the azimuthal direction. Mandatory.
                 Astropy units. e.g., 127,500 km.
 
+            et:
+                Reference epoch to unwind to.
+                
             Return value:
                 self : Newly flattened object, with one profile, rather than N.
                 
@@ -500,6 +503,8 @@ class ring_profile:
         # Set up the reference distance
         
         a_ref = a
+        
+        et_ref = et
         
         # If is is already flattened (or a single profile), return without changing anything.
         # Flag as a warning, but do not cause error.
@@ -534,7 +539,7 @@ class ring_profile:
             # Unwrap the longitudes. self.azimuth_arr is in radians, and covers only the observed longitudes
             #   (ie, not 0 .. 2pi)
             
-            theta_i = unwrap_orbital_longitude(self.azimuth_arr[i,:], self.et_arr[i], 'Jupiter', a_ref)
+            theta_i = unwrap_orbital_longitude(self.azimuth_arr[i,:], self.et_arr[i], 'Jupiter', a_ref, et_ref)
                          
             # Now rebin this into the regridded output, and lay it down.
            
@@ -749,8 +754,8 @@ class ring_profile:
         if (plot_sats):
 
 #                args = {'linestyle': 'dash', 'alpha':0.5, 'color':'black'}
-            plt.axvline(x=self.A_METIS,    linestyle='dashed', alpha=0.2, color='black')
-            plt.axvline(x=self.A_ADRASTEA, linestyle='dashed', alpha=0.2, color='black')
+            plt.axvline(x=self.A_METIS.to('km').value/1000,    linestyle='dashed', alpha=0.2, color='black')
+            plt.axvline(x=self.A_ADRASTEA.to('km').value/1000, linestyle='dashed', alpha=0.2, color='black')
             
         plt.xlabel('Radial Distance [km]')
         plt.ylabel(self.profile_radius_units)
@@ -916,7 +921,8 @@ class ring_profile:
 # =============================================================================
 # Unwrap an orbital longitude back to a common time frame
 # =============================================================================
-
+#%%%
+        
 def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, et_ref=0):
     """
     Takes a set of longitudes, and unwraps them back to a given frame, incorporating
@@ -927,6 +933,9 @@ def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, e
     
     "The object is currently in orbit and is at this longitude above the body. 
       If we go back to ET_OUT, what longitude will it be at?"
+      
+    Or, as Showalter 2007 said,  
+      "Longitudes are rotated to a common epoch, assuming the mean motion of a body at a = 129,000 km"
     
     Typically et_out will be some common reference, like '1 Jan 2000 12:00:00'. But, it can be anything.
     
@@ -959,9 +968,10 @@ def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, e
     """
     
     name_body = 'jupiter'
+    r_jup = 69_911*u.km
 #    a_orbit = 129_700*u.km
     
-    masses = {'JUPITER': c.M_jup,
+    masses = {'JUPITER': c.M_jup,   # Agrees w/ wikipedia. 1.89818e27 kg
               'EARTH':   c.M_earth,
               'PLUTO':   1.303e22*u.kg,
               'SUN':     c.M_sun}
@@ -975,7 +985,11 @@ def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, e
 #    print(f'dt = {dt} sec')
     
     (_, pm) = sp.bodvrd(name_body.upper(), 'PM', 3)
-        
+    
+#    v_orbit = (c.G * m_body / a_orbit)    
+#    p_orbit = (2 * math.pi * a_orbit) / v_orbit
+    
+    
     p_orbit =  2*math.pi * (np.sqrt(a_orbit**3 / (c.G * m_body))).to('s')  # Orbital period at Metis: approx 7 hr.
     
     dtheta_dt_rot = pm[1] * hbt.d2r / (u.day.to(u.s))  # Convert rotation rate from deg/day (spice) to rad/sec (hbt)
@@ -983,6 +997,32 @@ def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, e
                                                        # it is already programmed into our original longitudes.
 
     dtheta_dt_orbit = (2*math.pi / p_orbit.to('s')).value
+    
+    # Get Jupiter J2, J4, and the equation for dtheta_dt, from 
+    # http://astro.cornell.edu/academics/courses/astro6570/Rotation_precession_gravity_fields.pdf
+    # Also see 
+    # https://space.stackexchange.com/questions/25868/equation-for-orbital-period-around-oblate-bodies-based-on-j2
+    
+    j2 = 0.01473
+    j4 = -587e-6
+    mean_motion_orbit = dtheta_dt_orbit * hbt.r2d * 86400  # Get orbital mean motion, in deg/day
+ 
+    # Apply the orbital perturbation. Note that this is kind of made up. The basic idea is from eq's in PDF below.
+    # But I had to change exponents to fit right. I think in the end my results are right, and I was just unable
+    # to find the proper expression. No one gives a closed form for mean motion as func of J2 + J4.
+    # I bet I could ask DPH for it, but I haven't.
+    
+    if (name_body.upper() == 'JUPITER'):    
+#        print(f'Mean motion at {a_orbit} is {mean_motion_orbit} deg/day (pre-J2)')
+        dtheta_dt_orbit *= (1 + 3/2 * j2 * (r_jup / a_orbit)**(6/2))
+         
+                # From the Final-2 page at Rotaton_precession_gravity_fields PDF above.
+                # The exponent I use is different than used in paper, so I am prob wrong.
+                    
+    mean_motion_orbit = dtheta_dt_orbit * hbt.r2d * 86400  # Get orbital mean motion, in deg/day
+ 
+#    print(f'Mean motion at {a_orbit} is {mean_motion_orbit} deg/day')
+#    print(f'Orbital period = {p_orbit/86400} d')
     
     lon_out = lon_in + (dtheta_dt_orbit - dtheta_dt_rot)*dt
 
@@ -994,8 +1034,7 @@ def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, e
 
     
     ###  Jupiter Prime Meridian:      W       =  284.95  + 870.5366420 d"  pm[0] = 284; pm[1] = 870.
-                
-    
+#%%%    
 # =============================================================================
 # # ===========================================================================
 # # END OF CLASS DEFINITION ###################################################
@@ -1015,7 +1054,7 @@ a = ring_profile()
 self = a
 plot_azimuthal=True
 plot_legend=True
-a.load(8,hbt.frange(0,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+a.load(8,hbt.frange(0,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a,a_unwrap=129700*u.km)
 a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=False, title=a, 
       a_unwrap=129700*u.km)
 
@@ -1380,11 +1419,11 @@ plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e')
 
 # Mark position of Metis + Adrastea
 
-ax1.axvline(ring.A_METIS/1000, linestyle='dashed', color='grey', alpha=0.3)
-ax1.axvline(ring.A_ADRASTEA/1000, linestyle='dashed', color='grey', alpha=0.3)
+ax1.axvline(ring.A_METIS.to('km').value/1000, linestyle='dashed', color='grey', alpha=0.3)
+ax1.axvline(ring.A_ADRASTEA.to('km').value/1000, linestyle='dashed', color='grey', alpha=0.3)
 
-ax1.text(ring.A_METIS/1000, -5e-7, 'M')
-ax1.text(ring.A_ADRASTEA/1000, -5e-7, 'A')
+ax1.text(ring.A_METIS.to('km').value/1000, -5e-7, 'M')
+ax1.text(ring.A_ADRASTEA.to('km').value/1000, -5e-7, 'A')
 
 # Put the second axis on the top
 
@@ -1649,22 +1688,25 @@ for do_flatten_i in do_flatten:
         if do_flatten_i:
             a0.flatten()
         plt.plot(a0.radius_arr[0], a0.profile_radius_arr[0], label = key)
-    plt.title(f'Radial Profile vs Extraction Region, {a0.__str__()}')
+    plt.title(f'Radial Profile vs Extraction Regidon, {a0.__str__()}')
     plt.xlabel('Radius [km]')
     plt.ylabel('DN')    
-    plt.axvline(a0.A_METIS, alpha=0.2)
-    plt.axvline(a0.A_ADRASTEA, alpha=0.2)
+    plt.axvline(a0.A_METIS.to('km').value, alpha=0.2)
+    plt.axvline(a0.A_ADRASTEA.to('km').value, alpha=0.2)
     plt.xlim((122_000, 132_000))
     plt.legend()    
     plt.show()    
 
 
+#%%%
+    
 # =============================================================================
 # Now make some azimuthal profile plots, with all the data
 # =============================================================================
 
 plt.set_cmap('plasma')
-a_ref = 129_700*u.km
+a_ref = 129_000*u.km
+et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwrap into. For best results, use a time close to the obs
 
 # Look at sequence 8.
 # Load it in three segments: Entire range, beginning, and end. Make plots of all of these, separately.
@@ -1679,7 +1721,7 @@ images = [images0, images1, images2]
 for images_i in images:
     a0 = ring_profile()
     a0.load(8,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
-    a0.flatten(a=a_ref)
+    a0.flatten(a=a_ref, et=et_ref)
     plt.imshow(a0.profile_azimuth_arr_2d, aspect=20, origin='lower')
     plt.title(a0)
     plt.show()
@@ -1694,7 +1736,7 @@ group = 8
 for i,images_i in enumerate(images):
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
-    a0.flatten(a=a_ref)
+    a0.flatten(a=a_ref, et=et_ref)
     if (smoothing):
         a0.smooth_azimuthal(smoothing)
     plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
@@ -1703,7 +1745,8 @@ plt.legend(fontsize=8)
 plt.xlabel('Az [rad]')
 plt.ylabel('DN')
 plt.show()
-    
+
+#%%%    
 # Now make a plot showing just a zoom of the range where the data actually overlap (two curves, group 8)
     
 images1 = hbt.frange(0, 20)  # First half
@@ -1711,18 +1754,24 @@ images2 = hbt.frange(35,47)  # Second half
 
 images = [images1, images2]
 
-smoothing = None
+a_ref = 129_700*u.km # Increasing by 100 km shifts orange right by 0.0001 radians
+a_ref = 130_000*u.km # Increasing by 100 km shifts orange right by 0.0001 radians
+
+smoothing = 5
 group = 8
 y = np.zeros((len(images), 3600))   # Save the data here so we can calc the Correlation Coeff afterwards
-xlim = (5,6.3)                        # If desired, constrain the xlim to just a small region
+xlim = (3.5,5.7)                        # If desired, constrain the xlim to just a small region
 
 for i,images_i in enumerate(images):
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
-    a0.flatten(a=a_ref)
+    a0.flatten(a=a_ref, et=et_ref)
     if (smoothing):
         a0.smooth_azimuthal(smoothing)
-    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
+    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.5)
+        # Plot the DN values themselves
+    plt.plot(a0.azimuth_arr[0], a0.num_profile_azimuth_arr[0], label=f'Number of pts for {a0.__str__()}')
+
     plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
 plt.legend(fontsize=8)
 plt.xlim(xlim)
@@ -1730,6 +1779,7 @@ plt.xlabel('Az [rad]')
 plt.ylabel('DN')
 plt.show()
     
+#%%%
 
 # =============================================================================
 # Now see if we can find correlations between adjacent sequences (ie, not in the same sequence).
@@ -1739,15 +1789,17 @@ images = [
           hbt.frange(0, 48),   # One entire orbit
           hbt.frange(54,107)]  # A second entire orbit, 33 hours later
 
+et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwrap into. For best results, use a time close to the obs
+
 group = 8
 smoothing = 2
-a_ref = a0.A_METIS*u.km
-a_ref = a0.A_ADRASTEA*u.km
+a_ref = a0.A_METIS
+a_ref = a0.A_ADRASTEA
 
 for i,images_i in enumerate(images):
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
-    a0.flatten(a=a_ref)
+    a0.flatten(a=a_ref, et=et_ref)
     if (smoothing):
         a0.smooth_azimuthal(smoothing)
     plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
@@ -1760,6 +1812,8 @@ plt.xlabel('Az [rad]')
 plt.ylabel('DN')
 plt.show()
 
+#%%%
+
 # =============================================================================
 # Plot sets of nearby subsequent images, unwrapped in az. 
 # This is a check to see that the same things are in next-door images!
@@ -1767,6 +1821,7 @@ plt.show()
 
 images = [hbt.frange(0,10),
           hbt.frange(11,21)]
+et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwrap into. For best results, use a time close to the obs
 
 hbt.figsize((18,6))
 hbt.fontsize(15)
@@ -1778,7 +1833,7 @@ group = 8
 for i,images_i in enumerate(images):
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
-    a0.flatten(a=a_ref)
+    a0.flatten(a=a_ref, et=et_ref)
     if (smoothing):
         a0.smooth_azimuthal(smoothing)
     
@@ -1797,6 +1852,8 @@ plt.ylabel('DN; # of Data Points')
 plt.legend(fontsize=10)
 plt.show()
 
+#%%%
+
 # =============================================================================
 # Now make plot where we do show actual DN of Metis and Adrastea.
 # This is as a dummy check to make sure we are summing on them properly, esp. over different sequences.
@@ -1811,11 +1868,13 @@ xlim  = (3.9, 5.2)
 smoothing = None
 group = 8
 
-a_ref = a0.A_METIS*u.km
-bodies = ['Metis']
+a_ref = ring_profile().A_METIS
+body_ref = 'Metis'
 
-#a_ref = a0.A_ADRASTEA*u.km
-#bodies = ['Adrastea']
+a_ref = a0.A_ADRASTEA
+body_ref = 'Adrastea'
+
+et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwrap into. For best results, use a time close to the obs
 
 for i,images_i in enumerate(images):
     a0 = ring_profile()
@@ -1845,15 +1904,15 @@ for i,images_i in enumerate(images):
     
     # Unroll the images, applying keplerian motion
     
-    a0.flatten(a=a_ref)
+    a0.flatten(a=a_ref, et=et_ref)
 
     # Map Metis, Adrasta back to this time
     # What we want to do is use SPICE to calc Metis' longitude at the time of observation, and then use
     # func to wrap this back to J2000 common time.
     
-    (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', a0.et_arr[0], 'IAU_JUPITER', 'LT', body.upper())
+    (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', a0.et_arr[0], 'IAU_JUPITER', 'LT', body_ref.upper())
     (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
-    lon_unwrap = unwrap_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a_ref)
+    lon_unwrap = unwrap_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a_ref, et_ref)
     print(f'Unwrapped lon + pi = {lon_unwrap + math.pi}')
     
     # Plot the map
@@ -1862,60 +1921,84 @@ for i,images_i in enumerate(images):
     
     # Plot moon
     
-    plt.axvline(lon_unwrap + math.pi, alpha=0.1, lw=10)
+    plt.axvline(np.mod(lon_unwrap + math.pi, 2*math.pi), alpha=0.1, lw=10)
     
     plt.xlabel('Azimuth [rad]')
     plt.ylabel('Image #')
-    plt.title(f'{a0.__str__()}, Unwrapping wrt {body}')
+    plt.title(f'{a0.__str__()}, Unwrapping wrt {body_ref}')
     plt.show()
 
 
-#plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
-#    
-#plt.legend(fontsize=8)
-#plt.xlim(xlim)
-#plt.xlabel('Az [rad]')
-#plt.ylabel('DN; # of Data Points')
-#plt.legend(fontsize=10)
-#plt.show()
-
-
+#%%%
+    
 # Just a quick test routine to unwrap orbital longitudes
-# This function below should give the same result for any ET at all! But it doesnt, which is the problem.
-# Maybe... perhaps longitude does not increase at the same rate as it is supposed to?
-# What I am doing is getting the sub-Metis longitude on Jupiter, and mapping that back in time to 1 Jan 2000,
-# to see what Jovian lon Metis would be over at that time.
-# This seems reasonable and corect - I should be able to do this, really.
+# This function below should give the same result for any ET at all! 
+# Basically, it moves positions forward with SPICE, and then backwards with my routine, and checks if they end up
+# where they started
+# At first it did not. But now, after I added the J2 correction to my unwrapping routine, it works properly.
+# (Not exactly -- there is still an error in my J2 calc -- but it is a lot closer than it was.)
     
-et = 1000
     
-(pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', et, 'IAU_JUPITER', 'LT', 'METIS')
-(rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
-lon_unwrap = unwrap_orbital_longitude(lon, et, 'Jupiter', a_ref)
-print(f'Unwrapped lon + pi = {lon_unwrap + math.pi}')
+ets = [0,10000, 20000, 30000]
+#
+a_ref = 127_979.8*u.km  # Metis    = larger, inner.  From table in SCW07
+#a_ref = 128_980.5*u.km  # Adrastea = smaller, outer. From table in SCW07. 
+
+p_metis = 0.294780*86400  # From wiki. Orbital period
+
+for et in ets:
+    (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', et, 'IAU_JUPITER', 'LT', 'METIS')
+    (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
+    lon_unwrap = unwrap_orbital_longitude(lon, et, 'Jupiter', a_ref)
+    print(f'Unwrapped lon + pi = {lon_unwrap + math.pi}')
+
+#%%%
+
+# =============================================================================
+# Now look at the sequence where MRS extracted the clumps from. See if I can reproduce his result.
+# His images were 8/97 and 8/100.
+# =============================================================================
 
 
+images = [hbt.frange(97,100)]
 
-
-
-
-
-images = [hbt.frange(1,3),
-          hbt.frange(4,6)]
+plt.set_cmap('Greys_r')
+plt.set_cmap('plasma')
 
 a_ref = 129_700*u.km
 xlim  = (5, 6.5)
-smoothing = 2
-group = 5
+smoothing = None
+group = 8
 
 for i,images_i in enumerate(images):
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0_orig = a0.copy()
     a0.flatten(a=a_ref)
     if (smoothing):
         a0.smooth_azimuthal(smoothing)
     plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
     plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+    plt.show()
+    
+    # Make a series of TV plots
+    
+    hbt.figsize((10,3))
+    for j in range(a0_orig.num_profiles):
+        plt.subplot(5,1,j+1)
+        plt.imshow(stretch(a0_orig.image_unwrapped_arr[j][340:360,:]), aspect=0.4)
+        plt.gca().get_xaxis().set_visible(False)
+        plt.gca().get_yaxis().set_visible(False)
+    
+    plt.tight_layout()    
+    plt.show()
+    
+    # Make a series of plots, summing the data manually
+    
+    for j in range(a0_orig.num_profiles):
+        plt.plot(j*100 + np.sum( a0_orig.image_unwrapped_arr[j][340:360,:], axis=0))        
+    plt.show()
+
     
 plt.legend(fontsize=8)
 plt.xlim(xlim)
@@ -1925,7 +2008,7 @@ plt.legend(fontsize=10)
 plt.show()
 
 
-
+#%%%
 
 
 
@@ -2001,10 +2084,10 @@ a3.plot_azimuthal(smooth=10,xlim=(0,360))
 #.flatten().plot_radial()
 
 a1 = ring_profile()
-a1.load(8,hbt.frange(0,48),key_radius='core').flatten(a=a1.A_METIS*u.km)
+a1.load(8,hbt.frange(0,48),key_radius='core').flatten(a=a1.A_METIS)
 
 a2 = ring_profile()
-a2.load(8,hbt.frange(54,107),key_radius='core').flatten(a=a1.A_METIS*u.km).plot_azimuthal(xlim=(0,360),smooth=3)
+a2.load(8,hbt.frange(54,107),key_radius='core').flatten(a=a1.A_METIS).plot_azimuthal(xlim=(0,360),smooth=3)
 
 plt.plot(a1.azimuth_arr[0], a1.profile_azimuth_arr[0])
 plt.plot(a2.azimuth_arr[0], a2.profile_azimuth_arr[0])
@@ -2091,10 +2174,12 @@ plt.show()
 ring3.plot(plot_azimuthal=True)
 
 
-ring2.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+ring2.load(7,hbt.frange(24,31), key_radius='full')
+ring2.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
 
 
-a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+a.load(8,hbt.frange(24,48), key_radius='full')
+a.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
 
 a_8_1 = ring_profile()
 a_8_1.load(8,hbt.frange(0,48), key_radius='full').flatten().plot_azimuthal()
@@ -2103,9 +2188,11 @@ a_8_1.load(8,hbt.frange(0,48), key_radius='full').flatten().plot_azimuthal()
 a_8_2 = ring_profile()
 a_8_2.load(8,hbt.frange(54,107), key_radius='full').flatten().plot_azimuthal()
 
-a.load(7,hbt.frange(24,31), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+a.load(7,hbt.frange(24,31), key_radius='full')
+a.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
 
-a.load(5,hbt.frange(1,7), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+a.load(5,hbt.frange(1,7), key_radius='full')
+a.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
 
 
 # Plot some images and masks to explore what is happening here.
@@ -2126,12 +2213,15 @@ plt.show()
 # One-off to compare versions of Jupiter kernels to get Metis / Adrastea sub-lons for right now
 # =============================================================================
 
+bodies = ['Metis', 'Adrastea']
+
 kernel_files = np.array(['kernels_nh_jupiter.tm', 'kernels/jup310.bsp'])
 for file in kernel_files:
     sp.furnsh(file)
     bodies = ['Adrastea', 'Metis']
     for body in bodies:
-        (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', sp.utc2et('25 Apr 2007'), 'IAU_JUPITER', 'LT', body.upper())
+        (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', sp.utc2et('25 Apr 2007'), 'IAU_JUPITER', 'LT', 
+                                     body.upper())
         (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
         print(f'With file {file}, body={body} → lon = {lon*hbt.r2d}')
 #        lon_unwrap = unwrap_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a0.A_METIS*u.km)
