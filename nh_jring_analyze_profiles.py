@@ -1952,8 +1952,57 @@ for et in ets:
     lon_unwrap = unwrap_orbital_longitude(lon, et, 'Jupiter', a_ref)
     print(f'Unwrapped lon + pi = {lon_unwrap + math.pi}')
 
-#%%%
 
+#%%%
+    
+# =============================================================================
+# Do some tests on high-resolution extractions. I have increased resolution
+# (300,500) → (600,900) for a few images, just to compare.
+# =============================================================================
+
+hbt.figsize((8,5))
+hbt.fontsize(12)
+images = [hbt.frange(14,16),
+          hbt.frange(17,19)]    
+
+plt.set_cmap('Greys_r')
+plt.set_cmap('plasma')
+
+a_ref = 129_700*u.km
+xlim  = (5, 6.5)
+smoothing = None
+group = 8
+
+for i,images_i in enumerate(images):
+    a0 = ring_profile()
+    a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0_flat = a0.copy()
+    a0_flat.flatten(a=a_ref)
+    if (smoothing):
+        a0_flat.smooth_azimuthal(smoothing)
+    
+    # Make an initial plot of az profile
+    
+    plt.plot(a0_flat.azimuth_arr[0], a0_flat.profile_azimuth_arr[0], label=a0_flat.__str__(), alpha=0.7)
+    plt.title(f'Az Profile, unwrapped, {a0_flat}, {a_ref}, smoothing {smoothing}')
+    plt.show()
+
+hbt.figsize(15,15)
+for i,images_i in enumerate(images):
+    a0 = ring_profile()
+    a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    plt.imshow(stretch(a0.image_unwrapped_arr[0]), aspect=0.5)
+    plt.show()
+
+#    
+#    a0_flat = a0.copy()
+#    a0_flat.flatten(a=a_ref)
+#    if (smoothing):
+#        a0_flat.smooth_azimuthal(smoothing)
+
+
+    
+#%%%
 # =============================================================================
 # Now look at the sequence where MRS extracted the clumps from. See if I can reproduce his result.
 # His images were 8/97 and 8/100.
@@ -1973,33 +2022,115 @@ group = 8
 for i,images_i in enumerate(images):
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
-    a0_orig = a0.copy()
-    a0.flatten(a=a_ref)
+    a0_flat = a0.copy()
+    a0_flat.flatten(a=a_ref)
     if (smoothing):
-        a0.smooth_azimuthal(smoothing)
-    plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
+        a0_flat.smooth_azimuthal(smoothing)
+    
+    # Make an initial plot of az profile
+    
+    plt.plot(a0_flat.azimuth_arr[0], a0_flat.profile_azimuth_arr[0], label=a0_flat.__str__(), alpha=0.7)
     plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
     plt.show()
     
     # Make a series of TV plots
     
     hbt.figsize((10,3))
-    for j in range(a0_orig.num_profiles):
+    for j in range(a0.num_profiles):
         plt.subplot(5,1,j+1)
-        plt.imshow(stretch(a0_orig.image_unwrapped_arr[j][340:360,:]), aspect=0.4)
+        plt.imshow(stretch(a0.image_unwrapped_arr[j][340:360,:]), aspect=0.4)
         plt.gca().get_xaxis().set_visible(False)
         plt.gca().get_yaxis().set_visible(False)
     
     plt.tight_layout()    
     plt.show()
     
-    # Make a series of plots, summing the data manually
+    # Make a series of plots, summing the data manually, from the 'raw' image
     
-    for j in range(a0_orig.num_profiles):
-        plt.plot(j*100 + np.sum( a0_orig.image_unwrapped_arr[j][340:360,:], axis=0))        
+    for j in range(a0.num_profiles):
+        plt.plot(j*100 + np.sum( a0.image_unwrapped_arr[j][340:360,:], axis=0))        
     plt.show()
 
+    # Re-extract the data in a formal / complete way
     
+    # Set the limits for extraction
+    
+    profile_azimuth_masked  = {'inner' : np.array([0]), 'core'   : np.array([0]), 'outer' : np.array([0])}
+#                               'net'   : np.array([0]) }
+    profile_azimuth_raw     = {'inner' : np.array([0]), 'core'   : np.array([0]), 'outer' : np.array([0])}
+#                               'net'   : np.array([0]) }
+
+    profile_radius          = {'full'  : np.array([0]), 'center' : np.array([0]), 'core'  : np.array([0])}
+#                                                     'outer-30'  : np.array([0]), 'outer-50' : np.array([0]) }
+    
+    range_of_radius  = {'inner' : (126500,127500), 'core' : (127500,129500), 'outer' : (130000,131000)} # for az
+    range_of_azimuth = {'full'  : 1,               'center' : 0.25,          'core' : 0.1}
+#                                                       'outer-30' : (1,-0.3), 'outer-50' : (1,-0.5)}    
+
+    # Grab the masks (already done)
+
+# Make azimuthal profiles
+# Confirmed. I can extract these quite well. When I do this formula, the extracted profile is identical to 
+# that which I already have. It is a masked profile.
+
+    
+    
+    # Loop over all the images in the sequence
+    
+    for j in range(a0.num_profiles):
+
+        # Loop over and extract profiles from inner, outer, core, etc. regions
+        
+        for key in profile_azimuth_masked:
+            
+            # Extract the masked profile
+            
+            profile_azimuth_masked[key] = nh_jring_extract_profile_from_unwrapped(a0.image_unwrapped_arr[j], 
+                                                  self.radius_arr[j],   # Array defining bins of radius
+                                                  self.azimuth_arr[j],  # Array defining bins of azimuth
+                                                  range_of_radius[key],        # range of rad used for az profile
+                                                  'azimuth',
+                                                  mask_unwrapped = a0.mask_objects_unwrapped_arr[j])   
+
+            # Extract the non-masked, raw profile
+            
+            profile_azimuth_raw[key] = nh_jring_extract_profile_from_unwrapped(a0.image_unwrapped_arr[j], 
+                                                  self.radius_arr[j],   # Array defining bins of radius
+                                                  self.azimuth_arr[j],  # Array defining bins of azimuth
+                                                  range_of_radius[key],        # range of rad used for az profile
+                                                  'azimuth',
+                                                  mask_unwrapped = a0.mask_stray_unwrapped_arr[j])               # Remove the BG
+            
+        profile_azimuth_masked_net = profile_azimuth_masked['core'] - (profile_azimuth_masked['inner'] + 
+                              profile_azimuth_masked['outer'])/2
+
+        profile_azimuth_raw_net = profile_azimuth_raw['core'] - (profile_azimuth_raw['inner'] + 
+                              profile_azimuth_raw['outer'])/2
+        
+#        plt.plot(a0.azimuth_arr[0], profile_azimuth_raw_net, label = 'Raw')
+#        plt.plot(a0.azimuth_arr[0], profile_azimuth_masked_net, label = 'Masked')
+#        plt.legend()
+#        plt.ylim((-3,10))
+#        plt.title(f'{a0.__str__()}, {a0.index_image_arr[j]}')
+#        plt.show()
+#        
+                                             
+# Now, extract the image strips. I don't have a very good az image of the ring -- just a 1D profile.
+# Take the raw strip, and subtract mean of inner and outer profiles, converted to a strip
+        
+        strip_raw = a0.image_unwrapped_arr[j][340:360,:]
+        strip_inner = np.add.outer(np.zeros(20), profile_azimuth_raw['inner'])
+        strip_outer = np.add.outer(np.zeros(20), profile_azimuth_raw['outer'])
+        
+        strip_cleaned = strip_raw - (strip_inner + strip_outer) / 2
+        
+        plt.imshow(stretch(strip_cleaned))
+        plt.gca().get_xaxis().set_visible(False)
+        plt.gca().get_yaxis().set_visible(False)
+        plt.show()
+        
+# Also, extract non-masked images
+            
 plt.legend(fontsize=8)
 plt.xlim(xlim)
 plt.xlabel('Az [rad]')
