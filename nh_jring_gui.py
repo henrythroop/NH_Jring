@@ -571,9 +571,13 @@ class App:
         r_ring_inner = 114000   # Follow same limits as in Throop 2004 J-ring paper fig. 7
         r_ring_outer = 135000
 
-        num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
-        num_bins_radius  = 500
+#        num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
+#        num_bins_radius  = 500
              
+
+        num_bins_azimuth = 600    # XXX for testing try (600, 900) intead of (300,500)
+        num_bins_radius  = 1500
+
  
 # Check if the backplane is loaded already. Load it iff it is not loaded
     
