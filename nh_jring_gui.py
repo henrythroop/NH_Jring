@@ -571,13 +571,14 @@ class App:
         r_ring_inner = 114000   # Follow same limits as in Throop 2004 J-ring paper fig. 7
         r_ring_outer = 135000
 
-#        num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
 #        num_bins_radius  = 500
+#        num_bins_azimuth = 300    # 500 is OK. 1000 is too many -- we get bins ~0 pixels
              
-
-        num_bins_azimuth = 600    # XXX for testing try (600, 900) intead of (300,500)
-        num_bins_radius  = 1500
-
+        num_bins_radius  = 600     # As per my tests, the max # of bins recommended is 600 radial. Azimuth has no limit.
+        num_bins_azimuth = 1000    # Most of my extractions were done with (500,300).
+                                   # I can do much better than this... but don't push the radial #.
+                                   # If there are too many radial bins, things gets stretch too much and we get 
+                                   # a lotof interpolation artifacts.
  
 # Check if the backplane is loaded already. Load it iff it is not loaded
     
