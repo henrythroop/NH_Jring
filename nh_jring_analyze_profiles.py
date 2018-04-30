@@ -190,7 +190,11 @@ class ring_profile:
     
     def load(self, index_group, index_images, 
                       key_radius = 'core',  # Which of the radial profiles to read? 'full', 'center', or 'core'
+                                            # 'Core' means that only the inner 10% of the az range is used
+                                            # for rad profile. Fewer data points, but less smeared out
+                                            # if it is mis-aligned.
                       key_azimuth = 'net',  # Of the azimuthal profiles, which one to read?
+                                            # 'net' means the central region, minus (inner+outer)/2.
                       verbose = False,      # Verbose: List the filename as loading?
                       **kwargs):
         """
@@ -323,7 +327,8 @@ class ring_profile:
         #==============================================================================
         # Now put these into arrays (not lists). Ideally we'd put these into an astropy table (so we can sort, etc.)
         #==============================================================================
-             
+        # NB: Doing np.array() on a list of 1D arrays will convert it to a 2D array, *iff* arrays are of same length!
+        
         self.ang_phase_arr = np.array(self.ang_phase_arr)
         self.ang_elev_arr  = np.array(self.ang_elev_arr)
         self.azimuth_arr   = np.array(self.azimuth_arr)
@@ -489,7 +494,7 @@ class ring_profile:
             ---    
             
             a:
-                Reference distance for doing the unwrapping in the azimuthal direction. Mandatory.
+                Reference distance for doing the unwinding in the azimuthal direction. Mandatory.
                 Astropy units. e.g., 127,500 km.
 
             et:
@@ -512,34 +517,42 @@ class ring_profile:
         if (self.num_profiles == 1):
             warnings.warn('Warning: Profile has already been flattened')
             return self
-                 
+        
+        # Do a check to verify that arrays all have the same shape. 
+
+        try:
+            _ = np.stack(self.profile_radius_arr)    # Attempt to convert list of 1D arrays, into a 2D array.
+            _ = np.stack(self.profile_azimuth_arr)
+        except ValueError:
+            raise ValueError("Cannot flatten because profiles are of different sizes.")
+            
         # First flatten radial profiles. This is easy -- we just take the mean of all the profiles.
                 
         self.profile_radius_arr[0] = np.nanmean(self.profile_radius_arr, axis=0) # Save the flattened profile
 
-        # Now do the azimuthal profiles. This is much harder, since we need to unwrap them to make sense of them.
+        # Now do the azimuthal profiles. This is much harder, since we need to unwind them to make sense of them.
 
-        num_az_unwrapped = 3600
+        num_az_unwind = 3600
 
         # Set up a uniformly spaced azimuthal grid.
             
-        azimuth_unwrapped = hbt.frange(0,math.pi *2, num_az_unwrapped+1)[0:-1]
+        azimuth_unwind = hbt.frange(0,math.pi *2, num_az_unwind+1)[0:-1]
  
         # Also, set up a 2D grid, where we make an 'image' of the azimuthal output
         
-        unwrapped_2d = np.zeros( (len(self.profile_azimuth_arr), num_az_unwrapped) )
+        unwind_2d = np.zeros( (len(self.profile_azimuth_arr), num_az_unwind) )
         
-        # Loop over every azimuthal profile. For each one, unwrap it properly to a common ET, then put it on a 
+        # Loop over every azimuthal profile. For each one, unwind it properly to a common ET, then put it on a 
         # common grid. Then merge all of them.
         
         print(f'Flattening with reference radius {a_ref}')
     
         for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
             
-            # Unwrap the longitudes. self.azimuth_arr is in radians, and covers only the observed longitudes
+            # Unwind the longitudes. self.azimuth_arr is in radians, and covers only the observed longitudes
             #   (ie, not 0 .. 2pi)
             
-            theta_i = unwrap_orbital_longitude(self.azimuth_arr[i,:], self.et_arr[i], 'Jupiter', a_ref, et_ref)
+            theta_i = unwind_orbital_longitude(self.azimuth_arr[i,:], self.et_arr[i], 'Jupiter', a_ref, et_ref)
                          
             # Now rebin this into the regridded output, and lay it down.
            
@@ -571,27 +584,27 @@ class ring_profile:
             ys[is_gap_wide] = np.nan
         
             f = interpolate.interp1d( xs, ys )                
-            unwrapped_1d = f(azimuth_unwrapped)
+            unwind_1d = f(azimuth_unwind)
 
             warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
-            unwrapped_2d[i,:] = np.array(unwrapped_1d)
+            unwind_2d[i,:] = np.array(unwind_1d)
             warnings.simplefilter(action = "default", category = RuntimeWarning) # Turn back to warning first-time only
 
         # Save the 2D azimuth 'image' 
         
-        self.profile_azimuth_arr_2d = unwrapped_2d
+        self.profile_azimuth_arr_2d = unwind_2d
 
         # Flatten the 'image' of azimuth down into an array of size (1,3600), for instance.
         # This is just so the profile can be extracted consistently.
 
         warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
         
-        self.profile_azimuth_arr = np.array([np.nanmean(unwrapped_2d,        axis=0)])    # Save the flattened profile
+        self.profile_azimuth_arr = np.array([np.nanmean(unwind_2d,        axis=0)])    # Save the flattened profile
         self.profile_radius_arr  = np.array([self.profile_radius_arr[0]])
 
         # For statistics, count up how many datapoints went into each az bin.
         
-        self.num_profile_azimuth_arr = np.array([np.sum(np.logical_not(np.isnan(unwrapped_2d)), axis=0)])
+        self.num_profile_azimuth_arr = np.array([np.sum(np.logical_not(np.isnan(unwind_2d)), axis=0)])
         
         warnings.simplefilter(action = "default", category = RuntimeWarning)  # "<" or 'less' causes warning w/ NaN's...
         
@@ -605,14 +618,14 @@ class ring_profile:
         # For other fields, take one entry, and save that.
         # This is a bit crude, but probably OK.
                         
-        self.azimuth_arr     = np.array([azimuth_unwrapped])  # The newly unwrapped az grid values
+        self.azimuth_arr     = np.array([azimuth_unwind])  # The newly unwound az grid values
         self.radius_arr      = np.array([self.radius_arr[0]])
         self.index_image_arr = np.array(["{}-{}".format(self.index_image_arr[0], self.index_image_arr[-1])])
         self.index_group_arr = np.array([self.index_group_arr[0]]) 
         self.dt_arr          = np.array([self.dt_arr[0]])
         self.dt_str_arr      = np.array([self.dt_str_arr[0]])
         
-        # Flatten the images and mask arrays, by taking median
+        # Flatten the images and mask arrays, by taking median (that is, reducing from N images, to 1.)
         
         self.image_unwrapped_arr = np.array([np.nanmedian(self.image_unwrapped_arr, axis=0)])
         self.mask_objects_unwrapped_arr = np.array([np.nanmedian(self.mask_objects_unwrapped_arr, axis=0)])
@@ -819,12 +832,12 @@ class ring_profile:
         
             # Loop over azimuthal profiles
             
-            y = self.profile_azimuth_arr[i,:]
+            y = self.profile_azimuth_arr[i]
          
             if smooth:
                 y = convolve(y, kernel, boundary='wrap', preserve_nan=True)
 
-            plt.plot(self.azimuth_arr[i,:]*hbt.r2d, 
+            plt.plot(self.azimuth_arr[i]*hbt.r2d, 
                      (i * dy) + y,  
                      label = '{}/{}, {:.2f}°'.format(
                              self.index_group_arr[i], 
@@ -844,7 +857,7 @@ class ring_profile:
             pass
         
             # Look up sub-satellite longitude at time of the 'current' observation
-            # Unwrap this longitude back to 2000, using Metis or Adrastea's orbital distance
+            # Unwind this longitude back to 2000, using Metis or Adrastea's orbital distance
             # Plot it
         
             # XXX Right now I'm not really sure of the point of this, so we do not do it.
@@ -919,13 +932,13 @@ class ring_profile:
 
 
 # =============================================================================
-# Unwrap an orbital longitude back to a common time frame
+# Unwind an orbital longitude back to a common time frame
 # =============================================================================
 #%%%
         
-def unwrap_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, et_ref=0):
+def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, et_ref=0):
     """
-    Takes a set of longitudes, and unwraps them back to a given frame, incorporating
+    Takes a set of longitudes, and unwind them back to a given frame, incorporating
     both body rotation, and keplerian orbital motion. Both are assumed to be constant.
     
     That is, it takes the preset longitudes lon_in at time et_in of a satellite 
@@ -1054,9 +1067,12 @@ a = ring_profile()
 self = a
 plot_azimuthal=True
 plot_legend=True
-a.load(8,hbt.frange(0,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, title=a,a_unwrap=129700*u.km)
+a.load(8,hbt.frange(0,18), key_radius='full')
+a.plot_azimuthal(plot_legend=True)
+a.plot_radial()
+a.plot(plot_legend=False, plot_azimuthal=True, title=a,a_unwind=129700*u.km)
 a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=False, title=a, 
-      a_unwrap=129700*u.km)
+      a_unwind=129700*u.km)
 
 
 
@@ -1706,7 +1722,7 @@ for do_flatten_i in do_flatten:
 
 plt.set_cmap('plasma')
 a_ref = 129_000*u.km
-et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwrap into. For best results, use a time close to the obs
+et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwind into. For best results, use a time close to the obs
 
 # Look at sequence 8.
 # Load it in three segments: Entire range, beginning, and end. Make plots of all of these, separately.
@@ -1740,7 +1756,7 @@ for i,images_i in enumerate(images):
     if (smoothing):
         a0.smooth_azimuthal(smoothing)
     plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
-    plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+    plt.title(f'Az Profile, unwind, {group}/, {a_ref}, smoothing {smoothing}')
 plt.legend(fontsize=8)
 plt.xlabel('Az [rad]')
 plt.ylabel('DN')
@@ -1772,7 +1788,7 @@ for i,images_i in enumerate(images):
         # Plot the DN values themselves
     plt.plot(a0.azimuth_arr[0], a0.num_profile_azimuth_arr[0], label=f'Number of pts for {a0.__str__()}')
 
-    plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+    plt.title(f'Az Profile, unwind, {group}/, {a_ref}, smoothing {smoothing}')
 plt.legend(fontsize=8)
 plt.xlim(xlim)
 plt.xlabel('Az [rad]')
@@ -1789,7 +1805,7 @@ images = [
           hbt.frange(0, 48),   # One entire orbit
           hbt.frange(54,107)]  # A second entire orbit, 33 hours later
 
-et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwrap into. For best results, use a time close to the obs
+et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwind into. For best results, use a time close to the obs
 
 group = 8
 smoothing = 2
@@ -1803,7 +1819,7 @@ for i,images_i in enumerate(images):
     if (smoothing):
         a0.smooth_azimuthal(smoothing)
     plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
-    plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+    plt.title(f'Az Profile, unwind, {group}/, {a_ref}, smoothing {smoothing}')
     x = a0.azimuth_arr[0]
     y[i] = a0.profile_azimuth_arr[0]
 plt.legend(fontsize=8)
@@ -1821,7 +1837,7 @@ plt.show()
 
 images = [hbt.frange(0,10),
           hbt.frange(11,21)]
-et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwrap into. For best results, use a time close to the obs
+et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwind into. For best results, use a time close to the obs
 
 hbt.figsize((18,6))
 hbt.fontsize(15)
@@ -1843,7 +1859,7 @@ for i,images_i in enumerate(images):
     # Plot the DN values themselves
     plt.plot(a0.azimuth_arr[0], a0.num_profile_azimuth_arr[0], label=f'Number of pts for {a0.__str__()}')
 
-plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+plt.title(f'Az Profile, unwind, {group}/, {a_ref}, smoothing {smoothing}')
     
 plt.legend(fontsize=8)
 plt.xlim(xlim)
@@ -1874,7 +1890,7 @@ body_ref = 'Metis'
 a_ref = a0.A_ADRASTEA
 body_ref = 'Adrastea'
 
-et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwrap into. For best results, use a time close to the obs
+et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwind into. For best results, use a time close to the obs
 
 for i,images_i in enumerate(images):
     a0 = ring_profile()
@@ -1912,8 +1928,8 @@ for i,images_i in enumerate(images):
     
     (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', a0.et_arr[0], 'IAU_JUPITER', 'LT', body_ref.upper())
     (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
-    lon_unwrap = unwrap_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a_ref, et_ref)
-    print(f'Unwrapped lon + pi = {lon_unwrap + math.pi}')
+    lon_unwind = unwind_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a_ref, et_ref)
+    print(f'Unwind lon + pi = {lon_unwind + math.pi}')
     
     # Plot the map
     
@@ -1921,21 +1937,21 @@ for i,images_i in enumerate(images):
     
     # Plot moon
     
-    plt.axvline(np.mod(lon_unwrap + math.pi, 2*math.pi), alpha=0.1, lw=10)
+    plt.axvline(np.mod(lon_unwind + math.pi, 2*math.pi), alpha=0.1, lw=10)
     
     plt.xlabel('Azimuth [rad]')
     plt.ylabel('Image #')
-    plt.title(f'{a0.__str__()}, Unwrapping wrt {body_ref}')
+    plt.title(f'{a0.__str__()}, Unwinding wrt {body_ref}')
     plt.show()
 
 
 #%%%
     
-# Just a quick test routine to unwrap orbital longitudes
+# Just a quick test routine to unwind orbital longitudes
 # This function below should give the same result for any ET at all! 
 # Basically, it moves positions forward with SPICE, and then backwards with my routine, and checks if they end up
 # where they started
-# At first it did not. But now, after I added the J2 correction to my unwrapping routine, it works properly.
+# At first it did not. But now, after I added the J2 correction to my unwinding routine, it works properly.
 # (Not exactly -- there is still an error in my J2 calc -- but it is a lot closer than it was.)
     
     
@@ -1949,8 +1965,8 @@ p_metis = 0.294780*86400  # From wiki. Orbital period
 for et in ets:
     (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', et, 'IAU_JUPITER', 'LT', 'METIS')
     (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
-    lon_unwrap = unwrap_orbital_longitude(lon, et, 'Jupiter', a_ref)
-    print(f'Unwrapped lon + pi = {lon_unwrap + math.pi}')
+    lon_unwind = unwind_orbital_longitude(lon, et, 'Jupiter', a_ref)
+    print(f'Unwind lon + pi = {lon_unwind + math.pi}')
 
 
 #%%%
@@ -1962,8 +1978,8 @@ for et in ets:
 
 hbt.figsize((8,5))
 hbt.fontsize(12)
-images = [hbt.frange(14,16),
-          hbt.frange(17,19)]    
+images = [hbt.frange(14,16),  # Hi-res extractions
+          hbt.frange(17,19)]  # Low-res extractions  
 
 plt.set_cmap('Greys_r')
 plt.set_cmap('plasma')
@@ -1975,7 +1991,7 @@ group = 8
 
 for i,images_i in enumerate(images):
     a0 = ring_profile()
-    a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
+    a0.load(group,images_i,key_radius='core', verbose=False)  #.plot_azimuthal(smooth=3)
     a0_flat = a0.copy()
     a0_flat.flatten(a=a_ref)
     if (smoothing):
@@ -1984,10 +2000,10 @@ for i,images_i in enumerate(images):
     # Make an initial plot of az profile
     
     plt.plot(a0_flat.azimuth_arr[0], a0_flat.profile_azimuth_arr[0], label=a0_flat.__str__(), alpha=0.7)
-    plt.title(f'Az Profile, unwrapped, {a0_flat}, {a_ref}, smoothing {smoothing}')
+    plt.title(f'Az Profile, unwind, {a0_flat}, {a_ref}, smoothing {smoothing}')
     plt.show()
 
-hbt.figsize(15,15)
+hbt.figsize(25,25)
 for i,images_i in enumerate(images):
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
@@ -2030,7 +2046,7 @@ for i,images_i in enumerate(images):
     # Make an initial plot of az profile
     
     plt.plot(a0_flat.azimuth_arr[0], a0_flat.profile_azimuth_arr[0], label=a0_flat.__str__(), alpha=0.7)
-    plt.title(f'Az Profile, unwrapped, {group}/, {a_ref}, smoothing {smoothing}')
+    plt.title(f'Az Profile, unwind, {group}/, {a_ref}, smoothing {smoothing}')
     plt.show()
     
     # Make a series of TV plots
@@ -2268,7 +2284,7 @@ self = a
 plot_azimuthal=True
 plot_legend=True
 a.load(8,hbt.frange(8,28), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=True, title=a, 
-      a_unwrap=129700*u.km)
+      a_unwind=129700*u.km)
 a.flatten()
 plt.plot(a.azimuth_arr[0], a.profile_azimuth_arr[0])
 plt.show()
@@ -2285,7 +2301,7 @@ ring2.plot_azimuthal(xlim=(0,340))
 flatten().plot_azimuthal()
 
 plot(plot_legend=False, plot_azimuthal=False, plot_radial=False, 
-          title=a, a_unwrap=129700*u.km)
+          title=a, a_unwind=129700*u.km)
 ring2.flatten()
 plt.plot(ring2.azimuth_arr[0], ring2.profile_azimuth_arr[0])
 plt.show()
@@ -2295,7 +2311,7 @@ plt.show()
 
 ring3 = ring_profile()
 ring3.load(8,hbt.frange(54,107), key_radius='full').plot(plot_legend=False, plot_azimuthal=False, plot_radial=False, 
-          title=a, a_unwrap=129700*u.km)
+          title=a, a_unwind=129700*u.km)
 ring3.flatten()
 plt.plot(ring3.azimuth_arr[0], ring3.profile_azimuth_arr[0])
 plt.show()
@@ -2306,11 +2322,11 @@ ring3.plot(plot_azimuthal=True)
 
 
 ring2.load(7,hbt.frange(24,31), key_radius='full')
-ring2.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+ring2.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwind=129700*u.km)
 
 
 a.load(8,hbt.frange(24,48), key_radius='full')
-a.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+a.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwind=129700*u.km)
 
 a_8_1 = ring_profile()
 a_8_1.load(8,hbt.frange(0,48), key_radius='full').flatten().plot_azimuthal()
@@ -2320,10 +2336,10 @@ a_8_2 = ring_profile()
 a_8_2.load(8,hbt.frange(54,107), key_radius='full').flatten().plot_azimuthal()
 
 a.load(7,hbt.frange(24,31), key_radius='full')
-a.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+a.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwind=129700*u.km)
 
 a.load(5,hbt.frange(1,7), key_radius='full')
-a.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwrap=129700*u.km)
+a.plot(plot_legend=False, plot_azimuthal=True, title=a, a_unwind=129700*u.km)
 
 
 # Plot some images and masks to explore what is happening here.
@@ -2355,5 +2371,5 @@ for file in kernel_files:
                                      body.upper())
         (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
         print(f'With file {file}, body={body} → lon = {lon*hbt.r2d}')
-#        lon_unwrap = unwrap_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a0.A_METIS*u.km)
+#        lon_unwind = unwind_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a0.A_METIS*u.km)
     
