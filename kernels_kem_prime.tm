@@ -70,7 +70,7 @@ KERNELS_TO_LOAD = (
 '$DIR/nh_lorri_wcs.bc'
 '$DIR/merged_18359_v1_cmd.bc'
 '$DIR/NavPE_de433_od128.bsp',
-'$DIR/2014MU69_SBP_170825_noocc5.bsp',
+'$DIR/2014MU69_SBP_180112_rd2b.bsp',
 '$DIR/nh_nom_20170201_20210714_v13_prime.bsp',
 '$DIR/gv_pluto_smallsats_lhr.tf',
 '$DIR/gv_pck.tpc',

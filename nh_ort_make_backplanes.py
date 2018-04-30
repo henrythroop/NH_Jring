@@ -58,7 +58,8 @@ def nh_make_backplanes_ort():
     dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
     
     dir_data_ort = '/Users/throop/Data/ORT3'
-    dir_in  = os.path.join(dir_data_ort, 'wcs_buie') # Using Buie backplanes, not Simon's.
+#    dir_in  = os.path.join(dir_data_ort, 'wcs_buie') # Using Buie backplanes, not Simon's.
+    dir_in  = os.path.join(dir_data_ort, 'buie') # Using Buie backplanes, not Simon's.
     dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
     
     files = glob.glob(os.path.join(dir_in, '*','*_ort3.fit'))
@@ -72,13 +73,13 @@ def nh_make_backplanes_ort():
     # that only one CPU at a time can be used. To get around this, filter the files down,
     # and put each filter in its own Spyder tab.
     
-    do_digit_filter = False
+    do_digit_filter = True
 
     digit_filter = '12'
-    digit_filter = '34'
-    digit_filter = '56'
-    digit_filter = '78'
-    digit_filter = '90'
+#    digit_filter = '34'
+#    digit_filter = '56'
+#    digit_filter = '78'
+#    digit_filter = '90'
     
     if (do_digit_filter):
         files_filtered = []
