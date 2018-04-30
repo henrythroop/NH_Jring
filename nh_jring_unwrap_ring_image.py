@@ -183,7 +183,6 @@ def nh_jring_unwrap_ring_image(im,
         mask_stray_grid       = dn_grid.copy() 
     
     for i in range(num_bins_radius-1):  # Loop over radius -- inner to outer. Do one radial output bin at a time.
-#    for i in range(num_bins_radius):  # Loop over radius -- inner to outer. Do one radial output bin at a time.
         
         # Select only bins with right radius and azimuth
         
@@ -261,7 +260,7 @@ def test():
     import numpy as np
     from nh_jring_unwrap_ring_image import nh_jring_unwrap_ring_image
     from skimage.io import imread, imsave   # For PNG reading
-    from pyds9 import DS9
+#    from pyds9 import DS9
 
     file_pickle = '/Users/throop/Data/NH_Jring/out/nh_jring_read_params_571.pkl' # Filename to read to get files, etc.
 
@@ -276,18 +275,22 @@ def test():
 
     groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
     
-    index_group = 7
-    index_image = [32,33,34,35]
-    index_image = [24,25]
-    index_image = [0]
+    index_group = 8
+#    index_image = [32,33,34,35]
+#    index_image = [24,25]
+    index_image = [99]
 
 #    index_image = [32]
     file_mask = '/Users/throop/Data/NH_Jring/masks/mask_{}_{}.png'.format(index_group, 32)
     file_mask = '/Users/throop/Data/NH_Jring/masks/mask_{}_{}-{}.png'.format(index_group, 0,7)
 
-    num_bins_radius = 800  # NB: My results are indep of this. That is, E and W ansa are off by 600 km, regardless
+    num_bins_radius = 2000  # NB: My results are indep of this. That is, E and W ansa are off by 600 km, regardless
                            # of the number of radial bins chosen. So it's not just a fencepost error.
-    num_bins_azimuth = 2000
+    num_bins_azimuth = 5000
+    
+#    num_bins_radius = 300
+#    num_bins_azimuth = 500
+    
     limits_radius = np.array([120000, 130000])
 
     groupmask = (t['Desc'] == groups[index_group])
@@ -363,7 +366,8 @@ def test():
     
         # Plot the unwrapped image
         
-        plt.imshow(stretch(image_unwrapped[i]), extent=extent, aspect=aspect, cmap=plt.cm.Greys_r)
+        hbt.figsize((25,25))
+        plt.imshow(stretch(image_unwrapped[i]), extent=extent, aspect=aspect*3, cmap=plt.cm.plasma)
         plt.title("{}/{}: {}".format(index_group, i, file_short))
         plt.show()
 
@@ -506,4 +510,7 @@ def test():
             image_i[is_ring] = np.amax(is_ring)
             plt.imshow(stretch(image_i))
             plt.show()
-          
+
+
+if (__name__ == '__main__'):
+    test()

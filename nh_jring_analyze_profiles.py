@@ -1978,8 +1978,11 @@ for et in ets:
 
 hbt.figsize((8,5))
 hbt.fontsize(12)
-images = [hbt.frange(14,16),  # Hi-res extractions
-          hbt.frange(17,19)]  # Low-res extractions  
+images = [[14],
+          [15],  # Hi-res extractions
+          [17],
+          [18],
+          [18,19]]  # Low-res extractions  
 
 plt.set_cmap('Greys_r')
 plt.set_cmap('plasma')
@@ -2000,6 +2003,7 @@ for i,images_i in enumerate(images):
     # Make an initial plot of az profile
     
     plt.plot(a0_flat.azimuth_arr[0], a0_flat.profile_azimuth_arr[0], label=a0_flat.__str__(), alpha=0.7)
+    plt.ylim((0,6))
     plt.title(f'Az Profile, unwind, {a0_flat}, {a_ref}, smoothing {smoothing}')
     plt.show()
 
