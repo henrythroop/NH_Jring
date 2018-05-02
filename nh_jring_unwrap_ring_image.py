@@ -193,8 +193,47 @@ def nh_jring_unwrap_ring_image(im,
             dn_i         = dn_all[is_ring_i]  # Get the DN values from the image (adjusted by nav pos error)
             radius_i     = radius_all[is_ring_i]
             azimuth_i    = azimuth_all[is_ring_i]
-            grid_lin_i   = griddata(azimuth_i, dn_i, bins_azimuth, method='linear')
-            dn_grid[i,:] = grid_lin_i         # Write a row of the output array   
+            
+            
+            # Now make sure there is not a large gap in azimuth in the data. If there is, then make it out w/ NaN's.
+            # This happens when the ring ansae gets near the image edge. griddata() will blindly interpolate,
+            # but we want to fill gap w/ NaN so that it will not do so.
+
+            do_plug_gaps = True
+            
+            if do_plug_gaps:
+                
+                # Put the azimuth points in monotonic order. They are not otherwise (and griddata does not require).
+                # But, to look for gaps, we need to sort
+               
+                d_azimuth_gap_max = 0.05     # Max width of a gap, in radians. Larger than this will be NaN-plugged.
+                
+                indices   = np.argsort(azimuth_i)
+                azimuth_i_sort = azimuth_i[indices]
+                dn_i_sort      = dn_i[indices]
+                
+                # Check the point-by-point increase in azimuth
+                
+                d_azimuth_i_sort = azimuth_i_sort - np.roll(azimuth_i_sort,1)   
+                
+                # Flag it if it exceeds some pre-set size
+                
+                is_gap = np.abs(d_azimuth_i_sort) > d_azimuth_gap_max
+                
+                # And then put NaNs at the start and end of the gap
+                
+                is_gap[0] = False
+                if np.sum(np.where(is_gap)):
+                    w = np.where(is_gap)[0][0]
+                    dn_i_sort[w-1:w+2] = np.nan
+
+                grid_lin_i   = griddata(azimuth_i_sort, dn_i_sort, bins_azimuth, method='linear')
+                dn_grid[i,:] = grid_lin_i         # Write a row of the output array   
+            
+            # Now do the interpolation. If there are NaNs it will skip that region.
+            else:
+                grid_lin_i   = griddata(azimuth_i, dn_i, bins_azimuth, method='linear')
+                dn_grid[i,:] = grid_lin_i         # Write a row of the output array   
 
             if DO_MASK_STRAY:
                 mask_stray_i         = mask_stray_all[is_ring_i]  # Get the DN values from the image 
