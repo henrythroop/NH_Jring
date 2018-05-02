@@ -1973,16 +1973,13 @@ for et in ets:
     
 # =============================================================================
 # Do some tests on high-resolution extractions. I have increased resolution
-# (300,500) → (600,900) for a few images, just to compare.
+# (300,500) → (600,1000) for a few images, just to compare.
 # =============================================================================
 
 hbt.figsize((8,5))
 hbt.fontsize(12)
-images = [[14],
-          [15],  # Hi-res extractions
-          [17],
-          [18],
-          [18,19]]  # Low-res extractions  
+images = [hbt.frange(0,15),
+          hbt.frange(20,48)]
 
 plt.set_cmap('Greys_r')
 plt.set_cmap('plasma')
@@ -2003,11 +2000,11 @@ for i,images_i in enumerate(images):
     # Make an initial plot of az profile
     
     plt.plot(a0_flat.azimuth_arr[0], a0_flat.profile_azimuth_arr[0], label=a0_flat.__str__(), alpha=0.7)
-    plt.ylim((0,6))
+    plt.xlim((0,6))
     plt.title(f'Az Profile, unwind, {a0_flat}, {a_ref}, smoothing {smoothing}')
     plt.show()
 
-hbt.figsize(25,25)
+#hbt.figsize(25,25)
 for i,images_i in enumerate(images):
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
