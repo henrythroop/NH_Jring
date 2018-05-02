@@ -128,7 +128,7 @@ class App:
         option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
         entry_bg_default    = '0-10'   # Default polynomial order XXX need to set a longer string length here!
         index_group_default = 8        # Default group to start with
-        index_image_default = 15       # Default image number within the group
+        index_image_default = 84       # Default image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -252,10 +252,14 @@ class App:
         self.path_settings = "/Users/throop/python/salt_interact_settings/"
 
 # Create the sliders, for navigation offset
+# This apparently also sets the size of a single 'click' on the slider -- that is, the smallest possible increment.
+# A range of 450 is OK, but I would like to allow a slightly smaller step size. Trying 250.
         
-        self.slider_offset_dx  = ttk.Scale(master, from_=-450, to=450, orient=tkinter.HORIZONTAL, 
+        RANGE_SLIDER = 250
+         
+        self.slider_offset_dx  = ttk.Scale(master, from_=-RANGE_SLIDER, to=RANGE_SLIDER, orient=tkinter.HORIZONTAL, 
                                    command=self.set_offset) # Slider dx offset
-        self.slider_offset_dy  = ttk.Scale(master, from_=-450, to=450, orient=tkinter.VERTICAL, 
+        self.slider_offset_dy  = ttk.Scale(master, from_=-RANGE_SLIDER, to=RANGE_SLIDER, orient=tkinter.VERTICAL, 
                                    command=self.set_offset) # Slider dy offset
 
 # Define labels
@@ -399,7 +403,7 @@ class App:
 
 # Set up Plot 3 : Unwrapped ring
         
-        self.fig3 = Figure(figsize = (7,4))
+        self.fig3 = Figure(figsize = (6,4))
         junk = self.fig3.set_facecolor(self.bgcolor)
 
         self.ax3 = self.fig3.add_subplot(1,1,1, 
@@ -760,7 +764,7 @@ class App:
         extent = [bins_azimuth[0], bins_azimuth[-1], bins_radius[0], bins_radius[-1]]
 
         f = (np.max(bins_radius) - np.min(bins_radius)) / (np.max(bins_azimuth) - np.min(bins_azimuth))
-        aspect = 0.5 * 1/f  # Set the aspect ratio
+        aspect = 0.9 * 1/f  # Set the aspect ratio
 
         self.ax3.clear()        
 
@@ -772,7 +776,9 @@ class App:
             mask_unwrapped_denan = mask_unwrapped.copy()
             mask_unwrapped_denan[isnan] = 0
             mask_unwrapped_denan = mask_unwrapped_denan.astype('bool')
-            mm = hbt.mm(sigma_clip(dn_grid[mask_unwrapped_denan], sigma_lower=1000, sigma_upper=3, 
+#            mm = hbt.mm(sigma_clip(dn_grid[mask_unwrapped_denan], sigma_lower=1000, sigma_upper=3, 
+#                                           iters=10))
+            mm = hbt.mm(sigma_clip(dn_grid[mask_unwrapped_denan], sigma_lower=3, sigma_upper=3, 
                                            iters=10))
             
         stretch_mm = astropy.visualization.ManualInterval(vmin=mm[0], vmax=mm[1])        
@@ -782,11 +788,18 @@ class App:
         self.ax3.imshow(mask_unwrapped, extent=extent, aspect=aspect, origin='lower',
                          cmap=plt.cm.Reds_r, alpha=0.1, vmin=-0.5,vmax=0.5)
 
-        self.ax3.set_ylim([bins_radius[0], bins_radius[-1]])
+        # Set the plot range. We don't plot the entire unwrapped image -- just an excerpt of it near the ring
+        
+        range_radius = bins_radius[-1] - bins_radius[0]
+        
+        self.ax3.set_ylim([bins_radius[0] + 0.3 * range_radius, bins_radius[-1]])
         self.ax3.set_xlim([bins_azimuth[0], bins_azimuth[-1]])
         
         self.ax3.set_xlabel('Azimuth [radians]')
         self.ax3.set_ylabel('Radius [$R_J$]')
+
+#        self.fig1.tight_layout() # Remove all the extra whitespace -- nice!
+#        self.canvas1.draw()
         
         self.canvas3.show()
             
@@ -1306,7 +1319,8 @@ the internal state which is already correct. This does *not* refresh the image i
         # Compute the proper stretch, based only on the datapoints that show thru the mask. 
         # And, remove outliers like CR's from this stretch.
         
-        mm = hbt.mm(sigma_clip(self.image_processed[mask], sigma_lower=1000, sigma_upper=3, iters=10))
+#        mm = hbt.mm(sigma_clip(self.image_processed[mask], sigma_lower=1000, sigma_upper=3, iters=10))
+        mm = hbt.mm(sigma_clip(self.image_processed[mask], sigma_lower=3, sigma_upper=3, iters=20))
 
         stretch_mm = astropy.visualization.ManualInterval(vmin=mm[0], vmax=mm[1])
         
