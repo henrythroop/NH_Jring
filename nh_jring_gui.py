@@ -49,7 +49,7 @@ from   scipy.optimize import curve_fit
 import spiceypy as sp
 #from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
 from   astropy.wcs import WCS
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
+from   astroquery.vo_conesearch import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 #from   photutils import datasets
@@ -533,7 +533,8 @@ class App:
              t_group['Exptime'][index_image], 
              t_group['Format'][index_image],
              (t_group['UTC'][index_image].split('.')[0]).replace('2007 ', ' '),           # Remove fractional seconds                 
-             timestr,
+             timestr.replace(' hours', 'h').replace(' days', 'd').replace(' hour', 'h').replace('a day', '1d').\
+             replace(' minutes', ' min').replace(' week', ' w'),
              t_group['bg_method'][index_image],
              t_group['bg_argument'][index_image])
         return s
