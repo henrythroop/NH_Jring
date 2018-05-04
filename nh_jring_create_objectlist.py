@@ -33,12 +33,12 @@ from   scipy.optimize import curve_fit
                        # Pylab defines the 'plot' command
 import spiceypy as sp
 from   astropy.wcs import WCS
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
+from   astroquery.vo_conesearch import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 from   scipy.stats import mode
 from   scipy.stats import linregress
-import wcsaxes
+#import wcsaxes
 import time
 from   scipy.interpolate import griddata
 #import cv2
@@ -97,14 +97,16 @@ def nh_jring_create_objectlist(file_in, do_stars=True, bodies = [], num_stars_ma
         warnings.simplefilter("ignore")
         w = WCS(file)
         
-    name_cat = u'Guide Star Catalog v2 1'# Works on gobi only (no tomato)
+    name_cat = u'Guide Star Catalog v2 1'# Works on gobi only (no tomato laptop)
+    name_cat = 'The HST Guide Star Catalog, Version GSC-ACT (Lasker+ 1996-99) 1'
     url_cat = 'http://gsss.stsci.edu/webservices/vo/ConeSearch.aspx?CAT=GSC23&' # Works always
 
     with data.conf.set_temp('remote_timeout', 30): # This is the very strange syntax to set a timeout delay.
                                                    # The default is 3 seconds, and that times out often.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            stars = conesearch.conesearch(w.wcs.crval, radius_search, cache=True, catalog_db = url_cat)
+            pos = (w.wcs.crval[0], w.wcs.crval[1])  # Get errors about invalid coords. Convert from np arr → tuple, ugh.
+            stars = conesearch.conesearch(pos, radius_search, cache=True, catalog_db = url_cat)
 
     # NB: the returned value is a Table, but I have to access via .array[] -- not sure why.
     

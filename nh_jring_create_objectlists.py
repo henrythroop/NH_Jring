@@ -29,11 +29,12 @@ from   astropy.utils import data
 
 import spiceypy as sp
 from   astropy.wcs import WCS
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
+from   astroquery.vo_conesearch import conesearch
+
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 from   scipy.stats import mode
-import wcsaxes
+#import wcsaxes
 import time
 from   scipy.interpolate import griddata
 from   photutils import DAOStarFinder
@@ -81,6 +82,7 @@ sp.furnsh(file_tm)
 # Get a list of files to iterate over
 
 files      = glob.glob(dir_images + '*[123456]_opnav.fit')  # Only worth doing this for files that have been opnav'd
+files      = np.sort(files)
                       
 # Now start a keyboard loop and run with input from the user
 
@@ -121,7 +123,7 @@ while True:
     
     if (k == '?'):                  # Get help
         print(" <#> = navigate, <#-#> = navigate range, l = list, n = next, x = exit, sn = toggle Skip_Navigated, " + 
-                 "s4 = toggle Skip_4x4")
+                 "s4 = toggle Skip_4x4, se = toggle Skip_Existing")
     
     if (k == 'se'):
         DO_SKIP_EXISTING = not(DO_SKIP_EXISTING)
@@ -176,7 +178,7 @@ while True:
             is_success = True
             
     else:
-        print("Error!")
+#        print("Error!")
         is_success = False
         
     if (DO_INTERACTIVE and is_success):
