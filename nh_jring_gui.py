@@ -527,11 +527,12 @@ class App:
              t_group['Shortname'][index_image].
                  replace('_opnav.fit', '').
                  replace('0x633_sci_', '').
-                 replace('0x630_sci_','').
+                 replace('0x630_sci_','').    
+                 replace('_1','').
                  replace('lor_',''),       # Shorten filename a bit
              t_group['Exptime'][index_image], 
              t_group['Format'][index_image],
-             t_group['UTC'][index_image].split('.')[0],           # Remove fractional seconds                 
+             (t_group['UTC'][index_image].split('.')[0]).replace('2007 ', ' '),           # Remove fractional seconds                 
              timestr,
              t_group['bg_method'][index_image],
              t_group['bg_argument'][index_image])
