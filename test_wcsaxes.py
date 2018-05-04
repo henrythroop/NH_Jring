@@ -17,7 +17,7 @@ Created on Sun Apr  3 21:01:17 2016
 
 import matplotlib.pyplot as plt
 import astropy
-import wcsaxes
+from   astropy.visualization import wcsaxes
 import numpy as np
 from   astropy.io import fits
 from   astropy.wcs import WCS

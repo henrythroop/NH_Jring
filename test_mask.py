@@ -32,13 +32,12 @@ from   scipy.optimize import curve_fit
                        # Pylab defines the 'plot' command
 import spiceypy as py
 from   astropy.wcs import WCS
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
+from   astroquery.vo_conesearch import conesearch
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 #from   photutils import datasets
 from   scipy.stats import mode
 from   scipy.stats import linregress
-#import wcsaxes
 import time
 from   scipy.interpolate import griddata
 

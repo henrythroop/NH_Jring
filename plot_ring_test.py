@@ -50,13 +50,11 @@ from   scipy.optimize import curve_fit
                        # Pylab defines the 'plot' command
 import spiceypy as sp
 #from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 #from   photutils import datasets
 from   scipy.stats import mode
 from   scipy.stats import linregress
-import wcsaxes
 import time
 from   scipy.interpolate import griddata
 from   importlib import reload            # So I can do reload(module)

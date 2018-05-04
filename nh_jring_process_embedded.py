@@ -27,7 +27,6 @@ import astropy
 from   astropy.io import fits
 import numpy as np
 import cspice
-import wcsaxes
 import hbt
 from   astropy.wcs import WCS
 import matplotlib.pyplot as plt

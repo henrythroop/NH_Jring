@@ -20,7 +20,7 @@ import spiceypy as sp
 import astropy.units as u
 import astropy.constants as c
 import pickle
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
+from   astroquery.vo_conesearch import conesearch
 import astroquery
 from   astroquery.vizier import Vizier 
 from matplotlib.patches import Ellipse

@@ -36,7 +36,6 @@ import cspice
 import skimage
 from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
 from   astropy.wcs import WCS
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 #from   photutils import datasets
@@ -44,7 +43,6 @@ from   astropy.stats import sigma_clipped_stats
 from   scipy.stats import mode
 from   scipy.stats import linregress
 from   photutils import daofind
-import wcsaxes
 import hbt
 import time
 
