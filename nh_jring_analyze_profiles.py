@@ -36,7 +36,6 @@ from scipy import signal, fftpack
 import spiceypy as sp
 #from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
 from   astropy.wcs import WCS
-from   astropy.vo.client import conesearch # Virtual Observatory, ie star catalogs
 from   astropy import units as u           # Units library
 from   astropy import constants as c
 from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
@@ -1978,8 +1977,8 @@ for et in ets:
 
 hbt.figsize((8,5))
 hbt.fontsize(12)
-images = [hbt.frange(0,15),
-          hbt.frange(20,48)]
+images = [hbt.frange(0,90),
+          hbt.frange(91,107)]
 
 plt.set_cmap('Greys_r')
 plt.set_cmap('plasma')
@@ -2000,7 +1999,7 @@ for i,images_i in enumerate(images):
     # Make an initial plot of az profile
     
     plt.plot(a0_flat.azimuth_arr[0], a0_flat.profile_azimuth_arr[0], label=a0_flat.__str__(), alpha=0.7)
-    plt.xlim((0,6))
+    plt.xlim((0,6.28))
     plt.title(f'Az Profile, unwind, {a0_flat}, {a_ref}, smoothing {smoothing}')
     plt.show()
 
@@ -2055,7 +2054,7 @@ for i,images_i in enumerate(images):
     hbt.figsize((10,3))
     for j in range(a0.num_profiles):
         plt.subplot(5,1,j+1)
-        plt.imshow(stretch(a0.image_unwrapped_arr[j][340:360,:]), aspect=0.4)
+        plt.imshow(stretch(a0.image_unwrapped_arr[j][390:420,:]), aspect=0.4)
         plt.gca().get_xaxis().set_visible(False)
         plt.gca().get_yaxis().set_visible(False)
     
@@ -2065,7 +2064,7 @@ for i,images_i in enumerate(images):
     # Make a series of plots, summing the data manually, from the 'raw' image
     
     for j in range(a0.num_profiles):
-        plt.plot(j*100 + np.sum( a0.image_unwrapped_arr[j][340:360,:], axis=0))        
+        plt.plot(j*100 + np.sum( a0.image_unwrapped_arr[j][390:420,:], axis=0))        
     plt.show()
 
     # Re-extract the data in a formal / complete way
