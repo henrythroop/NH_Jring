@@ -534,7 +534,7 @@ class App:
              t_group['Format'][index_image],
              (t_group['UTC'][index_image].split('.')[0]).replace('2007 ', ' '),           # Remove fractional seconds                 
              timestr.replace(' hours', 'h').replace(' days', 'd').replace(' hour', 'h').replace('a day', '1d').\
-             replace(' minutes', ' min').replace(' week', ' w'),
+             replace(' minutes', ' min').replace('a min', '1m').replace(' week', ' w').replace(' min', 'm'),
              t_group['bg_method'][index_image],
              t_group['bg_argument'][index_image])
         return s
@@ -1536,9 +1536,10 @@ the internal state which is already correct. This does *not* refresh the image i
 
         self.file_objectlist = file_objectlist
         
-        width_mask_sat_pix = 70 # Set this quite wide. Metis is large and bright, and there are some non-neg nav
-                                # errors that put it several dozen pixels away from expected lcoation -- e..g, 8/14-16.
-        
+        width_mask_sat_pix = 40 # Mask width for satellites. This was originally at 70 pixels, to cover up nav 
+                                # errors I had on Metis, for using wrong kernel file. Now I can set this much lower.
+                                # Good test images are 8/14-16, and 8/80.
+                                
         self.file_objectlist_shortname = self.t_group['Shortname'][self.index_image]
 				
         if (os.path.isfile(file_objectlist)):
