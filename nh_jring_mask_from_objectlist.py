@@ -44,8 +44,6 @@ import warnings
 from   importlib import reload
 from   time import gmtime, strftime
 
-#from  nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
-
 # HBT imports
 
 import hbt
@@ -148,7 +146,7 @@ def nh_jring_mask_from_objectlist(objectfile,
         
 if (__name__ == '__main__'):  # Code below this will run when file is executed, but not when it is imported.
 
-    from nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
+#    from nh_jring_mask_from_objectlist import nh_jring_mask_from_objectlist
     
     dir_out    = '/Users/throop/Data/NH_Jring/out/'
 
