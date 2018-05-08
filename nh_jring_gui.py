@@ -280,7 +280,8 @@ class App:
         self.button_extract =  ttk.Button(master, text = 'Extract',  command=self.handle_extract_profiles)
         self.button_recenter = ttk.Button(master, text = 'Recenter', command=self.handle_recenter)
         self.button_repoint =  ttk.Button(master, text = 'Repoint',  command=self.repoint)
-        self.button_ds9 =      ttk.Button(master, text = 'Open in DS9', command=self.open_external)
+#        self.button_ds9 =      ttk.Button(master, text = 'Open in DS9', command=self.open_external)
+        self.button_proc_batch=ttk.Button(master, text = 'Process Batch', command=self.process_batch)        
         self.button_copy =     ttk.Button(master, text = 'Copy name to clipboard', command=self.copy_name_to_clipboard)
         self.button_quit =     ttk.Button(master, text = 'Quit',     command = self.quit)
         self.button_load =     ttk.Button(master, text = 'Load',     command = self.load)
@@ -466,7 +467,8 @@ class App:
         self.button_export.          grid(row=10,  column=14)
         
         self.button_quit.            grid(row=11,  column=11)
-        self.button_ds9.             grid(row=11,  column=13)
+#        self.button_ds9.             grid(row=11,  column=13)
+        self.button_proc_batch.      grid(row=11,  column=13)
         self.button_copy.            grid(row=11,  column=14)
  
 # Column 3 (RHS) -- numbered as column 20
@@ -1570,6 +1572,7 @@ the internal state which is already correct. This does *not* refresh the image i
 
 ##########
 # Open a file in external viewer such as DS9
+# *** DISABLED ***        
 ##########
 
     def open_external(self):
@@ -1582,6 +1585,30 @@ the internal state which is already correct. This does *not* refresh the image i
         
         return 0
 
+##########
+# Process a batch of images
+##########
+
+    def process_batch(self):
+
+        # Ask for the range, from the keyboard.
+        # Ideally we would get these from a dialog box, but it will take much longer to do this than I have.
+        
+        i_start = int(input(f'Starting image (0 .. {self.num_images_group}): '))
+        i_end   = int(input(f'Ending   image (0 .. {self.num_images_group}): '))
+        
+        confirm = input(f'Batch process {self.index_group} / {i_start} .. {i_end}? ')
+        
+        if 'Y' in confirm.upper():
+        
+            indices = hbt.frange(i_start, i_end)
+            for i in indices:
+                
+                print(f'About to process image {i}')
+                self.index_image_new = i
+                self.index_group_new = self.index_group
+                self.change_image()
+        
 ##########
 # Choose the background model
 ##########
