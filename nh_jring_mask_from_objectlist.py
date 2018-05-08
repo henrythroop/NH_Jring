@@ -120,8 +120,11 @@ def nh_jring_mask_from_objectlist(objectfile,
         else:
             width = width_sat
             
-        mask_i = np.sqrt( (xx-x)**2 + (yy-y)**2 ) < width
-        
+        mask_i = ( (xx-x)**2 + (yy-y)**2 ) < width**2        # This is the bottleneck line here.
+                                                             # I suppose I could pre-compute a circle, and apply that
+                                                             # to the array, instead of masking whole thing.
+                                                             # But not worth it.
+
         mask = np.logical_or(mask, mask_i)
 
 # Plot it if requested
@@ -150,7 +153,7 @@ if (__name__ == '__main__'):  # Code below this will run when file is executed, 
     
     dir_out    = '/Users/throop/Data/NH_Jring/out/'
 
-    objectfile = 'lor_0034604523_0x630_sci_1_opnav_objects.txt'
+    objectfile = 'lor_0034715044_0x630_sci_1_opnav_objects.txt'
     objectfile_base = objectfile.split('/')[-1]
     path_objectfile = dir_out + objectfile_base
     
@@ -174,8 +177,6 @@ if (__name__ == '__main__'):  # Code below this will run when file is executed, 
 
 # And make some plot to show if it matches up, or not
 
-    plt.imshow(stretch(im_masked))
-    plt.show()
-    plt.imshow(stretch(im)) 
-    plt.imshow(stretch(hbt.lorri_destripe(im)))
+    plt.imshow(stretch(im))
+    plt.imshow(mask,alpha=0.4, cmap='plasma')
     plt.show()
