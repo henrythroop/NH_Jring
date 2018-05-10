@@ -1123,6 +1123,8 @@ params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tup
                  (7, hbt.frange(36,39), 'full'), # Lots of 
                  (7, hbt.frange(40,42), 'full'),
                  (7, hbt.frange(52,54), 'full'),
+                 (7, hbt.frange(55,57), 'full'),                 
+                 (7, hbt.frange(58,60), 'full'),                 
                  (7, hbt.frange(61,63), 'full'),
                  (7, hbt.frange(91,93), 'full'),
                  (7, hbt.frange(94,96), 'full')]
@@ -2054,7 +2056,7 @@ for i,images_i in enumerate(images):
     hbt.figsize((10,3))
     for j in range(a0.num_profiles):
         plt.subplot(5,1,j+1)
-        plt.imshow(stretch(a0.image_unwrapped_arr[j][390:420,:]), aspect=0.4)
+        plt.imshow(stretch(a0.image_unwrapped_arr[j][380:450,:]), aspect=0.4)
         plt.gca().get_xaxis().set_visible(False)
         plt.gca().get_yaxis().set_visible(False)
     
@@ -2064,7 +2066,7 @@ for i,images_i in enumerate(images):
     # Make a series of plots, summing the data manually, from the 'raw' image
     
     for j in range(a0.num_profiles):
-        plt.plot(j*100 + np.sum( a0.image_unwrapped_arr[j][390:420,:], axis=0))        
+        plt.plot(j*100 + np.sum( a0.image_unwrapped_arr[j][400:430,:], axis=0))        
     plt.show()
 
     # Re-extract the data in a formal / complete way
