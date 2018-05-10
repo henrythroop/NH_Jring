@@ -67,10 +67,10 @@ import hbt
 # To make the masks in Photoshop:
 #  Load the .png
 #  Image -> 8 bits/channel
-#  Add a layer on top of it (not a layer mask). Dial down transparency.
+#  Add a layer on top of it (not a layer mask). Dial down opacity.
 #  Paint it all white
 #  Selectively paint black over the stray regions
-#  Put back up the transparency.
+#  Put back up the opacity.
 #  Save as PNG
  
 file_pickle = 'nh_jring_read_params_571.pkl' # Filename to read to get filenames, etc.
@@ -101,7 +101,12 @@ index_imagesets = [hbt.frange(0,7), # First set: take all images 7/0 .. 7/7. Sum
                    hbt.frange(91,93),
                    hbt.frange(94,96)
                    ]
+
+index_imagesets = [hbt.frange(58,60)]
 index_group = 7
+
+index_imagesets = [hbt.frange(54,107)]
+index_group = 8
 
 plt.set_cmap('Greys_r')
 
@@ -125,12 +130,14 @@ for index_imagesets_i in index_imagesets:
         
         image = hbt.read_lorri(file_in, frac_clip = 1., bg_method = 'None')  # Read the image
     
+        image = hbt.lorri_destripe(image)
+        
         images.append(image)                                                 # Stuff this image onto the end of a list.
  
     images = np.array(images)                                     # Now we have a 3D Numpy array with all the image data
     images_sum = np.sum(images,axis=0)                                       # And sum down into a 2D array.
     
-    images_proc = stretch(hbt.remove_sfit(images_sum, power))
+    images_proc = stretch(hbt.remove_sfit(images_sum, degree=power))
         
 #    plt.imshow(images_sum)
 #    plt.title("{}/{}-{} RAW".format(index_group, index_start, index_end))
@@ -183,11 +190,11 @@ for index_imagesets_i in index_imagesets:  # XX Need to rewrite the looping logi
     
     # Do an sfit to the masked image, and the original
     
-    sfit_image_masked = hbt.sfit(image_masked,power)
-    sfit_image        = hbt.sfit(image,power)
+    sfit_image_masked = hbt.sfit(image_masked,degree=power)
+    sfit_image        = hbt.sfit(image,       degree=power)
     
-    image_masked_proc = stretch(hbt.remove_sfit(image_masked, power))
-    image_proc =        stretch(hbt.remove_sfit(image, power))
+    image_masked_proc = stretch(hbt.remove_sfit(image_masked, degree=power))
+    image_proc =        stretch(hbt.remove_sfit(image,        degree=power))
 
     # Display them
     
@@ -195,7 +202,7 @@ for index_imagesets_i in index_imagesets:  # XX Need to rewrite the looping logi
     plt.title('Original')
     plt.show()
     
-    plt.imshow(stretch(hbt.remove_sfit(image,power)))
+    plt.imshow(stretch(hbt.remove_sfit(image, degree=power)))
     plt.title('Original - sfit')
     plt.show()
     
