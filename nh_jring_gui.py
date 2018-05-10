@@ -535,7 +535,8 @@ class App:
              t_group['Exptime'][index_image], 
              t_group['Format'][index_image],
              (t_group['UTC'][index_image].split('.')[0]).replace('2007 ', ' '),           # Remove fractional seconds                 
-             timestr.replace(' hours', 'h').replace(' days', 'd').replace(' hour', 'h').replace('a day', '1d').\
+             timestr.replace(' hours', 'h').replace(' days', 'd').replace('an hour', '1h').\
+             replace(' hour', 'h').replace('a day', '1d').\
              replace(' minutes', ' min').replace('a min', '1m').replace(' week', ' w').replace(' min', 'm'),
              t_group['bg_method'][index_image],
              t_group['bg_argument'][index_image])
@@ -1596,6 +1597,13 @@ the internal state which is already correct. This does *not* refresh the image i
         
         i_start = int(input(f'Starting image (0 .. {self.num_images_group}): '))
         i_end   = int(input(f'Ending   image (0 .. {self.num_images_group}): '))
+
+        # Ask for an optional background string (e.g., "p5 8/10-20"), which is set and applied to all of the files
+        
+        arg = self.t_group['bg_argument'][i_start]
+        arg_change = input(f'Background method ({arg}): ')
+        
+        # Get user confirmation
         
         confirm = input(f'Batch process {self.index_group} / {i_start} .. {i_end}? ')
         
@@ -1605,9 +1613,16 @@ the internal state which is already correct. This does *not* refresh the image i
             for i in indices:
                 
                 print(f'About to process image {i}')
+                if arg_change:
+                    self.t_group['bg_argument'][i] = arg_change
+                    print(f'Changing argument to {arg_change}')
+                    
                 self.index_image_new = i
                 self.index_group_new = self.index_group
                 self.change_image()
+
+        if arg_change:
+            print("Batch completed -- Save inputs!!")                
         
 ##########
 # Choose the background model
