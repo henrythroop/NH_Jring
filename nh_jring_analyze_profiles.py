@@ -931,6 +931,112 @@ class ring_profile:
 
 
 # =============================================================================
+# Extract strips from a set of images, showing only the rings
+# =============================================================================
+
+    def make_strip_mosaic(self, a=None, gap_y_pix=1, \
+                          y0_extract = 415, dy_extract=50, do_plot=False, do_mask=False,\
+                          do_unwind = False):
+        """
+        Create an image of individual strips, by extracting the ring region from many individual images.
+        
+        Parameter
+        -----
+        
+        gap_y_pixel:
+            Gap betwen strips, in the y direction.
+            
+            
+        """
+        dx_extract = np.shape(self.image_unwrapped_arr[0])[1]  # Width of the extracted segment
+        
+        if do_unwind:
+            im_mosaic = np.zeros((dy_extract*self.num_profiles, dx_extract))  # Images are y, x
+            im_mosaic[:,:] = np.nan
+        
+            mask_mosaic = im_mosaic.copy()
+
+            lon0_unwind_rad = np.zeros(self.num_profiles)
+            rad_per_pix = self.azimuth_arr[0][1] - self.azimuth_arr[0][0]
+        
+            for j,image in enumerate(self.index_image_arr):
+
+                lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
+                                'Jupiter', a_orbit=129_700*u.km).value
+            
+                lon0_unwind_pix = lon0_unwind_rad / rad_per_pix
+            
+            # Loop and add each strip to the output extraction array
+
+            for j,image in enumerate(self.index_image_arr):
+                                                                
+                im = self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                im = np.roll(im, int(lon0_unwind_pix[j]), axis=1)
+                                
+                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = im
+
+                mask = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                mask = np.roll(mask, int(lon0_unwind_pix[j]), axis=1)
+                
+                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = mask
+            
+            # Plot, if requested
+            
+            if do_plot:
+                
+                az = self.azimuth_arr[0]
+                extent = np.array([az[0], az[-1], self.index_image_arr[0], self.index_image_arr[-1]])
+                aspect = (extent[1]-extent[0]) / (extent[3] - extent[2])
+                plt.imshow(stretch(im_mosaic),origin='lower', extent=extent, aspect=aspect/4)
+                if (do_mask):
+                    plt.imshow(stretch(im_mosaic * mask_mosaic), alpha=0.7, cmap='plasma', origin='lower', 
+                               extent=extent, aspect=aspect/4)
+                plt.title(f'Unwrapped, {a0}, masked={do_mask}')
+                for j,image in enumerate(self.index_image_arr):
+                    plt.text(10, (j+0.5)*dy_extract, '{}/{}'.format(self.index_group_arr[j], self.index_image_arr[j]))
+                plt.show()            
+    
+        # Create the output array
+
+        if not do_unwind:        
+            im_mosaic = np.zeros((dy_extract*self.num_profiles, dx_extract))  # Images are y, x
+            im_mosaic[:,:] = np.nan
+        
+            mask_mosaic = im_mosaic.copy()
+        
+            # Loop and add each strip to the output extraction array
+            
+            for j,image in enumerate(self.index_image_arr):
+    
+                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = \
+                            self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+    
+                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = \
+                            self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+            
+            # Plot, if requested
+            
+            if do_plot:
+                
+                az = self.azimuth_arr[0]
+                extent = np.array([az[0], az[-1], self.index_image_arr[0], self.index_image_arr[-1]])
+                aspect = (extent[1]-extent[0]) / (extent[3] - extent[2])
+                plt.imshow(stretch(im_mosaic),origin='lower', extent=extent, aspect=aspect/4)
+                if (do_mask):
+                    plt.imshow(stretch(im_mosaic * mask_mosaic), alpha=0.7, cmap='plasma', origin='lower', 
+                               extent=extent, aspect=aspect/4)
+                plt.title(f'Unwrapped, {a0}, masked={do_mask}')
+                for j,image in enumerate(self.index_image_arr):
+                    plt.text(10, (j+0.5)*dy_extract, '{}/{}'.format(self.index_group_arr[j], self.index_image_arr[j]))
+                plt.show()
+        
+        if (do_mask):
+            return((im_mosaic, mask_mosaic))
+        else:    
+            return(im_mosaic)
+    
+
+# =============================================================================
 # Unwind an orbital longitude back to a common time frame
 # =============================================================================
 #%%%
@@ -1897,6 +2003,10 @@ for i,images_i in enumerate(images):
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
 
+    # Make a strip lot of all the data
+    
+    im_extract = a0.make_strip_mosaic(a=3,do_plot=True)
+
     # Now that we have read in all the profiles (and their pre-unwrapped images),
     # loop over them, and extract the profile from the images. This will not apply stray light corrections,
     # and is very crude. But it should show the big sats.
@@ -2026,7 +2136,7 @@ for i,images_i in enumerate(images):
 # His images were 8/97 and 8/100.
 # =============================================================================
 
-
+group = 8
 images = [hbt.frange(97,100)]
 
 plt.set_cmap('Greys_r')
@@ -2035,9 +2145,8 @@ plt.set_cmap('plasma')
 a_ref = 129_700*u.km
 xlim  = (5, 6.5)
 smoothing = None
-group = 8
 
-for i,images_i in enumerate(images):
+for i,images_i in enumerate(images):  # Load each image set
     a0 = ring_profile()
     a0.load(group,images_i,key_radius='full', verbose=False)  #.plot_azimuthal(smooth=3)
     a0_flat = a0.copy()
@@ -2046,10 +2155,14 @@ for i,images_i in enumerate(images):
         a0_flat.smooth_azimuthal(smoothing)
     
     # Make an initial plot of az profile
-    
+      
     plt.plot(a0_flat.azimuth_arr[0], a0_flat.profile_azimuth_arr[0], label=a0_flat.__str__(), alpha=0.7)
     plt.title(f'Az Profile, unwind, {group}/, {a_ref}, smoothing {smoothing}')
     plt.show()
+    
+    # Extract all the strips into an image, and show it.
+    
+    (im_mosaic, mask_mosaic) = a0.make_strip_mosaic(do_plot=False, do_mask=True, do_unwind=True)
     
     # Make a series of TV plots
     
