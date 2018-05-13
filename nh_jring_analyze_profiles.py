@@ -482,7 +482,7 @@ class ring_profile:
 # Flatten the profiles -- that is, if there are N profiles, flatten to one, with mean value
 # =============================================================================
 
-    def flatten(self, a = 129_700*u.km, et=0):
+    def flatten(self, a = 127_900*u.km, et=0):
         
         """ Flatten the profile, from N profile, into one mean (or median) profile.
             Applies to radial and azimuthal and all other quantities.
@@ -957,14 +957,16 @@ class ring_profile:
             mask_mosaic = im_mosaic.copy()
 
             lon0_unwind_rad = np.zeros(self.num_profiles)
+            lon0_unwind_pix = np.zeros(self.num_profiles)
+            
             rad_per_pix = self.azimuth_arr[0][1] - self.azimuth_arr[0][0]
         
             for j,image in enumerate(self.index_image_arr):
 
                 lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
-                                'Jupiter', a_orbit=129_700*u.km).value
+                                'Jupiter', a_orbit=127_900*u.km).value
             
-                lon0_unwind_pix = lon0_unwind_rad / rad_per_pix
+                lon0_unwind_pix[j] = (lon0_unwind_rad[j] - self.azimuth_arr[j][0]) / rad_per_pix
             
             # Loop and add each strip to the output extraction array
 
@@ -976,7 +978,7 @@ class ring_profile:
                 im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = im
 
                 mask = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
-                mask = np.roll(mask, int(lon0_unwind_pix[j]), axis=1)
+                mask = np.roll(mask, int(-lon0_unwind_pix[j]), axis=1)
                 
                 mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = mask
             
@@ -1041,7 +1043,7 @@ class ring_profile:
 # =============================================================================
 #%%%
         
-def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, et_ref=0):
+def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 127_900*u.km, et_ref=0):
     """
     Takes a set of longitudes, and unwind them back to a given frame, incorporating
     both body rotation, and keplerian orbital motion. Both are assumed to be constant.
@@ -1087,7 +1089,7 @@ def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, e
     
     name_body = 'jupiter'
     r_jup = 69_911*u.km
-#    a_orbit = 129_700*u.km
+#    a_orbit = 127_900*u.km
     
     masses = {'JUPITER': c.M_jup,   # Agrees w/ wikipedia. 1.89818e27 kg
               'EARTH':   c.M_earth,
@@ -1797,7 +1799,7 @@ plt.show()
 # =============================================================================
 
 plt.set_cmap('plasma')
-a_ref = 129_700*u.km
+a_ref = 127_900*u.km
 
 images0 = hbt.frange(0, 47)  # Entire range 
 keys = ['center', 'full', 'core']        # Interate over the 'key_radius' field. This affects radial extraction.
@@ -1877,8 +1879,7 @@ images2 = hbt.frange(35,47)  # Second half
 
 images = [images1, images2]
 
-a_ref = 129_700*u.km # Increasing by 100 km shifts orange right by 0.0001 radians
-a_ref = 130_000*u.km # Increasing by 100 km shifts orange right by 0.0001 radians
+a_ref = 127_900*u.km # Increasing by 100 km shifts orange right by 0.0001 radians
 
 smoothing = 5
 group = 8
@@ -1948,7 +1949,7 @@ et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwind into. For best res
 
 hbt.figsize((18,6))
 hbt.fontsize(15)
-a_ref = 129_700*u.km
+a_ref = 127_900*u.km
 xlim  = (3.9, 5.2)
 smoothing = None
 group = 8
@@ -2005,7 +2006,7 @@ for i,images_i in enumerate(images):
 
     # Make a strip lot of all the data
     
-    im_extract = a0.make_strip_mosaic(a=3,do_plot=True)
+    im_extract = a0.make_strip_mosaic(a=3,do_plot=True, do_unwind=True)
 
     # Now that we have read in all the profiles (and their pre-unwrapped images),
     # loop over them, and extract the profile from the images. This will not apply stray light corrections,
@@ -2095,7 +2096,7 @@ images = [hbt.frange(0,90),
 plt.set_cmap('Greys_r')
 plt.set_cmap('plasma')
 
-a_ref = 129_700*u.km
+a_ref = 127_900*u.km
 xlim  = (5, 6.5)
 smoothing = None
 group = 8
@@ -2142,7 +2143,7 @@ images = [hbt.frange(97,100)]
 plt.set_cmap('Greys_r')
 plt.set_cmap('plasma')
 
-a_ref = 129_700*u.km
+a_ref = 127_900*u.km
 xlim  = (5, 6.5)
 smoothing = None
 
@@ -2359,15 +2360,15 @@ plt.show()
 plt.xlim((0,360)*hbt.r2d)
 
 
-flatten(a=129_700*u.km).plot_azimuthal(xlim=(0,360))
+flatten(a=127_900*u.km).plot_azimuthal(xlim=(0,360))
 
 a2_flat1 = a2.copy()
-a2_flat1.flatten(a=129_700*u.km).plot_azimuthal(xlim=(0,360))
+a2_flat1.flatten(a=127_900*u.km).plot_azimuthal(xlim=(0,360))
 
 a2 = ring_profile()
 a2.load(8,hbt.frange(30,48),key_radius='core').plot(plot_legend=False)
 a2_flat2 = a2.copy()
-a2_flat2.flatten(a=129_700*u.km).plot_azimuthal()
+a2_flat2.flatten(a=127_900*u.km).plot_azimuthal()
 a2_flat2.plot_azimuthal(smooth=5)
 
 
@@ -2380,10 +2381,10 @@ a4.flatten(a=110_000*u.km).plot_azimuthal()
 
 
 a2.plot_azimuthal()
-a2.flatten(a=129_700*u.km).plot_azimuthal()
+a2.flatten(a=127_900*u.km).plot_azimuthal()
 
 a3 = ring_profile()
-a3.load(8,hbt.frange(36,49),key_radius='full').flatten(a=129_700*u.km).plot_azimuthal()
+a3.load(8,hbt.frange(36,49),key_radius='full').flatten(a=127_900*u.km).plot_azimuthal()
 
 a.plot(plot_legend=False)
 a_flat = a.copy().flatten()
@@ -2487,4 +2488,13 @@ for file in kernel_files:
         (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
         print(f'With file {file}, body={body} → lon = {lon*hbt.r2d}')
 #        lon_unwind = unwind_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a0.A_METIS*u.km)
+
+    plt.plot(self.azimuth_arr[0])    
+    plt.plot(self.azimuth_arr[1])    
+    plt.plot(self.azimuth_arr[2])
+    plt.plot(self.azimuth_arr[3])
+    plt.xlabel('Pixel #')
+    plt.title(self)           
+    plt.ylabel('Azimuth [rad]')           
+               
     
