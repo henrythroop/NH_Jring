@@ -2585,3 +2585,115 @@ plt.plot(ring3.azimuth_arr[20])
 plt.plot(ring3.azimuth_arr[30])
 plt.plot(ring3.azimuth_arr[50])
 plt.show()
+
+
+### On-off to test unwrapping and making a stacked mosaic
+
+self = ring3
+do_plot = False
+do_mask = True
+do_unwind = True
+dy_extract = 50
+y0_extract = 415
+gap_y_pix = 1
+
+# Calc the size of the output array
+
+rad_per_pix       = self.azimuth_arr[0][1] - self.azimuth_arr[0][0]
+width_mosaic_pix  = int(2*math.pi / rad_per_pix)    
+height_mosaic_pix = self.num_profiles * (dy_extract)
+az_arr            = np.array(range(width_mosaic_pix)) * rad_per_pix
+
+dx_chop_profile   = 150  # Amount to chop profile by
+
+# Create the output arrays
+
+im_mosaic      = np.zeros((dy_extract*self.num_profiles, width_mosaic_pix))  # Images are y, x
+im_mosaic[:,:] = np.nan
+mask_o_mosaic    = im_mosaic.copy()
+mask_s_mosaic    = im_mosaic.copy()
+
+do_unwind = True
+                                             
+for j in range(self.num_profiles):
+
+    lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
+                    'Jupiter', a_orbit=127_900*u.km).value
+
+    lon0_unwind_pix[j] = (lon0_unwind_rad[j] - self.azimuth_arr[j][0]) / rad_per_pix
+
+# Loop and add each strip to the output extraction array
+    
+for j in range(self.num_profiles):
+    
+    # Calculate where the start should be
+    
+    x0 = np.where( np.mod(self.azimuth_arr[j][0], 2*math.pi) <= az_arr)[0][0] - 1
+
+    if do_unwind:
+        x0 += int(lon0_unwind_pix[j])
+        
+    im   = self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+    
+
+    # If requested, chop off the ends of the radial profiles, because many of them are vignetted.
+    
+    if (dx_chop_profile):
+        im = im[:, dx_chop_profile : -dx_chop_profile]  # Make it less wide
+        x0 += dx_chop_profile                           # Advance position of it    
+    
+    # Place the individual profile into the output array, in right vertical position
+
+    im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, 0:hbt.sizey(im)] = im
+
+    # Roll it into place horizontally, by shifting by an appropriate amount. 
+    # It will properly roll across the edge at 2pi and back to the beginning.
+    
+    im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :] = \
+      np.roll(im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :], x0, axis=1)
+
+
+    # Roll it into place horizontally, by shifting by an appropriate amount. 
+    # It will properly roll across the edge at 2pi and back to the beginning.
+
+    # Now do the same again, for the mask
+    
+    mask_o = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+    mask_s = self.mask_stray_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+    
+    if (dx_chop_profile):
+        mask_o = mask_o[:, dx_chop_profile : -dx_chop_profile]  # Make it less wide
+        mask_s = mask_s[:, dx_chop_profile : -dx_chop_profile]  # Make it less wide
+
+    mask_o_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, 0:hbt.sizey(mask_o)] = mask_o
+    mask_s_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, 0:hbt.sizey(mask_s)] = mask_s
+
+    mask_o_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :] = \
+      np.roll(mask_o_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :], x0, axis=1)
+
+    mask_s_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :] = \
+      np.roll(mask_s_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :], x0, axis=1)
+
+hbt.figsize((20,20)) 
+plt.imshow(stretch(im_mosaic))
+plt.title(f'Unwind: {do_unwind}')
+plt.show()
+
+hbt.figsize((20,20)) 
+plt.imshow(stretch(im_mosaic))
+plt.show()
+
+profile=np.nanmedian(im_mosaic, axis=0)
+profile_masked=np.nanmedian(mask_s_mosaic * im_mosaic, axis=0)
+hbt.figsize((20,5))
+plt.plot(profile_masked, label='Raw data')
+plt.plot(profile, label = 'Masked, no stray or objects')
+plt.title(self)
+plt.legend()
+plt.show()
+
+hbt.figsize((20,20)) 
+plt.imshow(stretch(mask_s_mosaic * im_mosaic), alpha=0.9)
+plt.show()
+hbt.fontsize(15)
+
