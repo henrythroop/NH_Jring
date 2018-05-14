@@ -282,7 +282,7 @@ class ring_profile:
                         ang_phase,           # Phase angle (mean to rings -- not to planet center)
                         bg_method,
                         bg_argument,
-                        index_image,         # Index of image
+                        index_image,         # Index of imagep
                         index_group) = vals  # Index of image group
 
             # Figure out when the analysis file was written, and turn into human readable form ('10 minute ago')
@@ -946,9 +946,30 @@ class ring_profile:
         gap_y_pixel:
             Gap betwen strips, in the y direction.
             
+        y0_extract:
+            Y value, in pixels, of center of extraction region. **I should rewrite to pass in km, not pix.**
+            
+        dy_extract:
+            Extent, in y dir, of extraction region. Full height.
+        
+        
+        Return values:
+            
+        If `do_mask = True`:
+            `im`
+        
+        If `do_mask = False`:
+            (`im`, `mask`)
             
         """
-        dx_extract = np.shape(self.image_unwrapped_arr[0])[1]  # Width of the extracted segment
+        
+        # Look at the different azimuthal lengths here. Calculate the longest one, in a brute force way. Ugh.
+        
+        dx_extract = 0
+        for i in range(self.num_profiles):
+            dx_extract = max( len(self.azimuth_arr[i]), dx_extract )
+            
+#        dx_extract = np.shape(self.image_unwrapped_arr[0])[1]  # Width of the extracted segment
         
         if do_unwind:
             im_mosaic = np.zeros((dy_extract*self.num_profiles, dx_extract))  # Images are y, x
@@ -961,6 +982,8 @@ class ring_profile:
             
             rad_per_pix = self.azimuth_arr[0][1] - self.azimuth_arr[0][0]
         
+            # Loop and calculate the unwinding amount for each image
+            
             for j,image in enumerate(self.index_image_arr):
 
                 lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
@@ -975,12 +998,12 @@ class ring_profile:
                 im = self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
                 im = np.roll(im, int(lon0_unwind_pix[j]), axis=1)
                                 
-                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = im
+                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(im)] = im
 
                 mask = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
                 mask = np.roll(mask, int(-lon0_unwind_pix[j]), axis=1)
                 
-                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = mask
+                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(mask)] = mask
             
             # Plot, if requested
             
@@ -993,7 +1016,7 @@ class ring_profile:
                 if (do_mask):
                     plt.imshow(stretch(im_mosaic * mask_mosaic), alpha=0.7, cmap='plasma', origin='lower', 
                                extent=extent, aspect=aspect/4)
-                plt.title(f'Unwrapped, {a0}, masked={do_mask}')
+                plt.title(f'Unwrapped, {self}, masked={do_mask}')
                 for j,image in enumerate(self.index_image_arr):
                     plt.text(10, (j+0.5)*dy_extract, '{}/{}'.format(self.index_group_arr[j], self.index_image_arr[j]))
                 plt.show()            
@@ -1007,14 +1030,16 @@ class ring_profile:
             mask_mosaic = im_mosaic.copy()
         
             # Loop and add each strip to the output extraction array
+            # Note that we use sizey() here. But that function is poorly named, because for *images* in python, sizey
+            # is actually the x size of the image, not the y size.
             
             for j,image in enumerate(self.index_image_arr):
     
-                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = \
-                            self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                im = self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(im)] = im
     
-                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = \
-                            self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                mask = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(mask)] = mask
             
             # Plot, if requested
             
@@ -1027,7 +1052,7 @@ class ring_profile:
                 if (do_mask):
                     plt.imshow(stretch(im_mosaic * mask_mosaic), alpha=0.7, cmap='plasma', origin='lower', 
                                extent=extent, aspect=aspect/4)
-                plt.title(f'Unwrapped, {a0}, masked={do_mask}')
+                plt.title(f'Unwrapped, {self}, masked={do_mask}')
                 for j,image in enumerate(self.index_image_arr):
                     plt.text(10, (j+0.5)*dy_extract, '{}/{}'.format(self.index_group_arr[j], self.index_image_arr[j]))
                 plt.show()
@@ -1078,7 +1103,13 @@ def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 127_900*u.km, e
         ET, in seconds. This is the time at which the observations were taken.
     
     name_body:
-        String
+        String. Name of the central body, for which keplerian rotation will be calculated.
+    
+    Optional Parameters
+    -----
+    
+    a_orbit: 
+        Orbital distance, from which to calculate Keplerian motin.
         
     et_ref:
         ET, in seconds. This is the ET for which we want to put everything into the time base of.
@@ -2490,11 +2521,67 @@ for file in kernel_files:
 #        lon_unwind = unwind_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a0.A_METIS*u.km)
 
     plt.plot(self.azimuth_arr[0])    
-    plt.plot(self.azimuth_arr[1])    
+#    plt.plot(self.azimuth_arr[1])    
     plt.plot(self.azimuth_arr[2])
     plt.plot(self.azimuth_arr[3])
     plt.xlabel('Pixel #')
     plt.title(self)           
     plt.ylabel('Azimuth [rad]')           
                
-    
+## One-off to resample images
+
+im_mosaic_2 = im_mosaic.copy()
+im_mosaic_2[np.isnan(im_mosaic_2)] = -999
+im_mosaic_2 = scipy.ndimage.zoom(im_mosaic_2, (2, 0.5))
+im_mosaic_2[im_mosaic_2 == -999] = np.nan
+plt.imshow(stretch(im_mosaic))
+plt.show()
+plt.imshow(stretch(im_mosaic_2))
+plt.show()
+
+im_mosaic_2 = scipy.misc.imresize(im_mosaic, (50,100))
+
+# One-off: Determine max azimuthal resolution
+
+ring3 = ring_profile()
+ring3.load(8,hbt.frange(0,10), key_radius='full')
+ring3.load(8,hbt.frange(54,107), key_radius='full')
+
+hbt.figsize(15,5)
+plt.subplot(1,2,1)
+indices = [0,1,5,8,10]
+for index in indices:
+    delta_az = ring3.azimuth_arr[index][1] - ring3.azimuth_arr[index][0]
+    plt.plot(ring3.azimuth_arr[index], label=f'{index}, delta_az = {delta_az:8.5f} rad')
+plt.ylabel('Radians [deg]')
+plt.xlabel('Bin #')
+plt.title(ring3)
+plt.legend()
+
+plt.subplot(1,2,2)
+for index in indices:
+    delta_radius = ring3.radius_arr[index][1] - ring3.radius_arr[index][0]
+    plt.plot(ring3.radius_arr[index], label=f'{index}, delta_radius = {delta_radius:6.3f} km')
+plt.ylabel('Radius [km]')
+plt.xlabel('Bin #')
+plt.title(ring3)
+plt.legend()
+plt.show()
+
+(im,mask)=ring3.make_strip_mosaic(do_plot=False,do_mask=True, do_unwind=False)
+(im_u,mask_u)=ring3.make_strip_mosaic(do_plot=False,do_mask=True, do_unwind=True)
+
+hbt.figsize((20,20))
+plt.imshow(stretch(im),origin='bottom')
+plt.show()
+
+hbt.figsize((20,20))
+plt.imshow(stretch(im_u),origin='bottom')
+plt.show()
+
+
+plt.plot(ring3.azimuth_arr[10])
+plt.plot(ring3.azimuth_arr[20])
+plt.plot(ring3.azimuth_arr[30])
+plt.plot(ring3.azimuth_arr[50])
+plt.show()

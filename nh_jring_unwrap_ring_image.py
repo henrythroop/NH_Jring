@@ -15,7 +15,7 @@ Created on Mon Jun 27 09:01:30 2016
 
 def nh_jring_unwrap_ring_image(im, 
                                num_bins_radius, limits_radius, 
-                               num_bins_azimuth, 
+                               binsize_azimuth, 
                                planes, dx=0, dy=0, mask_stray=None, mask_objects=None):
         
     """
@@ -28,16 +28,22 @@ def nh_jring_unwrap_ring_image(im,
     
     im:      
         Image array
-    radius:  
-        1D array of radius, in km
         
-    azimuth: 
-        1D array of azimuth (radians)
+    num_bins_radius:
+        Number of radial bins. **If this is too large, then we get a 'stretching' artifact**.
+        
+    limits_radius:
+        Extent of the inner and outer radius, in km.
+        
+    binsize_azimuth:
+        size of azimuthal bins, in radians.
         
     planes:  
         The table of backplanes
+        
     mask_stray:    
         2D array of pixel flags. True = good. 
+        
     mask_objects:
         2D array of pixel flags. True = good. 
   
@@ -139,6 +145,17 @@ def nh_jring_unwrap_ring_image(im,
     azimuth_seg_start = azimuth_all_3_s[index_seg_start_3_s] # Azimuth value at the segment start
     azimuth_seg_end   = azimuth_all_3_s[index_seg_end_3_s]   # Azimuth value at the segment end
     
+    # Quantize these values to the next-lower and next-upper bins (e.g., 0.001543 → 0.001), to use a common base.
+    
+    azimuth_seg_start = azimuth_seg_start - np.mod(azimuth_seg_start, binsize_azimuth) - binsize_azimuth
+    azimuth_seg_end   = azimuth_seg_end   - np.mod(azimuth_seg_end,   binsize_azimuth) + binsize_azimuth
+
+    # Calculate number of bins
+    
+    # NB: Must use round() not int() here to avoid 15.999999 → 15. And then int for benefit of numpy.
+    
+    num_bins_azimuth = int( round( (azimuth_seg_end - azimuth_seg_start) / binsize_azimuth) + 1 )
+        
     indices_3_good = (azimuth_all_3 >= azimuth_seg_start) & (azimuth_all_3 < azimuth_seg_end)
     
     azimuth_all_good = azimuth_all_3[indices_3_good]
@@ -173,6 +190,7 @@ def nh_jring_unwrap_ring_image(im,
 # Construct the gridded image line-by-line
 
     dn_grid         = np.zeros((num_bins_radius, num_bins_azimuth))  # Row, column
+    
     bins_azimuth    = hbt.frange(azimuth_seg_start, azimuth_seg_end, num_bins_azimuth)
     bins_radius     = hbt.frange(limits_radius[0], limits_radius[1], num_bins_radius)        
 

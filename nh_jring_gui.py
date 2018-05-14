@@ -128,7 +128,7 @@ class App:
         option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
         entry_bg_default    = '0-10'   # Default polynomial order XXX need to set a longer string length here!
         index_group_default = 8        # Default group to start with
-        index_image_default = 14       # Default image number within the group
+        index_image_default = 0       # Default image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
@@ -587,8 +587,12 @@ class App:
         num_bins_azimuth = 1000    # Most of my extractions were done with (500,300).
                                    # I can do much better than this... but don't push the radial #.
                                    # If there are too many radial bins, things gets stretch too much and we get 
-                                   # a lotof interpolation artifacts.
- 
+                                   # a lot of interpolation artifacts. This is a byproduct (defect) of my reproduction 
+                                   # algorithm. But for now I'm not going to rewrite it.
+                                   
+        binsize_azimuth = 0.001    # For azimuth, we use a fixed binsize, rather than a number of pixels.
+        
+        
 # Check if the backplane is loaded already. Load it iff it is not loaded
     
         if (self.file_backplane_shortname != self.t_group['Shortname'][self.index_image]):
@@ -607,7 +611,7 @@ class App:
              nh_jring_unwrap_ring_image(self.image_processed, 
                                          num_bins_radius, 
                                          (r_ring_inner, r_ring_outer),
-                                         num_bins_azimuth, 
+                                         binsize_azimuth,
                                          self.planes, 
                                          dx=-dx, dy=-dy, 
                                          mask_objects=self.mask_objects,
@@ -1595,14 +1599,16 @@ the internal state which is already correct. This does *not* refresh the image i
         # Ask for the range, from the keyboard.
         # Ideally we would get these from a dialog box, but it will take much longer to do this than I have.
         
-        i_start = int(input(f'Starting image (0 .. {self.num_images_group}): '))
-        i_end   = int(input(f'Ending   image (0 .. {self.num_images_group}): '))
+        i_start = int(input(f'Starting image (0 .. {self.num_images_group-1}): '))
+        i_end   = int(input(f'Ending   image (0 .. {self.num_images_group-1}): '))
 
         # Ask for an optional background string (e.g., "p5 8/10-20"), which is set and applied to all of the files
         
         arg = self.t_group['bg_argument'][i_start]
         arg_change = input(f'Background method ({arg}): ')
-        
+        if not arg_change:
+            print("Using default unchanged background method.")
+            
         # Get user confirmation
         
         confirm = input(f'Batch process {self.index_group} / {i_start} .. {i_end}? ')
