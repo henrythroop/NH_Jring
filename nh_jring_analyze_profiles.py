@@ -2684,10 +2684,17 @@ plt.imshow(stretch(im_mosaic))
 plt.show()
 
 profile=np.nanmedian(im_mosaic, axis=0)
-profile_masked=np.nanmedian(mask_s_mosaic * im_mosaic, axis=0)
+im_mosaic_masked = im_mosaic.copy()
+im_mosaic_masked[mask_s_mosaic == False] = np.nan
+hbt.figsize((20,20)) 
+
+plt.imshow(stretch(im_mosaic_masked))
+plt.show()
+
 hbt.figsize((20,5))
-plt.plot(profile_masked, label='Raw data')
-plt.plot(profile, label = 'Masked, no stray or objects')
+profile_masked=np.nanmedian(im_mosaic_masked, axis=0)
+plt.plot(profile, label='Raw data', alpha=0.5)
+plt.plot(profile_masked, label = 'Masked, no stray or objects', alpha=0.5)
 plt.title(self)
 plt.legend()
 plt.show()
