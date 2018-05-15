@@ -2613,7 +2613,12 @@ im_mosaic[:,:] = np.nan
 mask_o_mosaic    = im_mosaic.copy()
 mask_s_mosaic    = im_mosaic.copy()
 
+lon0_unwind_rad = np.zeros(self.num_profiles)
+lon0_unwind_pix = np.zeros(self.num_profiles)
+ 
 do_unwind = True
+
+# Loop and calculate the appropriate shift, for each image
                                              
 for j in range(self.num_profiles):
 
@@ -2656,7 +2661,9 @@ for j in range(self.num_profiles):
     # Roll it into place horizontally, by shifting by an appropriate amount. 
     # It will properly roll across the edge at 2pi and back to the beginning.
 
-    # Now do the same again, for the mask
+    # Now do the same again, for the masks.
+    # mask_o = object mask (from SPICE)
+    # mask_s = stray light mask (from Photoshop)
     
     mask_o = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
     mask_s = self.mask_stray_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
@@ -2684,17 +2691,10 @@ plt.imshow(stretch(im_mosaic))
 plt.show()
 
 profile=np.nanmedian(im_mosaic, axis=0)
-im_mosaic_masked = im_mosaic.copy()
-im_mosaic_masked[mask_s_mosaic == False] = np.nan
-hbt.figsize((20,20)) 
-
-plt.imshow(stretch(im_mosaic_masked))
-plt.show()
-
+profile_masked=np.nanmedian(mask_s_mosaic * im_mosaic, axis=0)
 hbt.figsize((20,5))
-profile_masked=np.nanmedian(im_mosaic_masked, axis=0)
-plt.plot(profile, label='Raw data', alpha=0.5)
-plt.plot(profile_masked, label = 'Masked, no stray or objects', alpha=0.5)
+plt.plot(profile_masked, label='Raw data')
+plt.plot(profile, label = 'Masked, no stray or objects')
 plt.title(self)
 plt.legend()
 plt.show()
