@@ -282,7 +282,7 @@ class ring_profile:
                         ang_phase,           # Phase angle (mean to rings -- not to planet center)
                         bg_method,
                         bg_argument,
-                        index_image,         # Index of image
+                        index_image,         # Index of imagep
                         index_group) = vals  # Index of image group
 
             # Figure out when the analysis file was written, and turn into human readable form ('10 minute ago')
@@ -482,7 +482,7 @@ class ring_profile:
 # Flatten the profiles -- that is, if there are N profiles, flatten to one, with mean value
 # =============================================================================
 
-    def flatten(self, a = 129_700*u.km, et=0):
+    def flatten(self, a = 127_900*u.km, et=0):
         
         """ Flatten the profile, from N profile, into one mean (or median) profile.
             Applies to radial and azimuthal and all other quantities.
@@ -946,9 +946,30 @@ class ring_profile:
         gap_y_pixel:
             Gap betwen strips, in the y direction.
             
+        y0_extract:
+            Y value, in pixels, of center of extraction region. **I should rewrite to pass in km, not pix.**
+            
+        dy_extract:
+            Extent, in y dir, of extraction region. Full height.
+        
+        
+        Return values:
+            
+        If `do_mask = True`:
+            `im`
+        
+        If `do_mask = False`:
+            (`im`, `mask`)
             
         """
-        dx_extract = np.shape(self.image_unwrapped_arr[0])[1]  # Width of the extracted segment
+        
+        # Look at the different azimuthal lengths here. Calculate the longest one, in a brute force way. Ugh.
+        
+        dx_extract = 0
+        for i in range(self.num_profiles):
+            dx_extract = max( len(self.azimuth_arr[i]), dx_extract )
+            
+#        dx_extract = np.shape(self.image_unwrapped_arr[0])[1]  # Width of the extracted segment
         
         if do_unwind:
             im_mosaic = np.zeros((dy_extract*self.num_profiles, dx_extract))  # Images are y, x
@@ -957,14 +978,18 @@ class ring_profile:
             mask_mosaic = im_mosaic.copy()
 
             lon0_unwind_rad = np.zeros(self.num_profiles)
+            lon0_unwind_pix = np.zeros(self.num_profiles)
+            
             rad_per_pix = self.azimuth_arr[0][1] - self.azimuth_arr[0][0]
         
+            # Loop and calculate the unwinding amount for each image
+            
             for j,image in enumerate(self.index_image_arr):
 
                 lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
                                 'Jupiter', a_orbit=a_orbit).value
             
-                lon0_unwind_pix = lon0_unwind_rad / rad_per_pix
+                lon0_unwind_pix[j] = (lon0_unwind_rad[j] - self.azimuth_arr[j][0]) / rad_per_pix
             
             # Loop and add each strip to the output extraction array
 
@@ -973,12 +998,12 @@ class ring_profile:
                 im = self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
                 im = np.roll(im, int(lon0_unwind_pix[j]), axis=1)
                                 
-                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = im
+                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(im)] = im
 
                 mask = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
-                mask = np.roll(mask, int(lon0_unwind_pix[j]), axis=1)
+                mask = np.roll(mask, int(-lon0_unwind_pix[j]), axis=1)
                 
-                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = mask
+                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(mask)] = mask
             
             # Plot, if requested
             
@@ -991,7 +1016,7 @@ class ring_profile:
                 if (do_mask):
                     plt.imshow(stretch(im_mosaic * mask_mosaic), alpha=0.7, cmap='plasma', origin='lower', 
                                extent=extent, aspect=aspect/4)
-                plt.title(f'Unwrapped, {a0}, masked={do_mask}')
+                plt.title(f'Unwrapped, {self}, masked={do_mask}')
                 for j,image in enumerate(self.index_image_arr):
                     plt.text(10, (j+0.5)*dy_extract, '{}/{}'.format(self.index_group_arr[j], self.index_image_arr[j]))
                 plt.show()            
@@ -1005,14 +1030,16 @@ class ring_profile:
             mask_mosaic = im_mosaic.copy()
         
             # Loop and add each strip to the output extraction array
+            # Note that we use sizey() here. But that function is poorly named, because for *images* in python, sizey
+            # is actually the x size of the image, not the y size.
             
             for j,image in enumerate(self.index_image_arr):
     
-                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = \
-                            self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                im = self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(im)] = im
     
-                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,:] = \
-                            self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                mask = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(mask)] = mask
             
             # Plot, if requested
             
@@ -1025,7 +1052,7 @@ class ring_profile:
                 if (do_mask):
                     plt.imshow(stretch(im_mosaic * mask_mosaic), alpha=0.7, cmap='plasma', origin='lower', 
                                extent=extent, aspect=aspect/4)
-                plt.title(f'Unwrapped, {a0}, masked={do_mask}')
+                plt.title(f'Unwrapped, {self}, masked={do_mask}')
                 for j,image in enumerate(self.index_image_arr):
                     plt.text(10, (j+0.5)*dy_extract, '{}/{}'.format(self.index_group_arr[j], self.index_image_arr[j]))
                 plt.show()
@@ -1041,7 +1068,7 @@ class ring_profile:
 # =============================================================================
 #%%%
         
-def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, et_ref=0):
+def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 127_900*u.km, et_ref=0):
     """
     Takes a set of longitudes, and unwind them back to a given frame, incorporating
     both body rotation, and keplerian orbital motion. Both are assumed to be constant.
@@ -1076,7 +1103,13 @@ def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, e
         ET, in seconds. This is the time at which the observations were taken.
     
     name_body:
-        String
+        String. Name of the central body, for which keplerian rotation will be calculated.
+    
+    Optional Parameters
+    -----
+    
+    a_orbit: 
+        Orbital distance, from which to calculate Keplerian motin.
         
     et_ref:
         ET, in seconds. This is the ET for which we want to put everything into the time base of.
@@ -1087,7 +1120,7 @@ def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 129_700*u.km, e
     
     name_body = 'jupiter'
     r_jup = 69_911*u.km
-#    a_orbit = 129_700*u.km
+#    a_orbit = 127_900*u.km
     
     masses = {'JUPITER': c.M_jup,   # Agrees w/ wikipedia. 1.89818e27 kg
               'EARTH':   c.M_earth,
@@ -1797,7 +1830,7 @@ plt.show()
 # =============================================================================
 
 plt.set_cmap('plasma')
-a_ref = 129_700*u.km
+a_ref = 127_900*u.km
 
 images0 = hbt.frange(0, 47)  # Entire range 
 keys = ['center', 'full', 'core']        # Interate over the 'key_radius' field. This affects radial extraction.
@@ -1877,8 +1910,7 @@ images2 = hbt.frange(35,47)  # Second half
 
 images = [images1, images2]
 
-a_ref = 129_700*u.km # Increasing by 100 km shifts orange right by 0.0001 radians
-a_ref = 130_000*u.km # Increasing by 100 km shifts orange right by 0.0001 radians
+a_ref = 127_900*u.km # Increasing by 100 km shifts orange right by 0.0001 radians
 
 smoothing = 5
 group = 8
@@ -1948,7 +1980,7 @@ et_ref = sp.utc2et('2007 24 Feb 12:00:00')  # Epoch to unwind into. For best res
 
 hbt.figsize((18,6))
 hbt.fontsize(15)
-a_ref = 129_700*u.km
+a_ref = 127_900*u.km
 xlim  = (3.9, 5.2)
 smoothing = None
 group = 8
@@ -2005,7 +2037,7 @@ for i,images_i in enumerate(images):
 
     # Make a strip lot of all the data
     
-    im_extract = a0.make_strip_mosaic(a=3,do_plot=True)
+    im_extract = a0.make_strip_mosaic(a=3,do_plot=True, do_unwind=True)
 
     # Now that we have read in all the profiles (and their pre-unwrapped images),
     # loop over them, and extract the profile from the images. This will not apply stray light corrections,
@@ -2095,7 +2127,7 @@ images = [hbt.frange(0,90),
 plt.set_cmap('Greys_r')
 plt.set_cmap('plasma')
 
-a_ref = 129_700*u.km
+a_ref = 127_900*u.km
 xlim  = (5, 6.5)
 smoothing = None
 group = 8
@@ -2142,7 +2174,7 @@ images = [hbt.frange(97,100)]
 plt.set_cmap('Greys_r')
 plt.set_cmap('plasma')
 
-a_ref = 129_700*u.km
+a_ref = 127_900*u.km
 xlim  = (5, 6.5)
 smoothing = None
 
@@ -2359,15 +2391,15 @@ plt.show()
 plt.xlim((0,360)*hbt.r2d)
 
 
-flatten(a=129_700*u.km).plot_azimuthal(xlim=(0,360))
+flatten(a=127_900*u.km).plot_azimuthal(xlim=(0,360))
 
 a2_flat1 = a2.copy()
-a2_flat1.flatten(a=129_700*u.km).plot_azimuthal(xlim=(0,360))
+a2_flat1.flatten(a=127_900*u.km).plot_azimuthal(xlim=(0,360))
 
 a2 = ring_profile()
 a2.load(8,hbt.frange(30,48),key_radius='core').plot(plot_legend=False)
 a2_flat2 = a2.copy()
-a2_flat2.flatten(a=129_700*u.km).plot_azimuthal()
+a2_flat2.flatten(a=127_900*u.km).plot_azimuthal()
 a2_flat2.plot_azimuthal(smooth=5)
 
 
@@ -2380,10 +2412,10 @@ a4.flatten(a=110_000*u.km).plot_azimuthal()
 
 
 a2.plot_azimuthal()
-a2.flatten(a=129_700*u.km).plot_azimuthal()
+a2.flatten(a=127_900*u.km).plot_azimuthal()
 
 a3 = ring_profile()
-a3.load(8,hbt.frange(36,49),key_radius='full').flatten(a=129_700*u.km).plot_azimuthal()
+a3.load(8,hbt.frange(36,49),key_radius='full').flatten(a=127_900*u.km).plot_azimuthal()
 
 a.plot(plot_legend=False)
 a_flat = a.copy().flatten()
@@ -2487,4 +2519,181 @@ for file in kernel_files:
         (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
         print(f'With file {file}, body={body} → lon = {lon*hbt.r2d}')
 #        lon_unwind = unwind_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a0.A_METIS*u.km)
+
+    plt.plot(self.azimuth_arr[0])    
+#    plt.plot(self.azimuth_arr[1])    
+    plt.plot(self.azimuth_arr[2])
+    plt.plot(self.azimuth_arr[3])
+    plt.xlabel('Pixel #')
+    plt.title(self)           
+    plt.ylabel('Azimuth [rad]')           
+               
+## One-off to resample images
+
+im_mosaic_2 = im_mosaic.copy()
+im_mosaic_2[np.isnan(im_mosaic_2)] = -999
+im_mosaic_2 = scipy.ndimage.zoom(im_mosaic_2, (2, 0.5))
+im_mosaic_2[im_mosaic_2 == -999] = np.nan
+plt.imshow(stretch(im_mosaic))
+plt.show()
+plt.imshow(stretch(im_mosaic_2))
+plt.show()
+
+im_mosaic_2 = scipy.misc.imresize(im_mosaic, (50,100))
+
+# One-off: Determine max azimuthal resolution
+
+ring3 = ring_profile()
+ring3.load(8,hbt.frange(0,10), key_radius='full')
+ring3.load(8,hbt.frange(54,107), key_radius='full')
+
+hbt.figsize(15,5)
+plt.subplot(1,2,1)
+indices = [0,1,5,8,10]
+for index in indices:
+    delta_az = ring3.azimuth_arr[index][1] - ring3.azimuth_arr[index][0]
+    plt.plot(ring3.azimuth_arr[index], label=f'{index}, delta_az = {delta_az:8.5f} rad')
+plt.ylabel('Radians [deg]')
+plt.xlabel('Bin #')
+plt.title(ring3)
+plt.legend()
+
+plt.subplot(1,2,2)
+for index in indices:
+    delta_radius = ring3.radius_arr[index][1] - ring3.radius_arr[index][0]
+    plt.plot(ring3.radius_arr[index], label=f'{index}, delta_radius = {delta_radius:6.3f} km')
+plt.ylabel('Radius [km]')
+plt.xlabel('Bin #')
+plt.title(ring3)
+plt.legend()
+plt.show()
+
+(im,mask)=ring3.make_strip_mosaic(do_plot=False,do_mask=True, do_unwind=False)
+(im_u,mask_u)=ring3.make_strip_mosaic(do_plot=False,do_mask=True, do_unwind=True)
+
+hbt.figsize((20,20))
+plt.imshow(stretch(im),origin='bottom')
+plt.show()
+
+hbt.figsize((20,20))
+plt.imshow(stretch(im_u),origin='bottom')
+plt.show()
+
+
+plt.plot(ring3.azimuth_arr[10])
+plt.plot(ring3.azimuth_arr[20])
+plt.plot(ring3.azimuth_arr[30])
+plt.plot(ring3.azimuth_arr[50])
+plt.show()
+
+
+### On-off to test unwrapping and making a stacked mosaic
+
+self = ring3
+do_plot = False
+do_mask = True
+do_unwind = True
+dy_extract = 50
+y0_extract = 415
+gap_y_pix = 1
+
+# Calc the size of the output array
+
+rad_per_pix       = self.azimuth_arr[0][1] - self.azimuth_arr[0][0]
+width_mosaic_pix  = int(2*math.pi / rad_per_pix)    
+height_mosaic_pix = self.num_profiles * (dy_extract)
+az_arr            = np.array(range(width_mosaic_pix)) * rad_per_pix
+
+dx_chop_profile   = 150  # Amount to chop profile by
+
+# Create the output arrays
+
+im_mosaic      = np.zeros((dy_extract*self.num_profiles, width_mosaic_pix))  # Images are y, x
+im_mosaic[:,:] = np.nan
+mask_o_mosaic    = im_mosaic.copy()
+mask_s_mosaic    = im_mosaic.copy()
+
+do_unwind = True
+                                             
+for j in range(self.num_profiles):
+
+    lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
+                    'Jupiter', a_orbit=127_900*u.km).value
+
+    lon0_unwind_pix[j] = (lon0_unwind_rad[j] - self.azimuth_arr[j][0]) / rad_per_pix
+
+# Loop and add each strip to the output extraction array
     
+for j in range(self.num_profiles):
+    
+    # Calculate where the start should be
+    
+    x0 = np.where( np.mod(self.azimuth_arr[j][0], 2*math.pi) <= az_arr)[0][0] - 1
+
+    if do_unwind:
+        x0 += int(lon0_unwind_pix[j])
+        
+    im   = self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+    
+
+    # If requested, chop off the ends of the radial profiles, because many of them are vignetted.
+    
+    if (dx_chop_profile):
+        im = im[:, dx_chop_profile : -dx_chop_profile]  # Make it less wide
+        x0 += dx_chop_profile                           # Advance position of it    
+    
+    # Place the individual profile into the output array, in right vertical position
+
+    im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, 0:hbt.sizey(im)] = im
+
+    # Roll it into place horizontally, by shifting by an appropriate amount. 
+    # It will properly roll across the edge at 2pi and back to the beginning.
+    
+    im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :] = \
+      np.roll(im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :], x0, axis=1)
+
+
+    # Roll it into place horizontally, by shifting by an appropriate amount. 
+    # It will properly roll across the edge at 2pi and back to the beginning.
+
+    # Now do the same again, for the mask
+    
+    mask_o = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+    mask_s = self.mask_stray_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+    
+    if (dx_chop_profile):
+        mask_o = mask_o[:, dx_chop_profile : -dx_chop_profile]  # Make it less wide
+        mask_s = mask_s[:, dx_chop_profile : -dx_chop_profile]  # Make it less wide
+
+    mask_o_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, 0:hbt.sizey(mask_o)] = mask_o
+    mask_s_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, 0:hbt.sizey(mask_s)] = mask_s
+
+    mask_o_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :] = \
+      np.roll(mask_o_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :], x0, axis=1)
+
+    mask_s_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :] = \
+      np.roll(mask_s_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :], x0, axis=1)
+
+hbt.figsize((20,20)) 
+plt.imshow(stretch(im_mosaic))
+plt.title(f'Unwind: {do_unwind}')
+plt.show()
+
+hbt.figsize((20,20)) 
+plt.imshow(stretch(im_mosaic))
+plt.show()
+
+profile=np.nanmedian(im_mosaic, axis=0)
+profile_masked=np.nanmedian(mask_s_mosaic * im_mosaic, axis=0)
+hbt.figsize((20,5))
+plt.plot(profile_masked, label='Raw data')
+plt.plot(profile, label = 'Masked, no stray or objects')
+plt.title(self)
+plt.legend()
+plt.show()
+
+hbt.figsize((20,20)) 
+plt.imshow(stretch(mask_s_mosaic * im_mosaic), alpha=0.9)
+plt.show()
+hbt.fontsize(15)
+
