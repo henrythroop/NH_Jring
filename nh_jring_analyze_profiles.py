@@ -934,7 +934,7 @@ class ring_profile:
 # Extract strips from a set of images, showing only the rings
 # =============================================================================
 
-    def make_strip_mosaic(self, a=None, gap_y_pix=1, \
+    def make_strip_mosaic(self, a_orbit=127_900*u.km, gap_y_pix=1, \
                           y0_extract = 415, dy_extract=50, do_plot=False, do_mask=False,\
                           do_unwind = False):
         """
@@ -962,7 +962,7 @@ class ring_profile:
             for j,image in enumerate(self.index_image_arr):
 
                 lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
-                                'Jupiter', a_orbit=129_700*u.km).value
+                                'Jupiter', a_orbit=a_orbit).value
             
                 lon0_unwind_pix = lon0_unwind_rad / rad_per_pix
             
@@ -2162,7 +2162,7 @@ for i,images_i in enumerate(images):  # Load each image set
     
     # Extract all the strips into an image, and show it.
     
-    (im_mosaic, mask_mosaic) = a0.make_strip_mosaic(do_plot=False, do_mask=True, do_unwind=True)
+    (im_mosaic, mask_mosaic) = a0.make_strip_mosaic(do_plot=False, do_mask=True, do_unwind=True, a=127_900*u.km)
     
     # Make a series of TV plots
     
