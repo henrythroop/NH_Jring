@@ -489,6 +489,8 @@ class ring_profile:
             Result is returned, and internal values are changed as well.
             After flattening, most outputs are as 1-element arrays (not scalars).
             
+            NB: This always unwinds, as well.
+            
             Parameters
             ---    
             
@@ -521,7 +523,7 @@ class ring_profile:
 
         try:
             _ = np.stack(self.profile_radius_arr)    # Attempt to convert list of 1D arrays, into a 2D array.
-            _ = np.stack(self.profile_azimuth_arr)
+#            _ = np.stack(self.profile_azimuth_arr)
         except ValueError:
             raise ValueError("Cannot flatten because profiles are of different sizes.")
             
@@ -531,64 +533,46 @@ class ring_profile:
 
         # Now do the azimuthal profiles. This is much harder, since we need to unwind them to make sense of them.
 
-        num_az_unwind = 3600
-
-        # Set up a uniformly spaced azimuthal grid.
-            
-        azimuth_unwind = hbt.frange(0,math.pi *2, num_az_unwind+1)[0:-1]
+        ### XXX We can now dramatically simplify this az stacking, now that every file uses the same
+        #   gridding, at 0.001 radians.
+        
+        # Set up a uniformly spaced azimuthal grid, going 0 .. 2pi in 0.001 rad increments.
+       
+        rad_per_pix       = self.azimuth_arr[0][1] - self.azimuth_arr[0][0]
+        num_pts_az        = int(2*math.pi / rad_per_pix)    
+        az_arr            = np.array(range(num_pts_az)) * rad_per_pix
+        
+        # azimuth_unwind    = hbt.frange(0,math.pi *2, num_az_unwind+1)[0:-1]
+        azimuth_unwind         = az_arr.copy()
  
         # Also, set up a 2D grid, where we make an 'image' of the azimuthal output
         
-        unwind_2d = np.zeros( (len(self.profile_azimuth_arr), num_az_unwind) )
+        unwind_2d = np.zeros( (self.num_profiles, num_pts_az) )
+        unwind_2d[:] = np.nan
         
         # Loop over every azimuthal profile. For each one, unwind it properly to a common ET, then put it on a 
         # common grid. Then merge all of them.
-        
-        print(f'Flattening with reference radius {a_ref}')
-    
+            
         for i,profile_azimuth in enumerate(self.profile_azimuth_arr):
             
             # Unwind the longitudes. self.azimuth_arr is in radians, and covers only the observed longitudes
             #   (ie, not 0 .. 2pi)
             
-            theta_i = unwind_orbital_longitude(self.azimuth_arr[i,:], self.et_arr[i], 'Jupiter', a_ref, et_ref)
-                         
-            # Now rebin this into the regridded output, and lay it down.
-           
-            indices = np.logical_not(np.isnan(profile_azimuth))   # Get the non-NAN indices. NAN are from masking.
-
-            # Use interp1d() to map the points onto a uniformly spaced azimuthal grid
-            # OK, here is the main problem. The data is just a list of azimuths and list of DN's.
-            # If there is a big gap in azimuth, we want to fill that with NaN's. If we dont', then interp1d
-            # will blindly interpolate over the whole gap.
+            theta_i = unwind_orbital_longitude(self.azimuth_arr[i], self.et_arr[i], 'Jupiter', a_ref, et_ref)
+            
+            # Quantize unwound to 0.001 radian steps
+            
+            theta_i = (theta_i / rad_per_pix).astype(int) * rad_per_pix
+            
+            # Calculate the offset
+            
+            offset_pix = np.where(theta_i[0] > az_arr)[0][-1]
+            
+            # Load the unwound 1D array into the 2D array
+    
+            unwind_2d[i, 0:hbt.sizex(profile_azimuth)] = profile_azimuth
+            unwind_2d[i,:] = np.roll(unwind_2d[i,:], offset_pix)
              
-            xs = theta_i[indices]
-            ys = profile_azimuth[indices]                
-            xs = np.concatenate([[-20],      theta_i[indices],         [20]])    # Set up some fake boundary cond's
-            ys = np.concatenate([[np.nan], profile_azimuth[indices], [np.nan]])  # Set up some fake boundary cond's                
-            
-            # Detect gaps, and flag as NaN
-
-            dx = xs - np.roll(xs,1)     # Get the increment in azimuth angle, for this bin            
-            is_gap = np.abs(dx) > 1e-2
-            is_gap_wide = np.logical_or(np.logical_or(is_gap, np.roll(is_gap,1)), np.roll(is_gap,-1))
-            is_gap_wide = is_gap
-            
-            # Flag the endpoints of the array as OK. This will break in case of a gap that actually goes at array end.
-            # XXX Logic wasn't working here. As a result, we are improperly flagging as bad several points at the 
-            # 0-360 transition. I guess this doens't matter that much, but it's sort of un-perfect.
-            
-#            is_gap_wide[1:3] = False
-#            is_gap_wide[-3:-2] = False
-            ys[is_gap_wide] = np.nan
-        
-            f = interpolate.interp1d( xs, ys )                
-            unwind_1d = f(azimuth_unwind)
-
-            warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
-            unwind_2d[i,:] = np.array(unwind_1d)
-            warnings.simplefilter(action = "default", category = RuntimeWarning) # Turn back to warning first-time only
-
         # Save the 2D azimuth 'image' 
         
         self.profile_azimuth_arr_2d = unwind_2d
@@ -625,10 +609,16 @@ class ring_profile:
         self.dt_str_arr      = np.array([self.dt_str_arr[0]])
         
         # Flatten the images and mask arrays, by taking median (that is, reducing from N images, to 1.)
+        # XXX Stacking images is hard and requires more subtlety to unwrap. Not doing this yet.
         
-        self.image_unwrapped_arr = np.array([np.nanmedian(self.image_unwrapped_arr, axis=0)])
-        self.mask_objects_unwrapped_arr = np.array([np.nanmedian(self.mask_objects_unwrapped_arr, axis=0)])
-        self.mask_stray_unwrapped_arr = np.array([np.nanmedian(self.mask_stray_unwrapped_arr, axis=0)])
+#        self.image_unwrapped_arr = np.array([np.nanmedian(self.image_unwrapped_arr, axis=0)])
+#        self.mask_objects_unwrapped_arr = np.array([np.nanmedian(self.mask_objects_unwrapped_arr, axis=0)])
+#        self.mask_stray_unwrapped_arr = np.array([np.nanmedian(self.mask_stray_unwrapped_arr, axis=0)])
+        
+        self.image_unwrapped_arr = np.array([self.image_unwrapped_arr[0]])
+        self.mask_objects_unwrapped_arr = np.array([self.mask_objects_unwrapped_arr[0]])
+        self.mask_stray_unwrapped_arr = np.array([self.mask_stray_unwrapped_arr[0]])
+        
         
         self.is_flattened    = True
         
@@ -800,6 +790,8 @@ class ring_profile:
         """
         Plot the azimuthal profile.
         
+        Plot is in degrees. Internally, everything is stored in radians.
+        
         Parameters
         -----
         
@@ -874,6 +866,27 @@ class ring_profile:
         return self
 
 # =============================================================================
+# Plot the unwrapped azimuthal profile image
+# This is essentially the raw profiles that goes into the flattened az profile        
+# =============================================================================
+
+    def plot_azimuthal_2d(self):
+    
+        dx = 2 * math.pi
+        dy = self.num_profiles
+        aspect = dx / dy * 8
+        
+        plt.imshow(self.profile_azimuth_arr_2d, aspect = aspect, origin = 'lower')
+        
+        plt.title(self)
+        plt.xlabel('Azimuth [mrad]')
+        plt.ylabel('Image number')
+        
+        plt.show()
+        
+        return self
+    
+# =============================================================================
 # Plot the radial and azimuthal profile together
 # =============================================================================
         
@@ -936,8 +949,8 @@ class ring_profile:
 
     def make_strip_mosaic(self, a_orbit=127_900*u.km, gap_y_pix=1, 
                           y0_extract = 415, dy_extract=50, do_plot=False, do_plot_masked=False,
-                          do_plot_profiles = True,
-                          do_unwind = False, dwidth_chop = 0):
+                          do_plot_profile = True,
+                          do_unwind = True, dwidth_chop = 0, xlim=None):
         """
         Create an image of individual strips, by extracting the ring region from many individual images.
         
@@ -1001,7 +1014,7 @@ class ring_profile:
         for j in range(self.num_profiles):
         
             lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
-                            'Jupiter', a_orbit=127_900*u.km).value
+                            'Jupiter', a_orbit=127_900*u.km)
         
             lon0_unwind_pix[j] = (lon0_unwind_rad[j] - self.azimuth_arr[j][0]) / rad_per_pix
         
@@ -1073,7 +1086,8 @@ class ring_profile:
         # Make plots, if requested
         
         if do_plot:
-            plt.imshow(stretch(im_mosaic), origin='lower')
+            
+            plt.imshow(stretch(im_mosaic), origin='lower', aspect = hbt.sizey(im_mosaic) / hbt.sizex(im_mosaic)/5)
             plt.title(self)
             plt.show()
         
@@ -1082,12 +1096,13 @@ class ring_profile:
             plt.title(f'{self}, Masked')
             plt.show()
         
-        if do_plot_profiles:
+        if do_plot_profile:
             alpha = 0.5
             plt.plot(profile_im,     alpha=alpha, label = 'Raw')
             plt.plot(profile_masked, alpha=alpha, label = 'Masked')
             plt.legend()
-            plt.title(self)
+            plt.title(f'{self}, Az profile')
+            plt.xlim(xlim)
             plt.show()
             
         # Return results
@@ -1309,7 +1324,11 @@ def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 127_900*u.km, e
 
     # Put in range 0 .. 2pi
     
-    lon_out = np.mod(lon_out, 2*math.pi)     
+    lon_out = np.mod(lon_out, 2*math.pi)
+    
+    # Remove any units, which might be left. Output should be just radians.
+    
+    lon_out = lon_out.value
     
     return lon_out
 
@@ -2436,55 +2455,6 @@ plt.show()
 
 #%%%
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# =============================================================================
-# Now make a plot which does show Metis / Adrastea locations. This is just as a dummy check
-# =============================================================================
-
-profile_i2 = nh_jring_extract_profile_from_unwrapped(a.image_unwrapped_arr[i],
-                                                    a.radius_arr[i][:],
-                                                    a.azimuth_arr[i][:],
-                                                    0.047,
-                                                    'radial',
-                                                    mask_unwrapped=mask)
-    
-a2 = ring_profile()
-a0.load(8,images2, key_radius='full', verbose=False).plot_azimuthal(smooth=3)
-
-groups = [7,8]
-
-
-
-a1.flatten(a=a_ref)
-a0.flatten(a=a_ref)
-a2.flatten(a=a_ref)
-
-plt.imshow(a0.profile_azimuth_arr_2d, aspect=20, origin='lower')
-plt.show()
-plt.imshow(a1.profile_azimuth_arr_2d, aspect=20, origin='lower')
-plt.show()
-plt.imshow(a2.profile_azimuth_arr_2d, aspect=20, origin='lower')
-plt.show()
-
-plt.plot
-
-
 a2 = ring_profile()
 a2.load(8,hbt.frange(0,48),key_radius='core').plot(plot_legend=False)
 #a2.plot()
@@ -2806,3 +2776,21 @@ plt.title(self)
 plt.legend()
 plt.show()
         
+
+## One-off to test flattening, which used to work but broke
+group = 8
+images_i = hbt.frange(20,25)
+a0 = ring_profile()
+a0.load(group,images_i,key_radius='full', verbose=False)
+((im_mosaic, mask_mosaic), (profile_im, profile_masked), az_arr) = a0.make_strip_mosaic(do_plot=True, xlim = (0,6300))
+a0.flatten()
+a0.plot_azimuthal_2d()
+
+a0.plot_azimuthal(xlim=[0,360])
+
+a0.flatten(a=a_ref)
+
+a0_flat = a0.copy()
+a0_flat.flatten(a=a_ref)
+if (smoothing):
+    a0_flat.smooth_azimuthal(smoothing)
