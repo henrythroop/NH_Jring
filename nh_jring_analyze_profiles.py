@@ -119,11 +119,11 @@ class ring_profile:
     def __str__(self):
         
         if self.is_flattened:
-           return("Ring profile, {}/{}".format(self.index_group_arr[0], 
+           return("{}/{}".format(self.index_group_arr[0], 
                self.index_image_arr[0]))
 
         else:
-            return("Ring profile, {}/{}-{}".format(self.index_group_arr[0], 
+            return("{}/{}-{}".format(self.index_group_arr[0], 
                self.index_image_arr[0],
                self.index_image_arr[-1])) 
 
@@ -828,7 +828,8 @@ class ring_profile:
             if smooth:
                 y = convolve(y, kernel, boundary='wrap', preserve_nan=True)
 
-            plt.plot(self.azimuth_arr[i]*hbt.r2d, 
+#            plt.plot(self.azimuth_arr[i]*hbt.r2d, 
+            plt.plot(self.azimuth_arr[i]*1000, 
                      (i * dy) + y,  
                      label = '{}/{}, {:.2f}°'.format(
                              self.index_group_arr[i], 
@@ -853,7 +854,7 @@ class ring_profile:
         
             # XXX Right now I'm not really sure of the point of this, so we do not do it.
             
-        plt.xlabel('Azimuth [deg]')
+        plt.xlabel('Azimuth [mrad]')
         plt.ylabel(self.profile_azimuth_units)
         if plot_legend:
             plt.legend(fontsize=8)
@@ -949,7 +950,7 @@ class ring_profile:
 
     def make_strip_mosaic(self, a_orbit=127_900*u.km, gap_y_pix=1, 
                           y0_extract = 415, dy_extract=50, do_plot=False, do_plot_masked=False,
-                          do_plot_profile = True,
+                          do_plot_profile = False,
                           do_unwind = True, dwidth_chop = 0, xlim=None):
         """
         Create an image of individual strips, by extracting the ring region from many individual images.
@@ -1056,8 +1057,10 @@ class ring_profile:
             # mask_o = object mask (from SPICE)
             # mask_s = stray light mask (from Photoshop), *and* object mask, combined
             
-            mask_o = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
-            mask_s = self.mask_stray_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+            mask_o = \
+              self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
+            mask_s = \
+              self.mask_stray_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
             
             if (dwidth_chop):
                 mask_o = mask_o[:, dwidth_chop : -dwidth_chop]  # Make it less wide
@@ -1085,14 +1088,16 @@ class ring_profile:
         
         # Make plots, if requested
         
+        aspect = hbt.sizey(im_mosaic) / hbt.sizex(im_mosaic)/5
+        
         if do_plot:
             
-            plt.imshow(stretch(im_mosaic), origin='lower', aspect = hbt.sizey(im_mosaic) / hbt.sizex(im_mosaic)/5)
+            plt.imshow(stretch(im_mosaic), origin='lower', aspect = aspect)
             plt.title(self)
             plt.show()
         
         if do_plot_masked:
-            plt.imshow(stretch(im_mosaic * mask_mosaic), origin='lower')
+            plt.imshow(stretch(im_mosaic * mask_mosaic), origin='lower', aspect = aspect)
             plt.title(f'{self}, Masked')
             plt.show()
         
@@ -2452,6 +2457,100 @@ plt.ylabel('DN')
 plt.legend(fontsize=10)
 plt.show()
 
+#%%%
+
+# =============================================================================
+# Make a large, high-quality plot of the best datasets, which is 7 and 8.
+# =============================================================================
+
+
+group  = [8, 8]
+
+images = [hbt.frange(0,48),  # No masking here. It was not done?
+#          hbt.frange(32,48),
+#          hbt.frange(50,53),
+          hbt.frange(54,107)]
+
+do_short = False
+if do_short:
+    group =  [group[0]]
+    images = [images[0]]
+
+profiles_good = []
+profiles_bad  = []
+im_mosaics    = []
+labels        = []
+
+for i in range(len(images)):
+    group_i = group[i]
+    images_i = images[i]
+    
+    ring = ring_profile()
+    ring.load(group_i,images_i,key_radius='core')
+    
+    dwidth_chop = 200
+    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), az_arr) = \
+      ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dwidth_chop)
+
+    im_mosaics.append(im_mosaic)
+    labels.append(ring.__str__())
+    
+    profiles_bad.append(profile_masked)  # Save the profile made by simply summing the image
+
+    ring.flatten()
+    profiles_good.append(ring.profile_azimuth_arr[0])  # Save the profile made by (data-(inner+outer)/2)
+
+
+
+
+                                         
+    
+# Now make a plot showing all the profiles together
+
+width=10
+linewidth=4
+
+hbt.figsize(20,10)
+hbt.fontsize(18)    
+for i in range(len(images)):
+    plt.plot(hbt.smooth(profiles_good[i], width), alpha=0.5, label=labels[i], linewidth=linewidth)
+plt.ylabel('DN/pixel')
+plt.xlabel('Azimuth [mrad]')
+plt.title('J-Ring Azimuthal Brightness Map')
+
+
+# Unwrap Metis and Adrastea
+
+bodies = ['Metis', 'Adrastea']
+for body in bodies:
+    plt.plot([], [])  # Advance to next color, since axvline() doesn't do so.
+    (pt, _, srfvec) = sp.subpnt('intercept: ellipsoid', 'Jupiter', ring.et_arr[0], 'IAU_JUPITER', 'LT', body)
+    (radius,lon,lat) = sp.reclat(pt)
+    dist = sp.vnorm(srfvec - pt)
+    lon_unwind = unwind_orbital_longitude(lon,ring.et_arr[0], 'Jupiter', a_orbit=dist*u.km)
+    plt.axvline(x=lon_unwind*1000, linestyle = '--', label=body)
+
+plt.legend()    
+
+# Now, overlay the image on this
+
+plt.imshow(im_mosaic)
+plt.show()    
+
+plt.plot(profiles_good[0], profiles_good[1], linestyle='none', marker = 'o', alpha=0.2)
+    
+    # Plot the 
+    
+    ring_flat = ring.copy()
+    ring_flat.flatten()
+    ring_flat.plot_azimuthal(smooth=3)    
+    ring_flat.plot_azimuthal_2d()    
+    
+plt.set_cmap('plasma')
+
+a_ref = 127_900*u.km
+xlim  = (5, 6.5)
+smoothing = None
 
 #%%%
 
@@ -2604,60 +2703,6 @@ plt.subplot(2,2,4)
 plt.imshow(a.mask_objects_unwrapped_arr[9], aspect=0.3)
 plt.show()
 
-
-# =============================================================================
-# One-off to compare versions of Jupiter kernels to get Metis / Adrastea sub-lons for right now
-# =============================================================================
-
-bodies = ['Metis', 'Adrastea']
-
-kernel_files = np.array(['kernels_nh_jupiter.tm', 'kernels/jup310.bsp'])
-for file in kernel_files:
-    sp.furnsh(file)
-    bodies = ['Adrastea', 'Metis']
-    for body in bodies:
-        (pt, et_pt, vec) = sp.subpnt('Intercept: Ellipsoid', 'Jupiter', sp.utc2et('25 Apr 2007'), 'IAU_JUPITER', 'LT', 
-                                     body.upper())
-        (rad, lon, lat)  = sp.reclat(vec)  # Returns longitude in radians
-        print(f'With file {file}, body={body} → lon = {lon*hbt.r2d}')
-#        lon_unwind = unwind_orbital_longitude(lon, a0.et_arr[0], 'Jupiter', a0.A_METIS*u.km)
-
-    plt.plot(self.azimuth_arr[0])    
-#    plt.plot(self.azimuth_arr[1])    
-    plt.plot(self.azimuth_arr[2])
-    plt.plot(self.azimuth_arr[3])
-    plt.xlabel('Pixel #')
-    plt.title(self)           
-    plt.ylabel('Azimuth [rad]')           
-               
-## One-off to resample images
-
-im_mosaic_2 = im_mosaic.copy()
-im_mosaic_2[np.isnan(im_mosaic_2)] = -999
-im_mosaic_2 = scipy.ndimage.zoom(im_mosaic_2, (2, 0.5))
-im_mosaic_2[im_mosaic_2 == -999] = np.nan
-plt.imshow(stretch(im_mosaic))
-plt.show()
-plt.imshow(stretch(im_mosaic_2))
-plt.show()
-
-
-# One-off: Determine max azimuthal resolution
-
-ring = ring_profile()
-ring.load(8,hbt.frange(0,48), key_radius='full')  # masked = non-masked
-
-ring = None
-ring = ring_profile()
-ring.load(8,hbt.frange(54,111), key_radius='full') # Has masked
-
-((im,mask),(profile, profile_masked), az_arr)=\
-    ring.make_strip_mosaic(do_plot_masked=True, do_unwind=True, do_plot=True, do_plot_profiles=True, dwidth_chop=0)
-    
-plt.plot(profile)
-plt.plot(profile_masked)
-plt.show()
-
 ((im,mask),(profile, profile_masked), az_arr)=\
     ring.make_strip_mosaic(do_plot_masked=True, do_unwind=True, do_plot=True, do_plot_profiles=True, dwidth_chop=0)
 
@@ -2779,18 +2824,10 @@ plt.show()
 
 ## One-off to test flattening, which used to work but broke
 group = 8
-images_i = hbt.frange(20,25)
+images_i = hbt.frange(97,100)
 a0 = ring_profile()
 a0.load(group,images_i,key_radius='full', verbose=False)
 ((im_mosaic, mask_mosaic), (profile_im, profile_masked), az_arr) = a0.make_strip_mosaic(do_plot=True, xlim = (0,6300))
 a0.flatten()
 a0.plot_azimuthal_2d()
-
-a0.plot_azimuthal(xlim=[0,360])
-
-a0.flatten(a=a_ref)
-
-a0_flat = a0.copy()
-a0_flat.flatten(a=a_ref)
-if (smoothing):
-    a0_flat.smooth_azimuthal(smoothing)
+a0.plot_azimuthal(xlim=(0,360))
