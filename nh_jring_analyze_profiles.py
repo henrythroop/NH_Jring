@@ -951,7 +951,7 @@ class ring_profile:
     def make_strip_mosaic(self, a_orbit=127_900*u.km, gap_y_pix=1, 
                           y0_extract = 415, dy_extract=50, do_plot=False, do_plot_masked=False,
                           do_plot_profile = False,
-                          do_unwind = True, dwidth_chop = 0, xlim=None):
+                          do_unwind = True, dwidth_chop = 0, xlim=None, et_ref = 0):
         """
         Create an image of individual strips, by extracting the ring region from many individual images.
         
@@ -982,6 +982,9 @@ class ring_profile:
 
         do_plot:
             Boolean. If set, make some plots.
+            
+        et_ref:
+            Epoch to unwind longitude to.
              
             
         Return values:
@@ -1015,7 +1018,7 @@ class ring_profile:
         for j in range(self.num_profiles):
         
             lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
-                            'Jupiter', a_orbit=127_900*u.km)
+                            'Jupiter', a_orbit=a_orbit, et_ref = et_ref)
         
             lon0_unwind_pix[j] = (lon0_unwind_rad[j] - self.azimuth_arr[j][0]) / rad_per_pix
         
@@ -1114,104 +1117,6 @@ class ring_profile:
         
         return((im_mosaic, mask_mosaic), (profile_im, profile_masked), az_arr)
 
-        
-        
-#        # Look at the different azimuthal lengths here. Calculate the longest one, in a brute force way. Ugh.
-#        
-#        dx_extract = 0
-#        for i in range(self.num_profiles):
-#            dx_extract = max( len(self.azimuth_arr[i]), dx_extract )
-#            
-##        dx_extract = np.shape(self.image_unwrapped_arr[0])[1]  # Width of the extracted segment
-#        
-#        if do_unwind:
-#            im_mosaic = np.zeros((dy_extract*self.num_profiles, dx_extract))  # Images are y, x
-#            im_mosaic[:,:] = np.nan
-#        
-#            mask_mosaic = im_mosaic.copy()
-#
-#            lon0_unwind_rad = np.zeros(self.num_profiles)
-#            lon0_unwind_pix = np.zeros(self.num_profiles)
-#            
-#            rad_per_pix = self.azimuth_arr[0][1] - self.azimuth_arr[0][0]
-#        
-#            # Loop and calculate the unwinding amount for each image
-#            
-#            for j,image in enumerate(self.index_image_arr):
-#
-#                lon0_unwind_rad[j] = unwind_orbital_longitude(self.azimuth_arr[j][0], self.et_arr[j], 
-#                                'Jupiter', a_orbit=a_orbit).value
-#            
-#                lon0_unwind_pix[j] = (lon0_unwind_rad[j] - self.azimuth_arr[j][0]) / rad_per_pix
-#            
-#            # Loop and add each strip to the output extraction array
-#
-#            for j,image in enumerate(self.index_image_arr):
-#                                                                
-#                im = self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
-#                im = np.roll(im, int(lon0_unwind_pix[j]), axis=1)
-#                                
-#                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(im)] = im
-#
-#                mask = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
-#                mask = np.roll(mask, int(-lon0_unwind_pix[j]), axis=1)
-#                
-#                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(mask)] = mask
-#            
-#            # Plot, if requested
-#            
-#            if do_plot:
-#                
-#                az = self.azimuth_arr[0]
-#                extent = np.array([az[0], az[-1], self.index_image_arr[0], self.index_image_arr[-1]])
-#                aspect = (extent[1]-extent[0]) / (extent[3] - extent[2])
-#                plt.imshow(stretch(im_mosaic),origin='lower', extent=extent, aspect=aspect/4)
-#                if (do_mask):
-#                    plt.imshow(stretch(im_mosaic * mask_mosaic), alpha=0.7, cmap='plasma', origin='lower', 
-#                               extent=extent, aspect=aspect/4)
-#                plt.title(f'Unwrapped, {self}, masked={do_mask}')
-#                for j,image in enumerate(self.index_image_arr):
-#                    plt.text(10, (j+0.5)*dy_extract, '{}/{}'.format(self.index_group_arr[j], self.index_image_arr[j]))
-#                plt.show()            
-#    
-#        # Create the output array
-#
-#        if not do_unwind:        
-#            im_mosaic = np.zeros((dy_extract*self.num_profiles, dx_extract))  # Images are y, x
-#            im_mosaic[:,:] = np.nan
-#        
-#            mask_mosaic = im_mosaic.copy()
-#        
-#            # Loop and add each strip to the output extraction array
-#            # Note that we use sizey() here. But that function is poorly named, because for *images* in python, sizey
-#            # is actually the x size of the image, not the y size.
-#            
-#            for j,image in enumerate(self.index_image_arr):
-#    
-#                im = self.image_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
-#                im_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(im)] = im
-#    
-#                mask = self.mask_objects_unwrapped_arr[j][y0_extract-int(dy_extract/2):y0_extract+int(dy_extract/2)-gap_y_pix]
-#                mask_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix,0:hbt.sizey(mask)] = mask
-#            
-#            # Plot, if requested
-#            
-#            if do_plot:
-#                
-#                az = self.azimuth_arr[0]
-#                extent = np.array([az[0], az[-1], self.index_image_arr[0], self.index_image_arr[-1]])
-#                aspect = (extent[1]-extent[0]) / (extent[3] - extent[2])
-#                plt.imshow(stretch(im_mosaic),origin='lower', extent=extent, aspect=aspect/4)
-#                if (do_mask):
-#                    plt.imshow(stretch(im_mosaic * mask_mosaic), alpha=0.7, cmap='plasma', origin='lower', 
-#                               extent=extent, aspect=aspect/4)
-#                plt.title(f'Unwrapped, {self}, masked={do_mask}')
-#                for j,image in enumerate(self.index_image_arr):
-#                    plt.text(10, (j+0.5)*dy_extract, '{}/{}'.format(self.index_group_arr[j], self.index_image_arr[j]))
-#                plt.show()
-        
-
-    
 
 # =============================================================================
 # Unwind an orbital longitude back to a common time frame
@@ -1262,10 +1167,9 @@ def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 127_900*u.km, e
         Orbital distance, from which to calculate Keplerian motin.
         
     et_ref:
-        ET, in seconds. This is the ET for which we want to put everything into the time base of.
+        ET, in seconds. This is the ET for which we want to put everything into the time base of (ie, the epoch).
         Default value is 0 (ie, roughly 1 Jan 2000 12:00:00, but about 64 sec from that, due to leap seconds etc.)
-    
-        
+      
     """
     
     name_body = 'jupiter'
@@ -2350,7 +2254,8 @@ for i,images_i in enumerate(images):  # Load each image set
     
     # Extract all the strips into an image, and show it.
     
-    (im_mosaic, mask_mosaic) = a0.make_strip_mosaic(do_plot=False, do_mask=True, do_unwind=True, a=127_900*u.km)
+    ((im_mosaic, mask_mosaic), (profile_im, profile_masked), az_arr)\
+    = a0.make_strip_mosaic(do_plot=False, do_plot_masked=True, do_unwind=True, a_orbit=127_900*u.km)
     
     # Make a series of TV plots
     
@@ -2418,7 +2323,7 @@ for i,images_i in enumerate(images):  # Load each image set
                                                   self.azimuth_arr[j],  # Array defining bins of azimuth
                                                   range_of_radius[key],        # range of rad used for az profile
                                                   'azimuth',
-                                                  mask_unwrapped = a0.mask_stray_unwrapped_arr[j])               # Remove the BG
+                                                  mask_unwrapped = a0.mask_stray_unwrapped_arr[j])      # Remove the BG
             
         profile_azimuth_masked_net = profile_azimuth_masked['core'] - (profile_azimuth_masked['inner'] + 
                               profile_azimuth_masked['outer'])/2
@@ -2460,18 +2365,22 @@ plt.show()
 #%%%
 
 # =============================================================================
-# Make a large, high-quality plot of the best datasets, which is 7 and 8.
+# Make a plot superimposing the unwrapped images, with the az profiles
+# This tests the unwrapping for consistency, by four different methods: 
+#   flatten() on profiles
+#   flatten() on a 2D image
+#   make_strip_mosaic()
+#   unwind_orbital_longitude() on Metis / Adrastea itself
+# Concl: Unwrapping is working well.
 # =============================================================================
-
 
 group  = [8, 8]
 
 images = [hbt.frange(0,48),  # No masking here. It was not done?
-#          hbt.frange(32,48),
-#          hbt.frange(50,53),
           hbt.frange(54,107)]
 
-do_short = False
+
+do_short = True
 if do_short:
     group =  [group[0]]
     images = [images[0]]
@@ -2481,6 +2390,8 @@ profiles_bad  = []
 im_mosaics    = []
 labels        = []
 
+et_ref = sp.utc2et('24 Feb 2007 00:00:00') # Reference ET to unwrap to.
+
 for i in range(len(images)):
     group_i = group[i]
     images_i = images[i]
@@ -2488,71 +2399,287 @@ for i in range(len(images)):
     ring = ring_profile()
     ring.load(group_i,images_i,key_radius='core')
     
+    # Define the longitude to unwrap to
+    # This can only be one body. If we unwrap to Metis, then Adrastea will be (slightly) mis-aligned, etc.
+    
+    a_ref = ring.A_METIS
+    
     dwidth_chop = 200
     ((im_mosaic, mask_mosaic),(profile_im, profile_masked), az_arr) = \
-      ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dwidth_chop)
+      ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dwidth_chop, 
+                             a_orbit = a_ref, et_ref = et_ref)
 
     im_mosaics.append(im_mosaic)
     labels.append(ring.__str__())
     
     profiles_bad.append(profile_masked)  # Save the profile made by simply summing the image
 
-    ring.flatten()
+    ring.flatten(a=a_ref, et=et_ref)
     profiles_good.append(ring.profile_azimuth_arr[0])  # Save the profile made by (data-(inner+outer)/2)
-
-
-
-
-                                         
     
-# Now make a plot showing all the profiles together
+# Now make a plot superimposing the radial profiles, with the stacked mosaics
 
-width=10
-linewidth=4
+width     = 10
+linewidth = 4
 
 hbt.figsize(20,10)
-hbt.fontsize(18)    
+hbt.fontsize(18)
+
 for i in range(len(images)):
-    plt.plot(hbt.smooth(profiles_good[i], width), alpha=0.5, label=labels[i], linewidth=linewidth)
+    plt.plot(hbt.smooth(profiles_good[i], width, boundary='wrap'), alpha=0.5, 
+             label=labels[i] + ' (Extracted, hi-qual)',     linewidth=linewidth)
+    plt.plot(hbt.smooth(profiles_bad[i],  width, boundary='wrap'), alpha=0.5, 
+             label=labels[i] + ' (Summed Images, lo-qual)', linewidth=linewidth/2, ls='--')
+    
 plt.ylabel('DN/pixel')
 plt.xlabel('Azimuth [mrad]')
-plt.title('J-Ring Azimuthal Brightness Map')
-
+plt.title(f'J-Ring Azimuthal Brightness Map, with Unwrapped Data, {ring}')
 
 # Unwrap Metis and Adrastea
 
-bodies = ['Metis', 'Adrastea']
+#bodies = ['Metis', 'Adrastea']
+bodies = ['Metis']
+
 for body in bodies:
     plt.plot([], [])  # Advance to next color, since axvline() doesn't do so.
-    (pt, _, srfvec) = sp.subpnt('intercept: ellipsoid', 'Jupiter', ring.et_arr[0], 'IAU_JUPITER', 'LT', body)
+
+    # Look up longitude of body using SPICE
+
+    (pt, _, srfvec)  = sp.subpnt('intercept: ellipsoid', 'Jupiter', ring.et_arr[0], 'IAU_JUPITER', 'LT', body)
     (radius,lon,lat) = sp.reclat(pt)
     dist = sp.vnorm(srfvec - pt)
-    lon_unwind = unwind_orbital_longitude(lon,ring.et_arr[0], 'Jupiter', a_orbit=dist*u.km)
+    
+    # Unwind this longitude to the one in the past
+    
+    lon_unwind = unwind_orbital_longitude(lon, ring.et_arr[0], 'Jupiter', a_orbit=a_ref, et_ref = et_ref)
+    
+    # And make a plot
+    
     plt.axvline(x=lon_unwind*1000, linestyle = '--', label=body)
 
-plt.legend()    
+plt.legend(loc = 'lower right')    
 
-# Now, overlay the image on this
+# Now, overlay the image mosaic stack on this plot
 
-plt.imshow(im_mosaic)
+plt.imshow(stretch(mask_mosaic*im_mosaic), origin='lower', extent=(0,6300,1,5), aspect=600)
 plt.show()    
 
-plt.plot(profiles_good[0], profiles_good[1], linestyle='none', marker = 'o', alpha=0.2)
-    
-    # Plot the 
-    
-    ring_flat = ring.copy()
-    ring_flat.flatten()
-    ring_flat.plot_azimuthal(smooth=3)    
-    ring_flat.plot_azimuthal_2d()    
-    
-plt.set_cmap('plasma')
+# For comparison, plot the map generated not from images, but from extracted profiles
 
-a_ref = 127_900*u.km
-xlim  = (5, 6.5)
-smoothing = None
+do_plot_map_extracted = True
+if do_plot_map_extracted:    
+    plt.imshow(ring.profile_azimuth_arr_2d, aspect=45, origin='lower')
+    plt.title(f'J-Ring Azimuthal Brightness Map, from Individual Az Profiles, {ring}')
+    plt.ylabel(f'Image Number, {ring}')
+    plt.show()
 
 #%%%
+
+# =============================================================================
+# Make a plot superimposing results from highest quality regions, 7 and 8
+# =============================================================================
+
+group  = [7, 8, 8]
+
+images = [hbt.frange(0,42),
+          hbt.frange(0,48),  # No masking here. It was not done?
+          hbt.frange(54,107)]
+
+profiles_good = []
+profiles_bad  = []
+im_mosaics    = []
+labels        = []
+
+et_ref = sp.utc2et('24 Feb 2007 00:00:00') # Reference ET to unwrap to.
+
+for i in range(len(images)):
+    group_i = group[i]
+    images_i = images[i]
+    
+    ring = ring_profile()
+    ring.load(group_i,images_i,key_radius='core')
+    
+    # Define the longitude to unwrap to
+    # This can only be one body. If we unwrap to Metis, then Adrastea will be (slightly) mis-aligned, etc.
+    
+    a_ref = ring.A_METIS
+    
+    dwidth_chop = 200
+    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), az_arr) = \
+      ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dwidth_chop, 
+                             a_orbit = a_ref, et_ref = et_ref)
+
+    im_mosaics.append(im_mosaic)
+    labels.append(ring.__str__())
+    
+    profiles_bad.append(profile_masked)  # Save the profile made by simply summing the image
+
+    ring.flatten(a=a_ref, et=et_ref)
+    profiles_good.append(ring.profile_azimuth_arr[0])  # Save the profile made by (data-(inner+outer)/2)
+    
+# Now make a plot superimposing the radial profiles, with the stacked mosaics
+
+width     = 10
+linewidth = 4
+
+hbt.figsize(20,10)
+hbt.fontsize(18)
+
+for i in range(len(images)):
+    plt.plot(hbt.smooth(profiles_good[i], width, boundary='wrap'), alpha=0.5, 
+             label=labels[i] + ' (Extracted, hi-qual)',     linewidth=linewidth)
+    plt.plot(hbt.smooth(profiles_bad[i],  width, boundary='wrap'), alpha=0.5, 
+             label=labels[i] + ' (Summed Images, lo-qual)', linewidth=linewidth/2, ls='--')
+    
+plt.ylabel('DN/pixel')
+plt.xlabel('Azimuth [mrad]')
+plt.title(f'J-Ring Azimuthal Brightness Map, with Unwrapped Data')
+
+# Unwrap Metis and Adrastea
+
+#bodies = ['Metis', 'Adrastea']
+bodies = ['Metis']
+
+for body in bodies:
+    plt.plot([], [])  # Advance to next color, since axvline() doesn't do so.
+
+    # Look up longitude of body using SPICE
+
+    (pt, _, srfvec)  = sp.subpnt('intercept: ellipsoid', 'Jupiter', ring.et_arr[0], 'IAU_JUPITER', 'LT', body)
+    (radius,lon,lat) = sp.reclat(pt)
+    dist = sp.vnorm(srfvec - pt)
+    
+    # Unwind this longitude to the one in the past
+    
+    lon_unwind = unwind_orbital_longitude(lon, ring.et_arr[0], 'Jupiter', a_orbit=a_ref, et_ref = et_ref)
+    
+    # And make a plot
+    
+    plt.axvline(x=lon_unwind*1000, linestyle = '--', label=body)
+
+plt.legend(loc = 'lower right')    
+
+# Now, overlay the image mosaic stack on this plot
+
+#plt.imshow(stretch(mask_mosaic*im_mosaic), origin='lower', extent=(0,6300,1,5), aspect=600)
+#plt.show()    
+#
+## For comparison, plot the map generated not from images, but from extracted profiles
+#
+#do_plot_map_extracted = True
+#if do_plot_map_extracted:    
+#    plt.imshow(ring.profile_azimuth_arr_2d, aspect=45, origin='lower')
+#    plt.title(f'J-Ring Azimuthal Brightness Map, from Individual Az Profiles, {ring}')
+#    plt.ylabel(f'Image Number, {ring}')
+#    plt.show()
+
+plt.show()
+
+
+
+#%%%
+
+# =============================================================================
+# Make a high-quality large stacked image output of the best two sequences, 
+# which we can take into Photoshop or DS9 for analysis.
+# =============================================================================
+
+group  = [8, 8]
+
+images = [hbt.frange(0,8),  
+          hbt.frange(54,107)]
+
+profiles_good = []
+profiles_bad  = []
+im_mosaics    = []
+labels        = []
+
+et_ref = sp.utc2et('24 Feb 2007 00:00:00') # Reference ET to unwrap to.
+
+for i in range(len(images)):
+    
+    group_i = group[i]
+    images_i = images[i]
+    num_images = len(images_i)
+
+    figsize_base = 10
+    hbt.figsize((figsize_base,figsize_base))
+    
+    ring = ring_profile()
+    ring.load(group_i,images_i,key_radius='core')
+    
+    num_az = hbt.sizex_im(im_mosaic)
+    num_profiles = len(images_i)
+    
+    # Define the longitude to unwrap to
+    # This can only be one body. If we unwrap to Metis, then Adrastea will be (slightly) mis-aligned, etc.
+    
+    a_ref = ring.A_METIS
+    
+    dwidth_chop = 200
+    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), az_arr) = \
+      ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dwidth_chop, 
+                             a_orbit = a_ref, et_ref = et_ref)
+
+    im_mosaics.append(im_mosaic)
+    labels.append(ring.__str__())
+
+    aspect = num_az / num_profiles
+
+    plt.imshow(stretch(            im_mosaic), origin='lower', extent=(0,6300,0,num_profiles-1), aspect=aspect, alpha=0.5)
+    plt.imshow(stretch(mask_mosaic*im_mosaic), origin='lower', extent=(0,6300,0,num_profiles-1), aspect=aspect)
+    plt.xlabel('Azimuth [mrad]')
+    plt.ylabel(f'Image Number, {ring}')
+    file_out = (f'mosaic_{i}.png')
+    plt.savefig(f'mosaic_{i}.png')
+    plt.tight_layout()
+    plt.show()    
+    print(f'Wrote: {file_out}')
+    
+
+    
+# Now make a plot superimposing the radial profiles, with the stacked mosaics
+
+
+hbt.figsize(20,10)
+hbt.fontsize(18)
+
+
+plt.xlabel('Azimuth [mrad]')
+plt.title(f'J-Ring Azimuthal Brightness Map, with Unwrapped Data, {ring}')
+
+
+plt.legend(loc = 'lower right')    
+
+# Plot the image mosaic stack
+
+
+# For comparison, plot the map generated not from images, but from extracted profiles
+
+do_plot_map_extracted = True
+if do_plot_map_extracted:    
+    plt.imshow(ring.profile_azimuth_arr_2d, aspect=45, origin='lower')
+    plt.title(f'J-Ring Azimuthal Brightness Map, from Individual Az Profiles, {ring}')
+    plt.ylabel(f'Image Number, {ring}')
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 a2 = ring_profile()
 a2.load(8,hbt.frange(0,48),key_radius='core').plot(plot_legend=False)
