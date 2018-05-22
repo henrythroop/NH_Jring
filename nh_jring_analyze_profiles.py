@@ -31,7 +31,7 @@ from   matplotlib.figure import Figure
 import numpy as np
 import astropy.modeling
 
-from scipy import signal, fftpack
+from   scipy import signal, fftpack
 
 import spiceypy as sp
 #from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
@@ -47,7 +47,7 @@ import time
 from   scipy.interpolate import griddata
 from   importlib import reload            # So I can do reload(module)
 
-from astropy.convolution import Box1DKernel, Gaussian1DKernel, convolve
+from   astropy.convolution import Box1DKernel, Gaussian1DKernel, convolve
 from   pymiecoated import Mie
 
 from   scipy.stats import linregress
@@ -56,7 +56,7 @@ import re # Regexp
 import pickle # For load/save
 
 from   matplotlib.figure import Figure
-from scipy import interpolate
+from   scipy import interpolate
 
 # HBT imports
 
@@ -66,13 +66,13 @@ import hbt
 
 from  nh_jring_mask_from_objectlist            import nh_jring_mask_from_objectlist
 
-from nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
-from nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
+from  nh_jring_mask_from_objectlist             import nh_jring_mask_from_objectlist
+from  nh_jring_unwrap_ring_image                import nh_jring_unwrap_ring_image
 
-from nh_jring_extract_profile_from_unwrapped   import nh_jring_extract_profile_from_unwrapped
+from  nh_jring_extract_profile_from_unwrapped   import nh_jring_extract_profile_from_unwrapped
 
-from scatter_mie_ensemble                      import scatter_mie_ensemble
-from area_between_line_curve                   import area_between_line_curve
+from  scatter_mie_ensemble                      import scatter_mie_ensemble
+from  area_between_line_curve                   import area_between_line_curve
 
 # For fun, I'm going to try to do this whole thing as a class. That makes it easier to pass 
 # params back and forth, I guess. [A: Yes, this is a great place for a class -- very clean.]
@@ -92,9 +92,11 @@ class ring_profile:
         file_pickle = 'nh_jring_read_params_571.pkl'     # Filename to read to get filenames, etc.
         dir_out     = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
             
+        self.dir_out = dir_out
+
         self.is_flattened = False
         
-        lun = open(dir_out + file_pickle, 'rb')
+        lun = open(self.dir_out + file_pickle, 'rb')
         self.t = pickle.load(lun)                        # Self.t is the *entire* table for all J-ring obs, not subset.
         lun.close()
         
@@ -111,6 +113,7 @@ class ring_profile:
         
         self.A_METIS    = 127979.8*u.km        # Orbital distance, in km. From SCW07
         self.A_ADRASTEA = 128980.5*u.km        # Orbital distance, in km. From SCW07
+        
 
 # =============================================================================
 # Define the 'string' for the class. This is the human-readable value returned when we do   print(ring)
@@ -1010,6 +1013,12 @@ class ring_profile:
         mask_o_mosaic    = im_mosaic.copy()
         mask_s_mosaic    = im_mosaic.copy()
         
+        im_strip         = np.zeros((dy_extract, width_mosaic_pix))
+        im_strip_arr     = np.zeros((self.num_profiles, dy_extract, width_mosaic_pix))
+        
+        mask_strip       = im_strip.copy()
+        mask_strip_arr   = im_strip_arr.copy()
+        
         lon0_unwind_rad = np.zeros(self.num_profiles)
         lon0_unwind_pix = np.zeros(self.num_profiles)
                  
@@ -1078,6 +1087,11 @@ class ring_profile:
             mask_s_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :] = \
               np.roll(mask_s_mosaic[(j*dy_extract):((j+1)*dy_extract)-gap_y_pix, :], x0, axis=1)
          
+            # Now grab these rolled images, and save them in a place where will stack them later. A single long strip.
+            
+            mask_strip_arr[j,:,:] = mask_s_mosaic[(j*dy_extract):((j+1)*dy_extract), :]
+            im_strip_arr[j,:,:]   = im_mosaic[(j*dy_extract):((j+1)*dy_extract), :]
+            
         mask_mosaic = mask_s_mosaic.copy()
         
         # Convert the mask from a Boolean mask, to a NaN mask. 1 = Good, NaN = bad, and nothing in between
@@ -1088,6 +1102,12 @@ class ring_profile:
         
         profile_im     = np.nanmedian(im_mosaic,               axis=0)
         profile_masked = np.nanmedian(im_mosaic * mask_mosaic, axis=0)
+        
+        # Construct a single long strip of the image
+        
+        mask_strip_arr[mask_strip_arr == 0] = np.nan   # Change 0 → nan
+        im_strip     = np.nanmedian(im_strip_arr, axis=0)
+        masked_strip = np.nanmedian(mask_strip_arr * im_strip_arr, axis=0)
         
         # Make plots, if requested
         
@@ -1115,7 +1135,7 @@ class ring_profile:
             
         # Return results
         
-        return((im_mosaic, mask_mosaic), (profile_im, profile_masked), az_arr)
+        return((im_mosaic, mask_mosaic), (profile_im, profile_masked), (im_strip, masked_strip), az_arr)
 
 
 # =============================================================================
@@ -1241,12 +1261,69 @@ def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 127_900*u.km, e
     
     return lon_out
 
+#%%%
+    
+def merge_mosaic_strip(mosaic, strip, gap_y_pix = 1):
+    """
+    Make a meger of the mosaic, and the strip.
+    The 1D strip is repeated over and over. The mosaic is placed on top of that.
+    
+    Typical sizes: strip  = (100,6300),   since it is one azimuthal map of the ring
+                   mosaic = (5000, 6300)  since it is 50 individual (and incomplete) azimuthal maps of the ring
+                   
+    This is a regular function -- not part of the class.
+
+    Parameters
+    -----
+
+    mosaic: Typical (n x 100) x 6300
+
+    strip: Typically 100 x 6300     
+           
+    """
+           
+    ###
+    
+    stack = mosaic.copy()
+    dy = hbt.sizey_im(strip)
+    
+    num_strips = int(hbt.sizey_im(mosaic) / hbt.sizey_im(strip))
+
+    for i in range(num_strips):
+        stack[i*dy:(i+1)*dy,:] = strip
+    
+    # Make an edge mask
+    
+    out = mosaic.copy()
+    is_nan = np.isnan(out)
+    is_val = np.logical_not(np.isnan(out))
+    out[is_nan] = 0
+    out[is_val] = 1  # out is now 0 for off-mosaic, and 1 for on mosaic
+    kernel = astropy.convolution.Gaussian2DKernel(3)
+    out_c = convolve(out, kernel) # 10 sec to execute
+    mask = np.logical_and((out_c > 0), np.logical_not(out))  # True for good pixels
+    is_edge = (mask - out_c) > 0
+    
+    # What I want is a mask of pixels which are off the mosaic, but have out_c > 0
+    # I'll just set these values to np.nan.
+    
+    is_good = np.logical_not(np.isnan(mosaic))
+    
+    # Copy the good pixels over
+    
+    stack[is_good] = mosaic[is_good]
+    
+    # Set the edge pixels (ie, within a few pix of the good ones) to nan, to mark a border
+    
+    stack[is_edge] = np.nan
+    
+    return stack
     
     ###  Jupiter Prime Meridian:      W       =  284.95  + 870.5366420 d"  pm[0] = 284; pm[1] = 870.
 #%%%    
 # =============================================================================
 # # ===========================================================================
-# # END OF CLASS DEFINITION ###################################################
+# # END OF CLASS AND FUNCTION DEFINITION ###################################################
 # # ===========================================================================
 # =============================================================================
 
@@ -2254,7 +2331,7 @@ for i,images_i in enumerate(images):  # Load each image set
     
     # Extract all the strips into an image, and show it.
     
-    ((im_mosaic, mask_mosaic), (profile_im, profile_masked), az_arr)\
+    ((im_mosaic, mask_mosaic), (profile_im, profile_masked), strip, az_arr)\
     = a0.make_strip_mosaic(do_plot=False, do_plot_masked=True, do_unwind=True, a_orbit=127_900*u.km)
     
     # Make a series of TV plots
@@ -2402,10 +2479,10 @@ for i in range(len(images)):
     # Define the longitude to unwrap to
     # This can only be one body. If we unwrap to Metis, then Adrastea will be (slightly) mis-aligned, etc.
     
-    a_ref = ring.A_METIS
+    a_ref = ring.A_ADRASTEA
     
     dwidth_chop = 200
-    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), az_arr) = \
+    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), strip, az_arr) = \
       ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dwidth_chop, 
                              a_orbit = a_ref, et_ref = et_ref)
 
@@ -2438,7 +2515,7 @@ plt.title(f'J-Ring Azimuthal Brightness Map, with Unwrapped Data, {ring}')
 # Unwrap Metis and Adrastea
 
 #bodies = ['Metis', 'Adrastea']
-bodies = ['Metis']
+bodies = ['Adrastea']
 
 for body in bodies:
     plt.plot([], [])  # Advance to next color, since axvline() doesn't do so.
@@ -2502,10 +2579,10 @@ for i in range(len(images)):
     # Define the longitude to unwrap to
     # This can only be one body. If we unwrap to Metis, then Adrastea will be (slightly) mis-aligned, etc.
     
-    a_ref = ring.A_METIS
+    a_ref = ring.A_ADRASTEA
     
     dwidth_chop = 200
-    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), az_arr) = \
+    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), strip, az_arr) = \
       ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dwidth_chop, 
                              a_orbit = a_ref, et_ref = et_ref)
 
@@ -2614,10 +2691,10 @@ for i in range(len(images)):
     # Define the longitude to unwrap to
     # This can only be one body. If we unwrap to Metis, then Adrastea will be (slightly) mis-aligned, etc.
     
-    a_ref = ring.A_METIS
+    a_ref = ring.A_ADRASTEA
     
     dwidth_chop = 200
-    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), az_arr) = \
+    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), (im_strip, masked_strip), az_arr) = \
       ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dwidth_chop, 
                              a_orbit = a_ref, et_ref = et_ref)
 
@@ -2630,13 +2707,53 @@ for i in range(len(images)):
     plt.imshow(stretch(mask_mosaic*im_mosaic), origin='lower', extent=(0,6300,0,num_profiles-1), aspect=aspect)
     plt.xlabel('Azimuth [mrad]')
     plt.ylabel(f'Image Number, {ring}')
-    file_out = (f'mosaic_{i}.png')
-    plt.savefig(f'mosaic_{i}.png')
-    plt.tight_layout()
+    file_base = (f'mosaic_{ring}.png').replace('/', '_')
+    file_out = (os.path.join(ring.dir_out, file_base))
+
     plt.show()    
+    
+    # Save the mosaics to disk as PNGs
+    
+    plt.imsave(file_out, im_mosaic, cmap = plt.cm.plasma, origin = 'lower')
     print(f'Wrote: {file_out}')
     
+    file_out_tmp = file_out.replace('.png', '_stretch.png')
+    plt.imsave(file_out_tmp, stretch(im_mosaic), cmap=plt.cm.plasma, origin = 'lower')
+    print(f'Wrote: {file_out_tmp}')
+    
+    file_out_tmp = file_out.replace('.png', '_mask_stretch.png')
+    plt.imsave(file_out_tmp, stretch(im_mosaic * mask_mosaic), cmap=plt.cm.plasma, origin = 'lower')
+    print(f'Wrote: {file_out_tmp}')
+    
+    # Save the strips to disk as PNGs
+    
+    file_out = file_out.replace('mosaic', 'strip')
+    
+    plt.imsave(file_out, im_strip, cmap = plt.cm.plasma, origin = 'lower')
+    print(f'Wrote: {file_out}')
 
+    file_out_tmp = file_out.replace('.png', '_mask.png')
+    plt.imsave(file_out_tmp, masked_strip, cmap = plt.cm.plasma, origin = 'lower')
+    print(f'Wrote: {file_out}')
+
+    file_out_tmp = file_out.replace('.png', '_stretch.png')
+    plt.imsave(file_out_tmp, stretch(im_strip), cmap=plt.cm.plasma, origin = 'lower')
+    print(f'Wrote: {file_out_tmp}')
+    
+    file_out_tmp = file_out.replace('.png', '_mask_stretch.png')
+    plt.imsave(file_out_tmp, stretch(masked_strip), cmap=plt.cm.plasma, origin = 'lower')
+    print(f'Wrote: {file_out_tmp}')
+    
+    # Make a merged plot, of strips and mosaic together
+    
+    merged = merge_mosaic_strip(im_mosaic * mask_mosaic, masked_strip/2)
+    
+    file_out = file_out.replace('strip', 'merged')
+    plt.imsave(file_out, stretch(merged), cmap=plt.cm.plasma, origin = 'lower')
+    print(f'Wrote: {file_out}')
+    
+    
+#%%%
     
 # Now make a plot superimposing the radial profiles, with the stacked mosaics
 
@@ -2706,10 +2823,10 @@ a3.plot_azimuthal(smooth=10,xlim=(0,360))
 #.flatten().plot_radial()
 
 a1 = ring_profile()
-a1.load(8,hbt.frange(0,48),key_radius='core').flatten(a=a1.A_METIS)
+a1.load(8,hbt.frange(0,48),key_radius='core').flatten(a=a1.A_ADRASTEA)
 
 a2 = ring_profile()
-a2.load(8,hbt.frange(54,107),key_radius='core').flatten(a=a1.A_METIS).plot_azimuthal(xlim=(0,360),smooth=3)
+a2.load(8,hbt.frange(54,107),key_radius='core').flatten(a=a1.A_ADRASTEA).plot_azimuthal(xlim=(0,360),smooth=3)
 
 plt.plot(a1.azimuth_arr[0], a1.profile_azimuth_arr[0])
 plt.plot(a2.azimuth_arr[0], a2.profile_azimuth_arr[0])
@@ -2830,7 +2947,7 @@ plt.subplot(2,2,4)
 plt.imshow(a.mask_objects_unwrapped_arr[9], aspect=0.3)
 plt.show()
 
-((im,mask),(profile, profile_masked), az_arr)=\
+((im,mask),(profile, profile_masked), strip, az_arr)=\
     ring.make_strip_mosaic(do_plot_masked=True, do_unwind=True, do_plot=True, do_plot_profiles=True, dwidth_chop=0)
 
 profile8_1 = np.nanmedian(im, axis=0)
@@ -2840,7 +2957,7 @@ profile_mask8_1 = np.nanmedian(mask * im, axis=0)
 #plt.xlim((0,6300))
 #plt.show()
 
-((im,mask),(profile,profile_mask))=ring8_2.make_strip_mosaic(do_unwind=True, do_plot_image=True, 
+((im,mask),(profile,profile_mask), strip, az_arr)=ring8_2.make_strip_mosaic(do_unwind=True, do_plot_image=True, 
                                                              do_plot_profile=True)
 
 profile = np.nanmedian(im, axis=0)
