@@ -21,7 +21,7 @@ import glob
 from create_backplanes_fits import create_backplanes_fits
 from plot_backplanes        import plot_backplanes
 
-def nh_make_backplanes_ort():
+def nh_ort_make_backplanes():
     
     """
     Process all of the MU69 ORT files. 
@@ -47,6 +47,7 @@ def nh_make_backplanes_ort():
 # =============================================================================
     
     do_ORT1 = False
+    do_ORT3 = False
     do_ORT2 = True
     
 #    dir_data_ort = '/Users/throop/Data/ORT1'
@@ -75,11 +76,11 @@ def nh_make_backplanes_ort():
     
     do_digit_filter = True
 
-    digit_filter = '12'
+#    digit_filter = '12'
 #    digit_filter = '34'
 #    digit_filter = '56'
 #    digit_filter = '78'
-#    digit_filter = '90'
+    digit_filter = '90'
     
     if (do_digit_filter):
         files_filtered = []
@@ -140,5 +141,5 @@ def test():
 # =============================================================================
            
 if (__name__ == '__main__'):
-    nh_make_backplanes_ort()
+    nh_ort_make_backplanes()
             
