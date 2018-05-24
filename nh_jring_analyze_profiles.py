@@ -1299,7 +1299,7 @@ def merge_mosaic_strip(mosaic, strip, gap_y_pix = 1):
     is_val = np.logical_not(np.isnan(out))
     out[is_nan] = 0
     out[is_val] = 1  # out is now 0 for off-mosaic, and 1 for on mosaic
-    kernel = astropy.convolution.Gaussian2DKernel(3)
+    kernel = astropy.convolution.Gaussian2DKernel(1)
     out_c = convolve(out, kernel) # 10 sec to execute
     mask = np.logical_and((out_c > 0), np.logical_not(out))  # True for good pixels
     is_edge = (mask - out_c) > 0
@@ -2661,9 +2661,11 @@ plt.show()
 # which we can take into Photoshop or DS9 for analysis.
 # =============================================================================
 
-group  = [8, 8]
+group  = [5, 7, 8, 8]
 
-images = [hbt.frange(0,8),  
+images = [np.array([1,2,3,4,5,6]),
+          hbt.frange(0,42),
+          hbt.frange(0,48),  
           hbt.frange(54,107)]
 
 profiles_good = []
@@ -2693,64 +2695,72 @@ for i in range(len(images)):
     
     a_ref = ring.A_ADRASTEA
     
-    dwidth_chop = 200
-    ((im_mosaic, mask_mosaic),(profile_im, profile_masked), (im_strip, masked_strip), az_arr) = \
-      ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dwidth_chop, 
-                             a_orbit = a_ref, et_ref = et_ref)
-
-    im_mosaics.append(im_mosaic)
-    labels.append(ring.__str__())
-
-    aspect = num_az / num_profiles
-
-    plt.imshow(stretch(            im_mosaic), origin='lower', extent=(0,6300,0,num_profiles-1), aspect=aspect, alpha=0.5)
-    plt.imshow(stretch(mask_mosaic*im_mosaic), origin='lower', extent=(0,6300,0,num_profiles-1), aspect=aspect)
-    plt.xlabel('Azimuth [mrad]')
-    plt.ylabel(f'Image Number, {ring}')
-    file_base = (f'mosaic_{ring}.png').replace('/', '_')
-    file_out = (os.path.join(ring.dir_out, file_base))
-
-    plt.show()    
+    # Loop over dwidth. This is the width to *remove* from each end of each azimuthal scan. 
+    # Larger dwidth → fewer pixels used in the output array, and closer to the ansa.
     
-    # Save the mosaics to disk as PNGs
+    dwidth_chop = [200]  # Can set to 200 or 500
     
-    plt.imsave(file_out, im_mosaic, cmap = plt.cm.plasma, origin = 'lower')
-    print(f'Wrote: {file_out}')
+    for dw_i in dwidth_chop:
+        ((im_mosaic, mask_mosaic),(profile_im, profile_masked), (im_strip, masked_strip), az_arr) = \
+          ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dw_i, 
+                                 a_orbit = a_ref, et_ref = et_ref)
     
-    file_out_tmp = file_out.replace('.png', '_stretch.png')
-    plt.imsave(file_out_tmp, stretch(im_mosaic), cmap=plt.cm.plasma, origin = 'lower')
-    print(f'Wrote: {file_out_tmp}')
+        im_mosaics.append(im_mosaic)
+        labels.append(ring.__str__())
     
-    file_out_tmp = file_out.replace('.png', '_mask_stretch.png')
-    plt.imsave(file_out_tmp, stretch(im_mosaic * mask_mosaic), cmap=plt.cm.plasma, origin = 'lower')
-    print(f'Wrote: {file_out_tmp}')
+        aspect = num_az / num_profiles
     
-    # Save the strips to disk as PNGs
+        plt.imshow(stretch(            im_mosaic), origin='lower', extent=(0,6300,0,num_profiles-1), aspect=aspect, alpha=0.5)
+        plt.imshow(stretch(mask_mosaic*im_mosaic), origin='lower', extent=(0,6300,0,num_profiles-1), aspect=aspect)
+        plt.xlabel('Azimuth [mrad]')
+        plt.ylabel(f'Image Number, {ring}')
+        
+        # Generate the base name
+        
+        file_base = (f'mosaic_{ring}_dw{dw_i}.png').replace('/', '_')
+        file_out = (os.path.join(ring.dir_out, file_base))
     
-    file_out = file_out.replace('mosaic', 'strip')
+        plt.show()    
+        
+        # Save the mosaics to disk as PNGs
+        
+        plt.imsave(file_out, im_mosaic, cmap = plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out}')
+        
+        file_out_tmp = file_out.replace('.png', '_stretch.png')
+        plt.imsave(file_out_tmp, stretch(im_mosaic), cmap=plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out_tmp}')
+        
+        file_out_tmp = file_out.replace('.png', '_mask_stretch.png')
+        plt.imsave(file_out_tmp, stretch(im_mosaic * mask_mosaic), cmap=plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out_tmp}')
+        
+        # Save the strips to disk as PNGs
+        
+        file_out = file_out.replace('mosaic', 'strip')
+        
+        plt.imsave(file_out, im_strip, cmap = plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out}')
     
-    plt.imsave(file_out, im_strip, cmap = plt.cm.plasma, origin = 'lower')
-    print(f'Wrote: {file_out}')
-
-    file_out_tmp = file_out.replace('.png', '_mask.png')
-    plt.imsave(file_out_tmp, masked_strip, cmap = plt.cm.plasma, origin = 'lower')
-    print(f'Wrote: {file_out}')
-
-    file_out_tmp = file_out.replace('.png', '_stretch.png')
-    plt.imsave(file_out_tmp, stretch(im_strip), cmap=plt.cm.plasma, origin = 'lower')
-    print(f'Wrote: {file_out_tmp}')
+        file_out_tmp = file_out.replace('.png', '_mask.png')
+        plt.imsave(file_out_tmp, masked_strip, cmap = plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out}')
     
-    file_out_tmp = file_out.replace('.png', '_mask_stretch.png')
-    plt.imsave(file_out_tmp, stretch(masked_strip), cmap=plt.cm.plasma, origin = 'lower')
-    print(f'Wrote: {file_out_tmp}')
-    
-    # Make a merged plot, of strips and mosaic together
-    
-    merged = merge_mosaic_strip(im_mosaic * mask_mosaic, masked_strip/2)
-    
-    file_out = file_out.replace('strip', 'merged')
-    plt.imsave(file_out, stretch(merged), cmap=plt.cm.plasma, origin = 'lower')
-    print(f'Wrote: {file_out}')
+        file_out_tmp = file_out.replace('.png', '_stretch.png')
+        plt.imsave(file_out_tmp, stretch(im_strip), cmap=plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out_tmp}')
+        
+        file_out_tmp = file_out.replace('.png', '_mask_stretch.png')
+        plt.imsave(file_out_tmp, stretch(masked_strip), cmap=plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out_tmp}')
+        
+        # Make a merged plot, of strips and mosaic together
+        
+        merged = merge_mosaic_strip(im_mosaic * mask_mosaic, masked_strip)
+        
+        file_out = file_out.replace('strip', 'merged')
+        plt.imsave(file_out, stretch(merged), cmap=plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out}')
     
     
 #%%%
