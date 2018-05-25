@@ -108,6 +108,9 @@ index_group = 7
 index_imagesets = [hbt.frange(54,107)]
 index_group = 8
 
+index_imagesets = [hbt.frange(0,14)]
+index_group = 5
+
 plt.set_cmap('Greys_r')
 
 power = 5
@@ -165,7 +168,7 @@ for index_imagesets_i in index_imagesets:  # XX Need to rewrite the looping logi
 
     power = 5
     
-    index_image = 32
+    index_image = 1
     
     t_image = t_group[index_image]  # Grab this, read-only, since we use it a lot.
     file_in = t_image['Filename']
