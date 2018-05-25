@@ -47,8 +47,8 @@ def nh_ort_make_backplanes():
 # =============================================================================
     
     do_ORT1 = False
-    do_ORT3 = False
-    do_ORT2 = True
+    do_ORT3 = True
+    do_ORT2 = False
     
 #    dir_data_ort = '/Users/throop/Data/ORT1'
 #    dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort1')
@@ -136,10 +136,15 @@ def test():
     dir = '/Users/throop/Data/ORT3/throop/backplaned'
     file = 'lor_0406991502_0x633_wcs_HAZARD_ort3_backplaned.fit'
     
+    plane = nh_ort_make_backplanes(os.path.join(dir,file)
+    
 # =============================================================================
 # Run the function if requested
 # =============================================================================
            
 if (__name__ == '__main__'):
+    file_tm = 'kernels_kem_prime.tm'
+    sp.unload(file_tm)
+    sp.furnsh(file_tm)
     nh_ort_make_backplanes()
             
