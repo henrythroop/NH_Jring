@@ -1263,6 +1263,41 @@ def unwind_orbital_longitude(lon_in, et_in, name_body, a_orbit = 127_900*u.km, e
 
 #%%%
     
+def recut_strip(strip, dtheta = 1):
+    
+    """ Take a long unrolled strip plot, and cut it up into pieces for easier plotting.
+    
+    Assumed to be 1 mrad/pixel
+    """
+    
+    num_strips = int(np.ceil(2*math.pi / dtheta))  # Round up
+    
+    dy_strip = hbt.sizey_im(strip)
+    
+    dx_out = int( np.ceil( hbt.sizex_im(strip) * (dtheta / (2*math.pi)) ) )
+    dy_out = num_strips * dy_strip
+    
+    arr = np.zeros((dy_out, dx_out))
+    
+    # Now copy the strips in. 
+    
+    # First, do all but the final strip
+    
+    for i in range(num_strips-1):
+        arr[i*dy_strip:(i+1)*dy_strip, 0:dx_out] = strip[:,i*dx_out:(i+1)*dx_out]
+    
+    i+=1
+    
+    strip_last = strip[:,(i*dx_out):-1]
+    
+    arr[i*dy_strip:(i+1)*dy_strip, 0:hbt.sizex_im(strip_last)] = strip_last
+    
+    return arr
+    
+    
+    
+#%%%
+    
 def merge_mosaic_strip(mosaic, strip, gap_y_pix = 1):
     """
     Make a meger of the mosaic, and the strip.
@@ -2661,9 +2696,12 @@ plt.show()
 # which we can take into Photoshop or DS9 for analysis.
 # =============================================================================
 
-group  = [5, 7, 8, 8]
+group  = [\
+#        5, 
+          7, 8, 8]
 
-images = [np.array([1,2,3,4,5,6]),
+images = [\
+#        np.array([1,2,3,4,5,6,7,8,9,  11,12,13,14]),
           hbt.frange(0,42),
           hbt.frange(0,48),  
           hbt.frange(54,107)]
@@ -2698,7 +2736,7 @@ for i in range(len(images)):
     # Loop over dwidth. This is the width to *remove* from each end of each azimuthal scan. 
     # Larger dwidth → fewer pixels used in the output array, and closer to the ansa.
     
-    dwidth_chop = [200]  # Can set to 200 or 500
+    dwidth_chop = [500, 200]  # Can set to 200 or 500
     
     for dw_i in dwidth_chop:
         ((im_mosaic, mask_mosaic),(profile_im, profile_masked), (im_strip, masked_strip), az_arr) = \
@@ -2754,14 +2792,23 @@ for i in range(len(images)):
         plt.imsave(file_out_tmp, stretch(masked_strip), cmap=plt.cm.plasma, origin = 'lower')
         print(f'Wrote: {file_out_tmp}')
         
+        # Make a 2D map of the ring
+        
+        file_out_tmp = file_out.replace('strip', 'strip-recut')
+
+        strip_recut = recut_strip(im_strip, dtheta = 1)
+        plt.imsave(file_out, stretch(strip_recut), cmap=plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out_tmp}')
+        
         # Make a merged plot, of strips and mosaic together
         
         merged = merge_mosaic_strip(im_mosaic * mask_mosaic, masked_strip)
         
-        file_out = file_out.replace('strip', 'merged')
+        file_out = file_out.replace('strip-recut', 'merged')
         plt.imsave(file_out, stretch(merged), cmap=plt.cm.plasma, origin = 'lower')
         print(f'Wrote: {file_out}')
     
+        
     
 #%%%
     
