@@ -2591,11 +2591,17 @@ if do_plot_map_extracted:
 # Make a plot superimposing results from highest quality regions, 7 and 8
 # =============================================================================
 
-group  = [7, 8, 8]
+group  = [
+          7, 
+#          8, 
+#          8,
+          ]
 
-images = [hbt.frange(0,42),
-          hbt.frange(0,48),  # No masking here. It was not done?
-          hbt.frange(54,107)]
+images = [
+          hbt.frange(0,42),
+#          hbt.frange(0,48),  # No masking here. It was not done?
+#          hbt.frange(54,107),
+          ]
 
 profiles_good = []
 profiles_bad  = []
@@ -2698,13 +2704,17 @@ plt.show()
 
 group  = [\
 #        5, 
-          7, 8, 8]
+#          7, 
+#          8, 
+          8,
+          ]
 
-images = [\
+images = [
 #        np.array([1,2,3,4,5,6,7,8,9,  11,12,13,14]),
-          hbt.frange(0,42),
-          hbt.frange(0,48),  
-          hbt.frange(54,107)]
+#          hbt.frange(0,42),
+#          hbt.frange(0,48),  
+          hbt.frange(54,107),
+          ]
 
 profiles_good = []
 profiles_bad  = []
@@ -2735,9 +2745,16 @@ for i in range(len(images)):
     
     # Loop over dwidth. This is the width to *remove* from each end of each azimuthal scan. 
     # Larger dwidth → fewer pixels used in the output array, and closer to the ansa.
+    # This is not a very good way to handle things, in particular because for the lower-res observations (7/),
+    # then the azimuthal range is less in the first place.
     
-    dwidth_chop = [500, 200]  # Can set to 200 or 500
-    
+    if (group_i == 5):
+        dwidth_chop = [0, 100, 200]
+    if (group_i == 7):
+        dwidth_chop = [0, 200, 300]
+    if (group_i == 8):
+        dwidth_chop = [0, 200, 400, 500, 525]
+            
     for dw_i in dwidth_chop:
         ((im_mosaic, mask_mosaic),(profile_im, profile_masked), (im_strip, masked_strip), az_arr) = \
           ring.make_strip_mosaic(do_plot=False, do_plot_profile=False, dwidth_chop=dw_i, 
@@ -2782,7 +2799,7 @@ for i in range(len(images)):
     
         file_out_tmp = file_out.replace('.png', '_mask.png')
         plt.imsave(file_out_tmp, masked_strip, cmap = plt.cm.plasma, origin = 'lower')
-        print(f'Wrote: {file_out}')
+        print(f'Wrote: {file_out_tmp}')
     
         file_out_tmp = file_out.replace('.png', '_stretch.png')
         plt.imsave(file_out_tmp, stretch(im_strip), cmap=plt.cm.plasma, origin = 'lower')
@@ -2794,11 +2811,18 @@ for i in range(len(images)):
         
         # Make a 2D map of the ring
         
-        file_out_tmp = file_out.replace('strip', 'strip-recut')
+        file_out = file_out.replace('strip', 'strip-recut')
 
         strip_recut = recut_strip(im_strip, dtheta = 1)
         plt.imsave(file_out, stretch(strip_recut), cmap=plt.cm.plasma, origin = 'lower')
+        print(f'Wrote: {file_out}')
+
+        file_out_tmp = file_out.replace('.png', '_mask.png')
+
+        strip_recut = recut_strip(masked_strip, dtheta = 1)
+        plt.imsave(file_out_tmp, stretch(strip_recut), cmap=plt.cm.plasma, origin = 'lower')
         print(f'Wrote: {file_out_tmp}')
+        
         
         # Make a merged plot, of strips and mosaic together
         
