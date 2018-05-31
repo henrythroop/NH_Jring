@@ -8,51 +8,25 @@ Created on Wed Mar 28 14:38:05 2018
 
 import pdb
 import glob
-import math       # We use this to get pi. Documentation says math is 'always available' 
-                  # but apparently it still must be imported.
+import math 
 from   subprocess import call
-import warnings
-import pdb
 import os.path
 import os
 import subprocess
 
 import astropy
-from   astropy.io import fits
 from   astropy.table import Table
 import astropy.table   # I need the unique() function here. Why is in in table and not Table??
-import matplotlib
 import matplotlib.pyplot as plt # pyplot
-from   matplotlib.figure import Figure
 import numpy as np
 import astropy.modeling
-from   scipy.optimize import curve_fit
-#from   pylab import *  # So I can change plot size.
-                       # Pylab defines the 'plot' command
+
 import spiceypy as sp
-#from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
-from   astropy.wcs import WCS
 from   astropy import units as u           # Units library
-from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
 #from   photutils import datasets
-from   scipy.stats import mode
-from   scipy.stats import linregress
-from   astropy.visualization import wcsaxes
-import time
-from   scipy.interpolate import griddata
-from   importlib import reload            # So I can do reload(module)
-import imreg_dft as ird                    # Image translation
-import struct
 
 import re # Regexp
 import pickle # For load/save
-
-from   datetime import datetime
-
-import scipy
-
-from   matplotlib.figure import Figure
-from   get_radial_profile_circular import get_radial_profile_circular
 
 # HBT imports
 
@@ -71,14 +45,28 @@ from nh_ort_track3_read import nh_ort_track3_read
 def nh_ort_track3_plot_trajectory():
 
     plt.set_cmap('plasma') 
-    dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
-    runs_full = [ dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset07',
-#                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
-                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
-#                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
-                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
-                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_6apr18/y3.0/beta2.2e-02/subset05']
+    
+    is_ort2 = False
+    is_ort3 = True
+    
+    if is_ort2:
+        dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
+        runs_full = [ dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset07',
+    #                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
+                      dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
+    #                  dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
+                      dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
+                      dir + 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_6apr18/y3.0/beta2.2e-02/subset05',
+                      ]
 
+    if is_ort3:
+        dir =  '/Users/throop/data/ORT3/kaufmann/deliveries/'
+        runs_full = [ 
+                     dir + 'syntrue_ort3_v1_newformat/ort3-0001/y2.2/y3.0/beta1.0e-01/subset00',
+                     dir + 'syntrue_ort3_v1_newformat/ort3-0001/y2.2/y3.0/beta1.0e-01/subset01',
+                     dir + 'syntrue_ort3_v1_newformat/ort3-0001/y2.2/y3.0/beta1.0e-01/subset02',
+                    ] 
+        
     # For the order, we always want (0,0) to be lower left.
     
     origin = 'lower'                               # Does imshow() plot start w/ (0,0) at lower-left, or upper-left?
@@ -108,7 +96,7 @@ def nh_ort_track3_plot_trajectory():
     for run_full in runs_full:
         i = 1
         run  = run_full.replace(dir, '')  # Remove the base pathname from this, and initial '/'           
-        ring = nh_ort_track3_read(run)
+        ring = nh_ort_track3_read(run, dir_base = dir)
         ring.print_info()
 
         halfwidth_km = ring.km_per_cell_x * hbt.sizex(ring.density) / 2
