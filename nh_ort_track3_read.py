@@ -237,16 +237,23 @@ class nh_ort_track3_read:
 # Plot the 3D grid (new version)
 # =============================================================================
 
-    def plot(self):
+    def plot(self, scale='log', percent = 98):
         """
         Plot the grid. Do it in a good way, with labels, and with proper orientation.
+        
+        Optional parameters
+        -----
+        
+        scale:
+            The scaling method to use. Can be `log` or `linear`.
+            
         """
         
         # For the order, we always want (0,0) to be lower left when we plot.
         
         origin = 'lower'                               # Does imshow() plot start w/ (0,0) at lower-left, or upper-left?
     
-        do_stretch_linear = False
+        do_stretch_log = ('log' in scale)
         
         # Define the axes. DK says that the array is delivered in order [x, y, z], which are same as Mark's coord frame.
         # That means that if I sum in the '0' direction, I will have a plot in Y and Z.
@@ -268,9 +275,8 @@ class nh_ort_track3_read:
         
         hbt.fontsize(10)
         fontsize_axes = 15
-        
-        do_stretch_linear = False
-        
+        width_colorbar = 10
+                
         halfwidth_km = self.km_per_cell_x * hbt.sizex(self.density) / 2
         extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
     
@@ -283,28 +289,25 @@ class nh_ort_track3_read:
             # Plot the individual image. Start it with origin at lower-left corner.
 
             img = np.sum(self.density, axis=num_axis[axis])  # Make the flattened image
-            width_colorbar = 10
-            img_stretch = stretch_hbt(img)
-            if do_stretch_linear:
-                img_stretch = astropy.visualization.PercentileInterval(98)(img)
+
+            if do_stretch_log:
+                img_stretch = stretch_hbt(img)
+            else:
+                img_stretch = astropy.visualization.PercentileInterval(percent)(img)
             
             # Create the colorbar, and superimpose it on the image
             
             colorbar = hbt.frange(np.amin(img_stretch), np.amax(img_stretch), hbt.sizey(img_stretch))
             
-            if axes_transpose[axis]:
-                img_stretch[-1,:] = colorbar  # There is probably a better way to do this?
-                img_stretch[-2,:] = colorbar
-                img_stretch[-3,:] = colorbar
-                img_stretch[-4,:] = colorbar
-                img_stretch[-5,:] = colorbar
+            # Manually draw the colorbar onto the plot
             
+            if axes_transpose[axis]:
+                for j in range(width_colorbar):
+                    img_stretch[-j,:] = colorbar  # There is probably a better way to do this?
+        
             else:
-                img_stretch[:,-1] = colorbar  # There is probably a better way to do this?
-                img_stretch[:,-2] = colorbar
-                img_stretch[:,-3] = colorbar
-                img_stretch[:,-4] = colorbar
-                img_stretch[:,-5] = colorbar
+                for j in range(width_colorbar):
+                    img_stretch[:,-j] = colorbar  # There is probably a better way to do this?
                 
             # Display the image.
             # The image is displayed in exactly the same orientation as if I print it, with the exception
@@ -326,7 +329,7 @@ class nh_ort_track3_read:
                 xval = 0.65*np.max(extent)
                 yrange = np.max(extent)-np.min(extent)
                 yval = np.min(extent) + 0.02*yrange + (j/(num_ticks_colorbar-1) * 0.92*yrange)
-                if not(do_stretch_linear):
+                if do_stretch_log:
                     plt.text(xval, yval, f'{val:.1e}', color = 'white') # Label the colorbar, if log stretch only.
             
             # Label the axes and the plot
@@ -553,52 +556,51 @@ def stretch_hbt_invert(arr):
 
 if (__name__ == '__main__'):
     
-    hbt.figsize(12,12)
-    plt.set_cmap('plasma')
-#    dir     =  '/Users/throop/data/ORT3/kaufmann/deliveries/'
-#    file_in = 'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-01/subset05'
-##    file_in = 'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset00/'
-#    
-#    grid = nh_ort_track3_read(file_in, dir_base = dir)
-#    
-#    grid.plot()
-#    hbt.figsize()
-#
-#
-
-    is_ort2 = False
-    is_ort3 = True
+    hbt.figsize(13,13)
     
-    do_out_xyz = True
-    if is_ort2:
-        dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
-        runs_full = [ 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset07',
-                       'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
-                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
-                       'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
-                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
-                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_6apr18/y3.0/beta2.2e-02/subset05',
+    plt.set_cmap('plasma')
+    
+    do_out_xyz = False   # Do we write a file that MeshLab.app can read?
+    
+    dir_dph = '/Users/throop/data/ORT2/hamilton/deliveries/'
+    dir_dk  = '/Users/throop/data/ORT3/kaufmann/deliveries/'
+    
+    dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
+    runs_full = [
+                  'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-01/subset00',
+                  'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset00',
+                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset00',
+                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-04/subset00',
+#                   ]               
+#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
+#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
+#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
+#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
+#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_6apr18/y3.0/beta2.2e-02/subset05',
                       ]
 
-    if is_ort3:
-        dir =  '/Users/throop/data/ORT3/kaufmann/deliveries/'
-        runs_full = [ 
-                     'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-05/subset00',
-                     'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-05/subset01',
-#                     'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-06/subset02',
-#                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-0/subset03',
-#                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-04/subset04',
-#                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-04/subset05',
-                    ]    
+#    if is_ort3:
+#
+#        runs_full = [ 
+#                      'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-06/subset02',
+##                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-0/subset03',
+##                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-04/subset04',
+##                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-04/subset05',
+#                    ]    
 
-    for run_full in runs_full:
-        run  = run_full.replace(dir, '')  # Remove the base pathname from this, and initial '/'           
+    for run in runs_full:
+        
+        if 'syntrue' in run:
+            dir = dir_dk
+            
+        if 'DPH' in run:
+            dir = dir_dph
+
         ring = nh_ort_track3_read(run, dir_base = dir)
         ring.print_info()
-
-        hbt.figsize((13,13))
         
-        ring.plot()
+        ring.plot(scale='lin')
+        ring.plot(scale='log')
         print('\n-----\n')
         
         if do_out_xyz:
