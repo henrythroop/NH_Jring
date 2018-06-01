@@ -37,8 +37,14 @@ import hbt
 class nh_ort_track3_read:
 
 # =============================================================================
-# Initialize the method.
+# This is the class to read, plot, and output the N-body 'grid files' produced by DPH and DK
+# for NH KEM Hazard ORT's.
+# =============================================================================
+    
+# =============================================================================
+# Initialize the class
 # Read the specified track3 file into memory, from disk
+# NB: Large beta → Small grains        
 # =============================================================================
     
     def __init__(self, name, dir_base='/Users/throop/data/ORT2/hamilton/deliveries', binfmt = 2):
@@ -226,12 +232,131 @@ class nh_ort_track3_read:
                 if hbt.is_number(out):                  # Convert from string to float, if possible
                     out = float(out)
         return out
+
+# =============================================================================
+# Plot the 3D grid (new version)
+# =============================================================================
+
+    def plot(self):
+        """
+        Plot the grid. Do it in a good way, with labels, and with proper orientation.
+        """
+        
+        # For the order, we always want (0,0) to be lower left when we plot.
+        
+        origin = 'lower'                               # Does imshow() plot start w/ (0,0) at lower-left, or upper-left?
+    
+        do_stretch_linear = False
+        
+        # Define the axes. DK says that the array is delivered in order [x, y, z], which are same as Mark's coord frame.
+        # That means that if I sum in the '0' direction, I will have a plot in Y and Z.
+        
+        axes           = ['X',     'Y',     'Z']    
+        num_axis       = {'X' : 0, 'Y' : 1, 'Z' : 2}
+        
+        # Now, make a dictionary to show us what the axes will be of the output image after doing np.sum().
+        # The dictionary here means: 
+        #     If we sum along the X axis (0), and we plot the result, what will be on vertical axis of the imshow() plot.
+        #     In this case, first remaining axis (Y) is on vertical, and second (Z) is on horizontal.
+        #     That is how imshow() works.
+        
+        axes_vertical  = {'X':'Y', 'Y':'X', 'Z':'X'}   
+        axes_horizontal= {'X':'Z', 'Y':'Z', 'Z':'Y'}
+        axes_transpose = {'X':True,'Y':True,'Z':True}
+        
+        # Set the font size
+        
+        hbt.fontsize(10)
+        fontsize_axes = 15
+        
+        do_stretch_linear = False
+        
+        halfwidth_km = self.km_per_cell_x * hbt.sizex(self.density) / 2
+        extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
+    
+        i = 1  # Index of which plot we are on
+        
+        for axis in axes:
+
+            plt.subplot(1,3,i)
+
+            # Plot the individual image. Start it with origin at lower-left corner.
+
+            img = np.sum(self.density, axis=num_axis[axis])  # Make the flattened image
+            width_colorbar = 10
+            img_stretch = stretch_hbt(img)
+            if do_stretch_linear:
+                img_stretch = astropy.visualization.PercentileInterval(98)(img)
+            
+            # Create the colorbar, and superimpose it on the image
+            
+            colorbar = hbt.frange(np.amin(img_stretch), np.amax(img_stretch), hbt.sizey(img_stretch))
+            
+            if axes_transpose[axis]:
+                img_stretch[-1,:] = colorbar  # There is probably a better way to do this?
+                img_stretch[-2,:] = colorbar
+                img_stretch[-3,:] = colorbar
+                img_stretch[-4,:] = colorbar
+                img_stretch[-5,:] = colorbar
+            
+            else:
+                img_stretch[:,-1] = colorbar  # There is probably a better way to do this?
+                img_stretch[:,-2] = colorbar
+                img_stretch[:,-3] = colorbar
+                img_stretch[:,-4] = colorbar
+                img_stretch[:,-5] = colorbar
+                
+            # Display the image.
+            # The image is displayed in exactly the same orientation as if I print it, with the exception
+            # that the origin={lower | upper} keyword can flip it vertically.
+            # When accessing the array elements, they are in order img[y, x] -- which is opposite IDL.
+            
+            if axes_transpose[axis]:
+                plt.imshow(np.transpose(img_stretch), extent=extent, origin=origin)
+            else:
+                plt.imshow(             img_stretch,  extent=extent, origin=origin)
+            
+            # Create the labels for the colorbar, and individually place them
+            
+            num_ticks_colorbar = 5 # Number of vertical value to put on our colorbar
+            
+            for j in range(num_ticks_colorbar):
+                val = stretch_hbt_invert(hbt.frange(np.amin(img_stretch), np.amax(img_stretch), num_ticks_colorbar)[j])
+                val = round(val)  # Convert to zero if it is very close
+                xval = 0.65*np.max(extent)
+                yrange = np.max(extent)-np.min(extent)
+                yval = np.min(extent) + 0.02*yrange + (j/(num_ticks_colorbar-1) * 0.92*yrange)
+                if not(do_stretch_linear):
+                    plt.text(xval, yval, f'{val:.1e}', color = 'white') # Label the colorbar, if log stretch only.
+            
+            # Label the axes and the plot
+            
+            if axes_transpose[axis]:
+                plt.title(f'Summed along {axis}', fontsize=fontsize_axes)
+                plt.xlabel(axes_vertical[axis] + ' [km]', fontsize=fontsize_axes)
+                plt.ylabel(axes_horizontal[axis] + ' [km]', fontsize=fontsize_axes)
+                plt.tight_layout()
+
+            else:
+                plt.title(f'Summed along {axis}', fontsize=fontsize_axes)
+                plt.ylabel(axes_vertical[axis] + ' [km]', fontsize=fontsize_axes)
+                plt.xlabel(axes_horizontal[axis] + ' [km]', fontsize=fontsize_axes)
+                plt.tight_layout()
+            
+            i+=1
+            
+        plt.show()
+
        
 # =============================================================================
-# Plot the distributions
+# Plot the 3D grid (old version -- deprecated)
 # =============================================================================
     
-    def plot(self):
+    def plot_simple(self):
+        """ 
+        Make a simple plot. This has been deprecated now. It still works, but it not as
+        attractive or useful as .plot().
+        """
         
 #        stretch_percent = 90    
 #        stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
@@ -260,7 +385,7 @@ class nh_ort_track3_read:
         plt.show()
         
         return self
-
+        
 # =============================================================================
 # Print some info about the run
 # =============================================================================
@@ -285,6 +410,43 @@ class nh_ort_track3_read:
         mask_start = np.ones(self.num_)
         mask_beta  = (beta  == self.beta)
         mask_speed = (speed == self.speed)
+
+# =============================================================================
+# Write a single file out to an xyz grid, for use in a point cloud mesh
+# =============================================================================
+
+    def write_file_xyz(self):
+        """
+        Write the current grid into a file as an XYZ list of points, rather than a density per grid.
+        This might be useful for rendering in other packages, such as MeshLab.
+        
+        MeshLab by default uses format "X; Y; Z"
+        It can also use                "X; Y; Z; R; G; B", where RGB are 0 .. 255 
+        
+        Many other formats too, but these are easiest.
+        
+        I would prefer to do rendering within Python, but I could not get IPyvolume, etc. working.
+        
+        """
+
+        file_out_xyz = self.file_header_full.replace('header.txt', 'xyz.txt')
+        
+        f = open(file_out_xyz, 'w')
+        
+        (nx, ny, nz) = np.shape(self.density)
+        for i_x in range(nx):
+            for i_y in range(ny):
+                for i_z in range(nz):
+                      j = 0
+                      if self.density[i_x, i_y, i_z]:
+                          f.write(f'{i_x/nx - 0.5:0.3f}; {i_y/ny - 0.5:0.3f}; {i_z/nz - 0.5:0.3f}; {i_y}; {i_z}; 0\n')
+        f.write('1.00')  # I don't know what this is. But the file seems to require it.
+        f.close()
+        print(f'Wrote: {file_out_xyz}')                 
+        
+# =============================================================================
+# END OF CLASS DEFINITONS
+# =============================================================================
         
 # =============================================================================
 # Make a plot showing all of the runs in the grid. 
@@ -385,4 +547,60 @@ def stretch_hbt(arr):
 def stretch_hbt_invert(arr):
     return np.exp(arr) - 10
         
+# =============================================================================
+# Simple test routine if file is run directly
+# =============================================================================
 
+if (__name__ == '__main__'):
+    
+    hbt.figsize(12,12)
+    plt.set_cmap('plasma')
+#    dir     =  '/Users/throop/data/ORT3/kaufmann/deliveries/'
+#    file_in = 'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-01/subset05'
+##    file_in = 'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset00/'
+#    
+#    grid = nh_ort_track3_read(file_in, dir_base = dir)
+#    
+#    grid.plot()
+#    hbt.figsize()
+#
+#
+
+    is_ort2 = False
+    is_ort3 = True
+    
+    do_out_xyz = True
+    if is_ort2:
+        dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
+        runs_full = [ 'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset07',
+                       'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
+                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
+                       'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
+                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
+                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_6apr18/y3.0/beta2.2e-02/subset05',
+                      ]
+
+    if is_ort3:
+        dir =  '/Users/throop/data/ORT3/kaufmann/deliveries/'
+        runs_full = [ 
+                     'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-05/subset00',
+                     'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-05/subset01',
+#                     'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-06/subset02',
+#                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-0/subset03',
+#                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-04/subset04',
+#                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-04/subset05',
+                    ]    
+
+    for run_full in runs_full:
+        run  = run_full.replace(dir, '')  # Remove the base pathname from this, and initial '/'           
+        ring = nh_ort_track3_read(run, dir_base = dir)
+        ring.print_info()
+
+        hbt.figsize((13,13))
+        
+        ring.plot()
+        print('\n-----\n')
+        
+        if do_out_xyz:
+            ring.write_file_xyz()
+            
