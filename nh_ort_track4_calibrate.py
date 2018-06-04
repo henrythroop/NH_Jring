@@ -60,7 +60,6 @@ import hbt
 
 from nh_ort_track4_grid            import nh_ort_track4_grid    # Includes .read, .write, .plot, .flythru, etc.
 
-from nh_ort_track3_plot_trajectory import nh_ort_track3_plot_trajectory
 from nh_ort_track3_read            import nh_ort_track3_read
 from nh_ort_track3_read            import stretch_hbt, stretch_hbt_invert  # Some stretch routines good for trajectories
 from nh_ort_track3_read            import plot_flattened_grids_table
@@ -86,7 +85,7 @@ from nh_ort_track3_read            import plot_flattened_grids_table
 # Run the file
 # =============================================================================
     
-def nh_ort_track4_calibrate():
+def nh_ort_track4_calibrate(dir, runs):
     
     """
     This file does the 'calibration' for NH MU69 ORT 'Track 4'.
@@ -97,7 +96,20 @@ def nh_ort_track4_calibrate():
     
     HBT 28-Mar-2018
     
+    Parameters
+    -----
+    
+    dir:
+        Directory 
+        
+    runs:
+        A list of all of the subdirectories that have the input grid files
+        
     """
+#%%%    
+    
+    dir_base  = dir
+    runs_full = runs
     
     plt.set_cmap('plasma')
 
@@ -111,18 +123,9 @@ def nh_ort_track4_calibrate():
     iof_limit_ring = 5e-8  # The actual observed ring in ORT2 Track1 was 5e-8.
                            # So, for the ORT2 'test' case, since we are using DPH's ring which is oriented
                            # differently and was not detected, I'll take a bit less than this -- say, I/F = 2e-8.
-    
-    # Search for the input files to use
-    
-# For Hamilton, sample is ~/Data/ORT2/hamilton/deliveries/sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/
-#                          ort2-0003/y2.2/beta2.2e-01/subset04/grid.array2'
-    
-    dir_base='/Users/throop/data/ORT2/hamilton/deliveries'    
-    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003', '*', '*', '*')) # Hamilton - ORT actual
-    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_6apr18', '*', '*', '*')) # Hamilton - ORT actual
-    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_9apr18', '*', '*', '*')) # Hamilton - ORT actual
-    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_inc45', '*', '*', '*')) # Hamilton - ORT actual
-
+                     
+    origin = 'lower'
+                      
     stretch_percent = 98
     
     stretch = astropy.visualization.PercentileInterval(stretch_percent)
@@ -171,9 +174,19 @@ def nh_ort_track4_calibrate():
     for i,run_full in enumerate(runs_full):
 
         run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
-        ring = nh_ort_track3_read(run)             # Read the data array itself.
-        ring.print_info()
+        ring = nh_ort_track3_read(run, dir_base=dir_base)            # Read the data array itself.
+        
+        do_print_ring_info = False
+        do_plot_ring       = False
+        
+        if do_print_ring_info:
+            ring.print_info()
+        else:
+            print(f'Read {i}/{len(runs_full)}: {run}')
 
+        if do_plot_ring:
+            ring.plot()
+            
         # Save this entire ring (including 3D density array) to memory. 
         # We will use it later when we reconstruct the densities to fly thru.
         
@@ -194,35 +207,24 @@ def nh_ort_track4_calibrate():
 
         # Flatten the arrays, along the axis of the viewer (ie, the sun).
         # The output to this is bascially D2D of MRS slide 6.4 -- called 'density_flattened_arr' here.
+        # This is a 2D image. When displayed with imshow(origin='lower'), it will be oriented approx as seen from Sun.
         
-        density_flattened_arr[i,:,:] = np.sum(ring.density, axis=axis_sum)
-
-        # Take the 3D arrays and flatten them, just so we can visualize more easily.
-        # To get a full picture, we sum along all three axes (X, Y, Z) and show each.
-        # XXX This code should be deprecated. Use the code in nh_ort_track3_plot_trajectory instead.
-
-        do_plot_xyz_views_individual_trajectories = False
+        density_flattened_arr[i,:,:] = np.transpose(np.sum(ring.density, axis=axis_sum))
         
-        if do_plot_xyz_views_individual_trajectories:
-            plt.subplot(1,3,1)
-            plt.imshow(stretch_hbt(np.sum(ring.density, axis=0)), extent=extent)
-            plt.title('Summed along X')
-            plt.subplot(1,3,2)
-            plt.imshow(stretch_hbt(np.sum(ring.density, axis=1)), extent=extent)
-            plt.title('Summed along Y')
-            plt.subplot(1,3,3)
-            plt.imshow(stretch_hbt(np.sum(ring.density, axis=2)), extent=extent)
-            plt.title('Summed along Z')
-            plt.show()
-        
-        print('-----')
+        if do_print_ring_info:
+            print('-----')
 
     print(f"Read {num_files} files.")
     
+    # Count the number of 'subsets' (that is, azimuthal starting locations)
+    
     num_subsets = len(np.unique(subset_arr))
     
-    # Now that we have read all of the input files, we combine these in various ways to make 
-    # the output files. 
+    # Now that we have read all of the input files, we combine these to make the output files. 
+    #
+    # Usually this means summing sets of 8 'subsets', which are identical inputs, but starting a dfft azimuth.
+    # We also choose the correct set of beta values to use.
+    #
     # We have 4 parameters to iterate over → 4 x 2 x 4 x 2 = 64 output cases.
     # Each output case yields an image in I/F. 
     # I'll calibrate based on that I/F, and then create paths for Doug Mehoke to fly.
@@ -245,7 +247,10 @@ def nh_ort_track4_calibrate():
     b      = hbt.frange(-12,0)  # Exponent for beta, and radius, and bin width. 
                                 #  b=[-12,0] → beta=[1e-4,1], which is the range that DPH uses.
                                 # We iterate over 'b', rather than over beta or size.
-                                
+
+    sarea = pi * (5)**2  # Moon surface area. First term in MRS eq @ Slide 6.4 . This is in km2. 
+                         # The actual value here should be taken from Track1, and I don't have it here. 
+
 #    s      = 10.**b/3            # Particle size, some units?
     
     epsilon = 1e-5               # A small value for testing equality of floats.    
@@ -257,13 +262,12 @@ def nh_ort_track4_calibrate():
               dtype = [float, float, float, float,    float,        float,             float, 
                       'object', float, 'object'])
     
-    sarea = pi * (5)**2  # Moon surface area. First term in MRS eq @ Slide 6.4 . This is in km2. 
-                         # The actual value here should be taken from Track1, and I don't have it here. 
     
     # Q: Don't we need another albedo term on sarea? Since if moons are dark, they may provide a lot more suface area.
     #    And, if dust is small, there can be a lot more dust. So, albedo might well enter as a square. I only have it
     #    as a single power.
 
+#%%%
     (albedo_i, q_i, rho_i, speed_i) = (albedo[0], q[0], rho[0], speed[0]) # Set up values, for testing only. Can ignore.
     
     # Now, do the loop in output space
@@ -282,13 +286,14 @@ def nh_ort_track4_calibrate():
                         s_i      = 5.7e-4 * (1 + 1.36 * albedo_i) / (rho_i * beta_i)  # Particle size. MRS slide 6.4
                         ds_i     = 0.7865*s_i
 
-                        # Find all runs that match this set of parameters. Typically this will match 8 'subsets.'
+                        # Find all runs that match this set of parameters. 
+                        # Typically this will match 8 'subsets' -- or 16 if we have two moons, etc.
+
+                        is_good = ( (speed_arr == speed_i) & ((np.abs(beta_i - beta_arr) / beta_i) < epsilon) )   
                         
-                        is_good = ( np.logical_and( (speed_arr == speed_i),
-                                      np.logical_and( ((np.abs(beta_i - beta_arr) / beta_i) < epsilon),
-                                                      (body_id_arr == 'ort2-0003') ) ) )
+                        num_good = np.sum(is_good)  # Number of grids that are selected, to sum
                         
-                        print(f'Found {np.sum(is_good)} matching runs for speed={speed_i:4.1f},' + 
+                        print(f'Found {num_good} matching runs for speed={speed_i:4.1f},' + 
                               f' beta={beta_i:5.2e}, s={s_i:7.3f} mm; applying q={q_i:3.2f},' + 
                               f' rho={rho_i:4.2f}, albedo={albedo_i} ')
                         
@@ -304,28 +309,31 @@ def nh_ort_track4_calibrate():
                         
                         img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
                                  np.sum(density_flattened_arr[is_good], axis=0) /
-                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_subsets
+                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_good
                         
                         # Add this image (with one beta) to the existing image (with a dfft beta)
                         
                         img += img_i
-#                        print(f'Adding bin for size {s_i} mm')
                         
                         # If requested, make a plot of the running total for this array
-                        # This will make one plot per beta bin. Each plot wil have all 
+                        # This will make one plot per beta bin. Each plot will have all 
                         # subsets already summed.
                 
                         do_plot_running_total = False
                         
                         if do_plot_running_total:
                             plt.subplot(1,2,1)
-                            plt.imshow(img_i)
+                            plt.imshow(stretch(img_i))
                             plt.title(f'img_i, b_i = {b_i}, max={np.amax(img_i):5.2e}')
+                            plt.xlabel('X')
+                            plt.ylabel('Z')
                             plt.subplot(1,2,2)
-                            plt.imshow(img)
-                            plt.title('Running total')
+                            plt.imshow(stretch(img))
+                            plt.title('Running total, summed along Y, front view')
+                            plt.xlabel('X')
+                            plt.ylabel('Z')
                             plt.show()
-
+                            
                     # Do some statistics on the image -- brightest pixel, etc.
                     # We want to get the brightest pixel, etc. 
                     
@@ -360,10 +368,12 @@ def nh_ort_track4_calibrate():
                     t.add_row((albedo_i, q_i, rho_i, speed_i,
                                val_img_med, val_img_typical, val_img_max, 
                                img, E_0_i, profile))
-                
+
+#%%%
+                    
 # =============================================================================
 #  Now that all combinations have been done, make some plots.
-#  All of the output quantities are in the table 't' -- one entry per combination of paramters.
+#  All of the output quantities are in the table 't' -- one entry per combination of parameters.
 # =============================================================================
 
 # Make a plot of radial profile for each run, all stacked
@@ -413,12 +423,15 @@ def nh_ort_track4_calibrate():
 # Make a plot showing all of the flattened disks. This plots the t['img_2d'] field from the table.
 # Each disk is stretched individually.
     
-    do_plot_flattened_grids = False
+    do_plot_flattened_grids = True
     
     if (do_plot_flattened_grids):
-        hbt.figsize((30,30)) 
+        hbt.figsize((30,30))
         plot_flattened_grids_table(t,stretch_percent=98)
-     
+        hbt.figsize()
+
+#%%%
+            
 # =============================================================================
 # Now loop over the table of E0, and create the output files for DM
 # This is a loop in output space. We could loop over (speed, albedo, q, rho).
@@ -430,7 +443,7 @@ def nh_ort_track4_calibrate():
     # At each of these combinations, we will want to find the *input* parameters that match this --
     # specifically, all of the subsets.
     
-    do_short = False
+    do_short = True
 
     if do_short:
         t = t[52:55]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
@@ -450,8 +463,9 @@ def nh_ort_track4_calibrate():
         q_i      = t_i['q']
         E_0_i    = t_i['E_0'] 
         
+        
         arr = np.array( [[-6, -5, -4, -3],     # Transcription of table @ 4.6
-                         [-6, -5, -4, -3], 
+                         [-6, -5, -4, -3],     # XXX I will have to redo this for ORT4!
                          [-5, -4, -3, -2], 
                          [-5, -4, -3, -2]] )
         
@@ -497,11 +511,11 @@ def nh_ort_track4_calibrate():
             # Find all runs in the input that match this parameter set
             # Typically this will be 8 -- since this is the number of subsets.
             # The indices calculated here are in the list of input arrays from DPH's Track 3.
-            
-            is_good = ( np.logical_and( (speed_arr == speed_i),
-                          np.logical_and( ((np.abs(beta_i - beta_arr) / beta_i) < epsilon),
-                                          (body_id_arr == 'ort2-0003') ) ) )
 
+            is_good = ( (speed_arr == speed_i) & ((np.abs(beta_i - beta_arr) / beta_i) < epsilon) )   
+            
+            num_good = np.sum(is_good)  # Number of grids that are selected, to sum
+            
             # Finally, sum up all of the appropriate subsets, weighted by q, E_0, sarea, etc., into an output array
             # This array is in units of # per km3.  MRS slide 6.6.
             
@@ -561,16 +575,39 @@ def nh_ort_track4_calibrate():
         # Save the array to disk. Files are written as .grid4d.gz
         # These .grids4d.gz files are read by nh_org_track4_flyby.py, and create output for Doug Mehoke.
         
-        grids_i.write(do_compress=do_compress)
+        grids_i.write(do_compress=do_compress, style = 'pickle')
+        
+        # Save the array to disk, in a format that MeshLab can read
+
+        grids_i.write(style = 'xyz')
         
         print('---')
         
+#%%%
            
 # =============================================================================
-# Run the function
+# Run the function if file is called directly
 # =============================================================================
     
 if __name__ == '__main__':
 
-    nh_ort_track4_calibrate()
+        # Search for the input files to use
+    
+# For Hamilton, sample is ~/Data/ORT2/hamilton/deliveries/sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/
+#                          ort2-0003/y2.2/beta2.2e-01/subset04/grid.array2'
+    
+#    dir_base='/Users/throop/data/ORT2/hamilton/deliveries'    
+    
+#    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003', '*', '*', '*')) # Hamilton - ORT actual
+#    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_6apr18', '*', '*', '*')) # Hamilton - ORT actual
+#    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_9apr18', '*', '*', '*')) # Hamilton - ORT actual
+#    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_inc45', '*', '*', '*')) # Hamilton - ORT actual
+
+    do_short = True
+    
+    if do_short:
+        dir = '/Users/throop/data/ORT3/hamilton/deliveries'    
+        runs = glob.glob(os.path.join(dir, 'syn_ort3_orbparameters/ort3-*/y*/beta*/subset0*'))
+
+    nh_ort_track4_calibrate(dir, runs)
     

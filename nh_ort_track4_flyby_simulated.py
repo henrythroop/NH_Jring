@@ -879,7 +879,7 @@ class nh_ort_track4_flyby:
 # This is an example usage of the method.        
 # =============================================================================
     
-def do_nh_ort_track4_flyby_simulated():
+def nh_ort_track4_flyby_simulated():
     
     albedo              = [0.05, 0.70]
     q_dust              = [2.5, 3.5]

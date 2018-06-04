@@ -270,6 +270,7 @@ class nh_ort_track3_read:
         axes_vertical  = {'X':'Y', 'Y':'X', 'Z':'X'}   
         axes_horizontal= {'X':'Z', 'Y':'Z', 'Z':'Y'}
         axes_transpose = {'X':True,'Y':True,'Z':True}
+        view           = {'X':'Side', 'Y':'Front', 'Z':'Top'}  # "If summed along Z axis, this is a Top view", etc.
         
         # Set the font size
         
@@ -335,7 +336,7 @@ class nh_ort_track3_read:
             # Label the axes and the plot
             
             if axes_transpose[axis]:
-                plt.title(f'Summed along {axis}', fontsize=fontsize_axes)
+                plt.title(f'Summed along {axis} ({view[axis]})', fontsize=fontsize_axes)
                 plt.xlabel(axes_vertical[axis] + ' [km]', fontsize=fontsize_axes)
                 plt.ylabel(axes_horizontal[axis] + ' [km]', fontsize=fontsize_axes)
                 plt.tight_layout()
@@ -533,11 +534,23 @@ def plot_flattened_grids_table(t, stretch_percent=96):
             hbt.normalize( t['img_2d'][k] )                         
         i += 1
         
-        if (i > (num_grid_x-1)):
+        if (i > (num_grid_x-1)):  # If we fill up a row, go to the next one.
             i = 0
             j += 1
             
-    plt.imshow(stretch(img))
+    plt.imshow(stretch(img), origin='lower')
+    i = 0
+    j = 0
+    for k in range(num):
+        s = f"a={t[k]['albedo']}, q={t[k]['q']}, rho={t[k]['rho']:.2f}, v={t[k]['speed']}"
+        plt.text(2 + i*dx_pix_grid, 2 + j*dy_pix_grid, s, color='white')
+        i += 1
+        if (i > (num_grid_x-1)):  # If we fill up a row, go to the next one.
+            i = 0
+            j += 1
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+        
     plt.show()    
 
 # =============================================================================
@@ -562,15 +575,29 @@ if (__name__ == '__main__'):
     
     do_out_xyz = False   # Do we write a file that MeshLab.app can read?
     
-    dir_dph = '/Users/throop/data/ORT2/hamilton/deliveries/'
+    dir_dph2 = '/Users/throop/data/ORT2/hamilton/deliveries/'
+    dir_dph3 = '/Users/throop/data/ORT3/hamilton/deliveries/'
+    
+    dir_dph = dir_dph3
+    
     dir_dk  = '/Users/throop/data/ORT3/kaufmann/deliveries/'
     
     dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
+    
     runs_full = [
-                  'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-01/subset00',
-                  'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset00',
+                   
+#                  'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-01/subset00',
+#                  'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset00',
                   'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset00',
-                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-04/subset00',
+                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset01',
+                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset02',
+                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset03',
+#                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-04/subset00',
+                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-01/subset00',
+                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-01/subset01',
+                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-01/subset02',
+                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-01/subset03',
+#                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-04/subset00',
 #                   ]               
 #                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
 #                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
@@ -593,7 +620,7 @@ if (__name__ == '__main__'):
         if 'syntrue' in run:
             dir = dir_dk
             
-        if 'DPH' in run:
+        if ('DPH' in run) or ('syn_ort' in run):
             dir = dir_dph
 
         ring = nh_ort_track3_read(run, dir_base = dir)

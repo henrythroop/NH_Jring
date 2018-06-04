@@ -62,7 +62,6 @@ from   get_radial_profile_circular import get_radial_profile_circular
 
 import hbt
 
-from nh_ort_track3_plot_trajectory import nh_ort_track3_plot_trajectory
 from nh_ort_track3_read            import nh_ort_track3_read
 from nh_ort_track3_read            import stretch_hbt, stretch_hbt_invert  # Some stretch routines good for trajectories
 from nh_ort_track3_read            import plot_flattened_grids_table
@@ -451,11 +450,11 @@ class nh_ort_track4_grid:
 # This is the filename used for Doug Mehoke        
 # =============================================================================
 
-    def create_filename_track4(self):
+    def create_filename_track4(self, base = 'ort3'):
         
         str_traj = self.name_trajectory
         
-        str_test = 'ort2-ring'
+        str_base = base
         
         str_speed = 'y{:3.1f}'.format(abs(self.speed))
         
@@ -465,15 +464,16 @@ class nh_ort_track4_grid:
         
         str_rho = 'rho{:4.2f}'.format(self.rho)
         
-        file_out = f"{str_test}_{str_traj}_{str_speed}_{str_q}_{str_albedo}_{str_rho}.dust"
+        file_out = f"{str_base}_{str_traj}_{str_speed}_{str_q}_{str_albedo}_{str_rho}.dust"
         
         return file_out
     
 # =============================================================================
-# Write out the 4D grid to disk
+# Write out the 4D grid to disk, in a pickle format that can be used to fly through the ring.
+# My code will later read this disk, and use the output of that to give to Doug Mehoke.        
 # =============================================================================
     
-    def write(self, file=None, dir=None, do_compress=False):
+    def write(self, file=None, dir=None, do_compress=False, style = 'pickle'):
         """
         Write the 4D grid itself to a file. The run parameters (albedo, rho, q, speed) are encoded into the filename.
         The remaining parameters (b, beta, s) are written.
@@ -503,36 +503,89 @@ class nh_ort_track4_grid:
         """
         
         if not dir:
-            dir = os.path.expanduser('~/Data/ORT2/throop/track4/')
-        
+            dir = os.path.expanduser('~/Data/ORT3/throop/track4/')
+
         if not file:
             file = self.create_filename_track3_grids4d()
-                
-#        do_compress = True
-        
-        if do_compress:
-            
-            file = file + '.gz'
-            
-            protocol=-1    
-            with gzip.open(os.path.join(dir,file), 'wb') as f:
-                pickle.dump((self.density, 
-                             self.albedo, self.rho, self.q, self.speed, 
-                             self.b, self.beta, self.s, 
-                             self.resolution_km), 
-                             f, 
-                             protocol)
 
-        else:
-            lun = open(os.path.join(dir, file), 'wb')        
-            pickle.dump((self.density, 
-                             self.albedo, self.rho, self.q, self.speed, 
-                             self.b, self.beta, self.s, 
-                             self.resolution_km), lun)
-            lun.close()
-            
-        print("Wrote: " + os.path.join(dir,file))
+        file_base = file
         
+    # If requested, write the output to a pickle file (optionally compressed),
+    # which we use for the next phase of the hazard proc, when we fly thru it for Doug Mehoke.
+    
+        if (style == 'pickle'):
+                                
+            if do_compress:
+                
+                file = file_base + '.gz'
+                
+                protocol=-1    
+                with gzip.open(os.path.join(dir,file), 'wb') as f:
+                    pickle.dump((self.density, 
+                                 self.albedo, self.rho, self.q, self.speed, 
+                                 self.b, self.beta, self.s, 
+                                 self.resolution_km), 
+                                 f, 
+                                 protocol)
+    
+            else:
+                lun = open(os.path.join(dir, file), 'wb')        
+                pickle.dump((self.density, 
+                                 self.albedo, self.rho, self.q, self.speed, 
+                                 self.b, self.beta, self.s, 
+                                 self.resolution_km), lun)
+                lun.close()
+     
+            print("Wrote: " + os.path.join(dir,file))
+ 
+    # If requested, write the output to a .xyz file, for use in MeshLab.
+    # This is more of a 'sparse' file, since it simply lists the indices of each filled grid.
+    # No densities, no grids with zeros, etc.
+    # If a grid has >= 1 particle  in it, it's listed.
+    # If it     has    0 particles it it, it's omitted.
+
+        if (style == 'xyz'):
+            
+            file_out_xyz = file_base + '.txt'  # Extension .xyz sometimes works, but .txt is def more reliable
+            
+            # Collapse the density array, and sum over particle size
+            
+            density = np.sum(self.density,axis=0)
+            (nx, ny, nz) = np.shape(density)            
+            
+            # Take a threshhold -- that is, only list the the points above a density %ile of __.
+            # If we list all the points, it is simply too dense a grid.
+                        
+            thresh_low  = np.percentile(density[density > 0], 90)
+            thresh_high = np.percentile(density[density > 0], 97)
+
+            str_red     = '255; 0; 0'
+            str_green   = '0; 255; 0'
+            str_blue    = '0; 0; 255'
+            str_yellow  = '255; 255; 0'
+            
+            f = open(os.path.join(dir,file_out_xyz), 'w')
+
+            (num_pts_high, num_pts_low) = (0,0)
+
+            # Write the file itself, by looping over every grid site, and printing a line if value is large enough
+            
+            for i_x in range(nx):
+                for i_y in range(ny):
+                    for i_z in range(nz):
+
+                          if thresh_low < density[i_x, i_y, i_z] < thresh_high:
+                              num_pts_low += 1
+                              f.write(f'{i_x/nx - 0.5:0.2f}; {i_y/ny - 0.5:0.2f}; {i_z/nz - 0.5:0.2f}; {str_red}\n')
+
+                          if density[i_x, i_y, i_z] > thresh_high:
+                              num_pts_high += 1
+                              f.write(f'{i_x/nx - 0.5:0.2f}; {i_y/ny - 0.5:0.2f}; {i_z/nz - 0.5:0.2f}; {str_yellow}\n')
+                              
+            f.write('1.00')  # I don't know what this is. But the file seems to require it.
+            f.close()
+            print(f'Wrote: {os.path.join(dir,file_out_xyz)}, {num_pts_low}+{num_pts_high} points')
+                
         return
 
 # =============================================================================
