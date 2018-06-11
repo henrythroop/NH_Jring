@@ -36,7 +36,7 @@ def nh_ort_make_backplanes():
 # =============================================================================
 
     do_plot    = False
-    do_clobber = False
+    do_clobber = True
     
     name_target   = 'MU69'
     name_observer = 'New Horizons'
@@ -47,23 +47,31 @@ def nh_ort_make_backplanes():
 # =============================================================================
     
     do_ORT1 = False
-    do_ORT3 = True
+    do_ORT3 = False
     do_ORT2 = False
+    do_ORT4 = True
     
 #    dir_data_ort = '/Users/throop/Data/ORT1'
 #    dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort1')
 #    dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
 
-    dir_data_ort = '/Users/throop/Data/ORT2'
-    dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort2')
-    dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
-    
-    dir_data_ort = '/Users/throop/Data/ORT3'
-#    dir_in  = os.path.join(dir_data_ort, 'wcs_buie') # Using Buie backplanes, not Simon's.
-    dir_in  = os.path.join(dir_data_ort, 'buie') # Using Buie backplanes, not Simon's.
-    dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
-    
-    files = glob.glob(os.path.join(dir_in, '*','*_ort3.fit'))
+    if do_ORT2:
+        dir_data_ort = '/Users/throop/Data/ORT2'
+        dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort2')
+        dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
+        files = glob.glob(os.path.join(dir_in, '*','*_ort2.fit'))
+
+    if do_ORT3:    
+        dir_data_ort = '/Users/throop/Data/ORT3'
+        dir_in  = os.path.join(dir_data_ort, 'buie') # Using Buie backplanes, not Simon's.
+        dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
+        files = glob.glob(os.path.join(dir_in, '*','*_ort3.fit'))
+
+    if do_ORT4:
+        dir_data_ort = '/Users/throop/Data/ORT4'
+        dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort4')
+        dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
+        files = glob.glob(os.path.join(dir_in, '*','*_pwcs.fits'))
     
 # =============================================================================
 #     Filter files if needed
@@ -136,12 +144,12 @@ def test():
     dir = '/Users/throop/Data/ORT3/throop/backplaned'
     file = 'lor_0406991502_0x633_wcs_HAZARD_ort3_backplaned.fit'
     
-    plane = nh_ort_make_backplanes(os.path.join(dir,file)
+    plane = nh_ort_make_backplanes(os.path.join(dir,file))
     
 # =============================================================================
 # Run the function if requested
 # =============================================================================
-           
+        
 if (__name__ == '__main__'):
     file_tm = 'kernels_kem_prime.tm'
     sp.unload(file_tm)
