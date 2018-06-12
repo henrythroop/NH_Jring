@@ -40,7 +40,7 @@ def nh_ort_make_backplanes():
     
     name_target   = 'MU69'
     name_observer = 'New Horizons'
-    frame         = '2014_MU69_SUNFLOWER_ROT'
+    frame         = '2014_MU69_SUNFLOWER_ROT'  # Change this to tuna can if needed, I think??
     
 # =============================================================================
 #     Get a proper list of all the input files
@@ -66,7 +66,8 @@ def nh_ort_make_backplanes():
         dir_in  = os.path.join(dir_data_ort, 'buie') # Using Buie backplanes, not Simon's.
         dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
         files = glob.glob(os.path.join(dir_in, '*','*_ort3.fit'))
-
+        frame         = '2014_MU69_TUNACAN_ROT'
+        
     if do_ORT4:
         dir_data_ort = '/Users/throop/Data/ORT4'
         dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort4')

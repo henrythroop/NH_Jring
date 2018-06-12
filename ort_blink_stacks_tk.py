@@ -93,7 +93,7 @@ class App:
 #        self.stretch_percent = 90    
 #        self.stretch = astropy.visualization.PercentileInterval(self.stretch_percent) # PI(90) scales to 5th..95th %ile.
 #        
-        name_ort = 'ORT3'
+        name_ort = 'ORT4'
 #        name_ort = 'ORT2_OPNAV'
         
         if (name_ort == 'ORT1'):
@@ -113,6 +113,11 @@ class App:
 #            self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
             self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'        
             self.dir_data    = '/Users/throop/Data/ORT3/throop/backplaned/'
+
+        if (name_ort == 'ORT4'):
+            self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03']
+            self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'        
+            self.dir_data    = '/Users/throop/Data/ORT4/throop/backplaned/'
             
         if (name_ort == 'ORT2_OPNAV'):
             self.dir_data    = '/Users/throop/Data/ORT2/throop/backplaned/'
@@ -127,7 +132,7 @@ class App:
         # This value is easy to compute: loop over all stacks, and take max of stack.calc_padding()[0]
         
         self.padding     = 61 # Amount to pad the images by. This is the same as the max drift btwn all images in stacks
-        self.zoom        = 4  # Sub-pixel zoom to apply when shifting images. 1 for testing; 4 for production.
+        self.zoom        = 2  # Sub-pixel zoom to apply when shifting images. 1 for testing; 4 for production.
         self.num_image   = 0  # Which stack number to start on.
         self.zoom_screen = 1  # 'Screen zoom' amount to apply. This can be changed interactively.
         

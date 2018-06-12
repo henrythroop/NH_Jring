@@ -201,14 +201,18 @@ if (__name__ == '__main__'):
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
     
-    plt.set_cmap('Greys_r')
+    cmap_superstack = 'plasma'
+    cmap_stack      = 'Greys_r'
+    
+    plt.set_cmap(cmap_stack)
 
-    zoom = 4      # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
     
 #    name_ort = 'ORT1'
 #    name_ort = 'ORT2_OPNAV'
     name_ort = 'ORT3'
+    name_ort = 'ORT4'
     initials_user = 'HBT'
     dir_data = '/Users/throop/Data'
 
@@ -232,6 +236,11 @@ if (__name__ == '__main__'):
 #        reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03']
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         
+    if (name_ort == 'ORT4'):
+        dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
+        dir_out       = os.path.join(dir_data, name_ort)
+        reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03'] # Why no HAZ04 in ORT4?
+        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         
     if (name_ort == 'ORT2_OPNAV'):
         dir_images    = '/Users/throop/Data/ORT2/throop/backplaned/'
@@ -311,10 +320,10 @@ if (__name__ == '__main__'):
         
     # Plot the trimmed, flattened images. This is just for show. They are not scaled very well for ring search.
     
-    plt.imshow(stretch(img_field))
+    plt.imshow(stretch(img_field), origin='lower')
     for reqid_i in reqids_haz:        
         diff_trim = hbt.trim_image(img_haz_diff[reqid_i])
-        plt.imshow(stretch(diff_trim))
+        plt.imshow(stretch(diff_trim), origin='lower')
         plt.title(reqid_i)
         plt.show()
         
@@ -344,7 +353,7 @@ if (__name__ == '__main__'):
     
     # Convert individual radial profiles from DN to I/F
     
-    width = 2  # Bin width for radial profiles
+    width = 1  # Bin width for radial profiles
     
     for reqid_i in reqids_haz:
         
@@ -389,7 +398,7 @@ if (__name__ == '__main__'):
 # =============================================================================
 #     Make a 'superstack' -- ie stack of stacks, put on the same spatial scale and stacked
 # =============================================================================
-    
+        
     str_name = f'{name_ort}_z{zoom}'
     (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
                                                                           do_save_all=True, dir=dir_out,
@@ -397,9 +406,10 @@ if (__name__ == '__main__'):
   
     # Create, display, and save the median superstack
     
-    plt.imshow( stretch(img_superstack_median))
+    plt.imshow( stretch(img_superstack_median), origin='lower', cmap=cmap_superstack)
     plt.title(f'restretched and medianed, {name_ort}')
     plt.show()
+    
 #    file_out = os.path.join(dir_out, f'img_superstack_median_{name_ort}.fits')
 #    hdu = fits.PrimaryHDU(img_superstack_median)
 #    hdu.writeto(file_out, overwrite=True)
@@ -407,9 +417,10 @@ if (__name__ == '__main__'):
 # 
     # Create, display, and save the mean superstack
 
-    plt.imshow( stretch(img_superstack_mean))
+    plt.imshow( stretch(img_superstack_mean), origin='lower', cmap=cmap_superstack)
     plt.title(f'restretched and mean, {name_ort}')
     plt.show()    
+    
 #    file_out = os.path.join(dir_out, f'img_superstack_mean_{name_ort}.fits')
 #    hdu = fits.PrimaryHDU(img_superstack_mean)
 #    hdu.writeto(file_out, overwrite=True)
@@ -491,11 +502,11 @@ if (__name__ == '__main__'):
         mask = hbt.dist_center(dx) > 0  # Mask anything this far from MU69 as True
         m = img_extract_large.copy()
         m[mask == False] = np.nan
-        plt.imshow(stretch(m))
+        plt.imshow(stretch(m), origin='lower')
         
         img_extract_large = m.copy()     # Copy the masked image back to the full extracted image
         
-        plt.imshow(stretch(img_extract_large), origin='lower')
+        plt.imshow(stretch(img_extract_large), origin='lower', cmap=cmap)
         plt.show()
         
         plt.imshow(stretch(img_superstack_mean_iof), origin='lower')
@@ -508,7 +519,7 @@ if (__name__ == '__main__'):
         img_extract_yprofile   = img_extract_large[
                           int(dy/2 - height_ring/2-padding_y):int(dy/2+height_ring/2+padding_y),
                           int(dx/2 - width_ring/2):int(dx/2+width_ring/2)]
-        plt.imshow(stretch(img_extract_yprofile), origin='lower')                  
+        plt.imshow(stretch(img_extract_yprofile), origin='lower') 
         plt.show()
                           
         img_extract_xprofile   = img_extract_large[
