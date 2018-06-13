@@ -110,7 +110,6 @@ class App:
 
         if (name_ort == 'ORT3'):
             self.reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
-#            self.reqids_haz  = ['K1LR_HAZ03', 'K1LR_HAZ01', 'K1LR_HAZ02']
             self.reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'        
             self.dir_data    = '/Users/throop/Data/ORT3/throop/backplaned/'
 
