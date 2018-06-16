@@ -176,12 +176,12 @@ class image_stack:
         #   dy_pix -- y dimension
         
         
-        self.t = Table(  [[],              [],          [],         [],        [],       [],       [],      [],   [], 
+        self.t = Table(  [[],  [],            [],          [],         [],        [],       [],       [],      [],   [], 
                                                     [], [], [], [], [], [], [], [], [], [], [], [] ],
-            names=('filename_short', 'exptime', 'visitname', 'sapname', 'sapdesc', 'target', 'reqid', 'et',  'utc', 
+            names=('filename', 'filename_short', 'exptime', 'visitname', 'sapname', 'sapdesc', 'target', 'reqid', 'et',  'utc', 
                   'shift_x_pix', 'shift_y_pix', 'ra_center', 'dec_center', 'angle', 'dx_pix', 'dy_pix', 
                   'pixscale_x_km', 'pixscale_y_km', 'dist_target_km', 'wcs', 'data'),
-            dtype = ('U50',           'float64', 'U50',      'U50',     'U50',     'U50',    'U50',   'float64', 'U50', 
+            dtype = ('U150', 'U50',           'float64', 'U50',      'U50',     'U50',     'U50',    'U50',   'float64', 'U50', 
                     'float64', 'float64', 'float64', 'float64', 'float64', 'float64', 
                     'float64', 'float64', 'float64', 'float64', 'object', 'object'  ))
         
@@ -196,6 +196,7 @@ class image_stack:
                 arr            = hdulist[0].data
                 err            = hdulist[1].data
                 quality        = hdulist[2].data
+                backplane_radius = hdulist['RADIUS_EQ'].data
                 
                 dx_pix         = hbt.sizex(arr)   # Usually 256 or 1024
                 dy_pix         = hbt.sizey(arr)
@@ -254,9 +255,10 @@ class image_stack:
                 pixscale_y_km = dist_target_km * pixscale_y
                 
                 # Load the values for this image into a row of the astropy table
+                # *** Need to add backplane data here, as planes[] or backplanes[] ***
             
                 self.t.add_row(
-                          [filename_short, exptime, visitnam, sapname, sapdesc, target, reqid, 
+                          [file, filename_short, exptime, visitnam, sapname, sapdesc, target, reqid, 
                            et, utc, 
                            shift_x_pix, shift_y_pix,
                            ra_center,   
@@ -593,7 +595,8 @@ class image_stack:
         
         if self.flattened:
             print('Already flattened!')
-            return
+            return (self.arr_flat, self.wcs_flat)       # If we try to flatten an already flattened stack, just return
+                                                        # the already computed results.
         
         self.num_planes = np.sum(self.indices)
 
@@ -671,7 +674,7 @@ class image_stack:
         # Plot Plane 0 to verify accuracy of its WCS
     
         if do_plot:    
-            plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0')
+            plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0') # XXX I want to plot the stack name here!
         
 #        print(f'WCS for above: {wcs}')
         
@@ -704,11 +707,15 @@ class image_stack:
         # And return the WCS along with the image
 
         if do_plot:
-            plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust')
+            plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust')  # XXX data OK, but pposition of red
+                                                               # point on plot is sometimes incorrect.
 
-        print(f'WCS after above: {wcs}')
+#        print(f'WCS after above: {wcs}')
         
         self.flattened = True
+        
+        self.arr_flat = arr_flat
+        self.wcs_flat = wcs
         
         return (arr_flat, wcs)
 
@@ -797,7 +804,7 @@ if (__name__ == '__main__'):
     
     dir = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ03/'
 #    stack = image_stack(dir, do_force=True, do_save=True)
-    stack = image_stack(dir, do_force=False)
+    stack = image_stack(dir, do_force=do_force)
     
     # Plot a set of images from it
     

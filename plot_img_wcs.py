@@ -22,7 +22,7 @@ def plot_img_wcs(img, wcs, ra=274.73238190163573, dec=-20.86594759658748, title=
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
     
-    plt.imshow(stretch(img))
+    plt.imshow(stretch(img), origin='lower')
     (x, y) = wcs.wcs_world2pix(ra, dec, 0)
     plt.plot(x, y, marker = 'o', ms = 5, color='red')
     plt.title(title)

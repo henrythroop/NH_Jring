@@ -7,60 +7,37 @@ Created on Fri Mar  2 11:43:11 2018
 """
 
 
-import pdb
 import glob
-import math       # We use this to get pi. Documentation says math is 'always available' 
-                  # but apparently it still must be imported.
-from   subprocess import call
-import warnings
-import pdb
+import math
 import os.path
 import os
-import subprocess
 
 import astropy
 from   astropy.io import fits
-from   astropy.table import Table
-import astropy.table   # I need the unique() function here. Why is in in table and not Table??
+import astropy.table
 import matplotlib
 import matplotlib.pyplot as plt # pyplot
 from   matplotlib.figure import Figure
 import numpy as np
 import astropy.modeling
-from   scipy.optimize import curve_fit
-#from   pylab import *  # So I can change plot size.
-                       # Pylab defines the 'plot' command
 import spiceypy as sp
-#from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
-from   astropy.wcs import WCS
 from   astropy import units as u           # Units library
-from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
-#from   photutils import datasets
-from   scipy.stats import mode
-from   scipy.stats import linregress
-from   astropy.visualization import wcsaxes
-import time
-from   scipy.interpolate import griddata
-from   importlib import reload            # So I can do reload(module)
-import imreg_dft as ird                    # Image translation
-
-import re # Regexp
 import pickle # For load/save
 
 import scipy
 
-from   matplotlib.figure import Figure
-from   get_radial_profile_circular import get_radial_profile_circular
-
-from   get_radial_profile_circular import get_radial_profile_circular
-from   plot_img_wcs import plot_img_wcs
-
 # HBT imports
 
 import hbt
-from image_stack import image_stack
 
-def nh_ort_make_superstack(stack, img, img_field, do_save_all=False, dir='', str_name='', do_center=True):
+from   matplotlib.figure import Figure
+from   get_radial_profile_circular import get_radial_profile_circular
+from   plot_img_wcs import plot_img_wcs
+from   image_stack import image_stack
+
+def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, dir='', str_name='', 
+                           do_center=True,
+                           do_wcs = False):
     
     """
     This makes a superstack image. The output image has resolution matching the lowest resolution 
@@ -101,6 +78,9 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=False, dir='', str
         stack based on that. This is Q&D, but works if the brightest object is moving, and near the center,
         such as is the case for MU69 ORT.
         
+    do_wcs:
+        Boolean. If set, will include a WCS in the outut tuple.
+        
     """
     
     keys = list(stack.keys())
@@ -109,7 +89,7 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=False, dir='', str
     for key in keys:
         pixscale_km[key] = stack[key].pixscale_x_km
         
-    # Search for the lowest-res image, and output to that.
+    # Search for the highest-res stack, and make it so that the superstack matches the resolution of that stack.
     
     pixscale_km_out = min(pixscale_km.values())
     
@@ -165,28 +145,60 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=False, dir='', str
     img_rescale_median = np.median(img_rescale_3d, axis=0)  
     img_rescale_mean   = np.mean(img_rescale_3d, axis=0)
     
+    # Get a WCS system, if requested. Just grab the one from the stack that we used.
+    # However, there may be some small mis-alignment issues. 
+    
+    wcs = stack[key_out].t['wcs'][0]
+    
+    # Now adjust the WCS so the center of the image is is at dx/2, dy/2, *and* RA/Dec is position of MU69.
+    
+    # Look up RA, Dec of MU69 for that date
+    
+    et = stack_haz[key_out].t['et'][0]
+    (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
+    (range_, ra, dec) = sp.recrad(st[0:3])
+    
+    wcs.wcs.crval = (ra*hbt.r2d, dec*hbt.r2d)
+    wcs.wcs.crpix = (hbt.sizex(img_rescale_mean)/2, hbt.sizey(img_rescale_mean)/2)
+
+    # Put this WCS info in a header, which we will write to FITS file
+    
+    header = wcs.to_header()
+    
+    # Also, put the correct ET into the FITS header.
+    
+    et = stack_haz['K1LR_HAZ00'].t['et'][0]
+    header['SPCSCET'] = f'{et}'
+    
     # Write the superstacks to disk, if requested
     
     if do_save_all:
-        file_out = f'superstack_{str_name}_median_hbt.fits'
-        hdu = fits.PrimaryHDU(img_rescale_median)
+        file_out = f'superstack_{str_name}_median_wcs_hbt.fits'
+        hdu = fits.PrimaryHDU(img_rescale_median, header=header)
         path_out = os.path.join(dir_out, file_out)
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
       
-        file_out = f'superstack_{str_name}_mean_hbt.fits'
-        hdu = fits.PrimaryHDU(img_rescale_mean)
+        file_out = f'superstack_{str_name}_mean_wcs_hbt.fits'
+        hdu = fits.PrimaryHDU(img_rescale_mean, header=header)
         path_out = os.path.join(dir_out, file_out)
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
+        
+        # Now that we have written a FITS file to disk, compute backplanes for it
+        
+        planes = compute_backplanes('file_out, 
+                                    'MU69', 'IAU_PLUTO', 'New Horizons')
+        
+        # And plot the Radius backplane
+        
+        plt.imshow(planes[0]['Radius_eq'])
         
     return((img_rescale_mean, img_rescale_median))
  
 # =============================================================================
 # End of function definition
 # =============================================================================
-
-    
     
 # =============================================================================
 # One-off code (not a function) that does all the image stacking for the MU69 ORT's.
@@ -197,7 +209,8 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=False, dir='', str
 # =============================================================================
 
 if (__name__ == '__main__'):
-    
+
+#%%%    
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
     
@@ -208,10 +221,13 @@ if (__name__ == '__main__'):
 
     zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
+
+    width = 1  # Bin width for radial profiles
+    
     
 #    name_ort = 'ORT1'
 #    name_ort = 'ORT2_OPNAV'
-    name_ort = 'ORT3'
+#    name_ort = 'ORT3'
     name_ort = 'ORT4'
     initials_user = 'HBT'
     dir_data = '/Users/throop/Data'
@@ -228,7 +244,17 @@ if (__name__ == '__main__'):
         reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
         reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03']
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
- 
+        
+    if (name_ort == 'ORT2_OPNAV'):
+        dir_images    = '/Users/throop/Data/ORT2/throop/backplaned/'
+        dir_out       = os.path.join(dir_data, name_ort.split('_')[-1])
+        dirs = glob.glob(dir_data + '/*LR_OPNAV*')         # Manually construct a list of all the OPNAV dirs
+        reqids_haz = []
+        for dir_i in dirs:
+            reqids_haz.append(os.path.basename(dir_i))
+        reqids_haz = sorted(reqids_haz)    
+        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+        
     if (name_ort == 'ORT3'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort)
@@ -240,16 +266,7 @@ if (__name__ == '__main__'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort)
         reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03'] # Why no HAZ04 in ORT4?
-        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
-        
-    if (name_ort == 'ORT2_OPNAV'):
-        dir_images    = '/Users/throop/Data/ORT2/throop/backplaned/'
-        dir_out       = os.path.join(dir_data, name_ort.split('_')[-1])
-        dirs = glob.glob(dir_data + '/*LR_OPNAV*')         # Manually construct a list of all the OPNAV dirs
-        reqids_haz = []
-        for dir_i in dirs:
-            reqids_haz.append(os.path.basename(dir_i))
-        reqids_haz = sorted(reqids_haz)    
+#        reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03'] # Why no HAZ04 in ORT4?
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
     
     # Start up SPICE if needed
@@ -301,8 +318,10 @@ if (__name__ == '__main__'):
     # Flatten the field stack
     
     (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad)
+
+#%%%
     
-    # Flatten the main hazard stacks
+    # Loop over and flatten the main hazard stacks (HAZ00, HAZ01, etc)
     # When we do this, the output image is shifted around within the padding amount, so that *all* 
     # ouput images have the same size. So, maybe flatten should return img *and* wcs?
     # And the expectation would be that all of these individual WCS would match. That would be the point.
@@ -310,13 +329,16 @@ if (__name__ == '__main__'):
     img_haz = {}
     wcs_haz = {}
     img_haz_diff = {}
+
+    do_plot_individual_stacks = False
     
     for reqid_i in reqids_haz:
         (img_haz[reqid_i], wcs_haz[reqid_i])  =\
               stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad)
         img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field
         
-        plot_img_wcs(img_haz[reqid_i], wcs_haz[reqid_i], title = reqid_i)
+        if do_plot_individual_stacks:
+            plot_img_wcs(img_haz[reqid_i], wcs_haz[reqid_i], title = reqid_i)
         
     # Plot the trimmed, flattened images. This is just for show. They are not scaled very well for ring search.
     
@@ -342,18 +364,19 @@ if (__name__ == '__main__'):
     hbt.set_fontsize(12)
     pos =  np.array(np.shape(img_field))/2  # MU69 will be at the center of this array
     for reqid_i in reqids_haz:
-        (radius, profile_dn) = get_radial_profile_circular(img_haz[reqid_i] - img_field, pos=pos, width=2)
-        radius_km = radius * stack_haz[reqid_i].pixscale_x_km
+        (radius, profile_dn) = get_radial_profile_circular(img_haz[reqid_i] - img_field, pos=pos, width=width)
+        radius_km = radius * stack_haz[reqid_i].pixscale_x_km / zoom
         plt.plot(radius_km, profile_dn, label=reqid_i)
     plt.xlim(0,50_000)
-    plt.xlabel('Expanded Pixels')
+    plt.title(f'{name_ort}, binwidth={width} pix, zoom={zoom}')
+    plt.xlabel('Radius [km]')
     plt.ylabel('DN Median')
     plt.legend(loc = 'upper right')
     plt.show()
+
+#%%%
     
     # Convert individual radial profiles from DN to I/F
-    
-    width = 1  # Bin width for radial profiles
     
     for reqid_i in reqids_haz:
         
@@ -398,7 +421,8 @@ if (__name__ == '__main__'):
 # =============================================================================
 #     Make a 'superstack' -- ie stack of stacks, put on the same spatial scale and stacked
 # =============================================================================
-        
+    hbt.figsize(20,20)
+    
     str_name = f'{name_ort}_z{zoom}'
     (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
                                                                           do_save_all=True, dir=dir_out,
@@ -427,6 +451,26 @@ if (__name__ == '__main__'):
 #    print(f'Wrote: {file_out}')
 #       
 #    print(f'zooming by {magfac}, to size {np.shape(img_haz_rescale[reqid_i])}')
+ 
+# Create a backplane for this superstack
+# Do this by taking the first file, in the last reqid. We assume this is the same resolution as the 
+# superstack. This is a bit non-rigorous, but I think it will be very close.
+# Ideally we would actually create a backplane file based on the WCS of the superstack.
+    
+    file_backplanes = stack_haz[reqids_haz[-1]].t['filename'][0]
+    f = fits.open(file_backplanes)
+    plane_radius_orig = f['RADIUS_EQ'].data
+    f.close()
+    
+    plane_radius = scipy.ndimage.zoom(plane_radius_orig, zoom)
+    wheremin_x = hbt.wheremin(np.amin(plane_radius,axis=1))
+    wheremin_y = hbt.wheremin(np.amin(plane_radius,axis=0))
+    plane_radius = np.roll(plane_radius, 512-wheremin_y, axis=1)
+    plane_radius = np.roll(plane_radius, 512-wheremin_x, axis=0)
+        
+    dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
+    plane_radius = np.pad(plane_radius, int(dpad), 'constant')
+    plt.imshow(stretch( (plane_radius < 10000) * img_superstack_mean))    
     
 # =============================================================================
 #     Make a radial profile, in I/F units 
@@ -435,19 +479,21 @@ if (__name__ == '__main__'):
     # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
 
     # Calculate the MU69-Sun distance, in AU (or look it up).         
-    et = stack_haz[reqids_haz[-1]].t['et'][0] # ET for the final image stack
-    (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
+    et        = stack_haz[reqids_haz[-1]].t['et'][0] # ET for the final image stack
+    (st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
     r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
-    (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
-    r_sun_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+    (st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
+    r_sun_mu69= sp.vnorm(st[0:3]) * km2au # NH distance, in AU
     pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming LORRI 4x4)
-    TEXP = stack_haz[reqid_i].t['exptime'][0]
+    TEXP        = stack_haz[reqid_i].t['exptime'][0]
 
     I_median = img_superstack_median / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
     I_mean   = img_superstack_mean   / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
     
     img_superstack_median_iof = math.pi * I_median * r_sun_mu69**2 / F_solar # Equation from Hal's paper
     img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+    
+    # Take the radial profile of the superstack
     
     binwidth = 1
     (radius_median,profile_iof_median) = get_radial_profile_circular(img_superstack_median_iof, pos=pos, width=binwidth)
