@@ -34,8 +34,9 @@ from   matplotlib.figure import Figure
 from   get_radial_profile_circular import get_radial_profile_circular
 from   plot_img_wcs import plot_img_wcs
 from   image_stack import image_stack
+from   compute_backplanes import compute_backplanes
 
-def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, dir='', str_name='', 
+def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplanes=True, dir='', str_name='', 
                            do_center=True,
                            do_wcs = False):
     
@@ -80,6 +81,9 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, dir='', str_
         
     do_wcs:
         Boolean. If set, will include a WCS in the outut tuple.
+        
+    do_backplanes:
+        Boolean. If set, will return a full set of backplanes for the superstacks.
         
     """
     
@@ -169,6 +173,7 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, dir='', str_
     
     et = stack_haz['K1LR_HAZ00'].t['et'][0]
     header['SPCSCET'] = f'{et}'
+    header['SPCUTCID'] = sp.et2utc(et, 'C', 0)
     
     # Write the superstacks to disk, if requested
     
@@ -185,16 +190,22 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, dir='', str_
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
         
-        # Now that we have written a FITS file to disk, compute backplanes for it
-        
-        planes = compute_backplanes('file_out, 
-                                    'MU69', 'IAU_PLUTO', 'New Horizons')
+        if do_backplanes:
+            # Now that we have written a FITS file to disk, compute backplanes for it
+            # ** for compute_backplanes to work, use_sky_plane = False must be set in that function.
+            
+            frame = '2014_MU69_SUNFLOWER_ROT'
+            
+            planes = compute_backplanes(path_out, 'MU69', frame, 'New Horizons', angle3=30*hbt.d2r)
         
         # And plot the Radius backplane
         
-        plt.imshow(planes[0]['Radius_eq'])
-        
-    return((img_rescale_mean, img_rescale_median))
+#        plt.imshow(planes[0]['Radius_eq'])
+
+    if do_backplanes:        
+        return((img_rescale_mean, img_rescale_median, planes))
+    else:
+        return((img_rescale_mean, img_rescale_median))
  
 # =============================================================================
 # End of function definition
@@ -424,9 +435,10 @@ if (__name__ == '__main__'):
     hbt.figsize(20,20)
     
     str_name = f'{name_ort}_z{zoom}'
-    (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
+    (img_superstack_mean, img_superstack_median, planes) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
                                                                           do_save_all=True, dir=dir_out,
-                                                                          str_name = str_name, do_center=True)
+                                                                          str_name = str_name, do_center=True,
+                                                                          do_backplanes=True)
   
     # Create, display, and save the median superstack
     
@@ -606,4 +618,11 @@ if (__name__ == '__main__'):
         plt.tight_layout()
         plt.show()
         
- 
+
+### Testing for ORT3
+        
+        path_out = '/Users/throop/Data/ORT4/superstack_ORT4_z1_mean_wcs_hbt.fits'
+        planes = compute_backplanes(path_out, 'MU69', frame, 'New Horizons')
+        plt.imshow(planes[0]['Radius_eq'])
+        
+       
