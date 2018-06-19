@@ -164,7 +164,7 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplane
     
     wcs.wcs.crval = (ra*hbt.r2d, dec*hbt.r2d)
     wcs.wcs.crpix = (hbt.sizex(img_rescale_mean)/2, hbt.sizey(img_rescale_mean)/2)
-
+    
     # Put this WCS info in a header, which we will write to FITS file
     
     header = wcs.to_header()
@@ -175,9 +175,30 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplane
     header['SPCSCET'] = f'{et}'
     header['SPCUTCID'] = sp.et2utc(et, 'C', 0)
     
-    # Write the superstacks to disk, if requested
+    # Make a 'small' version of the extracted image. It will be just much easier to deal with. Put WCS info it it too.
+    
+    x0 = int(hbt.sizex(img_rescale_mean) * 0.4)
+    x1 = int(hbt.sizex(img_rescale_mean) * 0.6)
+    y0 = int(hbt.sizey(img_rescale_mean) * 0.4)
+    y1 = int(hbt.sizey(img_rescale_mean) * 0.6)
+    
+    img_rescale_mean_sm = img_rescale_mean[x0:x1, y0:y1]
+    img_rescale_median_sm = img_rescale_median[x0:x1, y0:y1]
+    
+    wcs_sm = wcs.copy()
+    wcs_sm.wcs.crpix = (hbt.sizex(img_rescale_mean_sm)/2, hbt.sizey(img_rescale_mean_sm)/2)
+
+    header_sm = wcs_sm.to_header()
+    header_sm['SPCSCET'] = f'{et}'
+    header_sm['SPCUTCID'] = sp.et2utc(et, 'C', 0)
+
+    # Write the superstacks (with WCS) to disk, if requested
+    
     
     if do_save_all:
+        
+        # Write full-size images
+        
         file_out = f'superstack_{str_name}_median_wcs_hbt.fits'
         hdu = fits.PrimaryHDU(img_rescale_median, header=header)
         path_out = os.path.join(dir_out, file_out)
@@ -189,6 +210,21 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplane
         path_out = os.path.join(dir_out, file_out)
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
+
+        # Write small images
+        
+        file_out = f'superstack_{str_name}_median_wcs_sm_hbt.fits'
+        hdu = fits.PrimaryHDU(img_rescale_median_sm, header=header_sm)
+        path_out = os.path.join(dir_out, file_out)
+        hdu.writeto(path_out, overwrite=True)
+        print(f'Wrote: {path_out}')
+      
+        file_out = f'superstack_{str_name}_mean_wcs_sm_hbt.fits'
+        hdu = fits.PrimaryHDU(img_rescale_mean_sm, header=header_sm)
+        path_out = os.path.join(dir_out, file_out)
+        hdu.writeto(path_out, overwrite=True)
+        print(f'Wrote: {path_out}')
+        
         
         if do_backplanes:
             # Now that we have written a FITS file to disk, compute backplanes for it
@@ -242,6 +278,8 @@ if (__name__ == '__main__'):
     name_ort = 'ORT4'
     initials_user = 'HBT'
     dir_data = '/Users/throop/Data'
+    
+    a_xy = (1,1)   # Projected ellipticity of ring
 
     if (name_ort == 'ORT1'):
         dir_images    = os.path.join(dir_data, name_ort, 'backplaned')
@@ -279,6 +317,7 @@ if (__name__ == '__main__'):
         reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03'] # Why no HAZ04 in ORT4?
 #        reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03'] # Why no HAZ04 in ORT4?
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+        a_xy = (1, math.cos(hbt.d2r * 30))
     
     # Start up SPICE if needed
     
@@ -435,10 +474,10 @@ if (__name__ == '__main__'):
     hbt.figsize(20,20)
     
     str_name = f'{name_ort}_z{zoom}'
-    (img_superstack_mean, img_superstack_median, planes) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
+    (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
                                                                           do_save_all=True, dir=dir_out,
                                                                           str_name = str_name, do_center=True,
-                                                                          do_backplanes=True)
+                                                                          do_backplanes=False)
   
     # Create, display, and save the median superstack
     
@@ -508,8 +547,13 @@ if (__name__ == '__main__'):
     # Take the radial profile of the superstack
     
     binwidth = 1
-    (radius_median,profile_iof_median) = get_radial_profile_circular(img_superstack_median_iof, pos=pos, width=binwidth)
-    (radius_mean,  profile_iof_mean)   = get_radial_profile_circular(img_superstack_mean_iof,   pos=pos, width=binwidth)
+
+    a_xy = (1, math.cos(0*hbt.d2r))
+    
+    (radius_median,profile_iof_median) = get_radial_profile_circular(img_superstack_median_iof, 
+                                         pos=pos, width=binwidth, a_xy = a_xy)
+    (radius_mean,  profile_iof_mean)   = get_radial_profile_circular(img_superstack_mean_iof,   
+                                         pos=pos, width=binwidth, a_xy = a_xy)
     
     hbt.figsize((8,6))
     radius_profile_km = radius_median*pixscale_km
@@ -519,7 +563,7 @@ if (__name__ == '__main__'):
     plt.ylim((-0.5e-7,3e-7))
     plt.legend(loc = 'upper right')
     plt.ylabel('I/F')
-    plt.title(f'{name_ort}, binwidth={binwidth} pix, zoom={zoom}')
+    plt.title(f'{name_ort}, binwidth={binwidth} pix, zoom={zoom}, tilt={math.acos(a_xy[1]) * hbt.r2d : .1f} deg')
     plt.xlabel('Radius [km]')
     plt.show()
     
