@@ -9,10 +9,33 @@ Created on Fri Jan 19 16:20:36 2018
 import hbt
 import numpy as np
 
-def get_radial_profile_circular(arr, pos = (0,0), width=1, method='median'):
+def get_radial_profile_circular(arr, pos = (0,0), width=1, a_xy = (1,1), method='median'):
 
     """
-    Extract a radial profile from an image. This is the simplest possible case: circular
+    Extract a radial profile from an image. 
+    
+    Will handle a circular case.
+    
+    With an optional set of semi-major axes passed, will handle a simple elliptical ring.
+    
+    Parameters
+    -----
+    
+    arr:
+        Array of data values (e.g., the image).
+        
+    pos:
+        Position of the center of the circle, in pixels
+        
+    width:
+        Some sort of scaling? Not really sure. Just keep at default.
+        
+    a_xy:
+        Semimajor axes. Tuple. This account for, in a crude way, the tilt of a flat ring.
+        e.g., `a_xy = (1, cos(30 deg))` is for a ring tilted so as to be squished vertically.
+        Default is for a face-on ring. This will break down for large angles. 
+        What matters is the ratio of the supplied x and y values; the actual do not matter.
+        
     """
 
     dx = hbt.sizex(arr) 
@@ -21,7 +44,7 @@ def get_radial_profile_circular(arr, pos = (0,0), width=1, method='median'):
     xx, yy = np.mgrid[:dx, :dy]  # What is this syntax all about? That is weird.
                                  # A: mgrid is a generator. np.meshgrid is the normal function version.
     
-    dist_pix_2d = np.sqrt( ((xx - pos[0]) ** 2) + ((yy - pos[1]) ** 2) )
+    dist_pix_2d = np.sqrt( (((xx - pos[0])/a_xy[1]) ** 2) + (((yy - pos[1])/a_xy[0]) ** 2) )
 
     dist_pix_1d = hbt.frange(0, int(np.amax(dist_pix_2d)/width))*width
     
