@@ -131,7 +131,7 @@ class App:
         # This value is easy to compute: loop over all stacks, and take max of stack.calc_padding()[0]
         
         self.padding     = 61 # Amount to pad the images by. This is the same as the max drift btwn all images in stacks
-        self.zoom        = 2  # Sub-pixel zoom to apply when shifting images. 1 for testing; 4 for production.
+        self.zoom        = 4  # Sub-pixel zoom to apply when shifting images. 1 for testing; 4 for production.
         self.num_image   = 0  # Which stack number to start on.
         self.zoom_screen = 1  # 'Screen zoom' amount to apply. This can be changed interactively.
         
