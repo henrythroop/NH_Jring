@@ -36,8 +36,10 @@ from   plot_img_wcs import plot_img_wcs
 from   image_stack import image_stack
 from   compute_backplanes import compute_backplanes
 
-def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplanes=True, dir='', str_name='', 
-                           do_center=True,
+def nh_ort_make_superstack(stack, img, img_field, 
+                           name_stack_base, 
+                           do_save_all=True, do_backplanes=True, dir='', str_name='', 
+                           do_center=True, 
                            do_wcs = False):
     
     """
@@ -58,6 +60,11 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplane
         A dictonary of 2D images, created by flattening the stacks above. The dictionary 
         keys of `img` and `stack` must be the same.
     
+    name_stack_base:
+        String, which identifies an item in the `stack`.' 
+        Which one of the input stacks do we use for the 'base' for the superstack? Typically this will be 
+        the highest-resolution one. This stack is used to set the output resolution, and the ET (ie, center position).
+        
     Optional parameters
     -----
     
@@ -99,11 +106,11 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplane
     
     # Look up what the index is for this image
     
-    key_out = keys[np.where(pixscale_km_out == np.array(list(pixscale_km.values())))[0][0]]
+    name_stack_base = keys[np.where(pixscale_km_out == np.array(list(pixscale_km.values())))[0][0]]
     
-#    pixscale = stack[key_out].pixscale_x_km  # This is the pixel scale of the final stack.
+#    pixscale = stack[name_stack_base].pixscale_x_km  # This is the pixel scale of the final stack.
                                                                  # Zoom has not been applied yet.
-    size_out = np.shape(img[key_out])
+    size_out = np.shape(img[name_stack_base])
     
     img_rescale_3d = np.zeros((len(keys),size_out[0],size_out[1]))
     img_rescale = {}
@@ -152,13 +159,13 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplane
     # Get a WCS system, if requested. Just grab the one from the stack that we used.
     # However, there may be some small mis-alignment issues. 
     
-    wcs = stack[key_out].t['wcs'][0]
+    wcs = stack[name_stack_base].t['wcs'][0]
     
     # Now adjust the WCS so the center of the image is is at dx/2, dy/2, *and* RA/Dec is position of MU69.
     
     # Look up RA, Dec of MU69 for that date
     
-    et = stack_haz[key_out].t['et'][0]
+    et = stack_haz[name_stack_base].t['et'][0]    # name_stack_base indicates which of the stacks is used for 
     (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
     (range_, ra, dec) = sp.recrad(st[0:3])
     
@@ -171,16 +178,16 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplane
     
     # Also, put the correct ET into the FITS header.
     
-    et = stack_haz['K1LR_HAZ00'].t['et'][0]
+    et = stack_haz[name_stack_base].t['et'][0]
     header['SPCSCET'] = f'{et}'
     header['SPCUTCID'] = sp.et2utc(et, 'C', 0)
     
     # Make a 'small' version of the extracted image. It will be just much easier to deal with. Put WCS info it it too.
     
-    x0 = int(hbt.sizex(img_rescale_mean) * 0.4)
-    x1 = int(hbt.sizex(img_rescale_mean) * 0.6)
-    y0 = int(hbt.sizey(img_rescale_mean) * 0.4)
-    y1 = int(hbt.sizey(img_rescale_mean) * 0.6)
+    x0 = int(hbt.sizex(img_rescale_mean) * 0.375) # This reduces size from 1600 pixels to 400 pixels
+    x1 = int(hbt.sizex(img_rescale_mean) * 0.625)
+    y0 = int(hbt.sizey(img_rescale_mean) * 0.375)
+    y1 = int(hbt.sizey(img_rescale_mean) * 0.625)
     
     img_rescale_mean_sm = img_rescale_mean[x0:x1, y0:y1]
     img_rescale_median_sm = img_rescale_median[x0:x1, y0:y1]
@@ -193,7 +200,6 @@ def nh_ort_make_superstack(stack, img, img_field, do_save_all=True, do_backplane
     header_sm['SPCUTCID'] = sp.et2utc(et, 'C', 0)
 
     # Write the superstacks (with WCS) to disk, if requested
-    
     
     if do_save_all:
         
@@ -423,8 +429,6 @@ if (__name__ == '__main__'):
     plt.ylabel('DN Median')
     plt.legend(loc = 'upper right')
     plt.show()
-
-#%%%
     
     # Convert individual radial profiles from DN to I/F
     
@@ -468,49 +472,56 @@ if (__name__ == '__main__'):
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
     plt.show()
 
+#%%%
+    
 # =============================================================================
 #     Make a 'superstack' -- ie stack of stacks, put on the same spatial scale and stacked
 # =============================================================================
-    hbt.figsize(20,20)
     
+    keys = list(stack_haz.keys())
+    
+    pixscale_km = {}
+    for key in keys:
+        pixscale_km[key] = stack[key].pixscale_x_km
+        
+    # Search for the highest-res stack, and make it so that the superstack matches the resolution of that stack.
+    
+    pixscale_km_out = min(pixscale_km.values())
+    
+    # Look up what the index is for this image
+    
+    name_stack_base = keys[np.where(pixscale_km_out == np.array(list(pixscale_km.values())))[0][0]]
+    
+    # Create and save the median superstack
+
     str_name = f'{name_ort}_z{zoom}'
     (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
+                                                                          name_stack_base, 
                                                                           do_save_all=True, dir=dir_out,
                                                                           str_name = str_name, do_center=True,
                                                                           do_backplanes=False)
   
-    # Create, display, and save the median superstack
+
+    # Plot the superstack to screen
     
+    hbt.figsize(14,14)
+    plt.subplot(1,2,1)
     plt.imshow( stretch(img_superstack_median), origin='lower', cmap=cmap_superstack)
     plt.title(f'restretched and medianed, {name_ort}')
-    plt.show()
-    
-#    file_out = os.path.join(dir_out, f'img_superstack_median_{name_ort}.fits')
-#    hdu = fits.PrimaryHDU(img_superstack_median)
-#    hdu.writeto(file_out, overwrite=True)
-#    print(f'Wrote: {file_out}')
-# 
-    # Create, display, and save the mean superstack
 
+    plt.subplot(1,2,2)
     plt.imshow( stretch(img_superstack_mean), origin='lower', cmap=cmap_superstack)
     plt.title(f'restretched and mean, {name_ort}')
-    plt.show()    
-    
-#    file_out = os.path.join(dir_out, f'img_superstack_mean_{name_ort}.fits')
-#    hdu = fits.PrimaryHDU(img_superstack_mean)
-#    hdu.writeto(file_out, overwrite=True)
-#    print(f'Wrote: {file_out}')
-#       
-#    print(f'zooming by {magfac}, to size {np.shape(img_haz_rescale[reqid_i])}')
+
+    plt.show()
+    hbt.figsize()
  
 # Create a backplane for this superstack
-# Do this by taking the first file, in the last reqid. We assume this is the same resolution as the 
-# superstack. This is a bit non-rigorous, but I think it will be very close.
-# Ideally we would actually create a backplane file based on the WCS of the superstack.
+# Do this by taking the first file, in the chosen stack. Extract the RADIUS_EQ backplane.
     
-    file_backplanes = stack_haz[reqids_haz[-1]].t['filename'][0]
+    file_backplanes = stack_haz[name_stack_base].t['filename'][0]
     f = fits.open(file_backplanes)
-    plane_radius_orig = f['RADIUS_EQ'].data
+    plane_radius_orig = f['RADIUS_EQ'].data  # Read the RADIUS backplane value
     f.close()
     
     plane_radius = scipy.ndimage.zoom(plane_radius_orig, zoom)
@@ -522,7 +533,7 @@ if (__name__ == '__main__'):
     dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
     plane_radius = np.pad(plane_radius, int(dpad), 'constant')
     plt.imshow(stretch( (plane_radius < 10000) * img_superstack_mean))    
-    
+         
 # =============================================================================
 #     Make a radial profile, in I/F units 
 # =============================================================================
@@ -571,6 +582,7 @@ if (__name__ == '__main__'):
 #      Write the ring profile to a text file as per wiki
 #      https://www.spaceops.swri.org/nh/wiki/index.php/KBO/Hazards/Pipeline/Detection-to-Ring  
 # =============================================================================
+    
     version = 1
     
     file_out = os.path.join(dir_out, f'{initials_user.lower()}_{name_ort.lower()}_v{version}.ring')
