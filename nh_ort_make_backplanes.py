@@ -41,6 +41,7 @@ def nh_ort_make_backplanes():
     name_target   = 'MU69'
     name_observer = 'New Horizons'
     frame         = '2014_MU69_SUNFLOWER_ROT'  # Change this to tuna can if needed, I think??
+    frame         = '2014_MU69_ORT4_1'  # Change this to tuna can if needed, I think??
     
 # =============================================================================
 #     Get a proper list of all the input files
@@ -86,10 +87,10 @@ def nh_ort_make_backplanes():
     do_digit_filter = True
 
 #    digit_filter = '12'
-#    digit_filter = '34'
+    digit_filter = '34'
 #    digit_filter = '56'
 #    digit_filter = '78'
-    digit_filter = '90'
+#    digit_filter = '90'
     
     if (do_digit_filter):
         files_filtered = []
@@ -144,7 +145,7 @@ def test():
 
     dir = '/Users/throop/Data/ORT3/throop/backplaned'
     file = 'lor_0406991502_0x633_wcs_HAZARD_ort3_backplaned.fit'
-    
+    file = pwcs_ort4/K1LR_OPNAV27B/lor_0407015627_0x633_pwcs.fits
     plane = nh_ort_make_backplanes(os.path.join(dir,file))
     
 # =============================================================================

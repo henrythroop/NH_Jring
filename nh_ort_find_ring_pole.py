@@ -147,7 +147,7 @@ def nh_ort_find_ring_pole():
         (x, y) = wcs.wcs_world2pix(ra_i*hbt.r2d, dec_i*hbt.r2d, 0)
         
         plt.plot(x+dx, y+dy, marker = 'o', ms = 1, color='red', alpha = 0.15)
-        print(f'{i}, {ra_i*hbt.r2d}, {dec_i*hbt.r2d}, {x}, {y}')
+#        print(f'{i}, {ra_i*hbt.r2d}, {dec_i*hbt.r2d}, {x}, {y}')
     
     plt.title(f'ORT4 Superstack, Ring Pole = ({ra_pole*hbt.r2d},{dec_pole*hbt.r2d}) deg')    
     plt.show()
