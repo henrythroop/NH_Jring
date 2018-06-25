@@ -19,9 +19,9 @@ Henry Throop 12-Jan-2018
 
 \begindata
 
-PATH_SYMBOLS = ('DIR')
+PATH_SYMBOLS = ('DIR', 'DIR2')
 
-PATH_VALUES  = ('/Users/throop/gv/dev/kernels')
+PATH_VALUES  = ('/Users/throop/gv/dev/kernels', '/Users/throop/git/NH_rings')
 
 KERNELS_TO_LOAD = (
 '$DIR/pck00009.tpc',
@@ -74,5 +74,5 @@ KERNELS_TO_LOAD = (
 '$DIR/nh_nom_20170201_20210714_v13_prime.bsp',
 '$DIR/gv_pluto_smallsats_lhr.tf',
 '$DIR/gv_pck.tpc',
-'$DIR/mu69_sunflower.tf',
+'$DIR2/mu69_ort.tf',
 )
