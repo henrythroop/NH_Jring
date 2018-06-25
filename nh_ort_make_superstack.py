@@ -102,6 +102,8 @@ def nh_ort_make_superstack(stack, img, img_field,
         
     """
     
+    cmap = 'plasma'
+    
     keys = list(stack.keys())
     
     pixscale_km = {}
@@ -147,7 +149,7 @@ def nh_ort_make_superstack(stack, img, img_field,
             shift_y = 50 - hbt.wheremax(np.sum(extract, axis=1))  # vertical axis on screen. 
                                                                   #  Axis=0. - means value is too large. 
             arr_out = np.roll(np.roll(arr_out, shift_x, axis=1), shift_y, axis=0)
-            print(f'Rolling by {shift_x}, {shift_y}')
+            print(f'Rolling by {shift_x}, {shift_y} to align {key} into superstack')
             
         img_rescale[reqid_i]  = arr_out
         img_rescale_3d[i,:,:] = arr_out
@@ -423,61 +425,18 @@ if (__name__ == '__main__'):
 #      Calculate and display radial profiles
 # =============================================================================
     
-    hbt.figsize((10,8))
-    hbt.set_fontsize(12)
-    pos =  np.array(np.shape(img_field))/2  # MU69 will be at the center of this array
-    for reqid_i in reqids_haz:
-        (radius, profile_dn) = get_radial_profile_circular(img_haz[reqid_i] - img_field, pos=pos, width=width)
-        radius_km = radius * stack_haz[reqid_i].pixscale_x_km / zoom
-        plt.plot(radius_km, profile_dn, label=reqid_i)
-    plt.xlim(0,50_000)
-    plt.title(f'{name_ort}, binwidth={width} pix, zoom={zoom}')
-    plt.xlabel('Radius [km]')
-    plt.ylabel('DN Median')
-    plt.legend(loc = 'upper right')
-    plt.show()
+        hbt.figsize((10,8))
+        hbt.set_fontsize(12)
     
-    # Convert individual radial profiles from DN to I/F
-    
-    for reqid_i in reqids_haz:
-        
-        # Take the radial profile
-        
-        (radius, profile_dn) = get_radial_profile_circular(img_haz[reqid_i] - img_field, pos=pos, width=width)
-        radius_km = radius * stack_haz[reqid_i].pixscale_x_km / zoom
-        
         RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
         RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
-        C = profile_dn # Get the DN values of the ring. Typical value is 1 DN.
         
         # Define the solar flux, from Hal's paper.
         FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
         F_solar = FSOLAR_LORRI # Flux from Hal's paper
         RSOLAR = RSOLAR_LORRI_4X4
-
-        # Calculate the MU69-Sun distance, in AU (or look it up).         
+    
         km2au = 1 / (u.au/u.km).to('1')
-        et = stack_haz[reqid_i].t['et'][0]
-        (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
-        r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
-        (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
-        r_sun_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
-        pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming 4x4)
-        TEXP = stack_haz[reqid_i].t['exptime'][0]
-        I = C / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. All v similar, except for spectrum assumed.
-        
-        # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
-        profile_IoF = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
-        plt.plot(radius_km, profile_IoF, label=reqid_i)
-        plt.xlim(0,50_000)
-        
-    plt.xlabel('Dist [km], 4x4 zoomed??')
-    plt.ylabel('I/F Median')
-    plt.ylim((-2e-7,5e-7))
-    plt.legend()
-    plt.title(f'{name_ort}, binwidth={width} pix, zoom={zoom}')
-    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
-    plt.show()
 
 #%%%
     
@@ -507,8 +466,7 @@ if (__name__ == '__main__'):
                                                                           do_save_all=True, dir=dir_out,
                                                                           str_name = str_name, do_center=True,
                                                                           do_backplanes=False)
-  
-
+    
     # Plot the superstack to screen
     
     hbt.figsize(14,14)
@@ -523,83 +481,52 @@ if (__name__ == '__main__'):
     plt.show()
     hbt.figsize()
  
+# =============================================================================
+# Now start to calculate radial profiles
+# =============================================================================
+
 # Create a backplane for this superstack
-# Do this by taking the first file, in the chosen stack. Extract the RADIUS_EQ backplane.
+# Look up the Radius backplane, in the chosen stack. Extracting the RADIUS_EQ backplane.
     
     file_backplanes = stack_haz[name_stack_base].t['filename'][0]
     f = fits.open(file_backplanes)
     plane_radius_orig = f['RADIUS_EQ'].data  # Read the RADIUS backplane value
     f.close()
     
+    # Do a really brute-force thing: center this backplane, by just centroiding it. 
+    # I should be able to center it better, using shift coordinates from above.
+    # However, I don't actually ever compute these. Even in assembling the superstacks, I just center on the 
+    # brightest thing in the frame, rather than follow MU69's motion. I should fix that, but for now this works.
+    
     plane_radius = scipy.ndimage.zoom(plane_radius_orig, zoom)
     wheremin_x = hbt.wheremin(np.amin(plane_radius,axis=1))
     wheremin_y = hbt.wheremin(np.amin(plane_radius,axis=0))
     plane_radius = np.roll(plane_radius, 512-wheremin_y, axis=1)
     plane_radius = np.roll(plane_radius, 512-wheremin_x, axis=0)
+
+    # Make an image overlaying a raduis mask with the ring. This is just to visualize if the geometry is close.
         
     dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
     plane_radius = np.pad(plane_radius, int(dpad), 'constant')
-    plt.imshow(stretch( (plane_radius < 10000) * img_superstack_mean))    
-
-# Make a backplane, method #2. Use the backplane in the _sm files
-    
+    plt.imshow(stretch( (plane_radius < 12000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
+    plt.show()
+        
     name_target = 'MU69'
     frame = '2014_MU69_ORT4_1'
     name_observer = 'New Horizons'
 
     file_out_superstack_median_sm = f'superstack_{str_name}_median_wcs_sm_hbt.fits'
 
-    (planes, desc) = compute_backplanes(os.path.join(dir_out, file_out_superstack_median_sm), 
-                                            name_target, frame, name_observer)
-    
-    num_pts = 200
-    
-    dx = 1   # My superstack's WCS is not perfectly aligned. So, do some offsetting here.
-    dy = -4
-    radius_roll = np.roll(np.roll(planes['Radius_eq'], dx, axis=0), dy, axis=1)
-
-    # Read in the _sm file
-    
-    f = fits.open(os.path.join(dir_out, file_out_superstack_median_sm))
-    im = f['PRIMARY'].data
-    f.close()
- 
-    # Take the radial profile
-       
-    (radius, dn) = get_radial_profile_backplane(im, 
-                                 radius_roll, num_pts=num_pts)
-   
     # Look up the pole position of MU69, based on the loaded frame kernel
+    # That is, the RA + Dec of the pole, in degrees, as derived from NH_ORT_FIND_RING_POLE.PY.
+    # I put this value into the .tf frame file for MU69, and grab it here.
+    # This is just for labeling plots -- nothing else.
     
     vec = [0, -1, 0]                                # -Y vector is the rotational pole
     mx_frame_j2k =  sp.pxform(frame, 'J2000', et)
     vec_j2k = sp.mxv(mx_frame_j2k, vec)
     (_, ra_pole, dec_pole) = sp.recrad(vec_j2k)
-    
-    # Fit a gaussian to the radial profile
-    
-    r_0         = 3000      # Inner radius to ignore in gauss fit, in km
-    radius_ring = 9000      # Starting point for gassfit for ring position, in km
-    hw_ring     = 1000      # Starting point for ring halfwidth, in km
-    
-    bin_0 = hbt.x2bin(r_0, radius)
-    x = radius[bin_0:]
-    y = dn[bin_0:]            
-    
-    popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
 
-    plt.plot(radius, dn, label = f'ORT4, backplaned, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
-    plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=0.5, 
-             label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
-    # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
-    plt.ylim((-0.2,1))
-    plt.xlim((0, 20000))
-    plt.xlabel('Radius [km]')
-    plt.ylabel('DN')
-    plt.legend()
-    plt.title(f'Radial profile, superstack, backplane from frame {frame}')
-    plt.show()
-        
 # =============================================================================
 #     Make a radial profile, in I/F units 
 # =============================================================================
@@ -623,27 +550,25 @@ if (__name__ == '__main__'):
     
     # Take the radial profile of the superstack
     
-    binwidth = 1
-
-    num_pts = 800  # Number of radial points. Larger than before because this is on a full-size image, not _sm.
+    num_pts = 800  # Number of radial points to use.
     
     (radius,  profile_iof_mean)   = get_radial_profile_backplane(img_superstack_mean_iof,
-                                         plane_radius, method = 'median', num_pts = num_pts)
+                                         plane_radius, method = 'mean', num_pts = num_pts)
                                          
     (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
                                          plane_radius, method = 'median', num_pts = num_pts)
 
     profile_iof = profile_iof_median  # Just pick one -- they both are similar
     
-  # Fit a gaussian to the radial profile
+  # Fit a gaussian to the radial profile. Set the initial guesses.
     
-    r_0         = 3000      # Inner radius to ignore in gauss fit, in km
+    r_0         = 4000      # Inner radius to ignore in gauss fit, in km
     radius_ring = 9000      # Starting point for gassfit for ring position, in km
     hw_ring     = 1000      # Starting point for ring halfwidth, in km
     
     bin_0 = hbt.x2bin(r_0, radius)
     x = radius[bin_0:]
-    y = profile_iof_mean[bin_0:]            
+    y = profile_iof[bin_0:]            
     
     popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
 
@@ -651,9 +576,12 @@ if (__name__ == '__main__'):
 
     plt.plot(radius, profile_iof, 
              label = f'ORT4, backplaned, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
-    plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=0.5, 
+    
+    plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=1.5, 
              label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
+    
     # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
+    
     plt.ylim((-1e-7, 5e-7))
     plt.xlim((0, 20000))
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
@@ -663,8 +591,6 @@ if (__name__ == '__main__'):
     plt.title(f'Radial profile, superstack, backplane using {frame}')
     plt.show()
     
-
-
 # =============================================================================
 #      Write the ring profile to a text file as per wiki
 #      https://www.spaceops.swri.org/nh/wiki/index.php/KBO/Hazards/Pipeline/Detection-to-Ring  
@@ -707,7 +633,7 @@ if (__name__ == '__main__'):
         
         img_extract_large = m.copy()     # Copy the masked image back to the full extracted image
         
-        plt.imshow(stretch(img_extract_large), origin='lower', cmap=cmap)
+        plt.imshow(stretch(img_extract_large), origin='lower', cmap='plasma')
         plt.show()
         
         plt.imshow(stretch(img_superstack_mean_iof), origin='lower')
