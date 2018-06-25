@@ -32,9 +32,17 @@ import hbt
 
 from   matplotlib.figure import Figure
 from   get_radial_profile_circular import get_radial_profile_circular
+from   get_radial_profile_backplane import get_radial_profile_backplane
 from   plot_img_wcs import plot_img_wcs
 from   image_stack import image_stack
 from   compute_backplanes import compute_backplanes
+from   scipy.optimize import curve_fit
+
+# Define a gaussian function, for the fit
+    
+def gaus(x,a,x0,sigma):
+    return a*np.exp(-(x-x0)**2/(2*sigma**2))
+    
 
 def nh_ort_make_superstack(stack, img, img_field, 
                            name_stack_base, 
@@ -219,15 +227,15 @@ def nh_ort_make_superstack(stack, img, img_field,
 
         # Write small images
         
-        file_out = f'superstack_{str_name}_median_wcs_sm_hbt.fits'
+        file_out_superstack_median_sm = f'superstack_{str_name}_median_wcs_sm_hbt.fits'
         hdu = fits.PrimaryHDU(img_rescale_median_sm, header=header_sm)
-        path_out = os.path.join(dir_out, file_out)
+        path_out = os.path.join(dir_out, file_out_superstack_median_sm)
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
       
-        file_out = f'superstack_{str_name}_mean_wcs_sm_hbt.fits'
+        file_out_superstack_mean_sm = f'superstack_{str_name}_mean_wcs_sm_hbt.fits'
         hdu = fits.PrimaryHDU(img_rescale_mean_sm, header=header_sm)
-        path_out = os.path.join(dir_out, file_out)
+        path_out = os.path.join(dir_out, file_out_superstack_mean_sm)
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
         
@@ -320,8 +328,7 @@ if (__name__ == '__main__'):
     if (name_ort == 'ORT4'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort)
-        reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03'] # Why no HAZ04 in ORT4?
-#        reqids_haz  = ['K1LR_HAZ02', 'K1LR_HAZ03'] # Why no HAZ04 in ORT4?
+        reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04'] # Why no HAZ04 in ORT4?
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         a_xy = (1, math.cos(hbt.d2r * 30))
     
@@ -482,7 +489,7 @@ if (__name__ == '__main__'):
     
     pixscale_km = {}
     for key in keys:
-        pixscale_km[key] = stack[key].pixscale_x_km
+        pixscale_km[key] = stack_haz[key].pixscale_x_km
         
     # Search for the highest-res stack, and make it so that the superstack matches the resolution of that stack.
     
@@ -533,7 +540,59 @@ if (__name__ == '__main__'):
     dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
     plane_radius = np.pad(plane_radius, int(dpad), 'constant')
     plt.imshow(stretch( (plane_radius < 10000) * img_superstack_mean))    
-         
+
+# Make a backplane, method #2. Use the backplane in the _sm files
+    
+    name_target = 'MU69'
+    frame = '2014_MU69_ORT4_1'
+    name_observer = 'New Horizons'
+
+    file_out_superstack_median_sm = f'superstack_{str_name}_median_wcs_sm_hbt.fits'
+
+    (planes, desc) = compute_backplanes(os.path.join(dir_out, file_out_superstack_median_sm), 
+                                            name_target, frame, name_observer)
+    
+    num_pts = 200
+    
+    dx = 1   # My superstack's WCS is not perfectly aligned. So, do some offsetting here.
+    dy = -4
+    radius_roll = np.roll(np.roll(planes['Radius_eq'], dx, axis=0), dy, axis=1)
+
+    # Read in the _sm file
+    
+    f = fits.open(os.path.join(dir_out, file_out_superstack_median_sm))
+    im = f['PRIMARY'].data
+    f.close()
+ 
+    # Take the radial profile
+       
+    (radius, dn) = get_radial_profile_backplane(im, 
+                                 radius_roll, num_pts=num_pts)
+   
+  # Fit a gaussian to the radial profile
+    
+    r_0         = 3000      # Inner radius to ignore in gauss fit, in km
+    radius_ring = 9000      # Starting point for gassfit for ring position, in km
+    hw_ring     = 1000      # Starting point for ring halfwidth, in km
+    
+    bin_0 = hbt.x2bin(r_0, radius)
+    x = radius[bin_0:]
+    y = dn[bin_0:]            
+    
+    popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
+
+    plt.plot(radius, dn, label = 'ORT4, backplaned, pole = (275,-56) deg')
+    plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=0.5, 
+             label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
+    # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
+    plt.ylim((-0.2,1))
+    plt.xlim((0, 20000))
+    plt.xlabel('Radius [km]')
+    plt.ylabel('DN')
+    plt.legend()
+    plt.title(f'Radial profile, superstack, backplane from frame {frame}')
+    plt.show()
+        
 # =============================================================================
 #     Make a radial profile, in I/F units 
 # =============================================================================
@@ -559,15 +618,15 @@ if (__name__ == '__main__'):
     
     binwidth = 1
 
-    a_xy = (1, math.cos(0*hbt.d2r))
+    num_pts = 800  # Number of radial points. Larger than before because this is on a full-size image, not _sm.
     
-    (radius_median,profile_iof_median) = get_radial_profile_circular(img_superstack_median_iof, 
-                                         pos=pos, width=binwidth, a_xy = a_xy)
-    (radius_mean,  profile_iof_mean)   = get_radial_profile_circular(img_superstack_mean_iof,   
-                                         pos=pos, width=binwidth, a_xy = a_xy)
-    
+    (radius_profile_km,  profile_iof_mean)   = get_radial_profile_backplane(img_superstack_mean_iof,
+                                         plane_radius, method = 'median', num_pts = num_pts)
+                                         
+    (radius_profile_km,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
+                                         plane_radius, method = 'median', num_pts = num_pts)
+  
     hbt.figsize((8,6))
-    radius_profile_km = radius_median*pixscale_km
     plt.plot(radius_profile_km, profile_iof_median,label = 'All curves, Median')
     plt.plot(radius_profile_km, profile_iof_mean,  label = 'All curves, Mean')
     plt.xlim((0,20000))
