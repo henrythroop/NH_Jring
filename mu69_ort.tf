@@ -255,7 +255,7 @@ given RA/Dec.
   FRAME_1234584_PRI_ABCORR              = 'LT'
   FRAME_1234584_PRI_FRAME		= 'J2000'
   FRAME_1234584_PRI_RA                  = 275
-  FRAME_1234584_PRI_DEC                 = -56
+  FRAME_1234584_PRI_DEC                 = 13
  
   FRAME_1234584_SEC_AXIS                = '+Z'
   FRAME_1234584_SEC_VECTOR_DEF          = 'CONSTANT'

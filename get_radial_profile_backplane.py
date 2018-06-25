@@ -34,7 +34,14 @@ def get_radial_profile_backplane(im, radius_plane, method='median', num_pts = 10
         2D array, which is the backplane. Typically this is planes['Radius_eq'].
     
     num_pts:
-        Scalar. Number of points to use in the output array.
+        Scalar. Number of points to use in the output array.  Output radius is evenly spaced
+        from 0 .. max(radius_plane).
+        
+    Optional parameters
+    -----    
+    
+    method: 
+        String. 'mean' or 'median'.
         
     """
     radius_1d = hbt.frange(0, int(np.amax(radius_plane)), num_pts)

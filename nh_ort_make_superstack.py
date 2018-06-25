@@ -569,7 +569,14 @@ if (__name__ == '__main__'):
     (radius, dn) = get_radial_profile_backplane(im, 
                                  radius_roll, num_pts=num_pts)
    
-  # Fit a gaussian to the radial profile
+    # Look up the pole position of MU69, based on the loaded frame kernel
+    
+    vec = [0, -1, 0]                                # -Y vector is the rotational pole
+    mx_frame_j2k =  sp.pxform(frame, 'J2000', et)
+    vec_j2k = sp.mxv(mx_frame_j2k, vec)
+    (_, ra_pole, dec_pole) = sp.recrad(vec_j2k)
+    
+    # Fit a gaussian to the radial profile
     
     r_0         = 3000      # Inner radius to ignore in gauss fit, in km
     radius_ring = 9000      # Starting point for gassfit for ring position, in km
@@ -581,7 +588,7 @@ if (__name__ == '__main__'):
     
     popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
 
-    plt.plot(radius, dn, label = 'ORT4, backplaned, pole = (275,-56) deg')
+    plt.plot(radius, dn, label = f'ORT4, backplaned, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
     plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=0.5, 
              label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
     # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
@@ -620,23 +627,44 @@ if (__name__ == '__main__'):
 
     num_pts = 800  # Number of radial points. Larger than before because this is on a full-size image, not _sm.
     
-    (radius_profile_km,  profile_iof_mean)   = get_radial_profile_backplane(img_superstack_mean_iof,
+    (radius,  profile_iof_mean)   = get_radial_profile_backplane(img_superstack_mean_iof,
                                          plane_radius, method = 'median', num_pts = num_pts)
                                          
-    (radius_profile_km,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
+    (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
                                          plane_radius, method = 'median', num_pts = num_pts)
-  
+
+    profile_iof = profile_iof_median  # Just pick one -- they both are similar
+    
+  # Fit a gaussian to the radial profile
+    
+    r_0         = 3000      # Inner radius to ignore in gauss fit, in km
+    radius_ring = 9000      # Starting point for gassfit for ring position, in km
+    hw_ring     = 1000      # Starting point for ring halfwidth, in km
+    
+    bin_0 = hbt.x2bin(r_0, radius)
+    x = radius[bin_0:]
+    y = profile_iof_mean[bin_0:]            
+    
+    popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
+
     hbt.figsize((8,6))
-    plt.plot(radius_profile_km, profile_iof_median,label = 'All curves, Median')
-    plt.plot(radius_profile_km, profile_iof_mean,  label = 'All curves, Mean')
-    plt.xlim((0,20000))
-    plt.ylim((-0.5e-7,3e-7))
-    plt.legend(loc = 'upper right')
-    plt.ylabel('I/F')
-    plt.title(f'{name_ort}, binwidth={binwidth} pix, zoom={zoom}, tilt={math.acos(a_xy[1]) * hbt.r2d : .1f} deg')
+
+    plt.plot(radius, profile_iof, 
+             label = f'ORT4, backplaned, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
+    plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=0.5, 
+             label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
+    # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
+    plt.ylim((-1e-7, 5e-7))
+    plt.xlim((0, 20000))
+    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
     plt.xlabel('Radius [km]')
+    plt.ylabel('I/F')
+    plt.legend(loc = 'upper right')
+    plt.title(f'Radial profile, superstack, backplane using {frame}')
     plt.show()
     
+
+
 # =============================================================================
 #      Write the ring profile to a text file as per wiki
 #      https://www.spaceops.swri.org/nh/wiki/index.php/KBO/Hazards/Pipeline/Detection-to-Ring  
@@ -646,8 +674,8 @@ if (__name__ == '__main__'):
     
     file_out = os.path.join(dir_out, f'{initials_user.lower()}_{name_ort.lower()}_v{version}.ring')
     lun = open(file_out,"w")
-    for i in range(len(profile_iof_median)):
-        lun.write('{:10.3f} {:11.3e}\n'.format(radius_profile_km[i], profile_iof_median[i]))
+    for i in range(len(profile_iof)):
+        lun.write('{:10.3f} {:11.3e}\n'.format(radius[i], profile_iof[i]))
     lun.close()
     print(f'Wrote: {file_out}')
     print(f' scp {file_out} ixion:\~/astrometry' )  # We don't copy it, but we put up the string so user can.
