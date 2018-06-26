@@ -503,13 +503,6 @@ if (__name__ == '__main__'):
     wheremin_y = hbt.wheremin(np.amin(plane_radius,axis=0))
     plane_radius = np.roll(plane_radius, 512-wheremin_y, axis=1)
     plane_radius = np.roll(plane_radius, 512-wheremin_x, axis=0)
-
-    # Make an image overlaying a raduis mask with the ring. This is just to visualize if the geometry is close.
-        
-    dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
-    plane_radius = np.pad(plane_radius, int(dpad), 'constant')
-    plt.imshow(stretch( (plane_radius < 12000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
-    plt.show()
         
     name_target = 'MU69'
     frame = '2014_MU69_ORT4_1'
@@ -605,6 +598,43 @@ if (__name__ == '__main__'):
     lun.close()
     print(f'Wrote: {file_out}')
     print(f' scp {file_out} ixion:\~/astrometry' )  # We don't copy it, but we put up the string so user can.
+
+
+# =============================================================================
+# Make an image overlaying a radius mask with the ring. This is just to visualize if the geometry is close.
+# =============================================================================
+    
+    sigma_fit = popt[2]
+    radius_fit = popt[1]
+    hbt.figsize(12,12)
+    alpha = 0.3
+
+    plt.subplot(1,2,1)    
+    dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
+    plane_radius = np.pad(plane_radius, int(dpad), 'constant')
+    plt.imshow(stretch( (plane_radius < 120000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    plt.imshow( (plane_radius < 0)[600:1000, 600:1000], cmap = 'Reds', alpha=alpha,
+                 origin='lower')
+    plt.title('Superstack')
+    
+    plt.subplot(1,2,2)    
+    dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
+    plane_radius = np.pad(plane_radius, int(dpad), 'constant')
+    plt.imshow(stretch( (plane_radius < 120000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
+    
+    mask = ((plane_radius < (radius_fit+sigma_fit/2)) & (plane_radius > (radius_fit-sigma_fit/2)))
+    
+        
+    plt.imshow( ((plane_radius < (radius_fit+sigma_fit/2)) & 
+                 (plane_radius > (radius_fit-sigma_fit/2)))[600:1000, 600:1000], cmap = 'Reds', alpha=alpha,
+                 origin='lower')
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    plt.title('Superstack + derived ring image')
+    plt.show()
+    
 
 # =============================================================================
 # Now, as a one-off for ORT3, try to measure the I/F of this edge-on boxy looking ring
