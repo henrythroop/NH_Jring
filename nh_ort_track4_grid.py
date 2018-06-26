@@ -8,70 +8,39 @@ Created on Sat Mar 31 00:05:08 2018
 
 
 import pdb
-import glob
 import math       # We use this to get pi. Documentation says math is 'always available' 
                   # but apparently it still must be imported.
-from   subprocess import call
-import warnings
-import pdb
 import os.path
 import os
-import subprocess
 
 import astropy
-from   astropy.io import fits
 from   astropy.table import Table
 import astropy.table   # I need the unique() function here. Why is in in table and not Table??
 import matplotlib
 import matplotlib.pyplot as plt # pyplot
-from   matplotlib.figure import Figure
 import numpy as np
 import astropy.modeling
-from   scipy.optimize import curve_fit
-#from   pylab import *  # So I can change plot size.
-                       # Pylab defines the 'plot' command
 import spiceypy as sp
-#from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
-from   astropy.wcs import WCS
 from   astropy import units as u           # Units library
-from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
-#from   photutils import datasets
-from   scipy.stats import mode
-from   scipy.stats import linregress
-from   astropy.visualization import wcsaxes
-import time
-from   scipy.interpolate import griddata
-from   importlib import reload            # So I can do reload(module)
-import imreg_dft as ird                    # Image translation
-import struct
 
-import re # Regexp
 import pickle # For load/save
 
-#import cPickle
 import gzip
 
 from   datetime import datetime
 
-import scipy
-
-from   matplotlib.figure import Figure
-from   get_radial_profile_circular import get_radial_profile_circular
-
 # HBT imports
 
 import hbt
-
-from nh_ort_track3_read            import nh_ort_track3_read
-from nh_ort_track3_read            import stretch_hbt, stretch_hbt_invert  # Some stretch routines good for trajectories
-from nh_ort_track3_read            import plot_flattened_grids_table
-
 
 # =============================================================================
 # Define a class to handle all of the details of the Track-4 grids.
 # This class does not create the grids, but it does read, write, plot, and fly thru.
 # The ultimate goal of this class is to create the time-dependent particle densities that
 # get given to Doug Mehoke for Track 5.
+#
+# THE CURRENT FILE ONLY HAS CLASS DEFINITIONS FOR THE TRACK4 GRIDS.
+# IT HAS NO EXECUTABLE CODE.
 #
 # To run Track 4:
 #
@@ -105,7 +74,6 @@ class nh_ort_track4_grid:
             file: A filename, in `.grid4d.gz` format.
         
         """
-
         
         if (type(arg) == str):
             self.read(arg)
@@ -450,7 +418,7 @@ class nh_ort_track4_grid:
 # This is the filename used for Doug Mehoke        
 # =============================================================================
 
-    def create_filename_track4(self, base = 'ort3'):
+    def create_filename_track4(self, base = 'ort4'):
         
         str_traj = self.name_trajectory
         
@@ -503,7 +471,7 @@ class nh_ort_track4_grid:
         """
         
         if not dir:
-            dir = os.path.expanduser('~/Data/ORT3/throop/track4/')
+            dir = os.path.expanduser('~/Data/ORT4/throop/track4/')
 
         if not file:
             file = self.create_filename_track3_grids4d()

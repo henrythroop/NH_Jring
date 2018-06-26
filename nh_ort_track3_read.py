@@ -9,8 +9,10 @@ Doug Hamilton + David Kaufmann.
 This code does not combine the runs, or make output files, or anything. 
 This file *only* works with one individual run at a time. It does:
     
-    - File reading
-    - Write a trajectory to .xyz file, which can be used to visualize in MeshLab.
+    - Reads the main output file
+    - Read the header, which contains timestep info, # of grains, etc.
+    - Write a trajectory to .xyz files which can be used to visualize in MeshLab.
+    - Prints information about the run, from header
     - Plotting the trajectory from an individual file (in nicely project X, Y, Z plots)
     
 Incorporates code fragment from DK, which does the actual file I/O.
@@ -201,7 +203,7 @@ class nh_ort_track3_read:
         
 #        r_dust = (5.7e-4 * q_pr) / (self.beta * rho_dust) * u.mm
         
-        return  # Return the object so we can chain calls.
+        return  # Return the object so we can chain calls (but, we don't really do that here)
 
 # =============================================================================
 # Search through the header, and find the value corresponding to a given keyword

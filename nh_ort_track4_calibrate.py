@@ -54,6 +54,9 @@ import scipy
 from   matplotlib.figure import Figure
 from   get_radial_profile_circular import get_radial_profile_circular
 
+#import cPickle
+import zlib
+
 # HBT imports
 
 import hbt
@@ -85,7 +88,7 @@ from nh_ort_track3_read            import plot_flattened_grids_table
 # Run the file
 # =============================================================================
     
-def nh_ort_track4_calibrate(dir, runs):
+def nh_ort_track4_calibrate(dir, runs, do_force=False):
     
     """
     This file does the 'calibration' for NH MU69 ORT 'Track 4'.
@@ -120,9 +123,11 @@ def nh_ort_track4_calibrate(dir, runs):
     
     # Define the limit for the I/F we want to match.
     
-    iof_limit_ring = 5e-8  # The actual observed ring in ORT2 Track1 was 5e-8.
+    iof_limit_ring = 2e-7  # The actual observed ring in ORT2 Track1 was 5e-8.
                            # So, for the ORT2 'test' case, since we are using DPH's ring which is oriented
                            # differently and was not detected, I'll take a bit less than this -- say, I/F = 2e-8.
+                           
+                           # For ORT4 (the shepherd ring), the peak I/F is 2e-7.
                      
     origin = 'lower'
                       
@@ -166,62 +171,102 @@ def nh_ort_track4_calibrate(dir, runs):
     rings = []                                    # Make a list with all of the ring objects in it.
     
     hbt.figsize((10,10))
+    run_name_base = runs[0].split('/')[-5]
     
-    # Loop over all of the files, and read each one in.
-    # We read these into a list called 'ring' and rings'. Maybe 'grid' would be a better name, but we
-    # use that below already.
+    # Create the pickle save name
     
-    for i,run_full in enumerate(runs_full):
+    file_pickle = os.path.join(dir_base, run_name_base + f'_n{len(runs_full)}.pkl')
+    
+# =============================================================================
+#     Restore from pickle file, if it exists
+# =============================================================================
+    
+    if (os.path.isfile(file_pickle) and (not do_force)):
+        lun = open(file_pickle, 'rb')
+        print(f'Reading pickle file {file_pickle}')
+        (run, ring, rings_Z, beta_arr, time_step_arr, duration_arr, speed_arr, body_id_arr, subset_arr, grains_arr,
+                     density_flattened_arr, halfwidth_km) = pickle.load(lun)
+        rings = pickle.loads(zlib.decompress(rings_Z))
+        lun.close()
+        print(f'Read pickle file {file_pickle}')
 
-        run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
-        ring = nh_ort_track3_read(run, dir_base=dir_base)            # Read the data array itself.
-        
-        do_print_ring_info = False
-        do_plot_ring       = False
-        
-        if do_print_ring_info:
-            ring.print_info()
-        else:
-            print(f'Read {i}/{len(runs_full)}: {run}')
+# =============================================================================
+# Otherwise, read the raw grids from disk         
+# =============================================================================
 
-        if do_plot_ring:
-            ring.plot()
+    else:    
+        # Loop over all of the files, and read each one in.
+        # We read these into a list called 'ring' and rings'. Maybe 'grid' would be a better name, but we
+        # use that below already.
+        
+        for i,run_full in enumerate(runs_full):
+    
+            run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
+            ring = nh_ort_track3_read(run, dir_base=dir_base)            # Read the data array itself.
             
-        # Save this entire ring (including 3D density array) to memory. 
-        # We will use it later when we reconstruct the densities to fly thru.
+            do_print_ring_info = False
+            do_plot_ring       = False
+            
+            if do_print_ring_info:
+                ring.print_info()
+            else:
+                print(f'Read {i}/{len(runs_full)}: {run}')
+    
+            if do_plot_ring:
+                ring.plot()
+                
+            # Save this entire ring (including 3D density array) to memory. 
+            # We will use it later when we reconstruct the densities to fly thru.
+            
+            rings.append(ring)
+            
+            # Read various values from the ring
+            
+            halfwidth_km = ring.km_per_cell_x * hbt.sizex(ring.density) / 2
+            extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
+            
+            beta_arr[i]                  = ring.beta  # Take the params from individual runs, and stuff into an array   
+            time_step_arr[i]             = ring.time_step.value
+            duration_arr[i]              = ring.duration.value
+            speed_arr[i]                 = ring.speed
+            body_id_arr[i]               = ring.body_id
+            subset_arr[i]                = ring.subset
+            grains_arr[i]                = ring.grains
+    
+            # Flatten the arrays, along the axis of the viewer (ie, the sun).
+            # The output to this is bascially D2D of MRS slide 6.4 -- called 'density_flattened_arr' here.
+            # This is a 2D image. When displayed with imshow(origin='lower'), it will be oriented approx as seen from Sun.
+            
+            density_flattened_arr[i,:,:] = np.transpose(np.sum(ring.density, axis=axis_sum))
+            
+            if do_print_ring_info:
+                print('-----')
+    
+        print(f'Read {num_files} files.')
+  
+        # Write pickle file to disk
+        # Note that due to 'bug' in Python + OSX, file size is limited to ~4 GB. This means that saving the full
+        # 'rings' array is not possible. Solution: compress the object in memory before writing pickle file.
+        # This slows things down a lot -- not is not clear that in the end it's worth it.
         
-        rings.append(ring)
+        print(f'Writing: {file_pickle}')
         
-        # Read various values from the ring
-        
-        halfwidth_km = ring.km_per_cell_x * hbt.sizex(ring.density) / 2
-        extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
-        
-        beta_arr[i]                  = ring.beta  # Take the params from individual runs, and stuff into an array   
-        time_step_arr[i]             = ring.time_step.value
-        duration_arr[i]              = ring.duration.value
-        speed_arr[i]                 = ring.speed
-        body_id_arr[i]               = ring.body_id
-        subset_arr[i]                = ring.subset
-        grains_arr[i]                = ring.grains
-
-        # Flatten the arrays, along the axis of the viewer (ie, the sun).
-        # The output to this is bascially D2D of MRS slide 6.4 -- called 'density_flattened_arr' here.
-        # This is a 2D image. When displayed with imshow(origin='lower'), it will be oriented approx as seen from Sun.
-        
-        density_flattened_arr[i,:,:] = np.transpose(np.sum(ring.density, axis=axis_sum))
-        
-        if do_print_ring_info:
-            print('-----')
-
-    print(f"Read {num_files} files.")
+        lun = open(file_pickle, 'wb')
+        rings_Z = zlib.compress(pickle.dumps(rings))  #  Compress 'rings' in memory.
+        pickle.dump((run, ring, rings_Z, beta_arr, time_step_arr, duration_arr, speed_arr, \
+                     body_id_arr, subset_arr, grains_arr,\
+                     density_flattened_arr, halfwidth_km), lun) 
+        print(f'Wrote: {file_pickle}')
+        lun.close()
     
     # Count the number of 'subsets' (that is, azimuthal starting locations)
     
     num_subsets = len(np.unique(subset_arr))
     
-    # Now that we have read all of the input files, we combine these to make the output files. 
-    #
+# =============================================================================
+#  Now that we have read all of the input files, we combine these to make the output files. 
+# =============================================================================
+    
     # Usually this means summing sets of 8 'subsets', which are identical inputs, but starting a dfft azimuth.
     # We also choose the correct set of beta values to use.
     #
@@ -243,15 +288,22 @@ def nh_ort_track4_calibrate(dir, runs):
     rho    = [1, 0.4641588, 0.2154434, 0.10000]   # 10**(-1/3), 10**(-2/3)
     speed  = [-2.2, -3]
     orb_sol= [1]                     # Just one case here for 14-Mar-2018 ORT2 case, but might have more in future.
+    
+    # Set the range of 'b', which is basically the range of beta. 
+    # This was a 13 bins for ORT1 .. ORT3, and extended to 19 bins for ORT4.
+    # b is the exponent used for beta, and radius, and bin width. We iterate over b, not beta.
+    #
+    # b = [-12,0] → beta = [1e-4, 1]
+    # b = [-18,0] → beta = [1e-6, 1]
+
+    if 'ORT3' in file_pickle:
+        b = hbt.frange(-12,0)
         
-    b      = hbt.frange(-12,0)  # Exponent for beta, and radius, and bin width. 
-                                #  b=[-12,0] → beta=[1e-4,1], which is the range that DPH uses.
-                                # We iterate over 'b', rather than over beta or size.
+    if 'ORT4' in file_pickle:
+        b = hbt.frange(-18,0)
 
     sarea = pi * (5)**2  # Moon surface area. First term in MRS eq @ Slide 6.4 . This is in km2. 
                          # The actual value here should be taken from Track1, and I don't have it here. 
-
-#    s      = 10.**b/3            # Particle size, some units?
     
     epsilon = 1e-5               # A small value for testing equality of floats.    
     
@@ -262,7 +314,6 @@ def nh_ort_track4_calibrate(dir, runs):
               dtype = [float, float, float, float,    float,        float,             float, 
                       'object', float, 'object'])
     
-    
     # Q: Don't we need another albedo term on sarea? Since if moons are dark, they may provide a lot more suface area.
     #    And, if dust is small, there can be a lot more dust. So, albedo might well enter as a square. I only have it
     #    as a single power.
@@ -271,6 +322,7 @@ def nh_ort_track4_calibrate(dir, runs):
     (albedo_i, q_i, rho_i, speed_i) = (albedo[0], q[0], rho[0], speed[0]) # Set up values, for testing only. Can ignore.
     
     # Now, do the loop in output space
+    # For each of the combinations of output requested, find the input runs that should go into that grid.
     
     for albedo_i in albedo:
         for q_i in q:
@@ -340,11 +392,13 @@ def nh_ort_track4_calibrate(dir, runs):
                     val_img_max     = np.amax(img)               # Get brightest pixel level. Too high.
                     val_img_typical = np.percentile(img, 99)     # Get 'brightest region' level. Good to use.
                     val_img_med     = np.median(img[img != 0])   # Get median of non-zero pixels. Usually too low.
+                    val_img_max_blur= np.amax(scipy.ndimage.filters.gaussian_filter(img,4))
+                                                                 # As per MRS, blur it and take max
 
                     # Now calculate the actual calibration coefficient. 
                     # E_0 is the dust production rate, particles/km2/sec. 
                     
-                    E_0_i = iof_limit_ring / val_img_typical
+                    E_0_i = iof_limit_ring / val_img_max_blur
                     
                     # XXX Validated! The quantity np.percentile(E_0 * img,99) now is exactly the target I/F.
                     # E0 is a constant for the ring. It is not size-dependent (not a func of b, aka s).
@@ -425,6 +479,9 @@ def nh_ort_track4_calibrate(dir, runs):
     
     do_plot_flattened_grids = True
     
+    print(f'Making plot of all N={len(t)} flattened grids that will be output to Doug Mehoke')
+    print(f'These are plots in the XZ plane, as seen from Y dir')
+    
     if (do_plot_flattened_grids):
         hbt.figsize((30,30))
         plot_flattened_grids_table(t,stretch_percent=98)
@@ -433,7 +490,7 @@ def nh_ort_track4_calibrate(dir, runs):
 #%%%
             
 # =============================================================================
-# Now loop over the table of E0, and create the output files for DM
+# Now loop over the table of E0, and create the output files for Doug Mehoke.
 # This is a loop in output space. We could loop over (speed, albedo, q, rho).
 # Or equivalently, we could loop over values in table 't', which has all combinations of these.
 # ** We will do the latter! **    
@@ -445,8 +502,11 @@ def nh_ort_track4_calibrate(dir, runs):
     
     do_short = True
 
+    indices_short = [52,53,54]
+    
     if do_short:
-        t = t[52:55]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
+        print (f'For output to Doug Mehoke, reducing output number from {len(t)} → {len(indices_short)}')
+        t = t[indices_short]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
         
     for k,t_i in enumerate(t):   # Loop over every element in the combination of output parameters,
                                  # which have already been tabulated in table 't'.  
@@ -462,8 +522,9 @@ def nh_ort_track4_calibrate(dir, runs):
         speed_i  = t_i['speed']
         q_i      = t_i['q']
         E_0_i    = t_i['E_0'] 
-        
-        
+
+        # Now take the array for b_max. This is a transcription of MRS table @ 4.6
+
         arr = np.array( [[-6, -5, -4, -3],     # Transcription of table @ 4.6
                          [-6, -5, -4, -3],     # XXX I will have to redo this for ORT4!
                          [-5, -4, -3, -2], 
@@ -475,7 +536,16 @@ def nh_ort_track4_calibrate(dir, runs):
         index_row    = hbt.wheremin( np.abs(np.array(rho) - rho_i))
         
         b_max = arr[index_column, index_row]
-        b_min = b_max - 6
+
+        # For ORT4, we are using a larger range of sizes on the ouptut.
+        # So, instead of always outputting 7 bins wide, we output 13 bins wide.
+
+        if 'ORT3' in file_pickle:
+            b_min = b_max - 6
+
+        if 'ORT4' in file_pickle:   
+            b_min = b_max - 12
+
         beta_min = 10**(b_min/3)
         beta_max = 10**(b_max/3)
         s_min = 5.7e-4 * (1 + 1.36 * albedo_i) / (rho_i * beta_max)
@@ -562,7 +632,7 @@ def nh_ort_track4_calibrate(dir, runs):
 
         # Now plot the max optical depth summed for all sizes, as a reality check
         # This tau should be 'almost' the same as the target tau. Usually it will be slightly less.
-        # due to the fact that the target tau si normalized using all bins of beta, and this output grid
+        # due to the fact that the target tau is normalized using all bins of beta, and this output grid
         # excludes the smallest grains (which don't stick around for long anyhow, so only minor difference).
         
         do_plot_tau_merged = True
@@ -603,11 +673,22 @@ if __name__ == '__main__':
 #    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_9apr18', '*', '*', '*')) # Hamilton - ORT actual
 #    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_inc45', '*', '*', '*')) # Hamilton - ORT actual
 
-    do_short = True
-    
-    if do_short:
-        dir = '/Users/throop/data/ORT3/hamilton/deliveries'    
-        runs = glob.glob(os.path.join(dir, 'syn_ort3_orbparameters/ort3-*/y*/beta*/subset0*'))
+    do_short = False  # If set, just read a subset of the data
+    do_force = False   # If set, read the raw N-body grid files from disk, rather than from a pre-saved pickle file
+    num_runs_max = 3
 
-    nh_ort_track4_calibrate(dir, runs)
+    dir = '/Users/throop/data/ORT4/hamilton/deliveries'    
+
+    # Get a list of all of the individual files
+    
+    runs = glob.glob(os.path.join(dir, 'ort4_bc3_10cbr2_dph_3moon/ort4-*/y*/beta*/subset0*'))
+    runs = glob.glob(os.path.join(dir, 'ort4_bc3_10cbr2_dph/ort4-*/y*/beta*/subset0*'))
+
+    if do_short:
+        runs = runs[0:num_runs_max]
+        
+    nh_ort_track4_calibrate(dir, runs, do_force = do_force)
+    
+    # NB: Takes about 70 seconds to decompress 304 files from pickle.
+    #     Takes 68 seconds to read raw files from disk. ie, my pickling and compressing saves zero time.
     
