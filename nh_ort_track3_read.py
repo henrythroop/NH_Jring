@@ -171,38 +171,6 @@ class nh_ort_track3_read:
         self.state_file= self.get_header_val('state_file')
         self.obj_file  = self.get_header_val('obj_file')
         
-        # Do a calculation for particle radius
-        
-#        Beta = 5.7e-4 * Q_PR / (rho * s/(10mm))  ← s = radius in cm [sic]. rho = g/cm3.
-#        Q_PR = 1 + 1.36 * p_v # ← p_v = albedo     From Showalter 3.6. A simple relationship. 
-
-        # Below we list the possible values for p_v (albedo) and q_pr
-        # These two below are linked and 1:1!
-        
-#        p_v = np.array([0.7, 0.3, 0.1, 0.05])
-#        q_pr = np.array([1.95, 1.41, 1.14, 1.07])
-
-        # This is a list of all the distinct allowable values of beta
-        # This list is just taken by examination of DK's files.
-        # Beta has 16 different values, 5.7e-8 .. 5.7e-3. Factor of 2.1 between them. Total range of 1e5.
-        
-        # ** This list is here, but does not seem to be used by anything **
-        
-#        beta = [5.7e-8, 5.7e-7, 5.7e-6, 5.7e-5, 5.7e-4, 5.7e-3, 
-#                         2.6e-7, 2.6e-6, 2.6e-5, 2.5e-4, 2.6e-3, 
-#                         1.2e-7, 1.2e-6, 1.2e-5, 1.2e-4, 1.2e-3]
-
-        
-#        plt.plot(sorted(beta), marker = 'o')
-#        plt.yscale('log')
-#        plt.show()
-        
-#        rho_dust = np.array([1, 0.46, 0.21, 0.1])*u.g/(u.cm)**3
-        
-#        f = 5.7e-5 * u.g / (u.cm)**3
-        
-#        r_dust = (5.7e-4 * q_pr) / (self.beta * rho_dust) * u.mm
-        
         return  # Return the object so we can chain calls (but, we don't really do that here)
 
 # =============================================================================
@@ -484,11 +452,11 @@ def plot_flattened_grids_table(t, stretch_percent=96):
     img = np.zeros((num_grid_x*dx_pix_grid, num_grid_y*dy_pix_grid))
     i = 0  # Row
     j = 0  # Column
-    for k in range(num):
-        
+    for k in range(num):        
+
         # For each one, copy the grid, normalize it, and put it into out
-        
-        img[i*dx_pix_grid:(i+1)*dx_pix_grid, j*dy_pix_grid:(j+1)*dy_pix_grid] = \
+
+        img[j*dy_pix_grid:(j+1)*dy_pix_grid, i*dx_pix_grid:(i+1)*dx_pix_grid] = \
             hbt.normalize( t['img_2d'][k] )                         
         i += 1
         
@@ -500,7 +468,7 @@ def plot_flattened_grids_table(t, stretch_percent=96):
     i = 0
     j = 0
     for k in range(num):
-        s = f"a={t[k]['albedo']}, q={t[k]['q']}, rho={t[k]['rho']:.2f}, v={t[k]['speed']}"
+        s = f"pv={t[k]['albedo']}, q={t[k]['q']}, rho={t[k]['rho']:.2f}, v={t[k]['speed']}"
         plt.text(2 + i*dx_pix_grid, 2 + j*dy_pix_grid, s, color='white')
         i += 1
         if (i > (num_grid_x-1)):  # If we fill up a row, go to the next one.
