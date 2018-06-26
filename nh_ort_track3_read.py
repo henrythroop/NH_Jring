@@ -6,29 +6,29 @@ Created on Tue Feb 13 15:38:48 2018
 This reads the NH MU69 ORT 'Track 3' data, which is the output of N-Body simulations done by
 Doug Hamilton + David Kaufmann.
 
+This code does not combine the runs, or make output files, or anything. 
+This file *only* works with one individual run at a time. It does:
+    
+    - File reading
+    - Write a trajectory to .xyz file, which can be used to visualize in MeshLab.
+    - Plotting the trajectory from an individual file (in nicely project X, Y, Z plots)
+    
 Incorporates code fragment from DK, which does the actual file I/O.
  
 @author: throop
 """
 
-import glob
 import math
-from   subprocess import call
-import warnings
 import os.path
 import os
-import subprocess
 
 import astropy
 import astropy.table   # I need the unique() function here. Why is in in table and not Table??
 import matplotlib.pyplot as plt # pyplot
 import numpy as np
 import astropy.modeling
-import spiceypy as sp
 from   astropy import units as u           # Units library
 import struct
-
-import pickle # For load/save
 
 # HBT imports
 
@@ -47,7 +47,7 @@ class nh_ort_track3_read:
 # NB: Large beta → Small grains        
 # =============================================================================
     
-    def __init__(self, name, dir_base='/Users/throop/data/ORT2/hamilton/deliveries', binfmt = 2):
+    def __init__(self, name, dir_base='/Users/throop/data/ORT4/hamilton/deliveries', binfmt = 2):
         
         """
         Initialize the object. Read in data from a specified file, and do initial processing on it.
@@ -174,31 +174,32 @@ class nh_ort_track3_read:
 #        Beta = 5.7e-4 * Q_PR / (rho * s/(10mm))  ← s = radius in cm [sic]. rho = g/cm3.
 #        Q_PR = 1 + 1.36 * p_v # ← p_v = albedo     From Showalter 3.6. A simple relationship. 
 
-        
         # Below we list the possible values for p_v (albedo) and q_pr
         # These two below are linked and 1:1!
         
-        p_v = np.array([0.7, 0.3, 0.1, 0.05])
-        q_pr = np.array([1.95, 1.41, 1.14, 1.07])
+#        p_v = np.array([0.7, 0.3, 0.1, 0.05])
+#        q_pr = np.array([1.95, 1.41, 1.14, 1.07])
 
         # This is a list of all the distinct allowable values of beta
         # This list is just taken by examination of DK's files.
         # Beta has 16 different values, 5.7e-8 .. 5.7e-3. Factor of 2.1 between them. Total range of 1e5.
         
-        beta = [5.7e-8, 5.7e-7, 5.7e-6, 5.7e-5, 5.7e-4, 5.7e-3, 
-                         2.6e-7, 2.6e-6, 2.6e-5, 2.5e-4, 2.6e-3, 
-                         1.2e-7, 1.2e-6, 1.2e-5, 1.2e-4, 1.2e-3]
+        # ** This list is here, but does not seem to be used by anything **
+        
+#        beta = [5.7e-8, 5.7e-7, 5.7e-6, 5.7e-5, 5.7e-4, 5.7e-3, 
+#                         2.6e-7, 2.6e-6, 2.6e-5, 2.5e-4, 2.6e-3, 
+#                         1.2e-7, 1.2e-6, 1.2e-5, 1.2e-4, 1.2e-3]
 
         
 #        plt.plot(sorted(beta), marker = 'o')
 #        plt.yscale('log')
 #        plt.show()
         
-        rho_dust = np.array([1, 0.46, 0.21, 0.1])*u.g/(u.cm)**3
+#        rho_dust = np.array([1, 0.46, 0.21, 0.1])*u.g/(u.cm)**3
         
-        f = 5.7e-5 * u.g / (u.cm)**3
+#        f = 5.7e-5 * u.g / (u.cm)**3
         
-        r_dust = (5.7e-4 * q_pr) / (self.beta * rho_dust) * u.mm
+#        r_dust = (5.7e-4 * q_pr) / (self.beta * rho_dust) * u.mm
         
         return  # Return the object so we can chain calls.
 
@@ -350,45 +351,6 @@ class nh_ort_track3_read:
             i+=1
             
         plt.show()
-
-       
-# =============================================================================
-# Plot the 3D grid (old version -- deprecated)
-# =============================================================================
-    
-    def plot_simple(self):
-        """ 
-        Make a simple plot. This has been deprecated now. It still works, but it not as
-        attractive or useful as .plot().
-        """
-        
-#        stretch_percent = 90    
-#        stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
- 
-        (nx, ny, nz) = np.shape(self.density)
-        xpos = hbt.frange(-nx/2, nx/2)*self.km_per_cell_x
-        ypos = hbt.frange(-ny/2, ny/2)*self.km_per_cell_y
-        zpos = hbt.frange(-nz/2, nz/2)*self.km_per_cell_z
-
-        extent = (ypos[0], ypos[-1], zpos[0], zpos[-1])
-        
-        for axis in (0,1,2):
-            plt.subplot(2,2,axis+1)
-            plt.imshow(stretch_hbt(np.sum(self.density, axis=axis)), extent=extent)
-            plt.ylabel('Pos [km]')
-            plt.xlabel('Pos [km]')
-            if (axis == 2):
-                plt.colorbar()
-            plt.title(self.name)
-        
-        plt.subplot(2,2,4)
-        plt.imshow((np.sum(self.density, axis=0)), extent=extent)
-        plt.xlim((-10000,10000))
-        plt.ylim((-10000,10000))
-        
-        plt.show()
-        
-        return self
         
 # =============================================================================
 # Print some info about the run
@@ -408,12 +370,6 @@ class nh_ort_track3_read:
         print(f'Obj   file: {self.obj_file}')
         
         return
-
-    def find_matching_indices(self, beta = None, speed = None, body_id = None, subset = None):
-        
-        mask_start = np.ones(self.num_)
-        mask_beta  = (beta  == self.beta)
-        mask_speed = (speed == self.speed)
 
 # =============================================================================
 # Write a single file out to an xyz grid, for use in a point cloud mesh
@@ -577,59 +533,42 @@ if (__name__ == '__main__'):
     
     dir_dph2 = '/Users/throop/data/ORT2/hamilton/deliveries/'
     dir_dph3 = '/Users/throop/data/ORT3/hamilton/deliveries/'
+    dir_dph4 = '/Users/throop/data/ORT4/hamilton/deliveries/'
     
-    dir_dph = dir_dph3
+    dir_dph = dir_dph4
     
     dir_dk  = '/Users/throop/data/ORT3/kaufmann/deliveries/'
     
-    dir =  '/Users/throop/data/ORT2/hamilton/deliveries/'
     
-    runs_full = [
-                   
-#                  'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-01/subset00',
-#                  'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-04/subset00',
-                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset00',
-                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset01',
-                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset02',
-                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-01/subset03',
-#                  'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-04/subset00',
-                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-01/subset00',
-                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-01/subset01',
-                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-01/subset02',
-                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-01/subset03',
-#                  'syn_ort3_orbparameters/ort3-0001/y2.2/beta1.0e-04/subset00',
-#                   ]               
-#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-04/subset07',
-#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta1.0e-03/subset02',
-#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_original/y3.0/beta1.0e-03/subset02',
-#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003/y3.0/beta2.2e-02/subset02',
-#                      'sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/ort2-0003_6apr18/y3.0/beta2.2e-02/subset05',
-                      ]
-
-#    if is_ort3:
-#
-#        runs_full = [ 
-#                      'syntrue_ort3_v1_newformat/ort3-0001/y2.2/beta1.0e-06/subset02',
-##                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-0/subset03',
-##                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-04/subset04',
-##                     'syntrue_ort3_v1_newformat/ort3-0002/y2.2/beta1.0e-04/subset05',
-#                    ]    
-
+    runs_full = ['ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset00',
+                 'ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset01',
+                 'ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset02',
+                 ]
+                 
     for run in runs_full:
         
         if 'syntrue' in run:
             dir = dir_dk
             
-        if ('DPH' in run) or ('syn_ort' in run):
+        if ('DPH' in run) or ('syn_ort' in run) or ('dph' in run):
             dir = dir_dph
 
         ring = nh_ort_track3_read(run, dir_base = dir)
         ring.print_info()
         
-        ring.plot(scale='lin')
-        ring.plot(scale='log')
+        # Now make plots of the ring. Make two plots 
+        
+        plot_lin = False
+        plot_log = True
+        
+        if plot_lin:
+            ring.plot(scale='lin')
+            
+        if plot_log:
+            ring.plot(scale='log')
+            
         print('\n-----\n')
         
         if do_out_xyz:
             ring.write_file_xyz()
-            
+        
