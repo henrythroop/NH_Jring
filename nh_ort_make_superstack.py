@@ -329,8 +329,8 @@ if (__name__ == '__main__'):
         
     if (name_ort == 'ORT4'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
-        dir_out       = os.path.join(dir_data, name_ort)
-        reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04'] # Why no HAZ04 in ORT4?
+        dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
+        reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         a_xy = (1, math.cos(hbt.d2r * 30))
     
@@ -340,6 +340,10 @@ if (__name__ == '__main__'):
         sp.furnsh('kernels_kem_prime.tm')
     
     hbt.figsize((12,12))
+    
+    # Make sure output dir exists
+    
+    os.makedirs(dir_out)
     
     # Load and stack the field images
     
@@ -503,6 +507,12 @@ if (__name__ == '__main__'):
     wheremin_y = hbt.wheremin(np.amin(plane_radius,axis=0))
     plane_radius = np.roll(plane_radius, 512-wheremin_y, axis=1)
     plane_radius = np.roll(plane_radius, 512-wheremin_x, axis=0)
+
+    # Pad this so it is the same size as the superstack
+    
+    dpad = int( (hbt.sizex(img_superstack_mean_iof) - hbt.sizex(plane_radius) )/2)
+    
+    plane_radius = np.pad(plane_radius, dpad, mode='maximum')    
         
     name_target = 'MU69'
     frame = '2014_MU69_ORT4_1'
