@@ -82,7 +82,7 @@ class nh_ort_track4_grid:
             self.density = arg
             
         self.num_grids = hbt.sizex(self.density)
-        self.name_trajectory = 'prime'                 # Set as default, but will be changed later     
+        self.name_trajectory = None                 # Set as default, but will be changed later     
         self.name_test       = 'ort4-ring'         
         self.axis_sum = 1   # Which axis do we sum along for images? Should be as visible from Sun and/or SC.
                             # 1 → Sum along Y dir, which is Sun dir. This will make sunflower rings visible.  
@@ -394,27 +394,7 @@ class nh_ort_track4_grid:
         
 # =============================================================================
 # Create the output filename automatically, based on the parameter values
-# This is a filename used for temporary storage.        
-# =============================================================================
-
-    def create_filename_track3_grids4d(self):
-               
-        file_out = self.create_filename_track4()
-                
-        # Remove the 'prime' or 'alternate'
-        
-        file_out = file_out.replace('_prime_', '_')
-        file_out = file_out.replace('_alternate_', '_')
-        
-        # Change the suffix
-
-        file_out = file_out.replace('.dust', '.grid4d')
-                        
-        return file_out
-
-# =============================================================================
-# Create the output filename automatically, based on the parameter values
-# This is the filename used for Doug Mehoke        
+# This is the filename used for Doug Mehoke.       
 # =============================================================================
 
     def create_filename_track4(self, base = 'ort4'):
@@ -445,8 +425,7 @@ class nh_ort_track4_grid:
         Write the 4D grid itself to a file. The run parameters (albedo, rho, q, speed) are encoded into the filename.
         The remaining parameters (b, beta, s) are written.
         
-        This file is only used for HBT's convenience. It is not given to Doug Mehoke nor is it the output of any 
-        step.
+        This file is a temporary file which we will then fly through, using nh_ort_track4_flyby().
         
         Format of the file is a pickle tuple, with fields:
               (density, albedo, rho, q, speed, b, beta, s, (resolution_km)).
@@ -456,9 +435,7 @@ class nh_ort_track4_grid:
         ** Warning: These are really big files! 400+ MB by default. Will 'compress' down to 7 MB.
         
         https://stackoverflow.com/questions/18474791/decreasing-the-size-of-cpickle-objects
-        
-        So, in general, we should not plan on using these.
-        
+                
         Optional Parameters:
             file: Filename. By default, it is auto-generated from the parameters.
             
@@ -473,18 +450,18 @@ class nh_ort_track4_grid:
             dir = os.path.expanduser('~/Data/ORT4/throop/track4/')
 
         if not file:
-            file = self.create_filename_track3_grids4d()
-
-        file_base = file
+            file = self.create_filename_track4()
         
     # If requested, write the output to a pickle file (optionally compressed),
     # which we use for the next phase of the hazard proc, when we fly thru it for Doug Mehoke.
     
         if (style == 'pickle'):
-                                
+            
+            file = file + '.pkl'
+            
             if do_compress:
                 
-                file = file_base + '.gz'
+                file = file + '.gz'
                 
                 protocol=-1    
                 with gzip.open(os.path.join(dir,file), 'wb') as f:
@@ -513,7 +490,7 @@ class nh_ort_track4_grid:
 
         if (style == 'xyz'):
             
-            file_out_xyz = file_base + '.txt'  # Extension .xyz sometimes works, but .txt is def more reliable
+            file = file + '.txt'  # Extension .xyz sometimes works, but .txt is def more reliable
             
             # Collapse the density array, and sum over particle size
             
@@ -531,7 +508,7 @@ class nh_ort_track4_grid:
             str_blue    = '0; 0; 255'
             str_yellow  = '255; 255; 0'
             
-            f = open(os.path.join(dir,file_out_xyz), 'w')
+            f = open(os.path.join(dir,file), 'w')
 
             (num_pts_high, num_pts_low) = (0,0)
 
@@ -551,7 +528,7 @@ class nh_ort_track4_grid:
                               
             f.write('1.00')  # I don't know what this is. But the file seems to require it.
             f.close()
-            print(f'Wrote: {os.path.join(dir,file_out_xyz)}, {num_pts_low}+{num_pts_high} points')
+            print(f'Wrote: {os.path.join(dir,file)}, {num_pts_low}+{num_pts_high} points')
                 
         return
 

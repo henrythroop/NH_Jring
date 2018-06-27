@@ -265,7 +265,7 @@ def nh_ort_track4_flyby():
                      color=colors[j])
 
 
-        hbt.figsize(6,6)
+        hbt.figsize(5,5)
         plt.legend()
         plt.title('Number of impacts (cumulative), A={}'.format(grid.area_sc))
         plt.xlabel('ET from C/A')

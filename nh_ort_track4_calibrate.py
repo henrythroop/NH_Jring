@@ -88,7 +88,7 @@ from nh_ort_track3_read            import plot_flattened_grids_table
 # Run the file
 # =============================================================================
     
-def nh_ort_track4_calibrate(dir, runs, do_force=False):
+def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     
     """
     This file does the 'calibration' for NH MU69 ORT 'Track 4'.
@@ -111,8 +111,7 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
     """
 #%%%    
     
-    dir_base  = dir
-    runs_full = runs
+#    runs_full = runs
     
     plt.set_cmap('plasma')
 
@@ -138,7 +137,7 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
     # Define the axis to sum over: 0 → X axis, 1 → Y axis, 2 → Z axis.
     # Usually this will be Y dir (axis=1), but for ORT2, DPH's axes are incorrect, so we use X dir instead.
 #    
-#    if ('hamilton' in dir_base):
+#    if ('hamilton' in dir_in):
 #        axis_sum = 0
 
     axis_sum = 1                                            # In general sum in the y direction. Do not correct for DPH.
@@ -146,9 +145,9 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
     do_short = False
     
     if do_short:
-        runs_full = runs_full[0:20]
+        runs = runs[0:20]
         
-    num_files             = len(runs_full)                  # Scalar, number of files
+    num_files             = len(runs)                  # Scalar, number of files
     density_flattened_arr = np.zeros((num_files, 200, 200)) # Actual data, vertically flattened
     beta_arr              = np.zeros(num_files)             # Beta used for each run. Scalar.
     time_step_arr         = np.zeros(num_files)             # Timestep. Each run uses a constant dt (!). Seconds.
@@ -161,24 +160,27 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
     obj_file_arr          = np.zeros(num_files, dtype='U90')# File listing the objects themselves - photometry, Track1
     state_file_arr        = np.zeros(num_files, dtype='U90')# State file -- orbit solution -- Track2
     
-    weighting = np.zeros((len(runs_full), 1, 1)) # Weight each individual run. We make this into a funny shape
+    weighting = np.zeros((len(runs), 1, 1)) # Weight each individual run. We make this into a funny shape
                                                  # so we can broadcast it with the full array easily.
     
-#    run_full = runs_full[0].replace(dir_base, '')[1:]  # Populate one, just for cut & paste ease
+#    run = runs[0].replace(dir_in, '')[1:]  # Populate one, just for cut & paste ease
 
-    run_full = runs_full[0]                       # Populate one, just for cut & paste ease
+    run = runs[0]                       # Populate one, just for cut & paste ease
     i = 0
     rings = []                                    # Make a list with all of the ring objects in it.
     
     hbt.figsize((10,10))
-    run_name_base = runs[0].split('/')[-5]
+    run_name_base = runs[0].split('/')[-6]       # Extract the 'ort4_bc3_10cbr2_dph' portion if we need it
     
-    # Create the pickle save name
+    # Create the pickle save name.
     
-    file_pickle = os.path.join(dir_base, run_name_base + f'_n{len(runs_full)}.pkl')
+    file_pickle = os.path.join(dir_out, f'grids_n{len(runs)}.pkl')
     
 # =============================================================================
 #     Restore from pickle file, if it exists
+#     In reality, this routine doesn't save much time -- uncompressing the file
+#     is nearly as slow as reading all the grids from disk.
+#     Mac python cannot deal with the 3 GB uncompressed file sizes.    
 # =============================================================================
     
     if (os.path.isfile(file_pickle) and (not do_force)):
@@ -199,10 +201,10 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
         # We read these into a list called 'ring' and rings'. Maybe 'grid' would be a better name, but we
         # use that below already.
         
-        for i,run_full in enumerate(runs_full):
+        for i,run in enumerate(runs):
     
-            run  = run_full.replace(dir_base, '')[1:]  # Remove the base pathname from this, and initial '/'
-            ring = nh_ort_track3_read(run, dir_base=dir_base)            # Read the data array itself.
+            run_short  = run.replace(dir_in, '')  # Remove the base pathname from this, and initial '/'
+            ring = nh_ort_track3_read(run_short, dir_base=dir_in)            # Read the data array itself.
             
             do_print_ring_info = False
             do_plot_ring       = False
@@ -210,7 +212,7 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
             if do_print_ring_info:
                 ring.print_info()
             else:
-                print(f'Read {i}/{len(runs_full)}: {run}')
+                print(f'Read {i}/{len(runs)}: {run}')
     
             if do_plot_ring:
                 ring.plot()
@@ -296,10 +298,10 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
     # b = [-12,0] → beta = [1e-4, 1]
     # b = [-18,0] → beta = [1e-6, 1]
 
-    if 'ORT3' in file_pickle:
+    if 'ORT3' in file_pickle:  # For ORT3 (and before, but we don't care about rerunning those)
         b = hbt.frange(-12,0)
         
-    if 'ORT4' in file_pickle:
+    else:                       # For ORT4 and beyond
         b = hbt.frange(-18,0)
 
     sarea = pi * (5)**2  # Moon surface area. First term in MRS eq @ Slide 6.4 . This is in km2. 
@@ -490,7 +492,7 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
 #%%%
             
 # =============================================================================
-# Now loop over the table of E0, and create the output files for Doug Mehoke.
+# Now loop over the table of E0, and create the output grids which we will fly through for Doug Mehoke.
 # This is a loop in output space. We could loop over (speed, albedo, q, rho).
 # Or equivalently, we could loop over values in table 't', which has all combinations of these.
 # ** We will do the latter! **    
@@ -543,7 +545,7 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
         if 'ORT3' in file_pickle:
             b_min = b_max - 6
 
-        if 'ORT4' in file_pickle:   
+        else:                               # For ORT4 and beyond
             b_min = b_max - 12
 
         beta_min = 10**(b_min/3)
@@ -645,11 +647,11 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
         # Save the array to disk. Files are written as .grid4d.gz
         # These .grids4d.gz files are read by nh_org_track4_flyby.py, and create output for Doug Mehoke.
         
-        grids_i.write(do_compress=do_compress, style = 'pickle')
+        grids_i.write(do_compress=do_compress, dir = dir_out, style = 'pickle')
         
         # Save the array to disk, in a format that MeshLab can read
 
-        grids_i.write(style = 'xyz')
+        grids_i.write(style = 'xyz', dir = dir_out)
         
         print('---')
         
@@ -665,29 +667,34 @@ if __name__ == '__main__':
     
 # For Hamilton, sample is ~/Data/ORT2/hamilton/deliveries/sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/
 #                          ort2-0003/y2.2/beta2.2e-01/subset04/grid.array2'
-    
-#    dir_base='/Users/throop/data/ORT2/hamilton/deliveries'    
-    
-#    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003', '*', '*', '*')) # Hamilton - ORT actual
-#    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_6apr18', '*', '*', '*')) # Hamilton - ORT actual
-#    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_9apr18', '*', '*', '*')) # Hamilton - ORT actual
-#    runs_full = glob.glob(os.path.join(dir_base, '*', '*', 'ort2-0003_inc45', '*', '*', '*')) # Hamilton - ORT actual
+        
 
     do_short = False  # If set, just read a subset of the data
     do_force = False   # If set, read the raw N-body grid files from disk, rather than from a pre-saved pickle file
-    num_runs_max = 3
+    num_runs_max = 30
 
-    dir = '/Users/throop/data/ORT4/hamilton/deliveries'    
-
-    # Get a list of all of the individual files
+    # Set which of DPH or DEK runs we are doing here. Each run has ~304 grids in it. I will usually do four runs.
     
-    runs = glob.glob(os.path.join(dir, 'ort4_bc3_10cbr2_dph_3moon/ort4-*/y*/beta*/subset0*'))
-    runs = glob.glob(os.path.join(dir, 'ort4_bc3_10cbr2_dph/ort4-*/y*/beta*/subset0*'))
+    dir_in = '/Users/throop/data/ORT4/hamilton/ort4_bc3_10cbr2_dph/'    
+    dir_in = '/Users/throop/data/ORT4/kaufmann/ort4_bc3_10cbr2_dek/'
+    
+    # Get a list of all of the individual runs in the input dir
+    
+    runs = glob.glob(os.path.join(dir_in, '*/*/*/subset*/'))
+
+    # Create the output directory, and make sure it exists on disk
+    
+    dir_out = dir_in.replace('hamilton', 'throop').replace('kaufmann', 'throop')
+    
+    if not os.path.exists(dir_out):
+        os.makedirs(dir_out)
 
     if do_short:
         runs = runs[0:num_runs_max]
-        
-    nh_ort_track4_calibrate(dir, runs, do_force = do_force)
+    
+    # Now do the run!
+    
+    nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force = do_force)
     
     # NB: Takes about 70 seconds to decompress 304 files from pickle.
     #     Takes 68 seconds to read raw files from disk. ie, my pickling and compressing saves zero time.
