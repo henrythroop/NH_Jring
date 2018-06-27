@@ -87,14 +87,14 @@ from nh_ort_track4_grid            import nh_ort_track4_grid    # Includes .read
 
 def nh_ort_track4_flyby():
 
-    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
+#    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
     
-#    name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
+    name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
 
     stretch_percent = 99
     stretch = astropy.visualization.PercentileInterval(stretch_percent)
 
-    name_ort = 'ORT2'
+    name_ort = 'ORT4'
     dir_data = os.path.expanduser('~/Data/')
     
     do_compress = False   # Do we use .gzip compression on the Track-4 input grids?
@@ -209,16 +209,32 @@ def nh_ort_track4_flyby():
                     
         # Make a plot of the instantaneous count rate
 
-        hbt.figsize((18,5))
+        hbt.figsize((10,15))
 
         # Make a plot of the actual density that we give to Doug Mehoke
         
         # Define a list of colors. This is so we can use colors= argument to set
         # a marker to show grain size, rather than let plot() auto-assign.
         
-        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']  # This is the default color iterator.
-        
-        plt.subplot(1,3,1)
+#        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']  # This is the default color iterator.
+        colors = ['antiquewhite',
+                  'tomato', 
+                  'blueviolet',
+                  'skyblue',
+                  'gold',
+                  'darkcyan',
+                  'thistle',
+                  'olive',
+                  'red',
+                  'sienna',
+                  'deepskyblue',
+                  'lightsalmon',
+                  'pink',
+                  'aqua']
+                  
+#                  'antiquewhite4', 'aqua', 'aquamarine4', 'black', 'blue', 'blueviolet', 
+#                  'brown1', 'chartreuse1', 'darkgreen', 'darkorange1', 'dodgerblue1', 'lightpink', 'magenta']
+        plt.subplot(3,1,1)
         for j,s in enumerate(grid.s):
             plt.plot(grid.delta_et_t, grid.number_t[j],
                      label = 's={:.2f} mm'.format(s))
@@ -228,7 +244,7 @@ def nh_ort_track4_flyby():
         plt.yscale('log')
         plt.ylabel(r'Dust,, # km$^{-3}$')
 
-        plt.subplot(1,3,2)
+        plt.subplot(3,1,2)
         for j,s in enumerate(grid.s):   # 's' is dust size
             plt.plot(grid.delta_et_t, grid.number_sc_t[j],
                      label = f's={s:.2f} mm')
@@ -240,14 +256,16 @@ def nh_ort_track4_flyby():
 
         # Make a plot of the cumulative count rate. Mark grain sizes here too.
         
-        plt.subplot(1,3,3)
-        for j,s in enumerate(grid.s):
+        plt.subplot(3,1,3)
+        for j,s in enumerate(grid.s):                                             # Loop over size
             plt.plot(grid.delta_et_t, grid.number_sc_cum_t[j],                    # Main plot line
                      label = 's={:.2f} mm'.format(s), color=colors[j])
             plt.plot([grid.delta_et_t[-1]], [grid.number_sc_cum_t[j,-1].value],   # Circle to indicate grain size
                      markersize=(7-j)*2, marker = 'o',                            # Use same color as prev line! 
                      color=colors[j])
 
+
+        hbt.figsize(6,6)
         plt.legend()
         plt.title('Number of impacts (cumulative), A={}'.format(grid.area_sc))
         plt.xlabel('ET from C/A')

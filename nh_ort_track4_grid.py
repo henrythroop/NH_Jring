@@ -83,7 +83,7 @@ class nh_ort_track4_grid:
             
         self.num_grids = hbt.sizex(self.density)
         self.name_trajectory = 'prime'                 # Set as default, but will be changed later     
-        self.name_test       = 'ort2-ring'         
+        self.name_test       = 'ort4-ring'         
         self.axis_sum = 1   # Which axis do we sum along for images? Should be as visible from Sun and/or SC.
                             # 1 → Sum along Y dir, which is Sun dir. This will make sunflower rings visible.  
             
@@ -335,7 +335,6 @@ class nh_ort_track4_grid:
             if not(do_stretch_linear):
                 plt.text(xval, yval, f'{val_text:.2e}', color = 'white') # Label the colorbar, if log stretch only.
                     
-        
         plt.title(f'Tau, Merged, {len(self.s)} sizes')
         
 #        tau_(max,typ) = ({self.tau_max:.1e}, {self.tau_typ:.1e}), ' + 
@@ -574,7 +573,7 @@ class nh_ort_track4_grid:
         """
         
         if not dir:
-            dir = os.path.expanduser('~/Data/ORT2/throop/track4/')
+            dir = os.path.expanduser('~/Data/ORT4/throop/track4/')
 
         print("Reading: " + file)
 
@@ -804,7 +803,7 @@ class nh_ort_track4_grid:
         
         # Create the output filename
         
-        dir_out = '/Users/throop/Data/ORT2/throop/track4/'
+        dir_out = '/Users/throop/Data/ORT4/throop/track4/'
         
         file_out = self.create_filename_track4()
         

@@ -484,7 +484,7 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
     
     if (do_plot_flattened_grids):
         hbt.figsize((30,30))
-        plot_flattened_grids_table(t,stretch_percent=98)
+        plot_flattened_grids_table(t,stretch_percent=99)  # with new normalization, 98 is too hard a stretch. 95 OK.
         hbt.figsize()
 
 #%%%
@@ -500,7 +500,7 @@ def nh_ort_track4_calibrate(dir, runs, do_force=False):
     # At each of these combinations, we will want to find the *input* parameters that match this --
     # specifically, all of the subsets.
     
-    do_short = True
+    do_short = False
 
     indices_short = [52,53,54]
     
