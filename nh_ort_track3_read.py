@@ -428,7 +428,7 @@ def plot_flattened_grids(arr):
 # *** This is the same as the function above -- just uses input in table, rather than array! ***
 # =============================================================================
 
-def plot_flattened_grids_table(t, stretch_percent=96):
+def plot_flattened_grids_table(t, stretch_percent=96, file_out = None):
     
     """
     Plot all of the grids in an array of grids. This is just to give a quick 'family portrait' overview.
@@ -467,16 +467,22 @@ def plot_flattened_grids_table(t, stretch_percent=96):
     plt.imshow(stretch(img), origin='lower')
     i = 0
     j = 0
+    
+    fontsize = 8   # Test font size
+    
     for k in range(num):
         s = f"pv={t[k]['albedo']}, q={t[k]['q']}, rho={t[k]['rho']:.2f}, v={t[k]['speed']}"
-        plt.text(2 + i*dx_pix_grid, 2 + j*dy_pix_grid, s, color='white')
+        plt.text(2 + i*dx_pix_grid, 2 + j*dy_pix_grid, s, color='white', fontsize = fontsize)
         i += 1
         if (i > (num_grid_x-1)):  # If we fill up a row, go to the next one.
             i = 0
             j += 1
     plt.gca().get_xaxis().set_visible(False)
     plt.gca().get_yaxis().set_visible(False)
-        
+    
+    if file_out:
+        plt.savefig(file_out)
+        print(f'Wrote: {file_out}')
     plt.show()    
 
 # =============================================================================

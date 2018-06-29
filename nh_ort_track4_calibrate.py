@@ -486,7 +486,9 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     
     if (do_plot_flattened_grids):
         hbt.figsize((30,30))
-        plot_flattened_grids_table(t,stretch_percent=99)  # with new normalization, 98 is too hard a stretch. 95 OK.
+        percent = 99                             # with new normalization, 98 is too hard a stretch. 95 OK.
+        file_out = os.path.join(dir_out, f'plot_flattened_grids_n{len(runs)}.png')
+        plot_flattened_grids_table(t,stretch_percent=percent, file_out = file_out) 
         hbt.figsize()
 
 #%%%
@@ -675,9 +677,9 @@ if __name__ == '__main__':
 
     # Set which of DPH or DEK runs we are doing here. Each run has ~304 grids in it. I will usually do four runs.
     
-    dir_in = '/Users/throop/data/ORT4/hamilton/ort4_bc3_10cbr2_dph/'    
-    dir_in = '/Users/throop/data/ORT4/kaufmann/ort4_bc3_10cbr2_dek/'
-    
+#    dir_in = '/Users/throop/data/ORT4/hamilton/ort4_bc3_10cbr2_dph/'   # Doug retrograde 
+    dir_in = '/Users/throop/data/ORT4/kaufmann/ort4_bc3_10cbr2_dek/'   # David retrograde 
+
     # Get a list of all of the individual runs in the input dir
     
     runs = glob.glob(os.path.join(dir_in, '*/*/*/subset*/'))
