@@ -742,7 +742,7 @@ class nh_ort_track4_grid:
 # Output the trajectory and particle intercept info to a file
 # =============================================================================
         
-    def output_trajectory(self, suffix=None, do_positions=True):
+    def output_trajectory(self, suffix=None, do_positions=True, dir_out=None):
 
         """
         Write an output table. The filename is auto-generated based on the parameters already supplied.
@@ -766,6 +766,8 @@ class nh_ort_track4_grid:
         # We really don't care about fractional values on any of these. So, truncate everything
         # to be an integer. There is no easy way to force all columns to print as int, so just do it manually.
         
+        # XXX Wrong! We do want fractional collision numbers in the output table.
+        
         t = Table([np.array(self.et_t).astype(int), 
                    np.array(self.delta_et_t).astype(int)], 
                       names = ['ET', 'ET from CA'])
@@ -775,12 +777,16 @@ class nh_ort_track4_grid:
             t['Y [km]'] = np.array(self.y_t).astype(int)
             t['Z [km]'] = np.array(self.z_t).astype(int)
         
+#        for i in range(len(self.s)):    # Loop over particle size, and add a new table column for each particle size.
+#                t['n_{}, {:.3f}, # per km3'.format(i, self.s[i])] = np.array(self.number_t[i]).astype(int)
+
         for i in range(len(self.s)):    # Loop over particle size, and add a new table column for each particle size.
-                t['n_{}, {:.3f}, # per km3'.format(i, self.s[i])] = np.array(self.number_t[i]).astype(int)
+                t['n_{}, {:.3f}, # per km3'.format(i, self.s[i])] = np.array(self.number_t[i])
         
         # Create the output filename
         
-        dir_out = '/Users/throop/Data/ORT4/throop/track4/'
+#        if not dir_out:
+#        dir_out = '/Users/throop/Data/ORT4/throop/track4/'
         
         file_out = self.create_filename_track4()
         
@@ -800,23 +806,30 @@ class nh_ort_track4_grid:
         else:
 
             # Write the file using explicit manual formatting
-            # There are seven size radial bins.
+            # There are seven size radial bins.  ** Updated to 13 bins in ORT4.
             
             lun = open(path_out, "w")
             lun.write("#    First line is '0' and then size bins, in mm\n")
-            lun.write("#    Remaining are delta_ET, n(r_1), n(r_2), n(r_3), n(r_4), n(r_5), n(r_6), n(r_7)\n")
+            lun.write("#    Remaining are delta_ET, n(r_1), n(r_2), n(r_3) ... n(r_13)\n")
             lun.write("#    n(r) are number per km3\n")
             lun.write("#    Henry Throop {}\n".format(str(datetime.now())))          
-            lun.write("{} {} {} {} {} {} {} {}\n".format(0, 
-                                                    self.s[0],
+            lun.write("{} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(0, 
+                                                    self.s[0],   # self.s[] = particle size bins
                                                     self.s[1],
                                                     self.s[2],
                                                     self.s[3],
                                                     self.s[4],
                                                     self.s[5],
-                                                    self.s[6]))
+                                                    self.s[6],  # Was 0 .. 6. Now 0 .. 12
+                                                    self.s[7],
+                                                    self.s[8],
+                                                    self.s[9],
+                                                    self.s[10],
+                                                    self.s[11],
+                                                    self.s[12],
+                                                    ))
             for i in range(len(t)):                                                
-                lun.write("{} {} {} {} {} {} {} {}\n".format(
+                lun.write("{} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e}\n".format(
                         t[i][1],
                         t[i][2],
                         t[i][3],
@@ -824,7 +837,14 @@ class nh_ort_track4_grid:
                         t[i][5],
                         t[i][6],
                         t[i][7],
-                        t[i][8]))
+                        t[i][8],  # Was 1 .. 8. Now 1 .. 14
+                        t[i][9],
+                        t[i][10],
+                        t[i][11],
+                        t[i][12],
+                        t[i][13],
+                        t[i][14],
+                        ))
             lun.close()
             print("Wrote: {} using manual writer".format(path_out))
                    
