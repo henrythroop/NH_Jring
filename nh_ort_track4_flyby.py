@@ -85,28 +85,32 @@ from nh_ort_track4_grid            import nh_ort_track4_grid    # Includes .read
 # This is a regular function, but it calls the class method nh_ort_track4_grid.fly_trajectory().
 # =============================================================================
 
-def nh_ort_track4_flyby():
+def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
 
+    #%%%
 #    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
     
-    name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
 
+#    dir_in = '/Users/throop/
+#    dir_in = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
+    
     stretch_percent = 99
     stretch = astropy.visualization.PercentileInterval(stretch_percent)
 
-    name_ort = 'ORT4'
-    dir_data = os.path.expanduser('~/Data/')
+#    dir_data = os.path.expanduser('~/Data/')
     
+    dir_in 
     do_compress = False   # Do we use .gzip compression on the Track-4 input grids?
                           # If we used compression on the track4_calibrate routine, we must use it here too.
     
-    dir_track4 = os.path.join(dir_data, name_ort, 'throop', 'track4')
+#    dir_track4 = os.path.join(dir_data, name_ort, 'throop', 'track4')
     
     if do_compress:
-        files = glob.glob(os.path.join(dir_track4, '*.grid4d.gz'))
+        files = glob.glob(os.path.join(dir_in, '*.grid4d.gz'))
     
     else:
-        files = glob.glob(os.path.join(dir_track4, '*.grid4d'))
+        files = glob.glob(os.path.join(dir_in, '*.grid4d'))
+        files = glob.glob(os.path.join(dir_in, '*.dust.pkl'))
 
     # Alphabetize file list
     
@@ -154,8 +158,10 @@ def nh_ort_track4_flyby():
     file = files[27]  # Just for testing w cut+paste. Can ignore these.
     
     i=0
-    
+#%%%    
     for i,file in enumerate(files):
+        
+#%%%        
         print(f'Starting file {i}/{len(files)}')
               
         grid = nh_ort_track4_grid(file)    # Load the grid from disk. Uses gzip, so it is quite slow (10 sec/file)
@@ -275,7 +281,10 @@ def nh_ort_track4_flyby():
 
         plt.tight_layout()
         
-        plt.show()        
+        plt.show()
+        
+        # Make a plot of size distibution. 
+        # Make two curves: one for n(r) for the entire grid, and one for n(r) that hits s/c
         
         # Now add an entry to the table. This is a table that lists all of the results --
         #     e.g., max_tau, count rate etc
@@ -284,26 +293,52 @@ def nh_ort_track4_flyby():
         t.add_row(vals=[grid.name_trajectory, grid.speed, grid.q, grid.albedo, grid.rho, 
                         grid.tau_max, grid.tau_typ,
                         grid.iof_max, grid.iof_typ])
-                        
+                                        
+        # Get size dist along path
+         
+        number_path = grid.number_sc_cum_t[:,-1].value
+        
+        # Take the full particle grid, and sum along all spatial axes, leaving just the size axis left.
+        
+        number_grid = np.sum(np.sum(np.sum(grid.density, axis=1), axis=1), axis=1)
+        
+        # Normalize the size dists both
+        number_grid = hbt.normalize(number_grid)
+        number_path = hbt.normalize(number_path)
+        
+        plt.plot(grid.s, number_path, label = 'Along s/c path')
+        plt.plot(grid.s, number_grid, label = 'In grid, total')
+        plt.yscale('log')
+        plt.xscale('log')
+        plt.ylim( (hbt.minval(np.array([number_grid, number_path]))/2, 1) )
+        plt.xlabel('Radius [mm]')
+        plt.ylabel('Particle number [arbitrary]')
+        plt.legend(loc = 'lower right')
+        plt.show()
 
         # Output the dust population for this run to a file. This is the file that Doug Mehoke will read.
         
-        grid.output_trajectory(suffix=f'{name_trajectory}', do_positions=False)
+        grid.output_trajectory(suffix=f'{name_trajectory}', do_positions=False, dir_out=dir_out)
     
         print('---')
-            
+                        
+
+#%%%        
+        
     # Print the table
     
     t.pprint(max_width=-1)
     
     # Save the table as output
     
-    file_out = os.path.join(dir_track4, f'nh_{name_ort}_{name_trajectory}_track4_table.pkl')
+    file_out = os.path.join(dir_out, f'nh_{name_trajectory}_track4_table.pkl')
     
     lun = open(file_out, 'wb')
     pickle.dump(t,lun)
     lun.close()
     print(f'Wrote: {file_out}')
+    
+#%%%    
 
 # =============================================================================
 # Plot some tabulated results.
@@ -459,7 +494,7 @@ def make_table_grid_positions():
     t = Table(arr, names=['bin', 'delta_et', 'X_km', 'Y_km', 'Z_km', 'Bin_X', 'Bin_Y', 'Bin_Z'],
               dtype=['int', 'int', 'float', 'float', 'float', 'int', 'int', 'int'])
   
-    # Save the table toa  file
+    # Save the table to a file
     
     file_out = f'positions_trajectory_{name_trajectory}.txt'
     path_out = os.path.join(dir_out, file_out)
@@ -472,5 +507,16 @@ def make_table_grid_positions():
 # =============================================================================
     
 if (__name__ == '__main__'):
-    nh_ort_track4_flyby()
+    
+    name_trajectory = 'prime'  # Can be 'prime' or 'alternate'
+
+    dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
+#    dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dek/'
+    
+    dir_out = os.path.join(dir_in, 'for_mehoke')
+    
+    if not os.path.exists(dir_out):
+        os.makedirs(dir_out)
+        
+    nh_ort_track4_flyby(dir_in=dir_in, dir_out=dir_out, name_trajectory = name_trajectory)
     
