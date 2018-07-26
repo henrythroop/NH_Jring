@@ -69,25 +69,46 @@ import hbt
 
 plt.set_cmap('plasma')
 
+rj_km = 71492
+
 # Now list all of the Gossamer observations. I have determined these groupings manually, based on timings.
 # In general it looks like usually these are stacks of four frames at each pointing.
 
 index_group = 6
-index_image = hbt.frange(59,62)
-index_image = hbt.frange(63,66)
-index_image = hbt.frange(67,70)
-index_image = hbt.frange(71,74)
-index_image = hbt.frange(75,78)
 
-index_image = hbt.frange(95,99)
+index_image_list = [
+#                    hbt.frange(46,48), # 1X1. Main ring. Maybe gossamer too but not interested.
+#                    hbt.frange(49,53), # 1X1. Main ring. Maybe gossamer too but not interested.
+#                    np.array([54]),    # 1X1. Main ring. Maybe gossamer too but not interested.
+                    hbt.frange(59,62),  # Right ansa. I think Gossamer is there but hidden -- need to optimize.
+                    hbt.frange(63,66),  # Left ansa. Furthest out, no ring. Use for subtraction.
+                    hbt.frange(67,70),  # Left ansa. Far out, no ring. Closer than above.
+                    hbt.frange(71,74),  # Left ansa. No ring. Closer than above.
+                    hbt.frange(75,78),  # Left ansa. Gossamer. Closer than above.
+#                    hbt.frange(79,88),  # Left ansa. Main ring. Prob gossamer too but not interested. 1X1. Svrl ptgs.
+#                    hbt.frange(89,94),  # Io! Closest of the sequence, and I will ignore. 1X1.
+                    hbt.frange(95,98),  # Right ansa. Gossamer limb.
+                    hbt.frange(99,102), # Left ansa. Similar geometry as 75-78.
+                    hbt.frange(112,115),# Right ansa. Gossamer limb. Similar geometry as 95-98 (offset pointing)
+                    hbt.frange(116,119),# Left ansa. Similar geometry as 75-78. Sat visible??
+                    hbt.frange(120,123),  # Left ansa. Closer than above.
+                    hbt.frange(124,127),  # Left ansa. Closer than above.
+                    hbt.frange(128,131),  # Left ansa + main ring ansa. Closer than above.
+                    ]
 
-index_image = hbt.frange(112,115)
-index_image = hbt.frange(116,119)
-index_image = hbt.frange(120,123)
-index_image = hbt.frange(124,127)
-index_image = hbt.frange(128,131)
+#index_image = hbt.frange(71,74)
+#index_image = hbt.frange(75,78)
+#
+#index_image = hbt.frange(95,99)
+#
+#index_image = hbt.frange(112,115)
+#index_image = hbt.frange(116,119)
+#index_image = hbt.frange(120,123)
+#index_image = hbt.frange(124,127)
+#index_image = hbt.frange(128,131)
 
 #index_image = hbt.frange(100,102)
+#index_image = hbt.frange(49,54)
 
 stretch_percent = 90    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
@@ -107,18 +128,6 @@ groupmask = t_all['Desc'] == groups[index_group]
 
 t_group = t_all[groupmask]  # 
 
-arr_sum = np.zeros((256,256))
-
-for i in index_image:        
-    t_i = t_group[i]  # Grab this, read-only, since we use it a lot.
-    
-    arr = hbt.read_lorri(t_i['Filename'])
-    arr_sum += arr
-
-arr_sum_s = hbt.remove_sfit(arr_sum,degree=3)
-plt.imshow(stretch(arr_sum_s))
-plt.show()
-
 # =============================================================================
 # Make a plot showing the center position of a lot of these frames.
 # =============================================================================
@@ -127,89 +136,228 @@ file_tm = 'kernels_nh_jupiter.tm'  # SPICE metakernel
 
 sp.furnsh(file_tm)
 
+hbt.figsize((10,5))
+
 index_group = 6
 index_images = np.array(
               list(hbt.frange(10,15)) +
               list(hbt.frange(46,54)) +
               list(hbt.frange(59,135)) )
 
-ra_arr      = []
-dec_arr     = []
-dist_rj_arr = []
+#index_images = hbt.frange(49,54)
 
-for index_image in index_images:
-    t_i = t_group[index_image]  # Grab this, read-only, since we use it a lot.
-    
-    im = hbt.read_lorri(t_i['Filename'])
-    
-    w = WCS(t_i['Filename'])
+#index_images = np.array([46,47,48])
 
-    # Get the RA / Dec for the four corner points
-    
-    radec = w.wcs_pix2world([[0,0],[0,256],[256,256],[256,0],[0,0]],0)
-    radec_center = w.wcs_pix2world([[128,128]],0)
-    
-    ra = radec[:,0]
-    dec = radec[:,1]
+for index_images in index_image_list:  # Loop over *all* the images
 
-    plt.plot(ra, dec) # Plot all the four points for this box
-    
-#    ra_arr.append(radec)
-#    dec_arr.append(dec_deg)
+    ra_arr      = []
+    dec_arr     = []
+    dist_rj_arr = []
+    et_arr      = []
+    dx_arr      = []
+    dy_arr      = []
+    dz_arr      = []
+    corner_arr  = []
 
-    # Now, of course I don't really want RA / Dec, but projected distance (RJ), as well as height above the midplane.
-    
-    # So for each of these points, take a ray. 
-    # Make a plane, which is normal to observer, and goes thru Jupiter. 
-    # Intersect the ray, with this plane
-    # Get the position in that plane (which will probably be in units of KM from Jupiter center)
-    # Save that position, and plot them.
-    
-    # Create a plane centered at Jupiter
-    
-    abcorr = 'LT+S'
-    
-    (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'New Horizons')
-    vec_nh_jup = vec[0:3]
+    arr_sum     = None
 
-    (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'Sun')
-    vec_sun_jup = vec[0:3]  # This is position of Jupiter center, in J2000, from Sun. (Maybe should do from SS baryctr?)
+    plt.subplot(1,3,1)
+    
+#    fig, ax = plt.subplots()
 
-    (vec,lt) = sp.spkezr('New Horizons', t_i['ET'], 'J2000', abcorr, 'Sun')
-    vec_sun_nh = vec[0:3]  # This is position of NH, in J2000.
+    for index_image in index_images:   # Loop over the images in this obsevation
+        
+        t_i = t_group[index_image]  # Grab this, read-only, since we use it a lot.
+        
+        arr = hbt.read_lorri(t_i['Filename'])
+        arr = hbt.lorri_destripe(arr)
 
-    plane = sp.nvp2pl(vec_nh_jup, vec_sun_jup)
-    
-    vec_nh_pixel = sp.radrec(1, radec_center[0,0], radec_center[0,1])  # This is the vector from NH, to the specific LORRI pixel
-    
-    # Get the intersection of the pixel ray, with the Jupiter-centered plane
-    
-    (nxpts, xpt) = sp.inrypl(vec_sun_nh, vec_nh_pixel, plane)
-    
-    dist_rj = sp.vnorm(xpt - vec_sun_jup) / 70000
+        if arr_sum is None:
+            arr_sum = arr
+        else:    
+            arr_sum += arr
 
-    dist_rj_arr.append(dist_rj)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            w = WCS(t_i['Filename'])
     
-plt.xlabel('RA  [deg]')    
-plt.ylabel('Dec [deg]')
-plt.title(f'All Gossamer images, {index_group}/{np.amin(index_image)} .. {np.amax(index_image)}')
+        # Get the RA / Dec for the four corner points
+        
+        if t_i['Format'] == '1X1':
+            radec_corners = w.wcs_pix2world([[0,0],[0,1024],[1023,1023],[1023,0],[0,0]],0) * hbt.d2r  # Radians
+            radec_center  = w.wcs_pix2world([[511,511]],0) * hbt.d2r                       # Radians
+        if t_i['Format'] == '4X4':
+            radec_corners = w.wcs_pix2world([[0,0],[0,256],[256,256],[256,0],[0,0]],0) * hbt.d2r  # Radians
+            radec_center  = w.wcs_pix2world([[128,128]],0) * hbt.d2r                       # Radians
+        
+    #    ra  = radec[:,0] 
+    #    dec = radec[:,1]
+    
+        # Get RA / Dec for Jupiter
+        
+        (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'New Horizons')
+        (_, ra_jup, dec_jup) = sp.recrad(vec[0:3])  # Radians
+         
+        plt.plot((radec_corners[:,0]-ra_jup)*hbt.r2d, (radec_corners[:,1]-dec_jup)*hbt.r2d,
+                 label = f'{index_group}/{index_image}') # Plot all the four points for this box
+        
+        # Now, of course I don't really want RA / Dec, but projected distance (RJ), as well as height above the midplane.
+        
+        # So for each of these points, take a ray. 
+        # Make a plane, which is normal to observer, and goes thru Jupiter. 
+        # Intersect the ray, with this plane
+        # Get the position in that plane (which will probably be in units of KM from Jupiter center)
+        # Save that position, and plot them.
+        
+        # Create a plane centered at Jupiter
+        
+        abcorr = 'LT+S'
+        
+        (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'New Horizons')
+        vec_nh_jup = vec[0:3]
+    
+        (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'Sun')
+        vec_sun_jup = vec[0:3]  # This is position of Jupiter center, in J2000, from Sun. (Maybe should do from SS baryctr?)
+    
+        (vec,lt) = sp.spkezr('New Horizons', t_i['ET'], 'J2000', abcorr, 'Sun')
+        vec_sun_nh = vec[0:3]  # This is position of NH, in J2000.
+    
+        plane = sp.nvp2pl(vec_nh_jup, vec_sun_jup)
+        
+        vec_nh_center = sp.radrec(1, radec_center[0,0], radec_center[0,1])  # Vec from NH to LORRI center
+    #    vec_nh_corners = np.zeros(0)
+        vec_nh_corners = hbt.radrec_v(1, radec_corners[:,0], radec_corners[:,1])  # Vec from NH to LORRI corners
+        
+        # Get the intersection of the pixel ray, with the Jupiter-centered plane
+        # OK, this is fine. But the 'pt' returned here is the point in J2000 space. 
+        # I would really like the XY position on the plane, not the XYZ position wrt sun.
+        
+        for j in range(hbt.sizex(radec_corners)):
+            (npts, pt) = sp.inrypl(vec_sun_nh, vec_nh_corners[j], plane)
+            pt_j = pt - vec_sun_jup
+            
+            corner_arr.append(pt_j)
+                    
+        # Which limb are we pointed at? Try to infer it from one of these
+        
+        dx_arr.append(xpt[0] - vec_sun_jup[0])
+        dy_arr.append(xpt[1] - vec_sun_jup[1])
+        dz_arr.append(xpt[2] - vec_sun_jup[2])
+        
+        dist_rj = sp.vnorm(xpt - vec_sun_jup) / rj_km # Calculate (correctly) the projected distance from Jupiter.
+    
+        dist_rj_arr.append(dist_rj)
+        
+        et_arr.append(t_i['ET'])
+
+    # Finished this loop over image set
+    
+    corner_arr = np.array(corner_arr) / rj_km  # This is now an array (n_pts x 5, 3)
+    
+    # Calculate Jupiter's radius, in degrees
+    
+    ang_jup_deg = (rj_km / sp.vnorm(vec_nh_jup)) * hbt.r2d
+    
+    circle1=plt.Circle((0,0),ang_jup_deg,   color='red') # Plot Jupiter itself
+    circle2=plt.Circle((0,0),ang_jup_deg*2, facecolor='white', edgecolor='red') # Plot Jupiter itself
+    circle3=plt.Circle((0,0),ang_jup_deg*3, facecolor='white', edgecolor='red') # Plot Jupiter itself
+    
+    plt.gca().add_artist(circle3)
+    plt.gca().add_artist(circle2)
+    plt.gca().add_artist(circle1)
+    plt.gca().set_aspect('equal')
+    plt.xlabel('Delta RA from Jupiter  [deg]')    
+    plt.ylabel('Delta Dec from Jupiter [deg]')
+    plt.xlim((4,-4))
+    plt.ylim((-2,2))
+    plt.legend(loc='upper right')
+    plt.title(f'Gossamer images, {index_group}/{np.amin(index_images)}..{np.amax(index_images)}')
+
+#    plt.show()
+    
+    # Plot the image, sfit subtracted
+    
+    plt.subplot(1,3,2)
+    degree=5
+    arr_sum /= len(index_images)  # We have just summed, so now divide
+    arr_sum_s = hbt.remove_sfit(arr_sum,degree=degree)  # _s = sfit subtracted
+    plt.imshow(stretch(arr_sum_s), origin='lower')
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    plt.title(f'{index_group}/{np.amin(index_images)}..{np.amax(index_images)} - p{degree}')
+
+    # Plot the image, with better subtraction
+    
+    plt.subplot(1,3,3)
+    
+    method = 'String'
+    vars = '6/63-70 p5'
+#    index_image = 124
+#    index_group = 6
+    arr_process = hbt.nh_jring_process_image(arr_sum, method, vars, 
+                                     index_group=index_group, index_image=index_image, mask_sfit=None)
+
+
+    plt.imshow(stretch(arr_process), origin='lower')
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    plt.title(f'{index_group}/{np.amin(index_images)}..{np.amax(index_images)} - {vars}')
+
+    # Now show all plots
+
+    plt.tight_layout()
+    plt.show()
  
-plt.show()    
+#sign_limb = -1 * np.array(dx_arr) / np.abs(np.array(dx_arr))
+#
+#plt.plot(et_arr, dist_rj_arr * sign_limb, linestyle='none', marker='.')
+#plt.xlabel('ET')
+#plt.ylabel('Projected distance from Jupiter [RJ]')
+#plt.show()
+
+#plt.plot(-1 * np.array(dx_arr))
+#plt.plot(dy_arr)
+#plt.plot(dz_arr)
+#plt.show()
+
+# Now make the plot of the FOV locations, entirely in RJ space
+# To do this, we need to convert the xyz locations into a projected position.
+# Ugh maybe I should have done this with GV in the first place.
+# This plot here is kind of close, but doesn't really get the positiions or sizes right.
+
+do_plot_xyz = False
+
+if do_plot_xyz:
+    for i in range(len(index_images)):
+        plt.plot(corner_arr[int(i*5):int((i+1)*5),1], corner_arr[int(i*5):int((i+1)*5),2], linestyle='-')
+    
+    plt.xlabel('X position (not quite right)')
+    plt.show()
+
+#%%%
 
 # And hang on. We've already made backplanes for everything. Can I use those here? 
 # I don't know. These images are obviously very edge-on.
 
-        file_backplane = dir_backplanes + t_group['Shortname'][index_image].replace('.fit', '_planes.pkl')
-
-        # Save the shortname associated with the current backplane. 
-        # That lets us verify if the backplane for current image is indeed loaded.
-
-        file_backplane_shortname = t_group['Shortname'][index_image]
-				
-        if (os.path.isfile(file_backplane)):
-            lun = open(file_backplane, 'rb')
-            planes = pickle.load(lun)
-            lun.close()
+#        file_backplane = dir_backplanes + t_group['Shortname'][index_image].replace('.fit', '_planes.pkl')
+#
+#        # Save the shortname associated with the current backplane. 
+#        # That lets us verify if the backplane for current image is indeed loaded.
+#
+#        file_backplane_shortname = t_group['Shortname'][index_image]
+#				
+#        if (os.path.isfile(file_backplane)):
+#            lun = open(file_backplane, 'rb')
+#            planes = pickle.load(lun)
+#            lun.close()
 
 # I could do RA/Dec relative to RA/Dec of Jupiter.
             
+    plt.subplot(1,3,1)
+    plt.plot([3,54])
+#    plt.show()
+    plt.subplot(1,2,2)
+    plt.plot([55])
+    plt.show()
+    
+    
