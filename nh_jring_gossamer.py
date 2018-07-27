@@ -113,6 +113,7 @@ index_image_list = [
 stretch_percent = 90    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
+
 filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters 
 
 dir_out    = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
@@ -121,6 +122,8 @@ dir_backplanes = '/Users/throop/data/NH_Jring/out/'
 lun = open(dir_out + filename_save, 'rb')
 t_all = pickle.load(lun)
 lun.close()
+
+abcorr = 'LT+S'
 
 groups = astropy.table.unique(t_all, keys=(['Desc']))['Desc']
 
@@ -197,58 +200,14 @@ for index_images in index_image_list:  # Loop over *all* the images
         
         (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'New Horizons')
         (_, ra_jup, dec_jup) = sp.recrad(vec[0:3])  # Radians
+        vec_nh_jup = vec[0:3]
          
         plt.plot((radec_corners[:,0]-ra_jup)*hbt.r2d, (radec_corners[:,1]-dec_jup)*hbt.r2d,
                  label = f'{index_group}/{index_image}') # Plot all the four points for this box
         
-        # Now, of course I don't really want RA / Dec, but projected distance (RJ), as well as height above the midplane.
-        
-        # So for each of these points, take a ray. 
-        # Make a plane, which is normal to observer, and goes thru Jupiter. 
-        # Intersect the ray, with this plane
-        # Get the position in that plane (which will probably be in units of KM from Jupiter center)
-        # Save that position, and plot them.
-        
-        # Create a plane centered at Jupiter
-        
-        abcorr = 'LT+S'
-        
-        (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'New Horizons')
-        vec_nh_jup = vec[0:3]
-    
-        (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'Sun')
-        vec_sun_jup = vec[0:3]  # This is position of Jupiter center, in J2000, from Sun. (Maybe should do from SS baryctr?)
-    
-        (vec,lt) = sp.spkezr('New Horizons', t_i['ET'], 'J2000', abcorr, 'Sun')
-        vec_sun_nh = vec[0:3]  # This is position of NH, in J2000.
-    
-        plane = sp.nvp2pl(vec_nh_jup, vec_sun_jup)
-        
-        vec_nh_center = sp.radrec(1, radec_center[0,0], radec_center[0,1])  # Vec from NH to LORRI center
-    #    vec_nh_corners = np.zeros(0)
-        vec_nh_corners = hbt.radrec_v(1, radec_corners[:,0], radec_corners[:,1])  # Vec from NH to LORRI corners
-        
-        # Get the intersection of the pixel ray, with the Jupiter-centered plane
-        # OK, this is fine. But the 'pt' returned here is the point in J2000 space. 
-        # I would really like the XY position on the plane, not the XYZ position wrt sun.
-        
-        for j in range(hbt.sizex(radec_corners)):
-            (npts, pt) = sp.inrypl(vec_sun_nh, vec_nh_corners[j], plane)
-            pt_j = pt - vec_sun_jup
-            
-            corner_arr.append(pt_j)
-                    
-        # Which limb are we pointed at? Try to infer it from one of these
-        
-        dx_arr.append(xpt[0] - vec_sun_jup[0])
-        dy_arr.append(xpt[1] - vec_sun_jup[1])
-        dz_arr.append(xpt[2] - vec_sun_jup[2])
-        
-        dist_rj = sp.vnorm(xpt - vec_sun_jup) / rj_km # Calculate (correctly) the projected distance from Jupiter.
-    
-        dist_rj_arr.append(dist_rj)
-        
         et_arr.append(t_i['ET'])
+        
+        is_limb_left = (radec_corners[0,0]-ra_jup)>0
 
     # Finished this loop over image set
     
@@ -271,9 +230,34 @@ for index_images in index_image_list:  # Loop over *all* the images
     plt.xlim((4,-4))
     plt.ylim((-2,2))
     plt.legend(loc='upper right')
-    plt.title(f'Gossamer images, {index_group}/{np.amin(index_images)}..{np.amax(index_images)}')
+    plt.title(f'Gossamer images, {index_group}/{np.amin(index_images)}-{np.amax(index_images)}')
 
-#    plt.show()
+    # Print a message listing the range of R_J in this plot. 
+    # **Or, label the x axis in RJ, on the plots themselves.**
+    
+    # 
+    
+    # Get the distance from Jupiter center to image center
+    
+    vec_nh_center = sp.radrec(1, radec_center[0][0], radec_center[0][1])  # Vector from NH, to center of LORRI frame
+    ang_jup_center = sp.vsep(vec_nh_jup, vec_nh_center)                   # Ang Sep btwn Jup and LORRI, radians
+    dist_jup_center_rj = ang_jup_center * sp.vnorm(vec_nh_jup) / rj_km    # Convert from radians into RJ
+    width_lorri = 0.3*hbt.d2r                                             # LORRI full width, radians
+
+    dist_jup_center_rj_range = np.array([ang_jup_center+width_lorri/2, ang_jup_center-width_lorri/2]) * \
+        sp.vnorm(vec_nh_jup) / rj_km                                      # Finally, we have min and max dist
+                                                                          # in the central row of array, in rj
+    # NB: If we are on the RHS limb, then we need to reverse this.
+
+    if not(is_limb_left):
+        dist_jup_center_rj_range = dist_jup_center_rj_range[::-1]
+    
+    extent = [dist_jup_center_rj_range[0], dist_jup_center_rj_range[1],\
+              dist_jup_center_rj_range[0], dist_jup_center_rj_range[1]]
+    
+    
+         
+#    plt.show() 
     
     # Plot the image, sfit subtracted
     
@@ -281,10 +265,10 @@ for index_images in index_image_list:  # Loop over *all* the images
     degree=5
     arr_sum /= len(index_images)  # We have just summed, so now divide
     arr_sum_s = hbt.remove_sfit(arr_sum,degree=degree)  # _s = sfit subtracted
-    plt.imshow(stretch(arr_sum_s), origin='lower')
-    plt.gca().get_xaxis().set_visible(False)
+    plt.imshow(stretch(arr_sum_s), origin='lower', extent=extent)
+#    plt.gca().get_xaxis().set_visible(False)
     plt.gca().get_yaxis().set_visible(False)
-    plt.title(f'{index_group}/{np.amin(index_images)}..{np.amax(index_images)} - p{degree}')
+    plt.title(f'{index_group}/{np.amin(index_images)}-{np.amax(index_images)} - p{degree}')
 
     # Plot the image, with better subtraction
     
@@ -298,41 +282,18 @@ for index_images in index_image_list:  # Loop over *all* the images
                                      index_group=index_group, index_image=index_image, mask_sfit=None)
 
 
-    plt.imshow(stretch(arr_process), origin='lower')
-    plt.gca().get_xaxis().set_visible(False)
+    plt.imshow(stretch(arr_process), origin='lower', extent=extent)
+#    plt.gca().get_xaxis().set_visible(False)
     plt.gca().get_yaxis().set_visible(False)
-    plt.title(f'{index_group}/{np.amin(index_images)}..{np.amax(index_images)} - {vars}')
+    plt.title(f'{index_group}/{np.amin(index_images)}-{np.amax(index_images)} - {vars}')
 
     # Now show all plots
 
     plt.tight_layout()
     plt.show()
- 
-#sign_limb = -1 * np.array(dx_arr) / np.abs(np.array(dx_arr))
-#
-#plt.plot(et_arr, dist_rj_arr * sign_limb, linestyle='none', marker='.')
-#plt.xlabel('ET')
-#plt.ylabel('Projected distance from Jupiter [RJ]')
-#plt.show()
-
-#plt.plot(-1 * np.array(dx_arr))
-#plt.plot(dy_arr)
-#plt.plot(dz_arr)
-#plt.show()
-
-# Now make the plot of the FOV locations, entirely in RJ space
-# To do this, we need to convert the xyz locations into a projected position.
-# Ugh maybe I should have done this with GV in the first place.
-# This plot here is kind of close, but doesn't really get the positiions or sizes right.
-
-do_plot_xyz = False
-
-if do_plot_xyz:
-    for i in range(len(index_images)):
-        plt.plot(corner_arr[int(i*5):int((i+1)*5),1], corner_arr[int(i*5):int((i+1)*5),2], linestyle='-')
     
-    plt.xlabel('X position (not quite right)')
-    plt.show()
+    print(f'Is left: {is_limb_left}')
+    print('---')
 
 #%%%
 
@@ -352,12 +313,4 @@ if do_plot_xyz:
 #            lun.close()
 
 # I could do RA/Dec relative to RA/Dec of Jupiter.
-            
-    plt.subplot(1,3,1)
-    plt.plot([3,54])
-#    plt.show()
-    plt.subplot(1,2,2)
-    plt.plot([55])
-    plt.show()
-    
     
