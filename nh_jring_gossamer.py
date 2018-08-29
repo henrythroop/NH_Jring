@@ -67,12 +67,13 @@ from   astropy.stats import sigma_clip
 
 import hbt
 
+#%%%
 plt.set_cmap('plasma')
 
 rj_km = 71492
 
 # Now list all of the Gossamer observations. I have determined these groupings manually, based on timings.
-# In general it looks like usually these are stacks of four frames at each pointing.
+# In general it looks like usually these are stacks of four frames at each pointing ('footprint')
 
 index_group = 6
 
@@ -94,8 +95,23 @@ index_image_list = [
                     hbt.frange(120,123),  # Left ansa. Closer than above.
                     hbt.frange(124,127),  # Left ansa. Closer than above.
                     hbt.frange(128,131),  # Left ansa + main ring ansa. Closer than above.
+                    hbt.frange(157,160),
+                    hbt.frange(173,176),
+                    hbt.frange(177,180),
+                    hbt.frange(181,184),
+                    hbt.frange(185,188),
+                    hbt.frange(207,210),
+                    hbt.frange(211,214),
+                    hbt.frange(225,227),
+                    np.array([228]),
+                    hbt.frange(229,232),
+                    hbt.frange(233,238),
+                    
                     ]
-
+                    
+                    
+num_footprints = len(index_image_list)
+  
 #index_image = hbt.frange(71,74)
 #index_image = hbt.frange(75,78)
 #
@@ -118,6 +134,7 @@ filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters
 
 dir_out    = '/Users/throop/data/NH_Jring/out/' # Directory for saving of parameters, backplanes, etc.
 dir_backplanes = '/Users/throop/data/NH_Jring/out/'
+dir_lauer  = dir_out.replace('/out/', '/lauer/')
 
 lun = open(dir_out + filename_save, 'rb')
 t_all = pickle.load(lun)
@@ -130,9 +147,9 @@ groups = astropy.table.unique(t_all, keys=(['Desc']))['Desc']
 groupmask = t_all['Desc'] == groups[index_group]
 
 t_group = t_all[groupmask]  # 
-
+        
 # =============================================================================
-# Make a plot showing the center position of a lot of these frames.
+# Make a plot showing the center position of a lot of these frames, on plot per footprint
 # =============================================================================
 
 file_tm = 'kernels_nh_jupiter.tm'  # SPICE metakernel
@@ -147,34 +164,60 @@ index_images = np.array(
               list(hbt.frange(46,54)) +
               list(hbt.frange(59,135)) )
 
+imagenum = 0
+
 #index_images = hbt.frange(49,54)
 
 #index_images = np.array([46,47,48])
 
-for index_images in index_image_list:  # Loop over *all* the images
+# Set up a a bunch of arrays (really lists) to save parameters from each image. We then output these.
 
-    ra_arr      = []
-    dec_arr     = []
-    dist_rj_arr = []
-    et_arr      = []
-    dx_arr      = []
-    dy_arr      = []
-    dz_arr      = []
-    corner_arr  = []
+ra_arr      = []
+dec_arr     = []
+dist_proj_rj_arr = []
+range_rj_arr = []
+et_arr      = []
+dx_arr      = []
+dy_arr      = []
+dz_arr      = []
+corner_arr  = []
+format_arr    = []
+exptime_arr = []
+name_limb_arr = []
+file_arr    = []
+phase_arr   = []
+utc_arr     = []
+index_hbt_arr = []
+index_footprint_arr = []
+    
+for index_footprint,index_images in enumerate(index_image_list):  # Loop over *all* the images
+                                                                  # index_footprint is sequential
 
-    arr_sum     = None
-
-    plt.subplot(1,3,1)
+    plt.subplot(2,2,1)
     
 #    fig, ax = plt.subplots()
 
-    for index_image in index_images:   # Loop over the images in this obsevation
+    for index_image in index_images:   # Loop over the images in this observation
         
+        arr_sum     = None
+
         t_i = t_group[index_image]  # Grab this, read-only, since we use it a lot.
+        
         
         arr = hbt.read_lorri(t_i['Filename'])
         arr = hbt.lorri_destripe(arr)
 
+        # Save various parameters in a table, which we will output afterwards
+        
+        file_arr.append(t_i['Shortname'])
+        format_arr.append(t_i['Format'])
+        phase_arr.append(t_i['Phase']*hbt.r2d)
+        exptime_arr.append(t_i['Exptime'])
+        et_arr.append(t_i['ET'])
+        utc_arr.append(t_i['UTC'])
+        index_footprint_arr.append(index_footprint+1)
+        index_hbt_arr.append(f'{index_group}/{index_image}')
+        
         if arr_sum is None:
             arr_sum = arr
         else:    
@@ -204,12 +247,37 @@ for index_images in index_image_list:  # Loop over *all* the images
          
         plt.plot((radec_corners[:,0]-ra_jup)*hbt.r2d, (radec_corners[:,1]-dec_jup)*hbt.r2d,
                  label = f'{index_group}/{index_image}') # Plot all the four points for this box
-        
-        et_arr.append(t_i['ET'])
-        
+                
         is_limb_left = (radec_corners[0,0]-ra_jup)>0
+        
+        if is_limb_left:
+            name_limb_arr.append('Left')
+        else:
+            name_limb_arr.append('Right')
 
-    # Finished this loop over image set
+        # Get the distance from Jupiter center to image center
+        
+        vec_nh_center = sp.radrec(1, radec_center[0][0], radec_center[0][1])  # Vector from NH, to center of LORRI frame
+        ang_jup_center = sp.vsep(vec_nh_jup, vec_nh_center)                   # Ang Sep btwn Jup and LORRI, radians
+        dist_jup_center_rj = ang_jup_center * sp.vnorm(vec_nh_jup) / rj_km    # Convert from radians into RJ
+        width_lorri = 0.3*hbt.d2r                                             # LORRI full width, radians
+    
+        dist_jup_center_rj_range = np.array([ang_jup_center+width_lorri/2, ang_jup_center-width_lorri/2]) * \
+            sp.vnorm(vec_nh_jup) / rj_km                                      # Finally, we have min and max dist
+                                                                              # in the central row of array, in rj
+   
+        range_rj_arr.append(sp.vnorm(vec_nh_jup)/rj_km)
+        
+        # If we are on the RHS limb, then we need to reverse this.
+    
+        if not(is_limb_left):
+            dist_jup_center_rj_range = dist_jup_center_rj_range[::-1]
+
+        dist_proj_rj_arr.append((dist_jup_center_rj_range))
+        
+        imagenum +=1
+
+    # Finished this loop over image set (aka footprint)
     
     corner_arr = np.array(corner_arr) / rj_km  # This is now an array (n_pts x 5, 3)
     
@@ -230,38 +298,20 @@ for index_images in index_image_list:  # Loop over *all* the images
     plt.xlim((4,-4))
     plt.ylim((-2,2))
     plt.legend(loc='upper right')
-    plt.title(f'Gossamer images, {index_group}/{np.amin(index_images)}-{np.amax(index_images)}')
-
-    # Print a message listing the range of R_J in this plot. 
-    # **Or, label the x axis in RJ, on the plots themselves.**
+    plt.title(f'Gossamer images, {index_group}/{np.amin(index_images)}-{np.amax(index_images)}, f{index_footprint}')
     
-    # 
-    
-    # Get the distance from Jupiter center to image center
-    
-    vec_nh_center = sp.radrec(1, radec_center[0][0], radec_center[0][1])  # Vector from NH, to center of LORRI frame
-    ang_jup_center = sp.vsep(vec_nh_jup, vec_nh_center)                   # Ang Sep btwn Jup and LORRI, radians
-    dist_jup_center_rj = ang_jup_center * sp.vnorm(vec_nh_jup) / rj_km    # Convert from radians into RJ
-    width_lorri = 0.3*hbt.d2r                                             # LORRI full width, radians
-
-    dist_jup_center_rj_range = np.array([ang_jup_center+width_lorri/2, ang_jup_center-width_lorri/2]) * \
-        sp.vnorm(vec_nh_jup) / rj_km                                      # Finally, we have min and max dist
-                                                                          # in the central row of array, in rj
-    # NB: If we are on the RHS limb, then we need to reverse this.
-
-    if not(is_limb_left):
-        dist_jup_center_rj_range = dist_jup_center_rj_range[::-1]
+    # Set the 'extent', which is the axis values for the X and Y axes for an imshow().
+    # We set the y range to be the same as X, to convince python to keep the pixels square.
     
     extent = [dist_jup_center_rj_range[0], dist_jup_center_rj_range[1],\
               dist_jup_center_rj_range[0], dist_jup_center_rj_range[1]]
     
     
-         
 #    plt.show() 
     
     # Plot the image, sfit subtracted
     
-    plt.subplot(1,3,2)
+    plt.subplot(2,2,2)
     degree=5
     arr_sum /= len(index_images)  # We have just summed, so now divide
     arr_sum_s = hbt.remove_sfit(arr_sum,degree=degree)  # _s = sfit subtracted
@@ -272,7 +322,7 @@ for index_images in index_image_list:  # Loop over *all* the images
 
     # Plot the image, with better subtraction
     
-    plt.subplot(1,3,3)
+    plt.subplot(2,2,3)
     
     method = 'String'
     vars = '6/63-70 p5'
@@ -287,14 +337,92 @@ for index_images in index_image_list:  # Loop over *all* the images
     plt.gca().get_yaxis().set_visible(False)
     plt.title(f'{index_group}/{np.amin(index_images)}-{np.amax(index_images)} - {vars}')
 
+
+    # plt.show()
+    
+    # Now load Lauer's processed image of the same footprint
+    
+    file_lauer = os.path.join(dir_lauer, f'f{index_footprint:02}_av_v1f.fits')
+    try:
+        lun_lauer = fits.open(file_lauer)
+        im_lauer = lun_lauer[0].data
+        lun_lauer.close()
+        plt.subplot(2,2,4)
+        plt.imshow(stretch(im_lauer), origin='lower', extent=extent)
+        plt.title(f'Lauer f{index_footprint:02}')
+    except:   # Skip if, if Lauer did not process it
+        pass
+
     # Now show all plots
 
     plt.tight_layout()
+    
     plt.show()
     
-    print(f'Is left: {is_limb_left}')
-    print('---')
+#    print(f'Is left: {is_limb_left}')
+#    print('---')
 
+# Now make the output table for Tod
+
+# =============================================================================
+# Make up a table, for Tod Lauer. We don't really used this table -- it's just for output.
+# I want to group things     
+# =============================================================================
+
+#t_out = Table([name, rho, r, a], names=['Name', 'rho', 'radius', 'a'])
+  
+t = astropy.table.Table([hbt.frange(1,imagenum), index_hbt_arr, index_footprint_arr, 
+                         file_arr, name_limb_arr, dist_proj_rj_arr, phase_arr, 
+                         range_rj_arr, et_arr, utc_arr, 
+                         format_arr, exptime_arr,],
+                        names = ['#', 'HBT #', 'Foot #', 'Name', 'Limb', 'Dist_Proj_RJ', 'Phase', 'Range_RJ',
+                                 'ET', 'UTC', 'Format', 'Exptime'])
+t['Dist_Proj_RJ'].format='5.3f'
+t['Phase'].format = '5.1f'
+t['Range_RJ'].format = '4.1f'
+
+path_out = os.path.join(dir_out, 'obstable_gossamer_hbt.txt')
+t.write(path_out, format = 'ascii.fixed_width', overwrite='True')
+print(f'Wrote: {path_out}')
+
+# =============================================================================
+# Now merge all of the footprints into one combined image.
+# =============================================================================
+
+# Ideally I would write this as a function. It does not make sense to use WCS for this.
+# The coordinate are weird. But it does make sense
+
+# But it does make sense to 
+#
+
+dx_range_rj_out = [-3, 3]    # Fot consistentency, we should go from -3 to 3.  Negative on left.
+dy_range_rj_out = [-1, 1]
+ 
+dx_rj        = 0.005         # Resolution of the output image, in RJ. To change output array size, change this.
+dy_rj        = dx_rj
+dx_pix = int( (dx_range_rj_out[1] - dx_range_rj_out[0])/dx_rj )
+dy_pix = int( (dy_range_rj_out[1] - dy_range_rj_out[0])/dy_rj )
+
+# Make the stack
+
+stack  = np.zeros((num_footprints, dy_pix, dx_pix))
+
+for i in range(num_footprints):
+    range_rj_i = dist_proj_rj_arr[i]  # Get the RJ range for this image (all positive)
+    if ('Right' in name_limb_arr[i]):
+        range_rj_i *= -1
+    drj_i = np.amax(range_rj_i) - np.amin(range_rj_i)
+    fac_zoom = (drj_i / dx_rj) / hbt.sizex_im(arr_process) 
+    
+    # Now do the actual resizing of the image
+    
+    arr_resize = scipy.ndimage.zoom(arr_process, fac_zoom)
+    
+    # Now place it on the output stack
+    
+    x0 = np.digitize()
+    
+    
 #%%%
 
 # And hang on. We've already made backplanes for everything. Can I use those here? 
