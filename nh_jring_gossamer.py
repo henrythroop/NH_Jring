@@ -189,6 +189,9 @@ phase_arr   = []
 utc_arr     = []
 index_hbt_arr = []
 index_footprint_arr = []
+im_process_arr = []   # Array of final processed images
+im_lauer_arr = []
+im_sum_s_arr = []
     
 for index_footprint,index_images in enumerate(index_image_list):  # Loop over *all* the images
                                                                   # index_footprint is sequential
@@ -199,7 +202,7 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
 
     for index_image in index_images:   # Loop over the images in this observation
         
-        arr_sum     = None
+        im_sum     = None
 
         t_i = t_group[index_image]  # Grab this, read-only, since we use it a lot.
         
@@ -218,10 +221,10 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         index_footprint_arr.append(index_footprint+1)
         index_hbt_arr.append(f'{index_group}/{index_image}')
         
-        if arr_sum is None:
-            arr_sum = arr
+        if im_sum is None:
+            im_sum = arr
         else:    
-            arr_sum += arr
+            im_sum += arr
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -313,9 +316,9 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
     
     plt.subplot(2,2,2)
     degree=5
-    arr_sum /= len(index_images)  # We have just summed, so now divide
-    arr_sum_s = hbt.remove_sfit(arr_sum,degree=degree)  # _s = sfit subtracted
-    plt.imshow(stretch(arr_sum_s), origin='lower', extent=extent)
+    im_sum /= len(index_images)  # We have just summed, so now divide
+    im_sum_s = hbt.remove_sfit(im_sum,degree=degree)  # _s = sfit subtracted
+    plt.imshow(stretch(im_sum_s), origin='lower', extent=extent)
 #    plt.gca().get_xaxis().set_visible(False)
     plt.gca().get_yaxis().set_visible(False)
     plt.title(f'{index_group}/{np.amin(index_images)}-{np.amax(index_images)} - p{degree}')
@@ -328,18 +331,18 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
     vars = '6/63-70 p5'
 #    index_image = 124
 #    index_group = 6
-    arr_process = hbt.nh_jring_process_image(arr_sum, method, vars, 
+    im_process = hbt.nh_jring_process_image(im_sum, method, vars, 
                                      index_group=index_group, index_image=index_image, mask_sfit=None)
 
 
-    plt.imshow(stretch(arr_process), origin='lower', extent=extent)
+    plt.imshow(stretch(im_process), origin='lower', extent=extent)
 #    plt.gca().get_xaxis().set_visible(False)
     plt.gca().get_yaxis().set_visible(False)
     plt.title(f'{index_group}/{np.amin(index_images)}-{np.amax(index_images)} - {vars}')
 
-
-    # plt.show()
-    
+    im_sum_s_arr.append(im_sum_s)      # Raw summed image from the footprint. Better.
+    im_process_arr.append(im_process)  # 'Processed' image from the footprint. Not very good.
+        
     # Now load Lauer's processed image of the same footprint
     
     file_lauer = os.path.join(dir_lauer, f'f{index_footprint:02}_av_v1f.fits')
@@ -350,8 +353,10 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         plt.subplot(2,2,4)
         plt.imshow(stretch(im_lauer), origin='lower', extent=extent)
         plt.title(f'Lauer f{index_footprint:02}')
+        im_lauer_arr.append(im_lauer)
+        
     except:   # Skip if, if Lauer did not process it
-        pass
+        im_lauer_arr.append([])
 
     # Now show all plots
 
@@ -395,13 +400,17 @@ print(f'Wrote: {path_out}')
 # But it does make sense to 
 #
 
-dx_range_rj_out = [-3, 3]    # Fot consistentency, we should go from -3 to 3.  Negative on left.
-dy_range_rj_out = [-1, 1]
+# For here, x means 'horizontal axis when plotted', ie, 'second axis of a 2D array'
+
+dx_range_rj_out = [-4, 4]    # Fot consistentency, we should go from -3 to 3.  Negative on left.
+dy_range_rj_out = [-2, 2]
  
 dx_rj        = 0.005         # Resolution of the output image, in RJ. To change output array size, change this.
 dy_rj        = dx_rj
-dx_pix = int( (dx_range_rj_out[1] - dx_range_rj_out[0])/dx_rj )
-dy_pix = int( (dy_range_rj_out[1] - dy_range_rj_out[0])/dy_rj )
+dx_pix = int( (dx_range_rj_out[1] - dx_range_rj_out[0])/dx_rj ) + 1
+dy_pix = int( (dy_range_rj_out[1] - dy_range_rj_out[0])/dy_rj ) + 1
+vals_x_rj    = hbt.frange(dx_range_rj_out[0], dx_range_rj_out[1], dx_pix)
+vals_y_rj    = hbt.frange(dy_range_rj_out[0], dy_range_rj_out[1], dy_pix)
 
 # Make the stack
 
@@ -412,16 +421,24 @@ for i in range(num_footprints):
     if ('Right' in name_limb_arr[i]):
         range_rj_i *= -1
     drj_i = np.amax(range_rj_i) - np.amin(range_rj_i)
-    fac_zoom = (drj_i / dx_rj) / hbt.sizex_im(arr_process) 
+    fac_zoom = (drj_i / dx_rj) / hbt.sizex_im(im_process_arr[i]) 
     
     # Now do the actual resizing of the image
     
-    arr_resize = scipy.ndimage.zoom(arr_process, fac_zoom)
+    # im_resize = scipy.ndimage.zoom(im_sum_s_arr[i], fac_zoom)
+    im_resize = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
     
     # Now place it on the output stack
     
-    x0 = np.digitize()
+    x0 = np.digitize(np.amin(range_rj_i), vals_x_rj) + 0  # add zero to convert from 'array' into int
+    x1 = x0 + hbt.sizex_im(im_resize)
     
+    y0 = 500
+    y1 = y0 + hbt.sizey_im(im_resize)
+    
+    stack[i, y0:y1, x0:x1] = im_resize
+
+plt.imshow(stretch(np.sum(stack,axis=0)))    
     
 #%%%
 
