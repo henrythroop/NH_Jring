@@ -109,7 +109,22 @@ index_image_list = [
                     
                     ]
                     
-                    
+
+
+do_test = True
+
+if do_test:
+    
+    index_image_list = [
+                    hbt.frange(99,102), # Left ansa. Similar geometry as 75-78.
+                    hbt.frange(112,115),# Right ansa. Gossamer limb. Similar geometry as 95-98 (offset pointing)
+                    hbt.frange(116,119),# Left ansa. Similar geometry as 75-78. Sat visible??
+                    hbt.frange(120,123),  # Left ansa. Closer than above.
+                    hbt.frange(124,127),  # Left ansa. Closer than above.
+                    hbt.frange(128,131)]  # Left ansa + main ring ansa. Closer than above.
+
+
+
 num_footprints = len(index_image_list)
   
 #index_image = hbt.frange(71,74)
@@ -156,7 +171,7 @@ file_tm = 'kernels_nh_jupiter.tm'  # SPICE metakernel
 
 sp.furnsh(file_tm)
 
-hbt.figsize((10,5))
+hbt.figsize((12,10))
 
 index_group = 6
 index_images = np.array(
@@ -174,7 +189,8 @@ imagenum = 0
 
 ra_arr      = []
 dec_arr     = []
-dist_proj_rj_arr = []
+dist_proj_rj_arr = []      # Projected distance in RJ, for each image
+dist_proj_rj_foot_arr = [] # Projected distance in RJ, for each footprint (ie, set of four images)
 range_rj_arr = []
 et_arr      = []
 dx_arr      = []
@@ -184,6 +200,7 @@ corner_arr  = []
 format_arr    = []
 exptime_arr = []
 name_limb_arr = []
+name_limb_foot_arr = []
 file_arr    = []
 phase_arr   = []
 utc_arr     = []
@@ -271,15 +288,18 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
    
         range_rj_arr.append(sp.vnorm(vec_nh_jup)/rj_km)
         
-        # If we are on the RHS limb, then we need to reverse this.
+        # If we are on the RHS limb, then we need to reverse this, and negate it.
     
         if not(is_limb_left):
-            dist_jup_center_rj_range = dist_jup_center_rj_range[::-1]
+            dist_jup_center_rj_range = -1 * dist_jup_center_rj_range[::-1]
 
         dist_proj_rj_arr.append((dist_jup_center_rj_range))
         
         imagenum +=1
 
+    dist_proj_rj_foot_arr.append(dist_jup_center_rj_range)  # Set the projected distnace, for the footprint
+    name_limb_foot_arr.append(name_limb_arr[-1]) # Defint the limb direction for the footprint
+    
     # Finished this loop over image set (aka footprint)
     
     corner_arr = np.array(corner_arr) / rj_km  # This is now an array (n_pts x 5, 3)
@@ -402,45 +422,78 @@ print(f'Wrote: {path_out}')
 
 # For here, x means 'horizontal axis when plotted', ie, 'second axis of a 2D array'
 
-dx_range_rj_out = [-4, 4]    # Fot consistentency, we should go from -3 to 3.  Negative on left.
-dy_range_rj_out = [-2, 2]
+dx_dist_proj_rj_out = [1, 3]    # Fot consistentency, we should go from -3 to 3.  Negative on left.
+dy_dist_proj_rj_out = [0.5, 2]
  
-dx_rj        = 0.005         # Resolution of the output image, in RJ. To change output array size, change this.
+dx_rj        = 0.001          # Resolution of the output image, in RJ. To change output array size, change this.
 dy_rj        = dx_rj
-dx_pix = int( (dx_range_rj_out[1] - dx_range_rj_out[0])/dx_rj ) + 1
-dy_pix = int( (dy_range_rj_out[1] - dy_range_rj_out[0])/dy_rj ) + 1
-vals_x_rj    = hbt.frange(dx_range_rj_out[0], dx_range_rj_out[1], dx_pix)
-vals_y_rj    = hbt.frange(dy_range_rj_out[0], dy_range_rj_out[1], dy_pix)
+dx_pix = int( (dx_dist_proj_rj_out[1] - dx_dist_proj_rj_out[0])/dx_rj ) + 1
+dy_pix = int( (dy_dist_proj_rj_out[1] - dy_dist_proj_rj_out[0])/dy_rj ) + 1
+vals_x_rj    = hbt.frange(dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dx_pix)
+vals_y_rj    = hbt.frange(dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1], dy_pix)
 
 # Make the stack
 
 stack  = np.zeros((num_footprints, dy_pix, dx_pix))
+stack[:,:,:] = np.nan  # Fill it with NaN's
 
 for i in range(num_footprints):
-    range_rj_i = dist_proj_rj_arr[i]  # Get the RJ range for this image (all positive)
-    if ('Right' in name_limb_arr[i]):
-        range_rj_i *= -1
-    drj_i = np.amax(range_rj_i) - np.amin(range_rj_i)
+    dist_proj_rj_foot_i = dist_proj_rj_foot_arr[i]  # Get the RJ range for this image (all positive)
+    # if ('Right' in name_limb_foot_arr[i]):
+    #     dist_proj_rj_foot_i *= -1
+    drj_i = np.amax(dist_proj_rj_i) - np.amin(dist_proj_rj_i)
     fac_zoom = (drj_i / dx_rj) / hbt.sizex_im(im_process_arr[i]) 
     
     # Now do the actual resizing of the image
     
     # im_resize = scipy.ndimage.zoom(im_sum_s_arr[i], fac_zoom)
-    im_resize = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
     
+    im_resize = scipy.ndimage.zoom(stretch(im_sum_s_arr[i]), fac_zoom)
+ 
+    DO_OUTPUT_LAUER = False
+
+    if DO_OUTPUT_LAUER:
+        
+        if len(im_lauer_arr[i]) > 0:
+            im_resize = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
+        
+    # else:
+        
     # Now place it on the output stack
     
-    x0 = np.digitize(np.amin(range_rj_i), vals_x_rj) + 0  # add zero to convert from 'array' into int
+    x0 = np.digitize(np.amin(dist_proj_rj_foot_i), vals_x_rj) + 0  # add zero to convert from 'array' into int
     x1 = x0 + hbt.sizex_im(im_resize)
     
-    y0 = 500
-    y1 = y0 + hbt.sizey_im(im_resize)
+    y0 = 50 + int(x0/5)
     
-    stack[i, y0:y1, x0:x1] = im_resize
+    # y0 = 50 + i*10
+    y1 = y0 + hbt.sizey_im(im_resize)
 
-plt.imshow(stretch(np.sum(stack,axis=0)))    
+    print(f'Footprint {i}: pos (y0,x0) = {y0,x0}; shape(large) = {np.shape(large)}; shape(small) = {np.shape(im_resize)}')
+
+    stack[i,:,:] = hbt.replace_subarr_2d(stack[i,:,:], im_resize, (y0,x0))
+    # stack[i,:,:] = replace_subarr_2d(stack[i,:,:], im_resize, (y0,x0))
+    
+    # stack[i, y0:y1, x0:x1] = im_resize
+    
+# else:
+#         print(f'Footprint {i}: No Lauer image')
+
+extent = [ dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1] ]
+
+plt.imshow((np.nanmean(stretch(stack),axis=0)), extent=extent, cmap='plasma', origin='lower')
+
+file_out = os.path.join(dir_out, 'gossamer.png')
+plt.savefig(file_out)
+print(f'Wrote: {file_out}')
+plt.show()
+
+
     
 #%%%
+
+
+
 
 # And hang on. We've already made backplanes for everything. Can I use those here? 
 # I don't know. These images are obviously very edge-on.
