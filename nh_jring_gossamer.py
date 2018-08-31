@@ -225,7 +225,7 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         
         
         arr = hbt.read_lorri(t_i['Filename'])
-        arr = hbt.lorri_destripe(arr)
+        # arr = hbt.lorri_destripe(arr)
 
         # Save various parameters in a table, which we will output afterwards
         
@@ -464,7 +464,7 @@ for i in range(num_footprints):
     x0 = np.digitize(np.amin(dist_proj_rj_foot_i), vals_x_rj) + 0  # add zero to convert from 'array' into int
     x1 = x0 + hbt.sizex_im(im_resize)
     
-    y0 = 50 + int(x0/5)
+    y0 = 50 + int(x0/5) # We'll have to figure out a vertical position, but right now we don't.
     
     # y0 = 50 + i*10
     y1 = y0 + hbt.sizey_im(im_resize)
