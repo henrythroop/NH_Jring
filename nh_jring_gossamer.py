@@ -171,7 +171,7 @@ file_tm = 'kernels_nh_jupiter.tm'  # SPICE metakernel
 
 sp.furnsh(file_tm)
 
-hbt.figsize((12,10))
+hbt.figsize((9,9))
 
 index_group = 6
 index_images = np.array(
@@ -217,12 +217,15 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
     
 #    fig, ax = plt.subplots()
 
+    # Reset the 'sum' image, which is sum of all frames at this footprint.
+    # We set this to None rather than a zero array, since we don't know the size of the array until we've 
+    # opened the files.
+    
+    im_sum     = None   
+
     for index_image in index_images:   # Loop over the images in this observation
         
-        im_sum     = None
-
         t_i = t_group[index_image]  # Grab this, read-only, since we use it a lot.
-        
         
         arr = hbt.read_lorri(t_i['Filename'])
         # arr = hbt.lorri_destripe(arr)
@@ -416,9 +419,6 @@ print(f'Wrote: {path_out}')
 
 # Ideally I would write this as a function. It does not make sense to use WCS for this.
 # The coordinate are weird. But it does make sense
-
-# But it does make sense to 
-#
 
 # For here, x means 'horizontal axis when plotted', ie, 'second axis of a 2D array'
 
