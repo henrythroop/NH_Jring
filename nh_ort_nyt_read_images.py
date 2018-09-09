@@ -72,6 +72,12 @@ import hbt
 # I wrote this for the MU69 NYT ORT, but it coudl be used for anything.
 # =============================================================================
 
+# Start up SPICE if needed
+
+hbt.figsize((10,10))
+if (sp.ktotal('ALL') == 0):
+    sp.furnsh('kernels_kem_prime.tm')
+        
 stretch_percent = 90    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
@@ -79,12 +85,18 @@ dir_images = '/Users/throop/Data/ORT_Sep18/day2/lor/'
 
 files = glob.glob(os.path.join(dir_images, '*'))
 
+do_transpose = False
+
+files = ['/Users/throop/Data/NH_Jring/data/jupiter/level2/lor/all/lor_0034715072_0x630_sci_1.fit']
+
 for file in files:
     lun = fits.open(file)
     im = lun['PRIMARY'].data
     et = lun['PRIMARY'].header['SPCSCET']
     utc = sp.et2utc(et, 'C', 0)
-    plt.imshow(stretch(im))
+    if do_transpose:
+        im = np.transpose(im)
+    plt.imshow(stretch(im), origin='lower')
     file_short = file.split('/')[-1]
     plt.title(f'{file_short} {utc}')
     plt.show()
