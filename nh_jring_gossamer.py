@@ -50,6 +50,8 @@ import pickle # For load/save
 
 import cProfile # For profiling
 
+import scipy
+
 # Imports for Tk
 
 #import Tkinter # change Tkinter -> tkinter for py 2 - 3?
@@ -111,7 +113,7 @@ index_image_list = [
                     
 
 
-do_test = True
+do_test = False
 
 if do_test:
     
@@ -368,7 +370,9 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         
     # Now load Lauer's processed image of the same footprint
     
-    file_lauer = os.path.join(dir_lauer, f'f{index_footprint:02}_av_v1f.fits')
+    ifp1 = index_footprint+1  # There is an offset of one between my indices, and Tod's
+    
+    file_lauer = os.path.join(dir_lauer, f'f{ifp1:02}_av_v1f.fits')
     try:
         lun_lauer = fits.open(file_lauer)
         im_lauer = lun_lauer[0].data
@@ -441,14 +445,17 @@ for i in range(num_footprints):
     dist_proj_rj_foot_i = dist_proj_rj_foot_arr[i]  # Get the RJ range for this image (all positive)
     # if ('Right' in name_limb_foot_arr[i]):
     #     dist_proj_rj_foot_i *= -1
-    drj_i = np.amax(dist_proj_rj_i) - np.amin(dist_proj_rj_i)
+    drj_i = np.amax(dist_proj_rj_arr[i]) - np.amin(dist_proj_rj_arr[i])
     fac_zoom = (drj_i / dx_rj) / hbt.sizex_im(im_process_arr[i]) 
     
     # Now do the actual resizing of the image
     
     # im_resize = scipy.ndimage.zoom(im_sum_s_arr[i], fac_zoom)
     
-    im_resize = scipy.ndimage.zoom(stretch(im_sum_s_arr[i]), fac_zoom)
+    stretch_percent2 = 95    
+    stretch2 = astropy.visualization.PercentileInterval(stretch_percent2) # PI(90) scales to 5th..95th %ile.
+
+    im_resize = scipy.ndimage.zoom(stretch2(im_sum_s_arr[i]), fac_zoom)
  
     DO_OUTPUT_LAUER = False
 
@@ -469,7 +476,7 @@ for i in range(num_footprints):
     # y0 = 50 + i*10
     y1 = y0 + hbt.sizey_im(im_resize)
 
-    print(f'Footprint {i}: pos (y0,x0) = {y0,x0}; shape(large) = {np.shape(large)}; shape(small) = {np.shape(im_resize)}')
+    # print(f'Footprint {i}: pos (y0,x0) = {y0,x0}; shape(large) = {np.shape(large)}; shape(small) = {np.shape(im_resize)}')
 
     stack[i,:,:] = hbt.replace_subarr_2d(stack[i,:,:], im_resize, (y0,x0))
     # stack[i,:,:] = replace_subarr_2d(stack[i,:,:], im_resize, (y0,x0))
