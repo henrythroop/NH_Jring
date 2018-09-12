@@ -77,13 +77,16 @@ rj_km = 71492
 # Now list all of the Gossamer observations. I have determined these groupings manually, based on timings.
 # In general it looks like usually these are stacks of four frames at each pointing ('footprint')
 
+# Lauer's footprints are just numbered sequentially (f01, f02, etc). So, we need to keep these files here in 
+# same order, so as to correlate exactly w/ Lauer's.
+
 index_group = 6
 
 index_image_list = [
 #                    hbt.frange(46,48), # 1X1. Main ring. Maybe gossamer too but not interested.
 #                    hbt.frange(49,53), # 1X1. Main ring. Maybe gossamer too but not interested.
 #                    np.array([54]),    # 1X1. Main ring. Maybe gossamer too but not interested.
-                    hbt.frange(59,62),  # Right ansa. I think Gossamer is there but hidden -- need to optimize.
+                    hbt.frange(59,62),  # Right ansa. -2.7 RJ. Gossamer maybe there but hidden -- need to optimize.
                     hbt.frange(63,66),  # Left ansa. Furthest out, no ring. Use for subtraction.
                     hbt.frange(67,70),  # Left ansa. Far out, no ring. Closer than above.
                     hbt.frange(71,74),  # Left ansa. No ring. Closer than above.
@@ -106,9 +109,39 @@ index_image_list = [
                     hbt.frange(211,214),
                     hbt.frange(225,227),
                     np.array([228]),
-                    hbt.frange(229,232),
-                    hbt.frange(233,238),
+                    hbt.frange(229,232),   # Right gossamer ansa.
+                    # hbt.frange(233,238),   # Main ring? Many images, lots of jitter -- can't stack in place.
                     
+                    ]
+                    
+
+index_image_list = [
+#                     # hbt.frange(59,62),  # Right ansa. 2.4 .. 2.7 RJ. Gossamer there, bit hidden?
+#                     hbt.frange(63,66),  # Left ansa. -3.2 .. 3.0. Furthest out, no ring. Use for subtraction.
+#                     hbt.frange(67,70),  # Left ansa. -3.0 .. -2.8. Far out, no ring.
+#                     hbt.frange(71,74),  # Left ansa. -2.8 .. -2.6. Far out, no ring.
+#                     hbt.frange(75,78),  # Left ansa. Gossamer. -2.6 .. -2.4 RJ. Closer than above.
+#                     # hbt.frange(59,62),  # Right ansa.           2.4 .. 2.7. Gossamer is there but hidden?
+#                     # hbt.frange(95,98),  # Right ansa. Gossamer limb. 2.35 .. 2.65. Definitely gossamer.
+#                     hbt.frange(99,102), # Left ansa. Gossamer. 2.65 .. 2.4. 
+#                     # hbt.frange(112,115),# Right ansa. Gossamer limb. 2.4 .. 2.6. Def Gossamer.
+#                     hbt.frange(116,119),  # Left ansa. -2.65 .. -2.35
+#                     hbt.frange(120,123),  # Left ansa. -2.45 .. -2.15. 
+#                     hbt.frange(124,127),  # Left ansa. -2.25 .. -1.95. 
+#                     hbt.frange(128,131),  # Left ansa. -2 .. -1.70. Gossamer + main.
+                    
+#                     hbt.frange(157,160),# Left ansa.           -2.7 .. 2.4
+                    hbt.frange(173,176),# Right ansa. Main ring. 1.8 .. 2.
+#                     # hbt.frange(177,180),# Right ansa. Gossamer.  2.0 .. 2.3.
+#                     # hbt.frange(181,184), # Right ansa. Gossamer. 2.2 .. 2.5.
+#                     # hbt.frange(185,188),   # Right ansa. Gossamer. 2.4 .. 2.8. Outer edge of Gossamer?
+#                     # hbt.frange(207,210), # Right ansa. Gossamer. 2.35 .. 2.65
+#                     hbt.frange(211,214),  # Left ansa. -2.65 .. -2.40. Outer edge of Gossamer?
+#                     hbt.frange(225,227),    # Left ansa. -2.7 .. 2.35. Outer edge of Gossamer?
+#                     np.array([228]),           #  Left ansa. -2.7 .. 2.35. Outer edge of Gossamer?
+#                     # hbt.frange(229,232),     # Right ansa. 2.45-2.70. Outer edge of Gossamer.
+#                     # hbt.frange(233,238),   # 1.6 .. 1.9. Main ring. Probably should not plot these -- dfft sequence.
+# #                    
                     ]
                     
 
@@ -181,7 +214,7 @@ index_images = np.array(
               list(hbt.frange(46,54)) +
               list(hbt.frange(59,135)) )
 
-imagenum = 0
+imagenum = 0    
 
 #index_images = hbt.frange(49,54)
 
@@ -269,8 +302,17 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'New Horizons')
         (_, ra_jup, dec_jup) = sp.recrad(vec[0:3])  # Radians
         vec_nh_jup = vec[0:3]
-         
-        plt.plot((radec_corners[:,0]-ra_jup)*hbt.r2d, (radec_corners[:,1]-dec_jup)*hbt.r2d,
+        
+        # Get vectors Sun-Jup, and Sun-NH
+        
+        (vec,lt) = sp.spkezr('Jupiter', t_i['ET'], 'J2000', abcorr, 'Sun')
+        vec_sun_jup = vec[0:3]  # Radians
+        
+        vec_sun_nh = vec_sun_jup - vec_nh_jup
+        
+        # Plot the boxes
+        
+        plt.plot((radec_corners[:,0]-ra_jup)*hbt.r2d * (-1), (radec_corners[:,1]-dec_jup)*hbt.r2d,
                  label = f'{index_group}/{index_image}') # Plot all the four points for this box
                 
         is_limb_left = (radec_corners[0,0]-ra_jup)>0
@@ -287,23 +329,56 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         dist_jup_center_rj = ang_jup_center * sp.vnorm(vec_nh_jup) / rj_km    # Convert from radians into RJ
         width_lorri = 0.3*hbt.d2r                                             # LORRI full width, radians
     
-        dist_jup_center_rj_range = np.array([ang_jup_center+width_lorri/2, ang_jup_center-width_lorri/2]) * \
+        dist_jup_center_rj_range = np.array([ang_jup_center-width_lorri/2, ang_jup_center+width_lorri/2]) * \
             sp.vnorm(vec_nh_jup) / rj_km                                      # Finally, we have min and max dist
                                                                               # in the central row of array, in rj
    
         range_rj_arr.append(sp.vnorm(vec_nh_jup)/rj_km)
         
-        # If we are on the RHS limb, then we need to reverse this, and negate it.
+        # If we are on the LHS limb, then we need to reverse this, and negate it.
     
-        if not(is_limb_left):
+        if (is_limb_left):
             dist_jup_center_rj_range = -1 * dist_jup_center_rj_range[::-1]
 
         dist_proj_rj_arr.append((dist_jup_center_rj_range))
         
-        imagenum +=1
-
-    dist_proj_rj_foot_arr.append(dist_jup_center_rj_range)  # Set the projected distnace, for the footprint
-    name_limb_foot_arr.append(name_limb_arr[-1]) # Defint the limb direction for the footprint
+        # Get the distance above the ring plane -- that is, distance from image center to ring plane, projected.
+        # To do this:
+        #   - Project a vector from s/c along central LORRI pixel.
+        #   - Make a SPICE 'line' from s/c along this vector
+        #   - Get C/A point from this 'line', to Jupiter center
+        #   - Convert that point to a distance and elevation using RECRAD, in IAU_JUPITER coords.
+        
+        # Get the 'close point', which is basically the point in space above/below the ring plane, where NH is pointed.
+        # "Finds the nearest point on a line." So I guess it is in J2000 from the sun position, baiscally.
+        
+        (pt_closest, dist) = sp.nplnpt(vec_sun_nh, vec_nh_center, vec_sun_jup)
+        
+        # Convert this to a vector centered on Jupiter
+        
+        pt_closest_jup = -pt_closest + vec_sun_jup
+        
+        # Now convert this to an elevation angle and distance
+        # 'Radius' will be the centerpoint of the image, in km from Jup.
+        
+        mx = sp.pxform('J2000', 'IAU_JUPITER', t_i['ET'])
+        
+        # Convert to IAU_JUP coords. Looks good.
+        
+        pt_closest_jup_jup = sp.mxv(mx, pt_closest_jup)  # Get the close point to Jup, in IAU_JUP coords
+        
+        # Convert into radius / lon / lat, in km, in Jupiter frame. 
+        # ** Seems to be some error here. Radius is OK, but lat not right??
+        
+        (radius, lon, lat) = sp.reclat(pt_closest_jup_jup)
+        
+        dist_jup_center_horizontal_rj = radius / rj_km   # This is now the same as dst_jup_center_rj_range. Looks right.
+        dist_jup_center_vertical_rj   = math.sin(lat) * dist_jup_center_horizontal_rj
+        
+        imagenum +=1 # Loop to next image number in the footprint
+        
+    dist_proj_rj_foot_arr.append(dist_jup_center_rj_range)  # Set the projected distance, for the footprint
+    name_limb_foot_arr.append(name_limb_arr[-1])            # Define the limb direction for the footprint
     
     # Finished this loop over image set (aka footprint)
     
@@ -323,20 +398,20 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
     plt.gca().set_aspect('equal')
     plt.xlabel('Delta RA from Jupiter  [deg]')    
     plt.ylabel('Delta Dec from Jupiter [deg]')
-    plt.xlim((4,-4))
+    plt.xlim((-4,4))
     plt.ylim((-2,2))
     plt.legend(loc='upper right')
     plt.title(f'Gossamer images, {index_group}/{np.amin(index_images)}-{np.amax(index_images)}, f{index_footprint}')
-    
+
+    print(f'Position of LORRI center in Jup coords: {pt_closest_jup_jup}')
+    print(f'Position of LORRI center: Horiz = {dist_jup_center_horizontal_rj:.2}, Vert = {dist_jup_center_vertical_rj:.2}')
+   
     # Set the 'extent', which is the axis values for the X and Y axes for an imshow().
     # We set the y range to be the same as X, to convince python to keep the pixels square.
     
     extent = [dist_jup_center_rj_range[0], dist_jup_center_rj_range[1],\
               dist_jup_center_rj_range[0], dist_jup_center_rj_range[1]]
-    
-    
-#    plt.show() 
-    
+        
     # Plot the image, sfit subtracted
     
     plt.subplot(2,2,2)
@@ -358,7 +433,6 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
 #    index_group = 6
     im_process = hbt.nh_jring_process_image(im_sum, method, vars, 
                                      index_group=index_group, index_image=index_image, mask_sfit=None)
-
 
     plt.imshow(stretch(im_process), origin='lower', extent=extent)
 #    plt.gca().get_xaxis().set_visible(False)
@@ -394,6 +468,115 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
 #    print(f'Is left: {is_limb_left}')
 #    print('---')
 
+
+#%%%
+
+# =============================================================================
+# Now merge all of the footprints into one combined image.
+# =============================================================================
+
+# Ideally I would write this as a function. It does not make sense to use WCS for this.
+# The coordinate are weird. But it does make sense
+
+# For here, x means 'horizontal axis when plotted', ie, 'second axis of a 2D array'
+
+do_all = False
+do_rhs_only = False
+do_lhs_only = True
+
+if (do_lhs_only):
+    dx_dist_proj_rj_out = [-3, 3]    # Hortizontal size of output plot, in RJ
+    dy_dist_proj_rj_out = [-2, 2]    # Vertical    size of output plot, in RJ
+ 
+dx_rj        = 0.001          # Resolution of the output image, in RJ. To change output array size, change this.
+dy_rj        = dx_rj
+dx_pix = int( (dx_dist_proj_rj_out[1] - dx_dist_proj_rj_out[0])/dx_rj ) + 1
+dy_pix = int( (dy_dist_proj_rj_out[1] - dy_dist_proj_rj_out[0])/dy_rj ) + 1
+vals_x_rj    = hbt.frange(dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dx_pix)
+vals_y_rj    = hbt.frange(dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1], dy_pix)
+
+# Make the stack
+
+stack  = np.zeros((num_footprints, dy_pix, dx_pix))
+stack[:,:,:] = np.nan  # Fill it with NaN's
+
+stack_lauer = stack.copy()
+
+for i in range(num_footprints):
+
+#%%%    
+    dist_proj_rj_foot_i = dist_proj_rj_foot_arr[i]  # Get the RJ range for this image (all positive)
+
+    drj_i = np.amax(dist_proj_rj_arr[i]) - np.amin(dist_proj_rj_arr[i])
+    fac_zoom = (drj_i / dx_rj) / hbt.sizex_im(im_process_arr[i]) 
+    
+    # Resize the image
+
+    im_resize = scipy.ndimage.zoom(im_process_arr[i], fac_zoom)
+
+# Now place it on the output stack
+
+    x0 = np.digitize(np.amin(dist_proj_rj_foot_i), vals_x_rj) + 0  # add zero to convert from 'array' into int
+    x1 = x0 + hbt.sizex_im(im_resize)
+    
+    y0 = int(np.digitize(dist_jup_center_vertical_rj, vals_y_rj) - hbt.sizey(im_resize)/2  + 0)
+    y1 = y0 + hbt.sizey_im(im_resize)
+    
+    stack[i,:,:] = hbt.replace_subarr_2d(stack[i,:,:], im_resize, (y0,x0))
+
+    print(f'Now placing footprint {i} at location x0={x0}, y0={y0} in box of size {np.shape(stack)}')
+
+    plt.imshow(stretch(im_resize),origin=0)
+    plt.title(f'footprint {i}')
+    plt.show()
+
+# Now do the exact same thing, with the Lauer image, if it exists
+        
+    if len(im_lauer_arr[i]) > 0:
+        im_resize_lauer = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
+        # im_resize = np.flip(im_resize, axis=1)
+        
+        # Now place it on the output stack
+        
+        x0 = np.digitize(np.amin(dist_proj_rj_foot_i), vals_x_rj) + 0  # add zero to convert from 'array' into int
+        x1 = x0 + hbt.sizex_im(im_resize_lauer)
+        
+        y0 = np.digitize(dist_jup_center_vertical_rj, vals_y_rj) + 0 # Vertical position
+        
+        y1 = y0 + hbt.sizey_im(im_resize)
+        stack_lauer[i,:,:] = hbt.replace_subarr_2d(stack_lauer[i,:,:], im_resize_lauer, (y0,x0))
+        # print(f'Footprint {i}: Lauer image')
+
+    else:
+        print(f'Footprint {i}: Lauer image not found')
+        
+#    print(f'Footprint {i}: pos (y0,x0) = {y0,x0}; shape(large) = {np.shape(large)}; shape(small) = {np.shape(im_resize)}')
+             
+    extent = [ dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1] ]
+    
+    plt.imshow( stretch(np.nanmean(stack,axis=0)), extent=extent, cmap='plasma', origin='lower')
+    plt.title('Throop Processed')
+    plt.show()
+
+    # i
+#%%%%
+    
+do_plot_lauer = True
+
+if do_plot_lauer:
+    plt.imshow( stretch(np.nanmean(stack_lauer,axis=0)), extent=extent, cmap='plasma', origin='lower')
+    plt.title('Lauer')
+    plt.show()
+
+file_out = os.path.join(dir_out, 'gossamer.png')
+plt.savefig(file_out)
+print(f'Wrote: {file_out}')
+plt.show()
+
+
+    
+#%%%
+
 # Now make the output table for Tod
 
 # =============================================================================
@@ -417,90 +600,7 @@ path_out = os.path.join(dir_out, 'obstable_gossamer_hbt.txt')
 t.write(path_out, format = 'ascii.fixed_width', overwrite='True')
 print(f'Wrote: {path_out}')
 
-# =============================================================================
-# Now merge all of the footprints into one combined image.
-# =============================================================================
-
-# Ideally I would write this as a function. It does not make sense to use WCS for this.
-# The coordinate are weird. But it does make sense
-
-# For here, x means 'horizontal axis when plotted', ie, 'second axis of a 2D array'
-
-dx_dist_proj_rj_out = [1, 3]    # Fot consistentency, we should go from -3 to 3.  Negative on left.
-dy_dist_proj_rj_out = [0.5, 2]
- 
-dx_rj        = 0.001          # Resolution of the output image, in RJ. To change output array size, change this.
-dy_rj        = dx_rj
-dx_pix = int( (dx_dist_proj_rj_out[1] - dx_dist_proj_rj_out[0])/dx_rj ) + 1
-dy_pix = int( (dy_dist_proj_rj_out[1] - dy_dist_proj_rj_out[0])/dy_rj ) + 1
-vals_x_rj    = hbt.frange(dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dx_pix)
-vals_y_rj    = hbt.frange(dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1], dy_pix)
-
-# Make the stack
-
-stack  = np.zeros((num_footprints, dy_pix, dx_pix))
-stack[:,:,:] = np.nan  # Fill it with NaN's
-
-for i in range(num_footprints):
-    dist_proj_rj_foot_i = dist_proj_rj_foot_arr[i]  # Get the RJ range for this image (all positive)
-    # if ('Right' in name_limb_foot_arr[i]):
-    #     dist_proj_rj_foot_i *= -1
-    drj_i = np.amax(dist_proj_rj_arr[i]) - np.amin(dist_proj_rj_arr[i])
-    fac_zoom = (drj_i / dx_rj) / hbt.sizex_im(im_process_arr[i]) 
-    
-    # Now do the actual resizing of the image
-    
-    # im_resize = scipy.ndimage.zoom(im_sum_s_arr[i], fac_zoom)
-    
-    stretch_percent2 = 95    
-    stretch2 = astropy.visualization.PercentileInterval(stretch_percent2) # PI(90) scales to 5th..95th %ile.
-
-    im_resize = scipy.ndimage.zoom(stretch2(im_sum_s_arr[i]), fac_zoom)
- 
-    DO_OUTPUT_LAUER = False
-
-    if DO_OUTPUT_LAUER:
-        
-        if len(im_lauer_arr[i]) > 0:
-            im_resize = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
-        
-    # else:
-        
-    # Now place it on the output stack
-    
-    x0 = np.digitize(np.amin(dist_proj_rj_foot_i), vals_x_rj) + 0  # add zero to convert from 'array' into int
-    x1 = x0 + hbt.sizex_im(im_resize)
-    
-    y0 = 50 + int(x0/5) # We'll have to figure out a vertical position, but right now we don't.
-    
-    # y0 = 50 + i*10
-    y1 = y0 + hbt.sizey_im(im_resize)
-
-    # print(f'Footprint {i}: pos (y0,x0) = {y0,x0}; shape(large) = {np.shape(large)}; shape(small) = {np.shape(im_resize)}')
-
-    stack[i,:,:] = hbt.replace_subarr_2d(stack[i,:,:], im_resize, (y0,x0))
-    # stack[i,:,:] = replace_subarr_2d(stack[i,:,:], im_resize, (y0,x0))
-    
-    # stack[i, y0:y1, x0:x1] = im_resize
-    
-# else:
-#         print(f'Footprint {i}: No Lauer image')
-
-extent = [ dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1] ]
-
-plt.imshow((np.nanmean(stretch(stack),axis=0)), extent=extent, cmap='plasma', origin='lower')
-
-file_out = os.path.join(dir_out, 'gossamer.png')
-plt.savefig(file_out)
-print(f'Wrote: {file_out}')
-plt.show()
-
-
-    
 #%%%
-
-
-
 
 # And hang on. We've already made backplanes for everything. Can I use those here? 
 # I don't know. These images are obviously very edge-on.
