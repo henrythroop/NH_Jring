@@ -69,12 +69,43 @@ from   astropy.stats import sigma_clip
 
 import hbt
 
+# =============================================================================
+# This is the main Gossamer ring image processing / mosaic code. 
+# It reads and processes raw FITS files and outputs a merged FITS file mosaic.
+# It also reads and processes the PCA-processed stacks of Gossamer images that Tod Lauer has made
+#
+# September 2018 HBT
+# =============================================================================
+# 
+def find_file_footprint_lauer(dir_lauer, str_met):
+    
+    """
+    Given a string for an MET, finds which of Tod's footprints corresponds to it.
+    This is a simple one-off function. A single line of 'grep' would do the same, but I couldn't get it to work.
+    
+    Tod made a bunch of PCA'd images for me, which are in FITS files like 'f02_av_v3.fits'. The contents of tehse
+    files are in accompanying 'f03.lis' text file. This function here searches for matches.
+    
+    """
+    
+    files = glob.glob(os.path.join(dir_lauer, 'f[0-2]*.lis'))  # Tod made a bunch of text files, listing the MET's.
+    for file in files:
+        
+        if str_met in open(file).read():  # This is great! So pythonic and easy.
+            file_fits = file.replace('.lis', '_av_v3.fits')   # Create the filename of the output stack.
+            return file_fits
+    
+    return None
+
 #%%%
+    
+# NB: This program is just code. It is not one callable function. That's OK, and makes debugging easier, I guess.
+    
 plt.set_cmap('plasma')
 
 rj_km = 71492
 
-# Now list all of the Gossamer observations. I have determined these groupings manually, based on timings.
+# List all of the Gossamer observations. I have determined these groupings manually, based on timings.
 # In general it looks like usually these are stacks of four frames at each pointing ('footprint')
 
 # Lauer's footprints are just numbered sequentially (f01, f02, etc). So, we need to keep these files here in 
@@ -83,16 +114,13 @@ rj_km = 71492
 index_group = 6
 
 index_image_list = [
-#                    hbt.frange(46,48), # 1X1. Main ring. Maybe gossamer too but not interested.
-#                    hbt.frange(49,53), # 1X1. Main ring. Maybe gossamer too but not interested.
-#                    np.array([54]),    # 1X1. Main ring. Maybe gossamer too but not interested.
+                    np.array([54]),    # 1X1. Main ring. 1.6 .. 1.9 RJ. Right ansa. One image, edge-on.
                     hbt.frange(59,62),  # Right ansa. -2.7 RJ. Gossamer maybe there but hidden -- need to optimize.
                     hbt.frange(63,66),  # Left ansa. Furthest out, no ring. Use for subtraction.
                     hbt.frange(67,70),  # Left ansa. Far out, no ring. Closer than above.
                     hbt.frange(71,74),  # Left ansa. No ring. Closer than above.
                     hbt.frange(75,78),  # Left ansa. Gossamer. Closer than above.
-#                    hbt.frange(79,88),  # Left ansa. Main ring. Prob gossamer too but not interested. 1X1. Svrl ptgs.
-#                    hbt.frange(89,94),  # Io! Closest of the sequence, and I will ignore. 1X1.
+                    np.array([80]),  # Left ansa. Main ring. Prob gossamer too but not interested. 1X1. Svrl ptgs.
                     hbt.frange(95,98),  # Right ansa. Gossamer limb.
                     hbt.frange(99,102), # Left ansa. Similar geometry as 75-78.
                     hbt.frange(112,115),# Right ansa. Gossamer limb. Similar geometry as 95-98 (offset pointing)
@@ -115,34 +143,41 @@ index_image_list = [
                     ]
                     
 
-index_image_list = [
-#                     # hbt.frange(59,62),  # Right ansa. 2.4 .. 2.7 RJ. Gossamer there, bit hidden?
-#                     hbt.frange(63,66),  # Left ansa. -3.2 .. 3.0. Furthest out, no ring. Use for subtraction.
-#                     hbt.frange(67,70),  # Left ansa. -3.0 .. -2.8. Far out, no ring.
-#                     hbt.frange(71,74),  # Left ansa. -2.8 .. -2.6. Far out, no ring.
-#                     hbt.frange(75,78),  # Left ansa. Gossamer. -2.6 .. -2.4 RJ. Closer than above.
-#                     # hbt.frange(59,62),  # Right ansa.           2.4 .. 2.7. Gossamer is there but hidden?
-#                     # hbt.frange(95,98),  # Right ansa. Gossamer limb. 2.35 .. 2.65. Definitely gossamer.
-#                     hbt.frange(99,102), # Left ansa. Gossamer. 2.65 .. 2.4. 
-#                     # hbt.frange(112,115),# Right ansa. Gossamer limb. 2.4 .. 2.6. Def Gossamer.
-#                     hbt.frange(116,119),  # Left ansa. -2.65 .. -2.35
-#                     hbt.frange(120,123),  # Left ansa. -2.45 .. -2.15. 
-#                     hbt.frange(124,127),  # Left ansa. -2.25 .. -1.95. 
-#                     hbt.frange(128,131),  # Left ansa. -2 .. -1.70. Gossamer + main.
+# index_image_list = [
+#                       # hbt.frange(46,48), # 1X1. Main ring. Not edge-on, not part of this sequence.
+#                       # hbt.frange(49,53), # 1X1. Main ring. Not edge-on, not part of this sequence.
+#                     hbt.frange(79,88),  # Left ansa. Main ring. Not edge-on. 1X1. Svrl ptgs.
+                       # np.array([54]),    # 1X1. Main ring. 1.6 .. 1.9 RJ. Right ansa. One image, edge-on.
+                       # np.array([89]),    # 1X1. Main ring. 1.6 .. 1.9 RJ. Right ansa. One image, edge-on.
+#                       # hbt.frange(59,62),  # Right ansa. 2.4 .. 2.7 RJ. Gossamer there, bit hidden?
+# #                       hbt.frange(63,66),  # Left ansa. -3.2 .. 3.0. Furthest out, no ring. Use for subtraction.
+# #                       hbt.frange(67,70),  # Left ansa. -3.0 .. -2.8. Far out, no ring.
+# #                       hbt.frange(71,74),  # Left ansa. -2.8 .. -2.6. Far out, no ring.
+# #                       hbt.frange(75,78),  # Left ansa. Gossamer. -2.6 .. -2.4 RJ. Closer than above.
+#                     hbt.frange(89,94),  # Io! 1.6-1.85. Right ansa. 1X1. Lots jitter. Could do one frame only?
+
+# #                       hbt.frange(59,62),  # Right ansa.           2.4 .. 2.7. Gossamer is there but hidden?
+# #                       hbt.frange(95,98),  # Right ansa. Gossamer limb. 2.35 .. 2.65. Definitely gossamer.
+# #                       hbt.frange(99,102), # Left ansa. Gossamer. 2.65 .. 2.4. 
+# #                       hbt.frange(112,115),# Right ansa. Gossamer limb. 2.4 .. 2.6. Def Gossamer.
+# #                        hbt.frange(116,119),  # Left ansa. -2.65 .. -2.35
+# #                        hbt.frange(120,123),  # Left ansa. -2.45 .. -2.15. 
+# #                        hbt.frange(124,127),  # Left ansa. -2.25 .. -1.95. 
+# #                        hbt.frange(128,131),  # Left ansa. -2 .. -1.70. Gossamer + main.
                     
-#                     hbt.frange(157,160),# Left ansa.           -2.7 .. 2.4
-                    hbt.frange(173,176),# Right ansa. Main ring. 1.8 .. 2.
-#                     # hbt.frange(177,180),# Right ansa. Gossamer.  2.0 .. 2.3.
-#                     # hbt.frange(181,184), # Right ansa. Gossamer. 2.2 .. 2.5.
-#                     # hbt.frange(185,188),   # Right ansa. Gossamer. 2.4 .. 2.8. Outer edge of Gossamer?
-#                     # hbt.frange(207,210), # Right ansa. Gossamer. 2.35 .. 2.65
-#                     hbt.frange(211,214),  # Left ansa. -2.65 .. -2.40. Outer edge of Gossamer?
-#                     hbt.frange(225,227),    # Left ansa. -2.7 .. 2.35. Outer edge of Gossamer?
-#                     np.array([228]),           #  Left ansa. -2.7 .. 2.35. Outer edge of Gossamer?
-#                     # hbt.frange(229,232),     # Right ansa. 2.45-2.70. Outer edge of Gossamer.
-#                     # hbt.frange(233,238),   # 1.6 .. 1.9. Main ring. Probably should not plot these -- dfft sequence.
-# #                    
-                    ]
+# # # #                      hbt.frange(157,160),# Left ansa.           -2.7 .. 2.4
+# # # #                     hbt.frange(173,176),# Right ansa. Main ring. 1.8 .. 2.
+# # # #                      hbt.frange(177,180),# Right ansa. Gossamer.  2.0 .. 2.3.
+# # # #                      hbt.frange(181,184), # Right ansa. Gossamer. 2.2 .. 2.5.
+# # # #                      hbt.frange(185,188),   # Right ansa. Gossamer. 2.4 .. 2.8. Outer edge of Gossamer?
+# # # #                      hbt.frange(207,210), # Right ansa. Gossamer. 2.35 .. 2.65
+# # # #                      hbt.frange(211,214),  # Left ansa. -2.65 .. -2.40. Outer edge of Gossamer?
+# # # #                      hbt.frange(225,227),    # Left ansa. -2.7 .. 2.35. Outer edge of Gossamer?
+# # # #                      np.array([228]),           #  Left ansa. -2.7 .. 2.35. Outer edge of Gossamer?
+# # # # #                     # hbt.frange(229,232),     # Right ansa. 2.45-2.70. Outer edge of Gossamer.
+# # # # #                     # hbt.frange(233,238),   # 1.6 .. 1.9. Main ring. Probably should not plot these -- dfft sequence.
+# # # # # #                    
+                    # ]
                     
 
 
@@ -161,20 +196,6 @@ if do_test:
 
 
 num_footprints = len(index_image_list)
-  
-#index_image = hbt.frange(71,74)
-#index_image = hbt.frange(75,78)
-#
-#index_image = hbt.frange(95,99)
-#
-#index_image = hbt.frange(112,115)
-#index_image = hbt.frange(116,119)
-#index_image = hbt.frange(120,123)
-#index_image = hbt.frange(124,127)
-#index_image = hbt.frange(128,131)
-
-#index_image = hbt.frange(100,102)
-#index_image = hbt.frange(49,54)
 
 stretch_percent = 90    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
@@ -222,32 +243,33 @@ imagenum = 0
 
 # Set up a a bunch of arrays (really lists) to save parameters from each image. We then output these.
 
-ra_arr      = []
-dec_arr     = []
+ra_arr           = []
+dec_arr          = []
 dist_proj_rj_arr = []      # Projected distance in RJ, for each image
 dist_proj_rj_foot_arr = [] # Projected distance in RJ, for each footprint (ie, set of four images)
-range_rj_arr = []
-et_arr      = []
-dx_arr      = []
-dy_arr      = []
-dz_arr      = []
-corner_arr  = []
-format_arr    = []
-exptime_arr = []
-name_limb_arr = []
-name_limb_foot_arr = []
-file_arr    = []
-phase_arr   = []
-utc_arr     = []
-index_hbt_arr = []
-index_footprint_arr = []
-im_process_arr = []   # Array of final processed images
-im_lauer_arr = []
-im_sum_s_arr = []
+dist_jup_center_vertical_rj_foot_arr = []
+dist_jup_center_horizontal_rj_foot_arr = []
+range_rj_arr     = []
+et_arr           = []
+dx_arr           = []
+dy_arr           = []
+dz_arr           = []
+corner_arr       = []
+format_arr       = []
+exptime_arr      = []
+name_limb_arr    = []
+name_limb_foot_arr=[]
+file_arr         = []
+phase_arr        = []
+utc_arr          = []
+index_hbt_arr    = []
+index_footprint_arr=[]
+im_process_arr   = []   # Array of final processed images
+im_lauer_arr     = []
+im_sum_s_arr     = []
     
 for index_footprint,index_images in enumerate(index_image_list):  # Loop over *all* the images
                                                                   # index_footprint is sequential
-
     plt.subplot(2,2,1)
     
 #    fig, ax = plt.subplots()
@@ -372,13 +394,16 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         
         (radius, lon, lat) = sp.reclat(pt_closest_jup_jup)
         
-        dist_jup_center_horizontal_rj = radius / rj_km   # This is now the same as dst_jup_center_rj_range. Looks right.
-        dist_jup_center_vertical_rj   = math.sin(lat) * dist_jup_center_horizontal_rj
+        dist_jup_center_horizontal_rj = math.cos(lat) * radius / rj_km   # This is now the same as dst_jup_center_rj_range. Looks right.
+        dist_jup_center_vertical_rj   = math.sin(lat) * radius / rj_km
         
         imagenum +=1 # Loop to next image number in the footprint
         
     dist_proj_rj_foot_arr.append(dist_jup_center_rj_range)  # Set the projected distance, for the footprint
     name_limb_foot_arr.append(name_limb_arr[-1])            # Define the limb direction for the footprint
+    
+    dist_jup_center_horizontal_rj_foot_arr.append(dist_jup_center_horizontal_rj)
+    dist_jup_center_vertical_rj_foot_arr.append(dist_jup_center_vertical_rj)
     
     # Finished this loop over image set (aka footprint)
     
@@ -444,19 +469,22 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         
     # Now load Lauer's processed image of the same footprint
     
-    ifp1 = index_footprint+1  # There is an offset of one between my indices, and Tod's
+    files_short = t_group[index_image_list[index_footprint]]['Shortname']
+    file_short = files_short[0]
+    met = file_short.split('_')[1]  # Get the MET embedded in the 0th filename in this footprint
     
-    file_lauer = os.path.join(dir_lauer, f'f{ifp1:02}_av_v1f.fits')
-    try:
+    file_lauer = find_file_footprint_lauer(dir_lauer, met)
+    
+    if file_lauer:
         lun_lauer = fits.open(file_lauer)
-        im_lauer = lun_lauer[0].data
+        im_lauer = lun_lauer[0].data    # Load Lauer's footprint
         lun_lauer.close()
         plt.subplot(2,2,4)
         plt.imshow(stretch(im_lauer), origin='lower', extent=extent)
         plt.title(f'Lauer f{index_footprint:02}')
         im_lauer_arr.append(im_lauer)
         
-    except:   # Skip if, if Lauer did not process it
+    else:   # Skip if, if Lauer did not process it
         im_lauer_arr.append([])
 
     # Now show all plots
@@ -486,7 +514,7 @@ do_lhs_only = True
 
 if (do_lhs_only):
     dx_dist_proj_rj_out = [-3, 3]    # Hortizontal size of output plot, in RJ
-    dy_dist_proj_rj_out = [-2, 2]    # Vertical    size of output plot, in RJ
+    dy_dist_proj_rj_out = [-0.5, 0.5]    # Vertical    size of output plot, in RJ
  
 dx_rj        = 0.001          # Resolution of the output image, in RJ. To change output array size, change this.
 dy_rj        = dx_rj
@@ -504,80 +532,82 @@ stack_lauer = stack.copy()
 
 for i in range(num_footprints):
 
-#%%%    
     dist_proj_rj_foot_i = dist_proj_rj_foot_arr[i]  # Get the RJ range for this image (all positive)
 
     drj_i = np.amax(dist_proj_rj_arr[i]) - np.amin(dist_proj_rj_arr[i])
     fac_zoom = (drj_i / dx_rj) / hbt.sizex_im(im_process_arr[i]) 
     
-    # Resize the image
-
-    im_resize = scipy.ndimage.zoom(im_process_arr[i], fac_zoom)
+    # Resize the image. Ignore a deprecation warning.
+    
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")    
+        im_resize = scipy.ndimage.zoom(im_process_arr[i], fac_zoom)
 
 # Now place it on the output stack
 
     x0 = np.digitize(np.amin(dist_proj_rj_foot_i), vals_x_rj) + 0  # add zero to convert from 'array' into int
     x1 = x0 + hbt.sizex_im(im_resize)
     
-    y0 = int(np.digitize(dist_jup_center_vertical_rj, vals_y_rj) - hbt.sizey(im_resize)/2  + 0)
+    y0 = int(np.digitize(-dist_jup_center_vertical_rj_foot_arr[i], vals_y_rj) - hbt.sizey(im_resize)/2  + 0)
     y1 = y0 + hbt.sizey_im(im_resize)
     
     stack[i,:,:] = hbt.replace_subarr_2d(stack[i,:,:], im_resize, (y0,x0))
 
-    print(f'Now placing footprint {i} at location x0={x0}, y0={y0} in box of size {np.shape(stack)}')
+    # print(f'Now placing footprint {i} at location x0={x0}, y0={y0} in box of size {np.shape(stack)}')
 
-    plt.imshow(stretch(im_resize),origin=0)
-    plt.title(f'footprint {i}')
-    plt.show()
-
-# Now do the exact same thing, with the Lauer image, if it exists
+# Now place the Lauer image, if it exists
         
     if len(im_lauer_arr[i]) > 0:
-        im_resize_lauer = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
-        # im_resize = np.flip(im_resize, axis=1)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")    
+            im_resize_lauer = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
+                    
+        # Place it on the output stack
         
-        # Now place it on the output stack
-        
-        x0 = np.digitize(np.amin(dist_proj_rj_foot_i), vals_x_rj) + 0  # add zero to convert from 'array' into int
-        x1 = x0 + hbt.sizex_im(im_resize_lauer)
-        
-        y0 = np.digitize(dist_jup_center_vertical_rj, vals_y_rj) + 0 # Vertical position
-        
-        y1 = y0 + hbt.sizey_im(im_resize)
         stack_lauer[i,:,:] = hbt.replace_subarr_2d(stack_lauer[i,:,:], im_resize_lauer, (y0,x0))
-        # print(f'Footprint {i}: Lauer image')
-
-    else:
-        print(f'Footprint {i}: Lauer image not found')
-        
-#    print(f'Footprint {i}: pos (y0,x0) = {y0,x0}; shape(large) = {np.shape(large)}; shape(small) = {np.shape(im_resize)}')
-             
+                     
     extent = [ dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1] ]
-    
-    plt.imshow( stretch(np.nanmean(stack,axis=0)), extent=extent, cmap='plasma', origin='lower')
-    plt.title('Throop Processed')
-    plt.show()
 
-    # i
-#%%%%
+im = np.nanmedian(stack, axis=0)
+plt.imshow( stretch(im), extent=extent, cmap='plasma', origin='lower')
+plt.title('Throop Processed')
+file_out = os.path.join(dir_out, 'gossamer_processed.png')
+plt.savefig(file_out)
+print(f'Wrote: {file_out}')
+plt.show()
     
 do_plot_lauer = True
 
 if do_plot_lauer:
-    plt.imshow( stretch(np.nanmean(stack_lauer,axis=0)), extent=extent, cmap='plasma', origin='lower')
-    plt.title('Lauer')
-    plt.show()
+    if np.nansum(stack_lauer) > 0:  # If there is some data in it
+        im_lauer = np.nanmedian(stack_lauer, axis=0)
+        plt.imshow(stretch(im_lauer), extent=extent, cmap='plasma', origin='lower')
+        plt.title('Lauer')
+        file_out = os.path.join(dir_out, 'gossamer_lauer.png')
+        plt.savefig(file_out)
+        print(f'Wrote: {file_out}')
+        plt.show()
+        
+# Now take these images and re-assemble them into one mosaic
 
-file_out = os.path.join(dir_out, 'gossamer.png')
-plt.savefig(file_out)
-print(f'Wrote: {file_out}')
-plt.show()
+im_mosaic = np.vstack((im, im_lauer))
+rows = np.nansum(im_mosaic, axis=1)
+columns = np.nansum(im_mosaic, axis=0)
+im_mosaic_crop = np.delete(im_mosaic,      np.where(rows==0)[0], axis=0)
 
+im_mosaic_crop = np.delete(im_mosaic_crop, np.where(columns==0)[0], axis=1)
 
-    
+plt.imshow(im_mosaic_crop)
+
+rows = np.nansum(im_mosaic, axis=1)
+
+file_out = 'gossamer_mosaic.fits'
+hdu = fits.PrimaryHDU(im_mosaic_crop)
+hdu.writeto(os.path.join(dir_out, file_out), overwrite=True)
+print(f'Wrote: {os.path.join(dir_out,file_out)}')
+
 #%%%
-
-# Now make the output table for Tod
 
 # =============================================================================
 # Make up a table, for Tod Lauer. We don't really used this table -- it's just for output.
@@ -602,20 +632,4 @@ print(f'Wrote: {path_out}')
 
 #%%%
 
-# And hang on. We've already made backplanes for everything. Can I use those here? 
-# I don't know. These images are obviously very edge-on.
-
-#        file_backplane = dir_backplanes + t_group['Shortname'][index_image].replace('.fit', '_planes.pkl')
-#
-#        # Save the shortname associated with the current backplane. 
-#        # That lets us verify if the backplane for current image is indeed loaded.
-#
-#        file_backplane_shortname = t_group['Shortname'][index_image]
-#				
-#        if (os.path.isfile(file_backplane)):
-#            lun = open(file_backplane, 'rb')
-#            planes = pickle.load(lun)
-#            lun.close()
-
-# I could do RA/Dec relative to RA/Dec of Jupiter.
     
