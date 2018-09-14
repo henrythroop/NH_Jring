@@ -128,6 +128,8 @@ index_image_list = [
                     hbt.frange(120,123),  # Left ansa. Closer than above.
                     hbt.frange(124,127),  # Left ansa. Closer than above.
                     hbt.frange(128,131),  # Left ansa + main ring ansa. Closer than above.
+                    hbt.frange(132,135),  # Main ring. Left side, well inside of gossamer.
+                    
                     hbt.frange(157,160),
                     hbt.frange(173,176),
                     hbt.frange(177,180),
@@ -250,6 +252,7 @@ dist_proj_rj_foot_arr = [] # Projected distance in RJ, for each footprint (ie, s
 dist_jup_center_vertical_rj_foot_arr = []
 dist_jup_center_horizontal_rj_foot_arr = []
 range_rj_arr     = []
+angle_elev_arr   = []
 et_arr           = []
 dx_arr           = []
 dy_arr           = []
@@ -312,12 +315,12 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         if t_i['Format'] == '1X1':
             radec_corners = w.wcs_pix2world([[0,0],[0,1024],[1023,1023],[1023,0],[0,0]],0) * hbt.d2r  # Radians
             radec_center  = w.wcs_pix2world([[511,511]],0) * hbt.d2r                       # Radians
+            
+            arr *= 16
+            
         if t_i['Format'] == '4X4':
             radec_corners = w.wcs_pix2world([[0,0],[0,256],[256,256],[256,0],[0,0]],0) * hbt.d2r  # Radians
             radec_center  = w.wcs_pix2world([[128,128]],0) * hbt.d2r                       # Radians
-        
-    #    ra  = radec[:,0] 
-    #    dec = radec[:,1]
     
         # Get RA / Dec for Jupiter
         
@@ -354,8 +357,15 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         dist_jup_center_rj_range = np.array([ang_jup_center-width_lorri/2, ang_jup_center+width_lorri/2]) * \
             sp.vnorm(vec_nh_jup) / rj_km                                      # Finally, we have min and max dist
                                                                               # in the central row of array, in rj
-   
         range_rj_arr.append(sp.vnorm(vec_nh_jup)/rj_km)
+   
+        # Calc the elevation angle (aka sub-obs lat on Jup)
+        
+        mx = sp.pxform('J2000', 'IAU_JUPITER', t_i['ET'])
+        vec_nh_jup_jup = sp.mxv(mx, vec_nh_jup)
+        (dist, lon, lat) = sp.recrad(-vec_nh_jup_jup)
+        
+        angle_elev_arr.append(lat * hbt.r2d)  # Save the sub-obs latitude, in degrees
         
         # If we are on the LHS limb, then we need to reverse this, and negate it.
     
@@ -523,7 +533,9 @@ dy_pix = int( (dy_dist_proj_rj_out[1] - dy_dist_proj_rj_out[0])/dy_rj ) + 1
 vals_x_rj    = hbt.frange(dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dx_pix)
 vals_y_rj    = hbt.frange(dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1], dy_pix)
 
-# Make the stack
+# =============================================================================
+# Make the stack, combining the Throop and Lauer mosaics into one array
+# =============================================================================
 
 stack  = np.zeros((num_footprints, dy_pix, dx_pix))
 stack[:,:,:] = np.nan  # Fill it with NaN's
@@ -569,38 +581,64 @@ for i in range(num_footprints):
                      
     extent = [ dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1] ]
 
-im = np.nanmedian(stack, axis=0)
-plt.imshow( stretch(im), extent=extent, cmap='plasma', origin='lower')
-plt.title('Throop Processed')
-file_out = os.path.join(dir_out, 'gossamer_processed.png')
-plt.savefig(file_out)
-print(f'Wrote: {file_out}')
-plt.show()
+# Flatten the stack, using mean() or median()
     
-do_plot_lauer = True
+im       = np.nanmean(stack,       axis=0)
+im_lauer = np.nanmean(stack_lauer, axis=0)
 
-if do_plot_lauer:
-    if np.nansum(stack_lauer) > 0:  # If there is some data in it
-        im_lauer = np.nanmedian(stack_lauer, axis=0)
-        plt.imshow(stretch(im_lauer), extent=extent, cmap='plasma', origin='lower')
-        plt.title('Lauer')
-        file_out = os.path.join(dir_out, 'gossamer_lauer.png')
-        plt.savefig(file_out)
-        print(f'Wrote: {file_out}')
-        plt.show()
+# Plot the flattened stacks, if requested
+
+do_plot_stacks = False
+
+if do_plot_stacks:
+    plt.imshow( stretch(im), extent=extent, cmap='plasma', origin='lower')
+    plt.title('Throop Processed')
+    file_out = os.path.join(dir_out, 'gossamer_processed.png')
+    plt.savefig(file_out)
+    print(f'Wrote: {file_out}')
+    plt.show()
         
-# Now take these images and re-assemble them into one mosaic
-
+    do_plot_lauer = True
+    
+    if do_plot_lauer:
+        if np.nansum(stack_lauer) > 0:  # If there is some data in it
+            plt.imshow(stretch(im_lauer), extent=extent, cmap='plasma', origin='lower')
+            plt.title('Lauer')
+            file_out = os.path.join(dir_out, 'gossamer_lauer.png')
+            plt.savefig(file_out)
+            print(f'Wrote: {file_out}')
+            plt.show()
+        
+# Now take these images and re-assemble them into one mosaic of Lauer + Throop together
+            
 im_mosaic = np.vstack((im, im_lauer))
+
+# Now collapse the whitespace in the merged image, by removing any empty rows and column
+
+im_mosaic[0:2,2000:2100] = 0.01 # Fill in a little region to mask where it will not be collapsed
+
+# Find the empty rows and columns, and remove them.
+
 rows = np.nansum(im_mosaic, axis=1)
 columns = np.nansum(im_mosaic, axis=0)
 im_mosaic_crop = np.delete(im_mosaic,      np.where(rows==0)[0], axis=0)
-
 im_mosaic_crop = np.delete(im_mosaic_crop, np.where(columns==0)[0], axis=1)
 
-plt.imshow(im_mosaic_crop)
+# Plot the image -- normal
 
-rows = np.nansum(im_mosaic, axis=1)
+hbt.figsize((15,15))
+
+plt.imshow(im_mosaic_crop, origin='lower')
+plt.show()
+
+# Plot the image -- stretched
+
+plt.imshow(stretch(im_mosaic_crop), origin='lower')
+plt.show()
+
+hbt.figsize()
+
+# And save to disk as a FITS file
 
 file_out = 'gossamer_mosaic.fits'
 hdu = fits.PrimaryHDU(im_mosaic_crop)
@@ -618,12 +656,13 @@ print(f'Wrote: {os.path.join(dir_out,file_out)}')
   
 t = astropy.table.Table([hbt.frange(1,imagenum), index_hbt_arr, index_footprint_arr, 
                          file_arr, name_limb_arr, dist_proj_rj_arr, phase_arr, 
-                         range_rj_arr, et_arr, utc_arr, 
+                         range_rj_arr, angle_elev_arr, et_arr, utc_arr, 
                          format_arr, exptime_arr,],
                         names = ['#', 'HBT #', 'Foot #', 'Name', 'Limb', 'Dist_Proj_RJ', 'Phase', 'Range_RJ',
-                                 'ET', 'UTC', 'Format', 'Exptime'])
+                                 'Elev', 'ET', 'UTC', 'Format', 'Exptime'])
 t['Dist_Proj_RJ'].format='5.3f'
 t['Phase'].format = '5.1f'
+t['Elev'].format = '5.1f'
 t['Range_RJ'].format = '4.1f'
 
 path_out = os.path.join(dir_out, 'obstable_gossamer_hbt.txt')
