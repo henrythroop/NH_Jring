@@ -83,7 +83,7 @@ def find_file_footprint_lauer(dir_lauer, str_met):
     Given a string for an MET, finds which of Tod's footprints corresponds to it.
     This is a simple one-off function. A single line of 'grep' would do the same, but I couldn't get it to work.
     
-    Tod made a bunch of PCA'd images for me, which are in FITS files like 'f02_av_v3.fits'. The contents of tehse
+    Tod made a bunch of PCA'd images for me, which are in FITS files like 'f02_av_v8.fits'. The contents of tehse
     files are in accompanying 'f03.lis' text file. This function here searches for matches.
     
     """
@@ -92,7 +92,7 @@ def find_file_footprint_lauer(dir_lauer, str_met):
     for file in files:
         
         if str_met in open(file).read():  # This is great! So pythonic and easy.
-            file_fits = file.replace('.lis', '_av_v3.fits')   # Create the filename of the output stack.
+            file_fits = file.replace('.lis', '_av_v8.fits')   # Create the filename of the output stack.
             return file_fits
     
     return None
@@ -120,7 +120,7 @@ index_image_list = [
                     hbt.frange(67,70),  # Left ansa. Far out, no ring. Closer than above.
                     hbt.frange(71,74),  # Left ansa. No ring. Closer than above.
                     hbt.frange(75,78),  # Left ansa. Gossamer. Closer than above.
-                    np.array([80]),  # Left ansa. Main ring. Prob gossamer too but not interested. 1X1. Svrl ptgs.
+                    # np.array([81]),  # Left ansa. Main ring. Prob gossamer too but not interested. 1X1. Svrl ptgs.
                     hbt.frange(95,98),  # Right ansa. Gossamer limb.
                     hbt.frange(99,102), # Left ansa. Similar geometry as 75-78.
                     hbt.frange(112,115),# Right ansa. Gossamer limb. Similar geometry as 95-98 (offset pointing)
@@ -128,7 +128,7 @@ index_image_list = [
                     hbt.frange(120,123),  # Left ansa. Closer than above.
                     hbt.frange(124,127),  # Left ansa. Closer than above.
                     hbt.frange(128,131),  # Left ansa + main ring ansa. Closer than above.
-                    hbt.frange(132,135),  # Main ring. Left side, well inside of gossamer.
+                    # hbt.frange(132,135),  # Main ring. Left side, well inside of gossamer.
                     
                     hbt.frange(157,160),
                     hbt.frange(173,176),
@@ -177,12 +177,10 @@ index_image_list = [
 # # # #                      hbt.frange(225,227),    # Left ansa. -2.7 .. 2.35. Outer edge of Gossamer?
 # # # #                      np.array([228]),           #  Left ansa. -2.7 .. 2.35. Outer edge of Gossamer?
 # # # # #                     # hbt.frange(229,232),     # Right ansa. 2.45-2.70. Outer edge of Gossamer.
-# # # # #                     # hbt.frange(233,238),   # 1.6 .. 1.9. Main ring. Probably should not plot these -- dfft sequence.
+# # # # #                     # hbt.frange(233,238),   # 1.6 .. 1.9. Main ring. Should not plot these -- dfft sequence.
 # # # # # #                    
                     # ]
                     
-
-
 do_test = False
 
 if do_test:
@@ -195,13 +193,10 @@ if do_test:
                     hbt.frange(124,127),  # Left ansa. Closer than above.
                     hbt.frange(128,131)]  # Left ansa + main ring ansa. Closer than above.
 
-
-
 num_footprints = len(index_image_list)
 
 stretch_percent = 90    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
-
 
 filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters 
 
@@ -270,6 +265,9 @@ index_footprint_arr=[]
 im_process_arr   = []   # Array of final processed images
 im_lauer_arr     = []
 im_sum_s_arr     = []
+foot_pos_x_arr   = []
+foot_pos_y_arr   = []
+foot_scale_arr   = []
     
 for index_footprint,index_images in enumerate(index_image_list):  # Loop over *all* the images
                                                                   # index_footprint is sequential
@@ -298,7 +296,7 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         exptime_arr.append(t_i['Exptime'])
         et_arr.append(t_i['ET'])
         utc_arr.append(t_i['UTC'])
-        index_footprint_arr.append(index_footprint+1)
+        index_footprint_arr.append(index_footprint)
         index_hbt_arr.append(f'{index_group}/{index_image}')
         
         if im_sum is None:
@@ -316,7 +314,7 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
             radec_corners = w.wcs_pix2world([[0,0],[0,1024],[1023,1023],[1023,0],[0,0]],0) * hbt.d2r  # Radians
             radec_center  = w.wcs_pix2world([[511,511]],0) * hbt.d2r                       # Radians
             
-            arr *= 16
+            arr *= 16  # For vertical scaling, all of the 1x1's must be scaled up by ~16x to match 4x4's.
             
         if t_i['Format'] == '4X4':
             radec_corners = w.wcs_pix2world([[0,0],[0,256],[256,256],[256,0],[0,0]],0) * hbt.d2r  # Radians
@@ -404,7 +402,7 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         
         (radius, lon, lat) = sp.reclat(pt_closest_jup_jup)
         
-        dist_jup_center_horizontal_rj = math.cos(lat) * radius / rj_km   # This is now the same as dst_jup_center_rj_range. Looks right.
+        dist_jup_center_horizontal_rj = math.cos(lat) * radius / rj_km   # Same as dst_jup_center_rj_range, dfft method 
         dist_jup_center_vertical_rj   = math.sin(lat) * radius / rj_km
         
         imagenum +=1 # Loop to next image number in the footprint
@@ -489,6 +487,18 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         lun_lauer = fits.open(file_lauer)
         im_lauer = lun_lauer[0].data    # Load Lauer's footprint
         lun_lauer.close()
+        
+        # Mask out outer edges of Lauer image with NaNs. Don't know why, but this is a byproduct of PCA.
+
+        do_mask_lauer = False
+        
+        if do_mask_lauer:
+            dpad = 6
+            im_lauer[0:dpad,:]      = np.nan  # top
+            im_lauer[-1:-1-dpad, :] = np.nan # bottom
+            im_lauer[:, 0:dpad]     = np.nan # left
+            im_lauer[:, -1:-1-dpad] = np.nan # right
+        
         plt.subplot(2,2,4)
         plt.imshow(stretch(im_lauer), origin='lower', extent=extent)
         plt.title(f'Lauer f{index_footprint:02}')
@@ -565,6 +575,10 @@ for i in range(num_footprints):
     
     stack[i,:,:] = hbt.replace_subarr_2d(stack[i,:,:], im_resize, (y0,x0))
 
+    foot_pos_x_arr.append(x0)
+    foot_pos_y_arr.append(y0)
+    foot_scale_arr.append(fac_zoom)
+    
     # print(f'Now placing footprint {i} at location x0={x0}, y0={y0} in box of size {np.shape(stack)}')
 
 # Now place the Lauer image, if it exists
@@ -588,11 +602,14 @@ im_lauer = np.nanmean(stack_lauer, axis=0)
 
 # Plot the flattened stacks, if requested
 
-do_plot_stacks = False
+do_plot_stacks = True
 
 if do_plot_stacks:
+    hbt.set_fontsize(16)
     plt.imshow( stretch(im), extent=extent, cmap='plasma', origin='lower')
     plt.title('Throop Processed')
+    plt.xlabel('$R_J$')
+    plt.ylabel('$R_J$')
     file_out = os.path.join(dir_out, 'gossamer_processed.png')
     plt.savefig(file_out)
     print(f'Wrote: {file_out}')
@@ -604,6 +621,8 @@ if do_plot_stacks:
         if np.nansum(stack_lauer) > 0:  # If there is some data in it
             plt.imshow(stretch(im_lauer), extent=extent, cmap='plasma', origin='lower')
             plt.title('Lauer')
+            plt.xlabel('$R_J$')
+            plt.ylabel('$R_J$')
             file_out = os.path.join(dir_out, 'gossamer_lauer.png')
             plt.savefig(file_out)
             print(f'Wrote: {file_out}')
@@ -640,34 +659,68 @@ hbt.figsize()
 
 # And save to disk as a FITS file
 
-file_out = 'gossamer_mosaic.fits'
+version_lauer = file_lauer.split('/')[-1].split('_')[-1].replace('.fits', '')
+
+file_out = f'gossamer_mosaic_{version_lauer}.fits'
 hdu = fits.PrimaryHDU(im_mosaic_crop)
+hdu.writeto(os.path.join(dir_out, file_out), overwrite=True)
+print(f'Wrote: {os.path.join(dir_out,file_out)}')
+
+# Now do some more chopping, to extract the edges of the frames
+
+im_mosaic_crop2 = im_mosaic_crop.copy()
+im_mosaic_crop2 = np.delete(im_mosaic_crop2, np.arange(550,hbt.sizey_im(im_mosaic_crop2)), axis=0)
+im_mosaic_crop2 = np.delete(im_mosaic_crop2, np.arange(220,430),axis=0)
+im_mosaic_crop2 = np.delete(im_mosaic_crop2, np.arange(  0,100),axis=0)
+im_mosaic_crop2[120:125,:] = np.nan
+plt.imshow(stretch(im_mosaic_crop2), origin='lower')
+
+# And save to disk as a FITS file
+
+file_out = f'gossamer_mosaic2_{version_lauer}.fits'
+hdu = fits.PrimaryHDU(im_mosaic_crop2)
 hdu.writeto(os.path.join(dir_out, file_out), overwrite=True)
 print(f'Wrote: {os.path.join(dir_out,file_out)}')
 
 #%%%
 
 # =============================================================================
-# Make up a table, for Tod Lauer. We don't really used this table -- it's just for output.
-# I want to group things     
+# Make a table for Tod Lauer. This lists all of the obs parameters, for each image.
 # =============================================================================
 
 #t_out = Table([name, rho, r, a], names=['Name', 'rho', 'radius', 'a'])
-  
+
+# The footprint positions and scales are indexed per *footprint*. Convert to per *image*, for easy comparison.
+
+pos_x_arr = np.zeros(len(range_rj_arr))
+pos_y_arr = np.zeros(len(range_rj_arr))
+scale_arr = np.zeros(len(range_rj_arr))
+
+for i in range(len(range_rj_arr)):
+    j = index_footprint_arr[i]   # Footprint index
+    pos_x_arr[i] = foot_pos_x_arr[j]
+    pos_y_arr[i] = foot_pos_y_arr[j]
+    scale_arr[i] = foot_scale_arr[j]
+
 t = astropy.table.Table([hbt.frange(1,imagenum), index_hbt_arr, index_footprint_arr, 
                          file_arr, name_limb_arr, dist_proj_rj_arr, phase_arr, 
-                         range_rj_arr, angle_elev_arr, et_arr, utc_arr, 
-                         format_arr, exptime_arr,],
+                         range_rj_arr, angle_elev_arr, et_arr, utc_arr,
+                         format_arr, exptime_arr, pos_x_arr, pos_y_arr, scale_arr],
+        
                         names = ['#', 'HBT #', 'Foot #', 'Name', 'Limb', 'Dist_Proj_RJ', 'Phase', 'Range_RJ',
-                                 'Elev', 'ET', 'UTC', 'Format', 'Exptime'])
+                                 'Elev', 'ET', 'UTC', 'Format', 'Exptime', 'X Pos', 'Y Pos', 'Scale'])
 t['Dist_Proj_RJ'].format='5.3f'
 t['Phase'].format = '5.1f'
 t['Elev'].format = '5.1f'
 t['Range_RJ'].format = '4.1f'
+t['Scale'].format    = '5.3f'
+t['X Pos'].format    = '5.0f'
+t['Y Pos'].format    = '5.0f'
 
 path_out = os.path.join(dir_out, 'obstable_gossamer_hbt.txt')
 t.write(path_out, format = 'ascii.fixed_width', overwrite='True')
 print(f'Wrote: {path_out}')
+
 
 #%%%
 
