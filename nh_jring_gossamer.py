@@ -488,16 +488,9 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
         im_lauer = lun_lauer[0].data    # Load Lauer's footprint
         lun_lauer.close()
         
-        # Mask out outer edges of Lauer image with NaNs. Don't know why, but this is a byproduct of PCA.
-
-        do_mask_lauer = False
+        # Lauer's image has zeros marking empty data. We want to convert that to NaN, so we can stack.
         
-        if do_mask_lauer:
-            dpad = 6
-            im_lauer[0:dpad,:]      = np.nan  # top
-            im_lauer[-1:-1-dpad, :] = np.nan # bottom
-            im_lauer[:, 0:dpad]     = np.nan # left
-            im_lauer[:, -1:-1-dpad] = np.nan # right
+        im_lauer[im_lauer==0] = np.nan  
         
         plt.subplot(2,2,4)
         plt.imshow(stretch(im_lauer), origin='lower', extent=extent)
@@ -585,10 +578,26 @@ for i in range(num_footprints):
         
     if len(im_lauer_arr[i]) > 0:
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")    
-            im_resize_lauer = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
-                    
+        # Mask out outer edges of Lauer image with NaNs. Don't know why, but this is a byproduct of PCA
+        
+        # arr_nan = im_lauer_arr[i]
+        # arr_nan[arr_nan == 0] = np.nan
+        
+        im_resize_lauer = hbt.nanresize(im_lauer_arr[i], fac_zoom)
+        
+        # with warnings.catch_warnings():
+        #     warnings.simplefilter("ignore")
+        #     im_resize_lauer = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
+            
+        # do_mask_lauer = True
+        
+        # if do_mask_lauer:
+        #     # Lauer's marker for an empty pixel is '0.'. I change those to NaN's.
+      
+        #     mask = (im_lauer_arr[i] == 0) * 1
+        #     mask_resize = scipy.ndimage.zoom(mask, fac_zoom)
+        #     im_resize_lauer[mask_resize==1]    = np.nan
+                        
         # Place it on the output stack
         
         stack_lauer[i,:,:] = hbt.replace_subarr_2d(stack_lauer[i,:,:], im_resize_lauer, (y0,x0))
@@ -596,41 +605,51 @@ for i in range(num_footprints):
     extent = [ dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1] ]
 
 # Flatten the stack, using mean() or median()
-    
-im       = np.nanmean(stack,       axis=0)
-im_lauer = np.nanmean(stack_lauer, axis=0)
 
-# Plot the flattened stacks, if requested
+im = {}
+
+name_method_arr = ['throop', 'lauer']
+
+im['lauer']  =  np.nanmean(stack_lauer, axis=0)
+im['throop'] =  np.nanmean(stack,       axis=0)
 
 do_plot_stacks = True
-
-if do_plot_stacks:
-    hbt.set_fontsize(16)
-    plt.imshow( stretch(im), extent=extent, cmap='plasma', origin='lower')
-    plt.title('Throop Processed')
-    plt.xlabel('$R_J$')
-    plt.ylabel('$R_J$')
-    file_out = os.path.join(dir_out, 'gossamer_processed.png')
-    plt.savefig(file_out)
-    print(f'Wrote: {file_out}')
-    plt.show()
-        
-    do_plot_lauer = True
     
-    if do_plot_lauer:
-        if np.nansum(stack_lauer) > 0:  # If there is some data in it
-            plt.imshow(stretch(im_lauer), extent=extent, cmap='plasma', origin='lower')
-            plt.title('Lauer')
+# Plot the flattened stacks, if requested
+
+for name_method in name_method_arr:
+    
+    if do_plot_stacks:
+        hbt.set_fontsize(16)
+        if np.nansum(im[name_method]) > 0:  # If the image has all NaN, skip it
+            plt.imshow( stretch(im[name_method]), extent=extent, cmap='plasma', origin='lower')
+            plt.title(name_method)
             plt.xlabel('$R_J$')
             plt.ylabel('$R_J$')
-            file_out = os.path.join(dir_out, 'gossamer_lauer.png')
+            file_out = os.path.join(dir_out, f'gossamer_{name_method}.png')
             plt.savefig(file_out)
             print(f'Wrote: {file_out}')
             plt.show()
         
+    # do_plot_lauer = True
+    
+    # if do_plot_lauer:
+    #     if np.nansum(stack_lauer) > 0:  # If there is some data in it
+    #         plt.imshow(stretch(im_lauer), extent=extent, cmap='plasma', origin='lower')
+    #         plt.title('Lauer')
+    #         plt.xlabel('$R_J$')
+    #         plt.ylabel('$R_J$')
+    #         file_out = os.path.join(dir_out, 'gossamer_lauer.png')
+    #         plt.savefig(file_out)
+    #         print(f'Wrote: {file_out}')
+    #         plt.show()
+
+        
+# =============================================================================
 # Now take these images and re-assemble them into one mosaic of Lauer + Throop together
+# =============================================================================
             
-im_mosaic = np.vstack((im, im_lauer))
+im_mosaic = np.vstack((im['throop'], im['lauer']))
 
 # Now collapse the whitespace in the merged image, by removing any empty rows and column
 
@@ -677,10 +696,206 @@ plt.imshow(stretch(im_mosaic_crop2), origin='lower')
 
 # And save to disk as a FITS file
 
-file_out = f'gossamer_mosaic2_{version_lauer}.fits'
+file_out = f'gossamer_mosaic_{version_lauer}_cropped.fits'
 hdu = fits.PrimaryHDU(im_mosaic_crop2)
 hdu.writeto(os.path.join(dir_out, file_out), overwrite=True)
 print(f'Wrote: {os.path.join(dir_out,file_out)}')
+
+
+# =============================================================================
+# Make some linear profiles of the gossamer ring
+# =============================================================================
+
+# X means horizontal (radial)
+# Y means vertical
+
+# Define vertical ranges for the slices
+
+y_ring_rj       = {}
+y_bg_rj         = {}
+
+profile_ring    = {}
+profile_bg      = {}
+
+im_ring_extract = {}
+im_bg_extract   = {}
+
+y_ring_rj['Top']       = np.array([0000.,       3000/rj_km])
+y_ring_rj['Bottom']    = np.array([-3000/rj_km, 0])
+y_ring_rj['Top_BG']    = np.array([5000,        10000])/rj_km
+y_ring_rj['Bottom_BG'] = np.array([-10000,      -5000])/rj_km
+    
+dy_rj = -0.005   # An offset for where the center actually is
+
+name_ring_arr = ['Top', 'Top_BG', 'Bottom', 'Bottom_BG']
+
+hbt.figsize((10,6))
+
+for name_method in name_method_arr: # Loop over Lauer, Throop
+    for name_ring in name_ring_arr:
+        
+        y_ring_extract    = np.digitize(y_ring_rj[name_ring] + dy_rj,    vals_y_rj)   # Get y values for ring    
+        im_ring_extract[name_ring] = im[name_method][y_ring_extract[0]:y_ring_extract[1],:]
+
+        profile_ring[name_ring] = np.sum(im_ring_extract[name_ring], axis=0)
+        
+        plt.imshow(stretch(im_ring_extract[name_ring][:,0:1000]), origin='lower')
+        plt.title(f'{name_ring}, row={y_ring_extract}, {name_method}')
+        plt.show()
+        
+    plt.plot(profile_ring['Top'], label='Top', alpha=0.5)
+    # plt.plot(profile_ring['Top'] - profile_ring['Top_BG'], label='Top-BG')
+    plt.plot(profile_ring['Bottom'], label='Bottom', alpha=0.5)
+    # plt.plot(profile_ring['Bottom'] - profile_ring['Bottom_BG'], label='Bottom-BG')
+    plt.legend()
+    plt.ylim((-3500, 3500))
+    plt.xlim((0, 1500))
+    plt.title(f'Profiles, Left, {name_method}')
+    plt.show()
+    
+    plt.imshow(stretch(im_ring_extract['Bottom'][:,0:1000])    )
+    
+    # Now manually go in, and make radial profiles of the rings
+    # First, the LEFT ANSA
+    
+    # rows = {}
+    # section = {}
+    # columns = {}
+    
+    # rows['Bottom Ring'] = '23:32'
+    # rows['Bottom BG']   = ' 0:10'
+    # rows['Top Ring']    = ' 5:17'
+    # rows['Top Middle']  = ''
+    profile_bg_bottom     = np.nanmean(im_ring_extract['Bottom'][:,0:1000][ 0:10,:], axis=0)
+    profile_ring_bottom   = np.nanmean(im_ring_extract['Bottom'][:,0:1000][23:32,:], axis=0)
+
+    profile_ring_top     = np.nanmean(im_ring_extract['Top'][:,0:1000][ 5:17], axis=0)
+    profile_bg_top       = np.nanmean(im_ring_extract['Top'][:,0:1000][25:35,:], axis=0)
+    
+    profile_middle  = np.nanmean(im_ring_extract['Top'][:,0:1000][36:42,:], axis=0)
+    
+    # Filter these
+    
+    binning = 10  # Set the smoothing width
+    
+    profile_ring_bottom_f = hbt.remove_outliers(profile_ring_bottom)
+    profile_bg_bottom_f   = hbt.remove_outliers(profile_bg_bottom)
+    profile_middle_top_f  = hbt.remove_outliers(profile_middle_top)
+    
+    profile_diff_bottom_f = profile_ring_bottom_f - profile_bg_bottom_f
+    
+    
+    profile_ring_bottom_fs = hbt.smooth(profile_ring_bottom_f, binning)
+    profile_bg_bottom_fs = hbt.smooth(profile_bg_bottom_f, binning)
+    profile_diff_bottom_fs      = hbt.smooth(profile_diff_bottom_f, binning)
+    
+    profile_middle_fs  = hbt.smooth(profile_middle_f, binning)
+    
+    profile_ring_top_f = hbt.remove_outliers(profile_ring_top)
+    profile_bg_top_f   = hbt.remove_outliers(profile_bg_top)
+    profile_diff_top_f = profile_ring_top_f - profile_bg_top_f
+
+    profile_middle_f      = profile_middle_f - profile_bg_top_f
+    
+    profile_ring_top_fs = hbt.smooth(profile_ring_top_f, binning)
+    profile_bg_top_fs = hbt.smooth(profile_ring_top_f, binning)
+    profile_diff_top_fs      = hbt.smooth(profile_diff_top_f, binning)
+    profile_middle_fs    = hbt.smooth(profile_middle_f, binning)
+
+    alpha_minor = 0.1
+    alpha_major = 1.0
+    dist_rj_left = vals_x_rj[0:1000]
+   
+    # Make a plot of the left edge of the ring.
+    
+    hbt.figsize((10,6))
+    
+    plt.plot(dist_rj_left, profile_ring_bottom_fs, label='Ring Bottom', alpha=alpha_minor)
+    plt.plot(dist_rj_left, profile_bg_bottom_fs,   label='BG Bottom', alpha=alpha_minor)
+    plt.plot(dist_rj_left, profile_diff_bottom_fs,        label='Ring-BG Bottom', alpha=alpha_major)
+
+    plt.plot(dist_rj_left, profile_ring_top_fs, label='Ring Top', alpha=alpha_minor)
+    plt.plot(dist_rj_left, profile_bg_top_fs,   label='BG Top', alpha=alpha_minor)
+    plt.plot(dist_rj_left, profile_diff_top_fs,        label='Ring-BG Top', alpha=alpha_major)
+
+    plt.plot(dist_rj_left, profile_middle_fs, label='Middle', alpha=alpha_major)
+    
+    plt.title(f'Left Ansa, {name_method}')
+    plt.ylabel('DN')
+    plt.xlabel('Dist from Jupiter, $R_J$')
+    plt.legend()
+    plt.show()
+
+    # Now, the RIGHT ANSA
+    
+    profile_bg_bottom     = np.nanmean(im_ring_extract['Bottom'][:,-1000:-1][ 16:26,:], axis=0)
+    profile_ring_bottom   = np.nanmean(im_ring_extract['Bottom'][:,-1000:-1][30:42,:], axis=0)
+
+    profile_ring_top     = np.nanmean(im_ring_extract['Top'][:,-1000:-1][15:20], axis=0)
+    profile_bg_top       = np.nanmean(im_ring_extract['Top'][:,-1000:-1][25:30,:], axis=0)
+    profile_middle_top =np.nanmean(im_ring_extract['Top'][:,-1000:-1][0:8], axis=0)  # Ring midplane
+    
+    # Filter these
+    
+    binning = 10  # Set the smoothing width
+    
+    profile_ring_bottom_f = hbt.remove_outliers(profile_ring_bottom)
+    profile_bg_bottom_f   = hbt.remove_outliers(profile_bg_bottom)
+    profile_diff_bottom_f = profile_ring_bottom_f - profile_bg_bottom_f
+    
+    profile_middle_top_f      = hbt.remove_outliers(profile_middle_top)
+    profile_diff_middle_f   = profile_middle_top_f - profile_bg_top_f
+    
+    profile_ring_bottom_fs = hbt.smooth(profile_ring_bottom_f, binning)
+    profile_bg_bottom_fs = hbt.smooth(profile_bg_bottom_f, binning)
+    profile_diff_bottom_fs = hbt.smooth(profile_diff_bottom_f, binning)
+    profile_diff_middle_fs = hbt.smooth(profile_diff_middle_f, binning)
+
+    profile_ring_top_f = hbt.remove_outliers(profile_ring_top)
+    profile_bg_top_f   = hbt.remove_outliers(profile_bg_top)
+    profile_diff_top_f = profile_ring_top_f - profile_bg_top_f
+    
+    profile_ring_top_fs = hbt.smooth(profile_ring_top_f, binning)
+    profile_bg_top_fs = hbt.smooth(profile_ring_top_f, binning)
+    profile_diff_top_fs      = hbt.smooth(profile_diff_top_f, binning)
+
+    alpha_minor = 0.1
+    alpha_major = 1.0
+    dist_rj_left = vals_x_rj[-1000:-1]
+   
+    # Make a plot of the right edge of the ring.
+    
+    hbt.figsize((10,5))
+    plt.plot(dist_rj_left, profile_ring_bottom_fs, label='Ring Bottom', alpha=alpha_minor)
+    plt.plot(dist_rj_left, profile_bg_bottom_fs,   label='BG Bottom', alpha=alpha_minor)
+    plt.plot(dist_rj_left, profile_diff_bottom_fs,        label='Ring-BG Bottom', alpha=alpha_major)
+    plt.plot(dist_rj_left, profile_diff_middle_fs, label='Ring Middle', alpha=alpha_major)
+
+    plt.plot(dist_rj_left, profile_ring_top_fs, label='Ring Top', alpha=alpha_minor)
+    plt.plot(dist_rj_left, profile_bg_top_fs,   label='BG Top', alpha=alpha_minor)
+    plt.plot(dist_rj_left, profile_diff_top_fs,        label='Ring-BG Top', alpha=alpha_major)
+
+    # Plot the image right on the plot
+    
+    plt.title(f'Right Ansa, {name_method}')
+    plt.ylabel('DN')
+    plt.xlabel('Dist from Jupiter, $R_J$')
+    plt.legend()
+    plt.ylim((-5,30))
+ 2
+
+plt
+plt.plot(hbt.smooth(profile_ring_bottom - profile_bg_bottom, 5))
+
+plt.plot(  np.sum(im_ring_extract['Bottom'][:,0:1000][ 22:32,:], axis=0) - 
+           np.sum(im_ring_extract['Bottom'][:,0:1000][  0:10,:], axis=0), label='Ring - BG')
+
+
+plt.legend()
+plt.ylim((-100,3000))
+plt.show()
+
+
 
 #%%%
 
