@@ -79,15 +79,44 @@ dir =  '/Users/throop/Dropbox/Data/NH_Jring/data/jupiter/level2/lor/all/'
 
 files = glob.glob(dir + '*[123456].fit')  # Exclude any '*_opnav.fit'
 
+
+###
+
+dir_images = '/Users/throop/data/NH_Jring/data/jupiter/level2/lor/all'
+dir_out = '/Users/throop/data/NH_Jring/out/'
+
 plt.set_cmap('Greys_r')            
 hbt.figsize((15,15))
 do_plot           = True
-DO_SKIP_NAVIGATED = True
+DO_SKIP_NAVIGATED = False
 DO_SKIP_4X4       = False
 DO_INTERACTIVE    = True
 method_opnav      = 'fft'
 is_success        = False
+index_group       = 6
+index_image       = 8
 
+# Load the main observation table
+
+filename_save = 'nh_jring_read_params_571.pkl' # Filename to save parameters in
+print("Loading file: {}".format(filename_save))    
+lun = open(dir_out + filename_save, 'rb')
+t = pickle.load(lun)
+lun.close()
+
+# Extract the one group we are looking at 
+# NB: This creates an entirely new table -- *not* a view into the original table. 
+# If we modify values here, we need to explicitly write the changes back to the original.
+
+groups = astropy.table.unique(t, keys=(['Desc']))['Desc']
+
+groupmask = t['Desc'] == groups[index_group]
+t_group = t[groupmask]
+
+num_images_group = np.size(t_group)
+
+###
+        
 i = 0   # i must be the current image number
         # ii is index within the list
         # k is the keyboard string
@@ -97,10 +126,10 @@ ii = 0
 
 while True:
     
-    file_short = files[i].split('/')[-1]
+    file_short = t_group[i]['Shortname']
     
     if DO_INTERACTIVE:
-        k = input("File {}-{} ({} = {}): ".format(0, np.size(files)-1, i, file_short))
+        k = input("File {}-{} ({} = {}): ".format(0, np.size(t_group)-1, i, file_short))
     else:
         k = repr(list_batch[ii])         # Load the next element, as a string
         if (ii == np.size(list_batch)-1):  # If we've hit the last element
@@ -109,13 +138,25 @@ while True:
     if (k in ['x', 'q']):            # QUIT
         sys.exit(0)
 
+    if ('g' in k):               # Enter a group number
+        k = input(f'Group number: ({index_group}): ')
+        if k:
+            try:
+                index_group = int(k)
+                groupmask = t['Desc'] == groups[index_group]
+                t_group = t[groupmask]
+            except:
+                pass
+            print(f'Group number = {index_group}')
+        k = ''  # Reset it so that loop will not run
+            
     if ('-' in k):
-       (i1, i2) = np.array(k.split('-')).astype('int')
-       list_batch = hbt.frange(int(i1), int(i2)).astype('int')
-       ii = 0                        # Current element number, within our list
-       k = repr(list_batch[ii])      # Extract one element from it
-       print ("Running from {} to {}...".format(i1, i2))
-       DO_INTERACTIVE = False
+        (i1, i2) = np.array(k.split('-')).astype('int')
+        list_batch = hbt.frange(int(i1), int(i2)).astype('int')
+        ii = 0                        # Current element number, within our list
+        k = repr(list_batch[ii])      # Extract one element from it
+        print ("Running from {} to {}...".format(i1, i2))
+        DO_INTERACTIVE = False
 
     if ('*' in k):                   # Wildcard search
         searchstr = k.replace('*', '')
@@ -124,12 +165,17 @@ while True:
                 print("{}. {}".format(ii, file.split('/')[-1]))
                 
     if (k == 'l'):                  # List all files
-        for ii,file in enumerate(files):
-            print("{}. {}".format(ii, file.split('/')[-1]))
+        print(t_group)
+        for i in range(len(t_group)):
+            print(f"{i} {t_group[i]['Shortname']}")
+            
+            # print("{}. {}".format(ii, file.split('/')[-1]))
     
     if (k == '?'):                  # Get help
-        print(" <#> = navigate, <#-#> = navigate range, l = list, n = next, x = exit, sn = toggle Skip_Navigated, " + 
-                 "s4 = toggle Skip_4x4")
+        print(" <#> = navigate, <#-#> = navigate range, l = list, n = next, x = exit\n" + 
+              f' sn = toggle Skip_Navigated ({DO_SKIP_NAVIGATED})\n' +
+              f' s4 = toggle Skip_4x4 ({DO_SKIP_4X4})\n' + 
+              f' g  = group number ({index_group})')
     
     if (k == 'sn'):
         DO_SKIP_NAVIGATED = not(DO_SKIP_NAVIGATED)
@@ -142,24 +188,28 @@ while True:
     if (k == 'n') :                 # Next
         k = repr(i)
 
-    if (k == ''):                   # Next
-        k = repr(i)
+    # if (k == ''):                   # Next -- do this automatically if <cr> hit
+    #     k = repr(i)
     
     if hbt.is_number(k):            # If a number was entered () 
-        i = int(k)
-        file = files[i]
-        file_short = file.split('/')[-1]
+
+        
+        # file = t_group[i]['Filename']
+        # file_short = file.split('/')[-1]
+        
         file_out   = file.replace('.fit', '_opnav.fit')
         
+        file = t_group[int(k)]['Filename']
+        file_short = t_group[int(k)]['Shortname']
         im = hbt.read_lorri(file) # Read the image, and process it a bit I think
-        print("Reading {}/{}: {}".format(int(k), np.size(files), file_short))
+        print(f'Reading image {index_group}/{index_image}: {file_short}')
         hdulist = fits.open(file) 
         header  = hdulist['PRIMARY'].header
         mode    = header['SFORMAT']
         exptime = header['EXPTIME']
         hdulist.close()           
         
-        is_navigated = os.path.isfile(file_out)
+        is_navigated = os.path.isfile(file_out)  # Test for the presence of the _opnav.fits file
 
 # If it's a 4x4 file, it's probably saturated and lots of things don't work. So doing navigation 
 # it hopeless. But we don't want to lose track of the file (for the numbering scheme), 
@@ -220,12 +270,38 @@ while True:
                 
             hdulist.close()                            # Close the original file
             
-            print("Wrote file {}/{}: {}".format(i,len(files), file_out))
+            print(f'Wrote file {index_group}/{index_image}: {file_out}')
             
             is_success = True
             
+    # Now, if requested, do a check on the new navigation by loading that brand-new FITS file, and navigating *it*
+
+            do_opnav_verify = True
+            
+            if do_opnav_verify:
+
+                file    = file_out
+
+                with warnings.catch_warnings():   # Block the warnings
+                    warnings.simplefilter("ignore")    
+                    w       = WCS(file)           # Get a copy of it, which we'll change
+                    w_orig       = WCS(file)           # Get a copy of it, which we'll change
+
+                (w, (dy_pix, dx_pix)) = hbt.navigate_image_stellar(im, w, method = method_opnav,
+                                         title = "{}, {} s".format(file.split('/')[-1], repr(exptime)), 
+                                         do_plot=do_plot)
+                
+                crval_orig = w_orig.wcs.crval
+                print('Checking navigated frame! Answers below should be (0,0)')
+                print("Center was at RA {}, Dec {}".format(crval_orig[0], crval_orig[1]))
+                print("Center is now at RA {}, Dec {}".format(crval[0], crval[1]))
+                print("Determined OpNav offset: dx = {} pix, dy = {} pix".format(dx_pix, dy_pix))
+
+
+        
+            
     else:
-        print("Error!")
+        # print("Error!")
         is_success = False
         
     if (DO_INTERACTIVE and is_success):
