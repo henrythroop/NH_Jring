@@ -127,8 +127,8 @@ class App:
         
         option_bg_default   = 'String' # Default backgroiund type. Need to set this longer too.
         entry_bg_default    = '0-10'   # Default polynomial order XXX need to set a longer string length here!
-        index_group_default = 7        # Default group to start with
-        index_image_default = 24       # Default image number within the group
+        index_group_default = 6        # Default group to start with
+        index_image_default = 157       # Default image number within the group
 
         self.do_autoextract     = 1             # Flag to extract radial profile when moving to new image. 
                                                 # Flag is 1/0, not True/False, as per ttk.
