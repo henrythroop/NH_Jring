@@ -77,7 +77,8 @@ file_tm = 'kernels_kem_prime.tm'
 sp.furnsh(file_tm)
 
 
-utc_limits_arr = ["2018 1 Dec 12:00", "2018 31 Dec 12:00"]
+utc_limits_arr = ["2018 1 Dec 5:00", "2018 1 Dec 12:00"]
+utc_limits_arr = ["2019 1 Jan 5:00", "2019 1 Jan 6:00"]
 
 et_limits_arr = []
 
