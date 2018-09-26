@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+    #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Tue Jul 24 13:39:08 2018
@@ -437,7 +437,8 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
     plt.title(f'Gossamer images, {index_group}/{np.amin(index_images)}-{np.amax(index_images)}, f{index_footprint}')
 
     print(f'Position of LORRI center in Jup coords: {pt_closest_jup_jup}')
-    print(f'Position of LORRI center: Horiz = {dist_jup_center_horizontal_rj:.2}, Vert = {dist_jup_center_vertical_rj:.2}')
+    print(f'Position of LORRI center: Horiz = {dist_jup_center_horizontal_rj:.2}, ' + 
+          f'Vert = {dist_jup_center_vertical_rj:.2}')
    
     # Set the 'extent', which is the axis values for the X and Y axes for an imshow().
     # We set the y range to be the same as X, to convince python to keep the pixels square.
@@ -702,6 +703,8 @@ hdu.writeto(os.path.join(dir_out, file_out), overwrite=True)
 print(f'Wrote: {os.path.join(dir_out,file_out)}')
 
 
+#%%%
+
 # =============================================================================
 # Make some linear profiles of the gossamer ring
 # =============================================================================
@@ -709,191 +712,193 @@ print(f'Wrote: {os.path.join(dir_out,file_out)}')
 # X means horizontal (radial)
 # Y means vertical
 
-# Define vertical ranges for the slices
+# Define vertical ranges for the slices. These are very broad ranges, which cover the 
+# slice as well as some border.
 
-y_ring_rj       = {}
-y_bg_rj         = {}
+y_pos_km  = {}
 
-profile_ring    = {}
-profile_bg      = {}
-
-im_ring_extract = {}
-im_bg_extract   = {}
-
-y_ring_rj['Top']       = np.array([0000.,       3000/rj_km])
-y_ring_rj['Bottom']    = np.array([-3000/rj_km, 0])
-y_ring_rj['Top_BG']    = np.array([5000,        10000])/rj_km
-y_ring_rj['Bottom_BG'] = np.array([-10000,      -5000])/rj_km
+im_extract = {}
     
-dy_rj = -0.005   # An offset for where the center actually is
+dy_km = 0   # An offset for where the center actually is
 
-name_ring_arr = ['Top', 'Top_BG', 'Bottom', 'Bottom_BG']
+hbt.figsize((15,6))     
+hbt.fontsize(12)
 
-hbt.figsize((10,6))
+binning = 20  # Set the smoothing width
+alpha_minor = 0.1
+alpha_major = 1.0
+ylim = (-5,30)
+
+name_ansae = ['Left', 'Right']
+# name_ansae = ['Right']
 
 for name_method in name_method_arr: # Loop over Lauer, Throop
-    for name_ring in name_ring_arr:
-        
-        y_ring_extract    = np.digitize(y_ring_rj[name_ring] + dy_rj,    vals_y_rj)   # Get y values for ring    
-        im_ring_extract[name_ring] = im[name_method][y_ring_extract[0]:y_ring_extract[1],:]
 
-        profile_ring[name_ring] = np.sum(im_ring_extract[name_ring], axis=0)
+    for name_ansa in name_ansae:
         
-        plt.imshow(stretch(im_ring_extract[name_ring][:,0:1000]), origin='lower')
-        plt.title(f'{name_ring}, row={y_ring_extract}, {name_method}')
+        profile = {}
+        profile_f = {}
+        profile_fs = {}
+
+        if (name_ansa in 'Left'):            
+            y_pos_km['Top']       = np.array([0000.,       1100])  # Resolution is 72 km/pix
+            y_pos_km['Bottom']    = np.array([-1500,       -700])
+            y_pos_km['Top BG']    = np.array([1500,        2000])
+            y_pos_km['Bottom BG'] = np.array([-2500,      -1700])
+            y_pos_km['Mid']       = np.array([-700,      200])
+            y_pos_km['TopBottom'] = np.array([-5000,       5000])
+
+            x_pix = [0,1000]
+            loc   = 'center left'
+
+        if (name_ansa in 'Right'):   ## XXX These have not been adjusted manually yet!!            
+            y_pos_km['Top']       = np.array([ 0700.,      1300])  # Resolution is 72 km/pix
+            y_pos_km['Bottom']    = np.array([-1300,       -800])
+            y_pos_km['Top BG']    = np.array([1500,        2000])
+            y_pos_km['Bottom BG'] = np.array([-2500,      -1700])
+            y_pos_km['Mid']       = np.array([-600,         600])
+            y_pos_km['TopBottom'] = np.array([-5000,       5000])
+
+            x_pix = [-1001,-1]
+
+            loc = 'center right'            
+        name_ring_arr = list(y_pos_km.keys())
+      
+        for name_ring in name_ring_arr:
+     
+            y_ring_extract    = np.digitize((y_pos_km[name_ring] + dy_km)/rj_km, vals_y_rj)   # Get y values for ring    
+            im_extract[name_ring] = im[name_method][y_ring_extract[0]:y_ring_extract[1], x_pix[0]:x_pix[1]]
+            
+            do_plot_individual=False
+
+            if do_plot_individual:
+                plt.imshow(stretch(im_extract[name_ring]), origin='lower')
+                plt.title(f'{name_ring}, row={y_ring_extract}, {name_method}')
+                plt.show()
+            
+            profile[name_ring]     = np.nanmean(im_extract[name_ring], axis=0)
+            profile_f[name_ring]   = hbt.remove_outliers(profile[name_ring])
+            profile_fs[name_ring]  = hbt.smooth(profile_f[name_ring], binning)
+            
+        dist_rj = vals_x_rj[x_pix[0]:x_pix[1]]
+     
+        plt.plot(dist_rj, profile_fs['Top']    - profile_fs['Top BG'], alpha=alpha_major, label='Top-BG')
+        plt.plot(dist_rj, profile_fs['Bottom'] - profile_fs['Bottom BG'], alpha=alpha_major, label='Bot-BG')
+        # plt.plot(dist_rj, profile_fs['Bottom'],  alpha=alpha_minor, label='Bot')
+        # plt.plot(dist_rj, profile_fs['Top'],     alpha=alpha_minor, label='Top')
+        
+        if name_ansa in 'Left':
+            plt.plot(dist_rj, profile_fs['Mid'] - profile_fs['Top BG'],     alpha=alpha_major, label='Mid-BG')
+        if name_ansa in 'Right':
+            plt.plot(dist_rj, profile_fs['Mid'] - profile_fs['Bottom BG'],     alpha=alpha_major, label='Mid-BG')
+    
+        xlim = hbt.mm(dist_rj)
+        extent = [xlim[0], xlim[1], 20, 30]
+        im_plot = im_extract['TopBottom'][:,x_pix[0]:x_pix[1]]
+        aspect  = hbt.plt_aspect(im_plot, extent)
+    
+        plt.imshow(stretch(im_plot), extent=extent, aspect=aspect, origin='lower')
+    
+        plt.title(f'{name_ansa} Ansa, {name_method}')
+        plt.ylabel('DN')
+        plt.xlabel('Dist from Jupiter, $R_J$')
+        plt.legend(loc=loc)
+        plt.ylim(ylim)
+        plt.xlim(xlim)
+        
         plt.show()
-        
-    plt.plot(profile_ring['Top'], label='Top', alpha=0.5)
-    # plt.plot(profile_ring['Top'] - profile_ring['Top_BG'], label='Top-BG')
-    plt.plot(profile_ring['Bottom'], label='Bottom', alpha=0.5)
-    # plt.plot(profile_ring['Bottom'] - profile_ring['Bottom_BG'], label='Bottom-BG')
-    plt.legend()
-    plt.ylim((-3500, 3500))
-    plt.xlim((0, 1500))
-    plt.title(f'Profiles, Left, {name_method}')
-    plt.show()
-    
-    plt.imshow(stretch(im_ring_extract['Bottom'][:,0:1000])    )
-    
-    # Now manually go in, and make radial profiles of the rings
-    # First, the LEFT ANSA
-    
-    # rows = {}
-    # section = {}
-    # columns = {}
-    
-    # rows['Bottom Ring'] = '23:32'
-    # rows['Bottom BG']   = ' 0:10'
-    # rows['Top Ring']    = ' 5:17'
-    # rows['Top Middle']  = ''
-    profile_bg_bottom     = np.nanmean(im_ring_extract['Bottom'][:,0:1000][ 0:10,:], axis=0)
-    profile_ring_bottom   = np.nanmean(im_ring_extract['Bottom'][:,0:1000][23:32,:], axis=0)
 
-    profile_ring_top     = np.nanmean(im_ring_extract['Top'][:,0:1000][ 5:17], axis=0)
-    profile_bg_top       = np.nanmean(im_ring_extract['Top'][:,0:1000][25:35,:], axis=0)
-    
-    profile_middle  = np.nanmean(im_ring_extract['Top'][:,0:1000][36:42,:], axis=0)
-    
-    # Filter these
-    
-    binning = 10  # Set the smoothing width
-    
-    profile_ring_bottom_f = hbt.remove_outliers(profile_ring_bottom)
-    profile_bg_bottom_f   = hbt.remove_outliers(profile_bg_bottom)
-    profile_middle_top_f  = hbt.remove_outliers(profile_middle_top)
-    
-    profile_diff_bottom_f = profile_ring_bottom_f - profile_bg_bottom_f
-    
-    
-    profile_ring_bottom_fs = hbt.smooth(profile_ring_bottom_f, binning)
-    profile_bg_bottom_fs = hbt.smooth(profile_bg_bottom_f, binning)
-    profile_diff_bottom_fs      = hbt.smooth(profile_diff_bottom_f, binning)
-    
-    profile_middle_fs  = hbt.smooth(profile_middle_f, binning)
-    
-    profile_ring_top_f = hbt.remove_outliers(profile_ring_top)
-    profile_bg_top_f   = hbt.remove_outliers(profile_bg_top)
-    profile_diff_top_f = profile_ring_top_f - profile_bg_top_f
-
-    profile_middle_f      = profile_middle_f - profile_bg_top_f
-    
-    profile_ring_top_fs = hbt.smooth(profile_ring_top_f, binning)
-    profile_bg_top_fs = hbt.smooth(profile_ring_top_f, binning)
-    profile_diff_top_fs      = hbt.smooth(profile_diff_top_f, binning)
-    profile_middle_fs    = hbt.smooth(profile_middle_f, binning)
-
-    alpha_minor = 0.1
-    alpha_major = 1.0
-    dist_rj_left = vals_x_rj[0:1000]
    
     # Make a plot of the left edge of the ring.
     
-    hbt.figsize((10,6))
+    # hbt.figsize((10,15))
     
-    plt.plot(dist_rj_left, profile_ring_bottom_fs, label='Ring Bottom', alpha=alpha_minor)
-    plt.plot(dist_rj_left, profile_bg_bottom_fs,   label='BG Bottom', alpha=alpha_minor)
-    plt.plot(dist_rj_left, profile_diff_bottom_fs,        label='Ring-BG Bottom', alpha=alpha_major)
+    # plt.plot(dist_rj_left, profile_ring_bottom_fs, label='Ring Bottom', alpha=alpha_minor)
+    # plt.plot(dist_rj_left, profile_bg_bottom_fs,   label='BG Bottom', alpha=alpha_minor)
 
-    plt.plot(dist_rj_left, profile_ring_top_fs, label='Ring Top', alpha=alpha_minor)
-    plt.plot(dist_rj_left, profile_bg_top_fs,   label='BG Top', alpha=alpha_minor)
-    plt.plot(dist_rj_left, profile_diff_top_fs,        label='Ring-BG Top', alpha=alpha_major)
+    # plt.plot(dist_rj_left, profile_ring_top_fs, label='Ring Top', alpha=alpha_minor)
+    # plt.plot(dist_rj_left, profile_bg_top_fs,   label='BG Top', alpha=alpha_minor)
+    # plt.plot(dist_rj_left, profile_diff_top_fs,        label='Top Ring', alpha=alpha_major)
+    # plt.plot(dist_rj_left, profile_midring_top_fs, label='Middle', alpha=alpha_major)
+    # plt.plot(dist_rj_left, profile_diff_bottom_fs,        label='Bottom Ring', alpha=alpha_major)
+#%%%
 
-    plt.plot(dist_rj_left, profile_middle_fs, label='Middle', alpha=alpha_major)
-    
-    plt.title(f'Left Ansa, {name_method}')
-    plt.ylabel('DN')
-    plt.xlabel('Dist from Jupiter, $R_J$')
-    plt.legend()
-    plt.show()
 
-    # Now, the RIGHT ANSA
+#     ##########    
+#     # Now, the RIGHT ANSA
+#     ##########
     
-    profile_bg_bottom     = np.nanmean(im_ring_extract['Bottom'][:,-1000:-1][ 16:26,:], axis=0)
-    profile_ring_bottom   = np.nanmean(im_ring_extract['Bottom'][:,-1000:-1][30:42,:], axis=0)
+#     profile_bg_bottom     = np.nanmean(im_ring_extract['Bottom'][:,-1000:-1][ 16:26,:], axis=0)
+#     profile_ring_bottom   = np.nanmean(im_ring_extract['Bottom'][:,-1000:-1][30:42,:], axis=0)
 
-    profile_ring_top     = np.nanmean(im_ring_extract['Top'][:,-1000:-1][15:20], axis=0)
-    profile_bg_top       = np.nanmean(im_ring_extract['Top'][:,-1000:-1][25:30,:], axis=0)
-    profile_middle_top =np.nanmean(im_ring_extract['Top'][:,-1000:-1][0:8], axis=0)  # Ring midplane
+#     profile_ring_top      = np.nanmean(im_ring_extract['Top'][:,-1000:-1][15:20], axis=0)
+#     profile_bg_top        = np.nanmean(im_ring_extract['Top'][:,-1000:-1][25:30,:], axis=0)
+#     profile_midring_top   = np.nanmean(im_ring_extract['Top'][:,-1000:-1][0:8], axis=0)  # Ring midplane
     
-    # Filter these
+#     # Filter these
     
-    binning = 10  # Set the smoothing width
+#     binning = 10  # Set the smoothing width
     
-    profile_ring_bottom_f = hbt.remove_outliers(profile_ring_bottom)
-    profile_bg_bottom_f   = hbt.remove_outliers(profile_bg_bottom)
-    profile_diff_bottom_f = profile_ring_bottom_f - profile_bg_bottom_f
+#     profile_ring_bottom_f = hbt.remove_outliers(profile_ring_bottom)
+#     profile_bg_bottom_f   = hbt.remove_outliers(profile_bg_bottom)
+#     profile_diff_bottom_f = profile_ring_bottom_f - profile_bg_bottom_f
     
-    profile_middle_top_f      = hbt.remove_outliers(profile_middle_top)
-    profile_diff_middle_f   = profile_middle_top_f - profile_bg_top_f
-    
-    profile_ring_bottom_fs = hbt.smooth(profile_ring_bottom_f, binning)
-    profile_bg_bottom_fs = hbt.smooth(profile_bg_bottom_f, binning)
-    profile_diff_bottom_fs = hbt.smooth(profile_diff_bottom_f, binning)
-    profile_diff_middle_fs = hbt.smooth(profile_diff_middle_f, binning)
+#     profile_ring_top_f = hbt.remove_outliers(profile_ring_top)
+#     profile_bg_top_f   = hbt.remove_outliers(profile_bg_top)
+#     profile_diff_top_f = profile_ring_top_f - profile_bg_top_f
 
-    profile_ring_top_f = hbt.remove_outliers(profile_ring_top)
-    profile_bg_top_f   = hbt.remove_outliers(profile_bg_top)
-    profile_diff_top_f = profile_ring_top_f - profile_bg_top_f
+#     profile_midring_top_f      = hbt.remove_outliers(profile_midring_top)
+#     profile_diff_midring_top_f   = profile_midring_top_f - profile_bg_top_f
     
-    profile_ring_top_fs = hbt.smooth(profile_ring_top_f, binning)
-    profile_bg_top_fs = hbt.smooth(profile_ring_top_f, binning)
-    profile_diff_top_fs      = hbt.smooth(profile_diff_top_f, binning)
+#     profile_ring_bottom_fs = hbt.smooth(profile_ring_bottom_f, binning)
+#     profile_bg_bottom_fs = hbt.smooth(profile_bg_bottom_f, binning)
+#     profile_diff_bottom_fs = hbt.smooth(profile_diff_bottom_f, binning)
+#     profile_diff_midring_top_fs = hbt.smooth(profile_diff_midring_top_f, binning)
+    
+#     profile_ring_top_fs = hbt.smooth(profile_ring_top_f, binning)
+#     profile_bg_top_fs = hbt.smooth(profile_ring_top_f, binning)
+#     profile_diff_top_fs      = hbt.smooth(profile_diff_top_f, binning)
 
-    alpha_minor = 0.1
-    alpha_major = 1.0
-    dist_rj_left = vals_x_rj[-1000:-1]
+#     alpha_minor = 0.1
+#     alpha_major = 1.0
+#     dist_rj_left = vals_x_rj[-1000:-1]
    
-    # Make a plot of the right edge of the ring.
+#     # Make a plot of the right edge of the ring.
     
-    hbt.figsize((10,5))
-    plt.plot(dist_rj_left, profile_ring_bottom_fs, label='Ring Bottom', alpha=alpha_minor)
-    plt.plot(dist_rj_left, profile_bg_bottom_fs,   label='BG Bottom', alpha=alpha_minor)
-    plt.plot(dist_rj_left, profile_diff_bottom_fs,        label='Ring-BG Bottom', alpha=alpha_major)
-    plt.plot(dist_rj_left, profile_diff_middle_fs, label='Ring Middle', alpha=alpha_major)
+#     plt.plot(dist_rj_left, profile_ring_bottom_fs, label='Ring Bottom', alpha=alpha_minor)
+#     # plt.plot(dist_rj_left, profile_bg_bottom_fs,   label='BG Bottom', alpha=alpha_minor)
+#     plt.plot(dist_rj_left, profile_diff_top_fs,        label='Top Ring', alpha=alpha_major)
+#     plt.plot(dist_rj_left, profile_diff_midring_top_fs, label='Center', alpha=alpha_major)
+#     plt.plot(dist_rj_left, profile_diff_bottom_fs,        label='Bottom Ring', alpha=alpha_major)
 
-    plt.plot(dist_rj_left, profile_ring_top_fs, label='Ring Top', alpha=alpha_minor)
-    plt.plot(dist_rj_left, profile_bg_top_fs,   label='BG Top', alpha=alpha_minor)
-    plt.plot(dist_rj_left, profile_diff_top_fs,        label='Ring-BG Top', alpha=alpha_major)
+#     # plt.plot(dist_rj_left, profile_ring_top_fs, label='Ring Top', alpha=alpha_minor)
+#     # plt.plot(dist_rj_left, profile_bg_top_fs,   label='BG Top', alpha=alpha_minor)
 
-    # Plot the image right on the plot
+#     # Plot the image right on the plot
+
+#     im_plot = im_ring_extract['TopBottom'][:,-1000:-1]
+#     extent = [2, 3, 20, 30]
     
-    plt.title(f'Right Ansa, {name_method}')
-    plt.ylabel('DN')
-    plt.xlabel('Dist from Jupiter, $R_J$')
-    plt.legend()
-    plt.ylim((-5,30))
- 2
+#     aspect = hbt.plt_aspect(im_plot, extent)
+#     plt.imshow(stretch(im_plot), extent=extent, aspect=aspect, origin='lower')
+    
+#     # Order =  [left, right, bottom, top]
+    
+#     plt.title(f'Right Ansa, {name_method}')
+#     plt.ylabel('DN')
+#     plt.xlabel('Dist from Jupiter, $R_J$')
+#     plt.legend()
+#     plt.ylim((-5,50))
+#     plt.show()
+ 
 
-plt
-plt.plot(hbt.smooth(profile_ring_bottom - profile_bg_bottom, 5))
-
-plt.plot(  np.sum(im_ring_extract['Bottom'][:,0:1000][ 22:32,:], axis=0) - 
-           np.sum(im_ring_extract['Bottom'][:,0:1000][  0:10,:], axis=0), label='Ring - BG')
+# # plt.plot(  np.sum(im_ring_extract['Bottom'][:,0:1000][ 22:32,:], axis=0) - 
+# #            np.sum(im_ring_extract['Bottom'][:,0:1000][  0:10,:], axis=0), label='Ring - BG')
 
 
-plt.legend()
-plt.ylim((-100,3000))
-plt.show()
+# # plt.legend()
+# # plt.ylim((-100,3000))
+# # plt.show()
 
 
 
@@ -939,4 +944,11 @@ print(f'Wrote: {path_out}')
 
 #%%%
 
+
+
+plt.plot([0,5], [3,8])
+plt.imshow(hbt.dist_center(10),origin='lower', extent=[3,4,5,7],alpha=1, aspect=0.5)
+plt.xlim((0,5))
+plt.ylim((1,6.5))
+plt.show()
     
