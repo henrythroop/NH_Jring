@@ -450,7 +450,7 @@ for index_footprint,index_images in enumerate(index_image_list):  # Loop over *a
     
     plt.subplot(2,2,2)
     degree=5
-    im_sum /= len(index_images)  # We have just summed, so now divide
+    im_sum /= len(index_images)  # We have just summed, so now divide so as to preserve DN of original.
     im_sum_s = hbt.remove_sfit(im_sum,degree=degree)  # _s = sfit subtracted
     plt.imshow(stretch(im_sum_s), origin='lower', extent=extent)
 #    plt.gca().get_xaxis().set_visible(False)
@@ -539,6 +539,7 @@ vals_y_rj    = hbt.frange(dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1], dy_pix
 
 # =============================================================================
 # Make the stack, combining the Throop and Lauer mosaics into one array
+# We resample all of the images to a common scale, defined above.
 # =============================================================================
 
 stack  = np.zeros((num_footprints, dy_pix, dx_pix))
@@ -550,10 +551,17 @@ for i in range(num_footprints):
 
     dist_proj_rj_foot_i = dist_proj_rj_foot_arr[i]  # Get the RJ range for this image (all positive)
 
-    drj_i = np.amax(dist_proj_rj_arr[i]) - np.amin(dist_proj_rj_arr[i])
+    # Get radial dist range depicted in this image -- eg 0.3 RJ
+    
+    drj_i = np.amax(dist_proj_rj_arr[i]) - np.amin(dist_proj_rj_arr[i])  
+    
+    # im_process_arr is the computed footprint, which will usually be 256^2 or 1024^2
+    
     fac_zoom = (drj_i / dx_rj) / hbt.sizex_im(im_process_arr[i]) 
     
     # Resize the image. Ignore a deprecation warning.
+    # scipy.ndimage.zoom preserves the value per pixel, but not the overall flux (since # of pixels changes).
+    # For here, with an extended object, that is what we want.
     
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")    
@@ -579,25 +587,7 @@ for i in range(num_footprints):
         
     if len(im_lauer_arr[i]) > 0:
 
-        # Mask out outer edges of Lauer image with NaNs. Don't know why, but this is a byproduct of PCA
-        
-        # arr_nan = im_lauer_arr[i]
-        # arr_nan[arr_nan == 0] = np.nan
-        
         im_resize_lauer = hbt.nanresize(im_lauer_arr[i], fac_zoom)
-        
-        # with warnings.catch_warnings():
-        #     warnings.simplefilter("ignore")
-        #     im_resize_lauer = scipy.ndimage.zoom(im_lauer_arr[i], fac_zoom)
-            
-        # do_mask_lauer = True
-        
-        # if do_mask_lauer:
-        #     # Lauer's marker for an empty pixel is '0.'. I change those to NaN's.
-      
-        #     mask = (im_lauer_arr[i] == 0) * 1
-        #     mask_resize = scipy.ndimage.zoom(mask, fac_zoom)
-        #     im_resize_lauer[mask_resize==1]    = np.nan
                         
         # Place it on the output stack
         
@@ -605,7 +595,8 @@ for i in range(num_footprints):
                      
     extent = [ dx_dist_proj_rj_out[0], dx_dist_proj_rj_out[1], dy_dist_proj_rj_out[0], dy_dist_proj_rj_out[1] ]
 
-# Flatten the stack, using mean() or median()
+# Flatten the stack layers into a single array, using mean() or median()
+# Also, put these arrays into a dictionary, so we can handle them consistently and pythonically.
 
 im = {}
 
@@ -632,19 +623,14 @@ for name_method in name_method_arr:
             print(f'Wrote: {file_out}')
             plt.show()
         
-    # do_plot_lauer = True
-    
-    # if do_plot_lauer:
-    #     if np.nansum(stack_lauer) > 0:  # If there is some data in it
-    #         plt.imshow(stretch(im_lauer), extent=extent, cmap='plasma', origin='lower')
-    #         plt.title('Lauer')
-    #         plt.xlabel('$R_J$')
-    #         plt.ylabel('$R_J$')
-    #         file_out = os.path.join(dir_out, 'gossamer_lauer.png')
-    #         plt.savefig(file_out)
-    #         print(f'Wrote: {file_out}')
-    #         plt.show()
+# =============================================================================
+# Calculate a list of all exptimes, modes, and ET's, for reference
+# =============================================================================
 
+index_all = np.concatenate(index_image_list).ravel()
+exptime_all = t_group['Exptime'][index_all]
+mode_all    = t_group['Format'][index_all]
+et_all      = t_group['ET'][index_all]
         
 # =============================================================================
 # Now take these images and re-assemble them into one mosaic of Lauer + Throop together
@@ -702,7 +688,6 @@ hdu = fits.PrimaryHDU(im_mosaic_crop2)
 hdu.writeto(os.path.join(dir_out, file_out), overwrite=True)
 print(f'Wrote: {os.path.join(dir_out,file_out)}')
 
-
 #%%%
 
 # =============================================================================
@@ -714,6 +699,10 @@ print(f'Wrote: {os.path.join(dir_out,file_out)}')
 
 # Define vertical ranges for the slices. These are very broad ranges, which cover the 
 # slice as well as some border.
+#
+# NB: Historical note. When I first wrote this, I did it all as a long batch file of one-off commands.
+# It did the job, but was awkward. I figured I would only run it once, so why did it matter. But I rewrote,
+# and rewrote again, using more and more dictionaries and loops, and it is far shorter and clearer now.
 
 y_pos_km  = {}
 
@@ -728,6 +717,15 @@ binning = 20  # Set the smoothing width
 alpha_minor = 0.1
 alpha_major = 1.0
 ylim = (-5,30)
+ylabel = 'DN'
+
+do_plot_iof = True
+if do_plot_iof:
+    ylim = (-1e-7, 17e-7)
+    ylabel = 'I/F'
+
+et_typical   = np.median(et_all)  # Get a characteristic ET to use
+exptime_typical = np.median(exptime_all)
 
 name_ansae = ['Left', 'Right']
 # name_ansae = ['Right']
@@ -736,9 +734,10 @@ for name_method in name_method_arr: # Loop over Lauer, Throop
 
     for name_ansa in name_ansae:
         
-        profile = {}
-        profile_f = {}
-        profile_fs = {}
+        profile        = {}     # Raw radial profile, in DN
+        profile_f      = {}     # Radial profile filtered to remove outliers, in DN
+        profile_fs     = {}     # Radial profile filtered and smoothed, in DN
+        profile_fs_iof = {}     # Radial profile filtered and smoothed, in I/F
 
         if (name_ansa in 'Left'):            
             y_pos_km['Top']       = np.array([0000.,       1100])  # Resolution is 72 km/pix
@@ -750,6 +749,10 @@ for name_method in name_method_arr: # Loop over Lauer, Throop
 
             x_pix = [0,1000]
             loc   = 'center left'
+            
+            do_mask_circle = True
+            if do_mask_circle:
+                im['lauer'] = mask_circle(im['lauer'])
 
         if (name_ansa in 'Right'):   ## XXX These have not been adjusted manually yet!!            
             y_pos_km['Top']       = np.array([ 0700.,      1300])  # Resolution is 72 km/pix
@@ -776,31 +779,38 @@ for name_method in name_method_arr: # Loop over Lauer, Throop
                 plt.title(f'{name_ring}, row={y_ring_extract}, {name_method}')
                 plt.show()
             
-            profile[name_ring]     = np.nanmean(im_extract[name_ring], axis=0)
-            profile_f[name_ring]   = hbt.remove_outliers(profile[name_ring])
-            profile_fs[name_ring]  = hbt.smooth(profile_f[name_ring], binning)
+            profile[name_ring]         = np.nanmean(im_extract[name_ring], axis=0)
+            profile_f[name_ring]       = hbt.remove_outliers(profile[name_ring])
+            profile_fs[name_ring]      = hbt.smooth(profile_f[name_ring], binning)
+            profile_fs_iof[name_ring]  = dn2iof(profile_fs[name_ring], et_typical, exptime_typical)
             
         dist_rj = vals_x_rj[x_pix[0]:x_pix[1]]
      
-        plt.plot(dist_rj, profile_fs['Top']    - profile_fs['Top BG'], alpha=alpha_major, label='Top-BG')
-        plt.plot(dist_rj, profile_fs['Bottom'] - profile_fs['Bottom BG'], alpha=alpha_major, label='Bot-BG')
-        # plt.plot(dist_rj, profile_fs['Bottom'],  alpha=alpha_minor, label='Bot')
-        # plt.plot(dist_rj, profile_fs['Top'],     alpha=alpha_minor, label='Top')
+        plt.plot(dist_rj, profile_fs_iof['Top']    - profile_fs_iof['Top BG'], alpha=alpha_major, label='Top-BG')
+        plt.plot(dist_rj, profile_fs_iof['Bottom'] - profile_fs_iof['Bottom BG'], alpha=alpha_major, label='Bot-BG')
+        
+        # plt.plot(dist_rj, profile_fs_iof['Bottom'],  alpha=alpha_minor, label='Bot')
+        # plt.plot(dist_rj, profile_fs_iof['Top'],     alpha=alpha_minor, label='Top')
         
         if name_ansa in 'Left':
-            plt.plot(dist_rj, profile_fs['Mid'] - profile_fs['Top BG'],     alpha=alpha_major, label='Mid-BG')
+            plt.plot(dist_rj, profile_fs_iof['Mid'] - profile_fs_iof['Top BG'],     alpha=alpha_major, label='Mid-BG')
+            
         if name_ansa in 'Right':
-            plt.plot(dist_rj, profile_fs['Mid'] - profile_fs['Bottom BG'],     alpha=alpha_major, label='Mid-BG')
+            plt.plot(dist_rj, profile_fs_iof['Mid'] - profile_fs_iof['Bottom BG'],  alpha=alpha_major, label='Mid-BG')
     
         xlim = hbt.mm(dist_rj)
-        extent = [xlim[0], xlim[1], 20, 30]
+    
+        extent = [xlim[0], xlim[1], ylim[0] + (ylim[1]-ylim[0])*0.6, ylim[0] + (ylim[1]-ylim[0])*1.0]
+            
         im_plot = im_extract['TopBottom'][:,x_pix[0]:x_pix[1]]
         aspect  = hbt.plt_aspect(im_plot, extent)
     
         plt.imshow(stretch(im_plot), extent=extent, aspect=aspect, origin='lower')
     
-        plt.title(f'{name_ansa} Ansa, {name_method}')
-        plt.ylabel('DN')
+        plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+        
+        plt.title(f'{name_ansa} ansa, {name_method.title()}')
+        plt.ylabel(ylabel)
         plt.xlabel('Dist from Jupiter, $R_J$')
         plt.legend(loc=loc)
         plt.ylim(ylim)
@@ -808,107 +818,11 @@ for name_method in name_method_arr: # Loop over Lauer, Throop
         
         plt.show()
 
-   
-    # Make a plot of the left edge of the ring.
-    
-    # hbt.figsize((10,15))
-    
-    # plt.plot(dist_rj_left, profile_ring_bottom_fs, label='Ring Bottom', alpha=alpha_minor)
-    # plt.plot(dist_rj_left, profile_bg_bottom_fs,   label='BG Bottom', alpha=alpha_minor)
-
-    # plt.plot(dist_rj_left, profile_ring_top_fs, label='Ring Top', alpha=alpha_minor)
-    # plt.plot(dist_rj_left, profile_bg_top_fs,   label='BG Top', alpha=alpha_minor)
-    # plt.plot(dist_rj_left, profile_diff_top_fs,        label='Top Ring', alpha=alpha_major)
-    # plt.plot(dist_rj_left, profile_midring_top_fs, label='Middle', alpha=alpha_major)
-    # plt.plot(dist_rj_left, profile_diff_bottom_fs,        label='Bottom Ring', alpha=alpha_major)
-#%%%
-
-
-#     ##########    
-#     # Now, the RIGHT ANSA
-#     ##########
-    
-#     profile_bg_bottom     = np.nanmean(im_ring_extract['Bottom'][:,-1000:-1][ 16:26,:], axis=0)
-#     profile_ring_bottom   = np.nanmean(im_ring_extract['Bottom'][:,-1000:-1][30:42,:], axis=0)
-
-#     profile_ring_top      = np.nanmean(im_ring_extract['Top'][:,-1000:-1][15:20], axis=0)
-#     profile_bg_top        = np.nanmean(im_ring_extract['Top'][:,-1000:-1][25:30,:], axis=0)
-#     profile_midring_top   = np.nanmean(im_ring_extract['Top'][:,-1000:-1][0:8], axis=0)  # Ring midplane
-    
-#     # Filter these
-    
-#     binning = 10  # Set the smoothing width
-    
-#     profile_ring_bottom_f = hbt.remove_outliers(profile_ring_bottom)
-#     profile_bg_bottom_f   = hbt.remove_outliers(profile_bg_bottom)
-#     profile_diff_bottom_f = profile_ring_bottom_f - profile_bg_bottom_f
-    
-#     profile_ring_top_f = hbt.remove_outliers(profile_ring_top)
-#     profile_bg_top_f   = hbt.remove_outliers(profile_bg_top)
-#     profile_diff_top_f = profile_ring_top_f - profile_bg_top_f
-
-#     profile_midring_top_f      = hbt.remove_outliers(profile_midring_top)
-#     profile_diff_midring_top_f   = profile_midring_top_f - profile_bg_top_f
-    
-#     profile_ring_bottom_fs = hbt.smooth(profile_ring_bottom_f, binning)
-#     profile_bg_bottom_fs = hbt.smooth(profile_bg_bottom_f, binning)
-#     profile_diff_bottom_fs = hbt.smooth(profile_diff_bottom_f, binning)
-#     profile_diff_midring_top_fs = hbt.smooth(profile_diff_midring_top_f, binning)
-    
-#     profile_ring_top_fs = hbt.smooth(profile_ring_top_f, binning)
-#     profile_bg_top_fs = hbt.smooth(profile_ring_top_f, binning)
-#     profile_diff_top_fs      = hbt.smooth(profile_diff_top_f, binning)
-
-#     alpha_minor = 0.1
-#     alpha_major = 1.0
-#     dist_rj_left = vals_x_rj[-1000:-1]
-   
-#     # Make a plot of the right edge of the ring.
-    
-#     plt.plot(dist_rj_left, profile_ring_bottom_fs, label='Ring Bottom', alpha=alpha_minor)
-#     # plt.plot(dist_rj_left, profile_bg_bottom_fs,   label='BG Bottom', alpha=alpha_minor)
-#     plt.plot(dist_rj_left, profile_diff_top_fs,        label='Top Ring', alpha=alpha_major)
-#     plt.plot(dist_rj_left, profile_diff_midring_top_fs, label='Center', alpha=alpha_major)
-#     plt.plot(dist_rj_left, profile_diff_bottom_fs,        label='Bottom Ring', alpha=alpha_major)
-
-#     # plt.plot(dist_rj_left, profile_ring_top_fs, label='Ring Top', alpha=alpha_minor)
-#     # plt.plot(dist_rj_left, profile_bg_top_fs,   label='BG Top', alpha=alpha_minor)
-
-#     # Plot the image right on the plot
-
-#     im_plot = im_ring_extract['TopBottom'][:,-1000:-1]
-#     extent = [2, 3, 20, 30]
-    
-#     aspect = hbt.plt_aspect(im_plot, extent)
-#     plt.imshow(stretch(im_plot), extent=extent, aspect=aspect, origin='lower')
-    
-#     # Order =  [left, right, bottom, top]
-    
-#     plt.title(f'Right Ansa, {name_method}')
-#     plt.ylabel('DN')
-#     plt.xlabel('Dist from Jupiter, $R_J$')
-#     plt.legend()
-#     plt.ylim((-5,50))
-#     plt.show()
- 
-
-# # plt.plot(  np.sum(im_ring_extract['Bottom'][:,0:1000][ 22:32,:], axis=0) - 
-# #            np.sum(im_ring_extract['Bottom'][:,0:1000][  0:10,:], axis=0), label='Ring - BG')
-
-
-# # plt.legend()
-# # plt.ylim((-100,3000))
-# # plt.show()
-
-
-
 #%%%
 
 # =============================================================================
-# Make a table for Tod Lauer. This lists all of the obs parameters, for each image.
+# Make a table for Tod Lauer. This lists all of the obs parameters, for each image and footprint.
 # =============================================================================
-
-#t_out = Table([name, rho, r, a], names=['Name', 'rho', 'radius', 'a'])
 
 # The footprint positions and scales are indexed per *footprint*. Convert to per *image*, for easy comparison.
 
@@ -945,10 +859,86 @@ print(f'Wrote: {path_out}')
 #%%%
 
 
+# =============================================================================
+# Calculate how many DN MU69 should be at encounter (K-20d, etc.)
+# Or alternatively, convert all of my DN values, to I/F values
+# =============================================================================
 
-plt.plot([0,5], [3,8])
-plt.imshow(hbt.dist_center(10),origin='lower', extent=[3,4,5,7],alpha=1, aspect=0.5)
-plt.xlim((0,5))
-plt.ylim((1,6.5))
-plt.show()
+def dn2iof(DN, et, exptime, mode='4X4'):
     
+    """
+    Convert DN values in array, to I/F values.
+    
+    Assumes target of Jupiter.
+    
+    Parameters
+    -----
+
+    DN: Array of DN values.
+    
+    ET: Time in ET
+    
+    exptime: Exposure time in seconds
+    
+    Optional Parameters
+    -----
+    Mode: '1X1' or '4X4'.
+    
+    """
+        
+    RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+    RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+    
+    C = DN # Get the DN values of the ring. Typical value is 1 DN.
+    
+    # Define the solar flux, from Hal's paper.
+    
+    FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+    F_solar = FSOLAR_LORRI # Flux from Hal's paper
+
+    if '4' in mode:    
+        RSOLAR = RSOLAR_LORRI_4X4
+    if '1' in mode:
+        RSOLAR = RSOLAR_LORRI_1X1
+    
+    # Calculate the Jup-Sun distance, in AU.
+    
+    km2au = 1 / (u.au/u.km).to('1')
+    
+    # et = sp.utc2et(t_group['UTC'][0])
+    
+    (st,lt) = sp.spkezr('Jupiter', et, 'J2000', 'LT', 'New Horizons')
+    r_nh_jup = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+    
+    (st,lt) = sp.spkezr('Jupiter', et, 'J2000', 'LT', 'Sun')
+    r_sun_jup = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+    
+    # pixscale_km =  (r_nh_jup/km2au * (0.3*hbt.d2r / 256))  # km per pix (assuming 4x4)
+    
+    TEXP = exptime
+    
+    I = C / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. All v similar, except for spectrum assumed.
+    
+    # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
+    
+    IoF = math.pi * I * r_sun_jup**2 / F_solar # Equation from Hal's paper
+
+    return IoF
+
+#%%%
+
+
+hbt.figsize((12,12))
+arr =     im['lauer'][:,0:1000]
+
+def mask_circle(arr):
+    arr2=arr[494:555, 471:532]
+    dist = hbt.dist_center(61)
+    is_bad = ((dist > 22) & (dist < 30))
+    arr2[is_bad] = np.nan
+    arr[494:555, 471:532] = arr2
+
+    # plt.imshow(stretch(arr2))
+    # plt.show()    
+
+    return arr
