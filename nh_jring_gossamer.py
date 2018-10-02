@@ -97,6 +97,90 @@ def find_file_footprint_lauer(dir_lauer, str_met):
     
     return None
 
+def mask_circle(arr):
+    """
+    One-off function to create an annulus mask for the stray light feature found in some LORRI images.
+    """
+    
+    arr2=arr[494:555, 471:532]
+    dist = hbt.dist_center(61)
+    is_bad = ((dist > 22) & (dist < 30))
+    arr2[is_bad] = np.nan
+    arr[494:555, 471:532] = arr2
+
+    # plt.imshow(stretch(arr2))
+    # plt.show()    
+
+    return arr
+
+
+
+# =============================================================================
+# Calculate how many DN MU69 should be at encounter (K-20d, etc.)
+# Or alternatively, convert all of my DN values, to I/F values
+# =============================================================================
+
+def dn2iof(DN, et, exptime, mode='4X4'):
+    
+    """
+    Convert DN values in array, to I/F values.
+    
+    Assumes target of Jupiter.
+    
+    Parameters
+    -----
+
+    DN: Array of DN values.
+    
+    ET: Time in ET
+    
+    exptime: Exposure time in seconds
+    
+    Optional Parameters
+    -----
+    Mode: '1X1' or '4X4'.
+    
+    """
+        
+    RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+    RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+    
+    C = DN # Get the DN values of the ring. Typical value is 1 DN.
+    
+    # Define the solar flux, from Hal's paper.
+    
+    FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+    F_solar = FSOLAR_LORRI # Flux from Hal's paper
+
+    if '4' in mode:    
+        RSOLAR = RSOLAR_LORRI_4X4
+    if '1' in mode:
+        RSOLAR = RSOLAR_LORRI_1X1
+    
+    # Calculate the Jup-Sun distance, in AU.
+    
+    km2au = 1 / (u.au/u.km).to('1')
+    
+    # et = sp.utc2et(t_group['UTC'][0])
+    
+    (st,lt) = sp.spkezr('Jupiter', et, 'J2000', 'LT', 'New Horizons')
+    r_nh_jup = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+    
+    (st,lt) = sp.spkezr('Jupiter', et, 'J2000', 'LT', 'Sun')
+    r_sun_jup = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+    
+    # pixscale_km =  (r_nh_jup/km2au * (0.3*hbt.d2r / 256))  # km per pix (assuming 4x4)
+    
+    TEXP = exptime
+    
+    I = C / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. All v similar, except for spectrum assumed.
+    
+    # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
+    
+    IoF = math.pi * I * r_sun_jup**2 / F_solar # Equation from Hal's paper
+
+    return IoF
+
 #%%%
     
 # NB: This program is just code. It is not one callable function. That's OK, and makes debugging easier, I guess.
@@ -817,6 +901,35 @@ for name_method in name_method_arr: # Loop over Lauer, Throop
         plt.xlim(xlim)
         
         plt.show()
+        
+        
+        # Now make vertical slices thru the ring, to see if it is flared, or not.
+        
+        num_slices_vertical = 25
+        thickness_slice    = 20
+        
+        binning_slice = 2
+        
+        plt.plot([0], [0])
+        plt.imshow(stretch(im_plot), extent=extent, aspect=aspect, origin='lower')
+
+        yarr = hbt.frange(np.amax(ylim), np.amin(ylim), hbt.sizey_im(im_plot)) - 0.0000003
+        yarr = yarr[::-1]
+        for j in range(num_slices_vertical):
+            x0 = int(hbt.sizex_im(im_plot) * j / num_slices_vertical) 
+            x1 = x0 + thickness_slice
+            x0_rj = np.amin(xlim) + (np.amax(xlim)-np.amin(xlim)) * (j / num_slices_vertical)
+            slice = np.nansum(im_plot[:, x0:x1],axis=1)
+            slice_s = hbt.smooth(slice,binning_slice)
+            plt.plot(x0_rj + slice_s/4000, yarr, label=f'{j}', color = 'red')
+        plt.ylim(ylim)
+        plt.xlim(xlim)
+
+        plt.axhline(y=0.00000065)
+        plt.axhline(y=0.00000030)
+        plt.show()
+        
+
 
 #%%%
 
@@ -859,86 +972,9 @@ print(f'Wrote: {path_out}')
 #%%%
 
 
-# =============================================================================
-# Calculate how many DN MU69 should be at encounter (K-20d, etc.)
-# Or alternatively, convert all of my DN values, to I/F values
-# =============================================================================
-
-def dn2iof(DN, et, exptime, mode='4X4'):
-    
-    """
-    Convert DN values in array, to I/F values.
-    
-    Assumes target of Jupiter.
-    
-    Parameters
-    -----
-
-    DN: Array of DN values.
-    
-    ET: Time in ET
-    
-    exptime: Exposure time in seconds
-    
-    Optional Parameters
-    -----
-    Mode: '1X1' or '4X4'.
-    
-    """
-        
-    RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
-    RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
-    
-    C = DN # Get the DN values of the ring. Typical value is 1 DN.
-    
-    # Define the solar flux, from Hal's paper.
-    
-    FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
-    F_solar = FSOLAR_LORRI # Flux from Hal's paper
-
-    if '4' in mode:    
-        RSOLAR = RSOLAR_LORRI_4X4
-    if '1' in mode:
-        RSOLAR = RSOLAR_LORRI_1X1
-    
-    # Calculate the Jup-Sun distance, in AU.
-    
-    km2au = 1 / (u.au/u.km).to('1')
-    
-    # et = sp.utc2et(t_group['UTC'][0])
-    
-    (st,lt) = sp.spkezr('Jupiter', et, 'J2000', 'LT', 'New Horizons')
-    r_nh_jup = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
-    
-    (st,lt) = sp.spkezr('Jupiter', et, 'J2000', 'LT', 'Sun')
-    r_sun_jup = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
-    
-    # pixscale_km =  (r_nh_jup/km2au * (0.3*hbt.d2r / 256))  # km per pix (assuming 4x4)
-    
-    TEXP = exptime
-    
-    I = C / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. All v similar, except for spectrum assumed.
-    
-    # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
-    
-    IoF = math.pi * I * r_sun_jup**2 / F_solar # Equation from Hal's paper
-
-    return IoF
-
 #%%%
 
 
 hbt.figsize((12,12))
 arr =     im['lauer'][:,0:1000]
 
-def mask_circle(arr):
-    arr2=arr[494:555, 471:532]
-    dist = hbt.dist_center(61)
-    is_bad = ((dist > 22) & (dist < 30))
-    arr2[is_bad] = np.nan
-    arr[494:555, 471:532] = arr2
-
-    # plt.imshow(stretch(arr2))
-    # plt.show()    
-
-    return arr
