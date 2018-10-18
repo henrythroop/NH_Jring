@@ -291,7 +291,8 @@ if (__name__ == '__main__'):
 #    name_ort = 'ORT1'
 #    name_ort = 'ORT2_OPNAV'
 #    name_ort = 'ORT3'
-    name_ort = 'ORT4'
+    # name_ort = 'ORT4'
+    name_ort = 'MU69_Approach'  # This is the actual encounter -- not ORT!
     initials_user = 'HBT'
     dir_data = '/Users/throop/Data'
     
@@ -333,6 +334,14 @@ if (__name__ == '__main__'):
         reqids_haz  = ['K1LR_HAZ00', 'K1LR_HAZ01', 'K1LR_HAZ02', 'K1LR_HAZ03', 'K1LR_HAZ04']
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         a_xy = (1, math.cos(hbt.d2r * 30))
+
+    if (name_ort == 'MU69_Approach'):
+        dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
+        dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
+        reqids_haz  = ['KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287']
+        reqids_haz  = ['KALR_MU69_OpNav_L4_2018287']
+        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+        a_xy = (1, math.cos(hbt.d2r * 30))
     
     # Start up SPICE if needed
     
@@ -343,7 +352,7 @@ if (__name__ == '__main__'):
     
     # Make sure output dir exists
     
-    os.makedirs(dir_out)
+    os.makedirs(dir_out, exist_ok=True)
     
     # Load and stack the field images
     
@@ -352,6 +361,8 @@ if (__name__ == '__main__'):
     stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force, do_save=do_force)
 
     stack_haz = {}
+    
+    # Load and stack the data images
     
     for reqid_i in reqids_haz:
         stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force, do_save=do_force)
@@ -510,12 +521,12 @@ if (__name__ == '__main__'):
 
     # Pad this so it is the same size as the superstack
     
-    dpad = int( (hbt.sizex(img_superstack_mean_iof) - hbt.sizex(plane_radius) )/2)
+    dpad = int( (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius) )/2)
     
     plane_radius = np.pad(plane_radius, dpad, mode='maximum')    
         
     name_target = 'MU69'
-    frame = '2014_MU69_ORT4_1'
+    frame = '2014_MU69_SUNFLOWER_ROT'
     name_observer = 'New Horizons'
 
     file_out_superstack_median_sm = f'superstack_{str_name}_median_wcs_sm_hbt.fits'
@@ -576,22 +587,26 @@ if (__name__ == '__main__'):
     popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
 
     hbt.figsize((8,6))
-
-    plt.plot(radius, profile_iof, 
-             label = f'ORT4, backplaned, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
+ 
+    bias = 0.000004 +  7.5e-7
+    plt.plot(radius, profile_iof - bias, 
+             label = f'OpNav, backplaned, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
     
-    plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=1.5, 
-             label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
+    do_plot_fit = False
+    
+    if do_plot_fit:
+        plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=1.5, 
+                 label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
     
     # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
     
-    plt.ylim((-1e-7, 5e-7))
+    plt.ylim((0, 2e-6))
     plt.xlim((0, 20000))
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
     plt.xlabel('Radius [km]')
     plt.ylabel('I/F')
     plt.legend(loc = 'upper right')
-    plt.title(f'Radial profile, superstack, backplane using {frame}')
+    plt.title(f'Radial profile, superstack, backplane, {reqid_i}')
     plt.show()
     
 # =============================================================================
@@ -616,6 +631,11 @@ if (__name__ == '__main__'):
     
     sigma_fit = popt[2]
     radius_fit = popt[1]
+    
+    radius_fit = 10000
+    sigma_fit   = 2000
+    
+    
     hbt.figsize(12,12)
     alpha = 0.3
 
@@ -645,7 +665,6 @@ if (__name__ == '__main__'):
     plt.title('Superstack + derived ring image')
     plt.show()
     
-
 # =============================================================================
 # Now, as a one-off for ORT3, try to measure the I/F of this edge-on boxy looking ring
 # =============================================================================

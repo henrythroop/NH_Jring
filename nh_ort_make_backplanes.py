@@ -35,13 +35,13 @@ def nh_ort_make_backplanes():
 # Initialize
 # =============================================================================
 
-    do_plot    = False
+    do_plot    = True
     do_clobber = True
     
     name_target   = 'MU69'
     name_observer = 'New Horizons'
     frame         = '2014_MU69_SUNFLOWER_ROT'  # Change this to tuna can if needed, I think??
-    frame         = '2014_MU69_ORT4_1'  # Change this to tuna can if needed, I think??
+    # frame         = '2014_MU69_ORT4_1'  # Change this to tuna can if needed, I think??
     
 # =============================================================================
 #     Get a proper list of all the input files
@@ -50,7 +50,8 @@ def nh_ort_make_backplanes():
     do_ORT1 = False
     do_ORT3 = False
     do_ORT2 = False
-    do_ORT4 = True
+    do_ORT4 = False
+    do_ACTUAL = True  # Run this on actual OpNav data!
     
 #    dir_data_ort = '/Users/throop/Data/ORT1'
 #    dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort1')
@@ -74,6 +75,17 @@ def nh_ort_make_backplanes():
         dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort4')
         dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
         files = glob.glob(os.path.join(dir_in, '*','*_pwcs.fits'))
+
+    if do_ACTUAL:
+        dir_data_ort = '/Users/throop/Data/MU69_Approach'
+        dir_in  = os.path.join(dir_data_ort, 'porter')
+        dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
+        # files = glob.glob(os.path.join(dir_in,'*', '*_pwcs.fits'))  # For the field data (old)
+        
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits'))
+        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018287', '*_pwcs2.fits'))
+        
+        # files = glob.glob(os.path.join(dir_in,'*', '*_pwcs2.fits')) # For the latest S/C data (new)
     
 # =============================================================================
 #     Filter files if needed
@@ -84,13 +96,13 @@ def nh_ort_make_backplanes():
     # that only one CPU at a time can be used. To get around this, filter the files down,
     # and put each filter in its own Spyder tab.
     
-    do_digit_filter = True
+    do_digit_filter = False
 
-#    digit_filter = '12'
-    digit_filter = '34'
-#    digit_filter = '56'
-#    digit_filter = '78'
-#    digit_filter = '90'
+    # digit_filter = '12'
+    # digit_filter = '34'
+    # digit_filter = '56'
+    # digit_filter = '78'
+    digit_filter = '90'
     
     if (do_digit_filter):
         files_filtered = []
@@ -119,7 +131,7 @@ def nh_ort_make_backplanes():
         print("{}/{}".format(i,len(files))) 
         file_out = file_in.replace(dir_in, dir_out)
         file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned.fit') # Works for both .fit and .fits
-        file_out = file_out.replace('_ort3.fit', '_ort3_backplaned.fit') # Works for both .fit and .fits
+        file_out = file_out.replace('_pwcs2.fit', '_pwcs2_backplaned.fit') # Works for both .fit and .fits
     
         try:
             create_backplanes_fits(file_in, 
