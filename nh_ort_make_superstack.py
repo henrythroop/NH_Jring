@@ -339,7 +339,8 @@ if (__name__ == '__main__'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
         reqids_haz  = ['KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287']
-        reqids_haz  = ['KALR_MU69_OpNav_L4_2018287']
+        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018287']
+        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018284']
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         a_xy = (1, math.cos(hbt.d2r * 30))
     
@@ -600,13 +601,18 @@ if (__name__ == '__main__'):
     
     # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
     
+    if (len(reqids_haz)) == 1:
+        str_reqid = reqids_haz[0]
+    else:    
+        str_reqid = reqids_haz[0] + f' + {len(reqids_haz)-1} more'
+
     plt.ylim((0, 2e-6))
     plt.xlim((0, 20000))
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
     plt.xlabel('Radius [km]')
     plt.ylabel('I/F')
     plt.legend(loc = 'upper right')
-    plt.title(f'Radial profile, superstack, backplane, {reqid_i}')
+    plt.title(f'Radial profile, superstack, backplane, {str_reqid}')
     plt.show()
     
 # =============================================================================

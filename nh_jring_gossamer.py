@@ -265,18 +265,31 @@ index_image_list = [
 # # # # # #                    
                     # ]
                     
-do_test = False
+do_test = True
 
 if do_test:
     
     index_image_list = [
-                    hbt.frange(99,102), # Left ansa. Similar geometry as 75-78.
-                    hbt.frange(112,115),# Right ansa. Gossamer limb. Similar geometry as 95-98 (offset pointing)
-                    hbt.frange(116,119),# Left ansa. Similar geometry as 75-78. Sat visible??
-                    hbt.frange(120,123),  # Left ansa. Closer than above.
-                    hbt.frange(124,127),  # Left ansa. Closer than above.
-                    hbt.frange(128,131)]  # Left ansa + main ring ansa. Closer than above.
+                    # hbt.frange(95,98),   # Right ansa. Amalthea approaching LHS.   
+                    # hbt.frange(99,102), # Left ansa. Similar geometry as 75-78. Amalthea in frame!
 
+                    # hbt.frange(157,160), # Left ansa. 
+
+                    # hbt.frange(207,210),   # Left ansa. 180 deg opposite Amalthea.   
+                    # hbt.frange(211,214), # Right ansa. Amalthea almost in frame but not quite.
+                    
+                    hbt.frange(177,180),
+                    # hbt.frange(225,228),   # Left ansa. 180 deg opposite Amalthea.   
+                    # hbt.frange(229,232), # Right ansa. Amalthea almost in frame but not quite.
+                    
+                    
+                    # hbt.frange(112,115),# Right ansa. Gossamer limb. Similar geometry as 95-98 (offset pointing)
+                    # hbt.frange(116,119),# Left ansa. Similar geometry as 75-78. Sat visible??
+                    # hbt.frange(120,123),  # Left ansa. Closer than above.
+                    # hbt.frange(124,127),  # Left ansa. Closer than above.
+                    # hbt.frange(128,131),  # Left ansa + main ring ansa. Closer than above.
+                      ]
+    
 num_footprints = len(index_image_list)
 
 stretch_percent = 90    
