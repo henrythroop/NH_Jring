@@ -72,9 +72,9 @@ KERNELS_TO_LOAD = (
 '$DIR/NavPE_de433_od128.bsp',
 '$DIR/2014MU69_SBP_180112_rd2b.bsp',
 '$DIR/nh_nom_20170201_20210714_v13_prime.bsp',
-'$DIR/kernels/nh_pred_20161201_20250101_od135.bsp',
-'$DIR/kernels/NavSBE_2014MU69_od135.bsp',
-'$DIR/kernels/NavPE_de433_od135.bsp'
+'$DIR/nh_pred_20161201_20250101_od135.bsp',
+'$DIR/NavSBE_2014MU69_od135.bsp',
+'$DIR/NavPE_de433_od135.bsp'
 '$DIR/gv_pluto_smallsats_lhr.tf',
 '$DIR/gv_pck.tpc',
 '$DIR2/mu69_ort.tf',
