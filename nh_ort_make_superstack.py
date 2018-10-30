@@ -129,10 +129,10 @@ def nh_ort_make_superstack(stack, img, img_field,
     
     for i,key in enumerate(keys):
         
-        magfac = stack[key].pixscale_x_km / pixscale_km_out
-        arr = scipy.ndimage.zoom(img[key] - img_field, magfac)
+        magfac    = stack[key].pixscale_x_km / pixscale_km_out
+        arr       = scipy.ndimage.zoom(img[key] - img_field, magfac)
         
-        size_in = np.shape(arr)
+        size_in   = np.shape(arr)
         edge_left = int( (size_in[0]-size_out[0])/2)
         edge_top  = int( (size_in[1]-size_out[1])/2)
         
@@ -215,7 +215,7 @@ def nh_ort_make_superstack(stack, img, img_field,
         
         # Write full-size images
         
-        file_out = f'superstack_{str_name}_median_wcs_hbt.fits'
+        file_out = f'superstack_n{len(keys)}_{str_name}_median_wcs_hbt.fits'
         hdu = fits.PrimaryHDU(img_rescale_median, header=header)
         path_out = os.path.join(dir_out, file_out)
         hdu.writeto(path_out, overwrite=True)
@@ -241,13 +241,13 @@ def nh_ort_make_superstack(stack, img, img_field,
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
         
-        
         if do_backplanes:
             # Now that we have written a FITS file to disk, compute backplanes for it
             # ** for compute_backplanes to work, use_sky_plane = False must be set in that function.
             
             frame = '2014_MU69_SUNFLOWER_ROT'
             
+            print(f'Computing backplanes for file {path_out}')
             planes = compute_backplanes(path_out, 'MU69', frame, 'New Horizons', angle3=30*hbt.d2r)
         
         # And plot the Radius backplane
@@ -287,11 +287,11 @@ if (__name__ == '__main__'):
 
     width = 1  # Bin width for radial profiles
     
-    
 #    name_ort = 'ORT1'
 #    name_ort = 'ORT2_OPNAV'
 #    name_ort = 'ORT3'
-    # name_ort = 'ORT4'
+#    name_ort = 'ORT4'
+    
     name_ort = 'MU69_Approach'  # This is the actual encounter -- not ORT!
     initials_user = 'HBT'
     dir_data = '/Users/throop/Data'
@@ -338,7 +338,9 @@ if (__name__ == '__main__'):
     if (name_ort == 'MU69_Approach'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
-        reqids_haz  = ['KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287']
+        reqids_haz  = ['KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018_298']
+        reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
+        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018287']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018284']
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
@@ -400,6 +402,12 @@ if (__name__ == '__main__'):
     
     (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad)
 
+    # Verify that the WCS has been properly preserved after flattening here.
+    
+    hbt.figsize((12,12)) # This is ignored, for some reason.
+    
+    plot_img_wcs(img_field, wcs_field, title = 'Field Stack')
+    
 #%%%
     
     # Loop over and flatten the main hazard stacks (HAZ00, HAZ01, etc)
@@ -407,11 +415,15 @@ if (__name__ == '__main__'):
     # ouput images have the same size. So, maybe flatten should return img *and* wcs?
     # And the expectation would be that all of these individual WCS would match. That would be the point.
     
+# =============================================================================
+#     Flatten the main image stacks
+# =============================================================================
+    
     img_haz = {}
     wcs_haz = {}
     img_haz_diff = {}
 
-    do_plot_individual_stacks = False
+    do_plot_individual_stacks = True
     
     for reqid_i in reqids_haz:
         (img_haz[reqid_i], wcs_haz[reqid_i])  =\
@@ -421,13 +433,18 @@ if (__name__ == '__main__'):
         if do_plot_individual_stacks:
             plot_img_wcs(img_haz[reqid_i], wcs_haz[reqid_i], title = reqid_i)
         
-    # Plot the trimmed, flattened images. This is just for show. They are not scaled very well for ring search.
+# =============================================================================
+#     Plot the stacks, differenced with the field image.
+# =============================================================================
+    
+    hbt.figsize((12,12))
+    hbt.set_fontsize(12)
     
     plt.imshow(stretch(img_field), origin='lower')
-    for reqid_i in reqids_haz:        
+    for i,reqid_i in enumerate(reqids_haz):        
         diff_trim = hbt.trim_image(img_haz_diff[reqid_i])
         plt.imshow(stretch(diff_trim), origin='lower')
-        plt.title(reqid_i)
+        plt.title(f'Difference stack {i}/{len(reqids_haz)}: {reqid_i}')
         plt.show()
         
         # Save as FITS
@@ -436,23 +453,6 @@ if (__name__ == '__main__'):
         hdu = fits.PrimaryHDU(stretch(diff_trim))
         hdu.writeto(file_out, overwrite=True)
         print(f'Wrote: {file_out}')
-    
-# =============================================================================
-#      Calculate and display radial profiles
-# =============================================================================
-    
-        hbt.figsize((10,8))
-        hbt.set_fontsize(12)
-    
-        RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
-        RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
-        
-        # Define the solar flux, from Hal's paper.
-        FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
-        F_solar = FSOLAR_LORRI # Flux from Hal's paper
-        RSOLAR = RSOLAR_LORRI_4X4
-    
-        km2au = 1 / (u.au/u.km).to('1')
 
 #%%%
     
@@ -482,17 +482,26 @@ if (__name__ == '__main__'):
                                                                           do_save_all=True, dir=dir_out,
                                                                           str_name = str_name, do_center=True,
                                                                           do_backplanes=False)
+
+    # Make the superstack, and return backplanes.
+    
+    (img_superstack_mean, img_superstack_median,backplanes) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
+                                                                          name_stack_base, 
+                                                                          do_save_all=True, dir=dir_out,
+                                                                          str_name = str_name, do_center=True,
+                                                                          do_backplanes=True)
+
     
     # Plot the superstack to screen
     
     hbt.figsize(14,14)
     plt.subplot(1,2,1)
     plt.imshow( stretch(img_superstack_median), origin='lower', cmap=cmap_superstack)
-    plt.title(f'restretched and medianed, {name_ort}')
+    plt.title(f'restretched and medianed, {name_ort}, n={len(keys)}')
 
     plt.subplot(1,2,2)
     plt.imshow( stretch(img_superstack_mean), origin='lower', cmap=cmap_superstack)
-    plt.title(f'restretched and mean, {name_ort}')
+    plt.title(f'restretched and mean, {name_ort}, n={len(keys)}')
 
     plt.show()
     hbt.figsize()
@@ -514,11 +523,11 @@ if (__name__ == '__main__'):
     # However, I don't actually ever compute these. Even in assembling the superstacks, I just center on the 
     # brightest thing in the frame, rather than follow MU69's motion. I should fix that, but for now this works.
     
-    plane_radius = scipy.ndimage.zoom(plane_radius_orig, zoom)
-    wheremin_x = hbt.wheremin(np.amin(plane_radius,axis=1))
-    wheremin_y = hbt.wheremin(np.amin(plane_radius,axis=0))
-    plane_radius = np.roll(plane_radius, 512-wheremin_y, axis=1)
-    plane_radius = np.roll(plane_radius, 512-wheremin_x, axis=0)
+    plane_radius  = scipy.ndimage.zoom(plane_radius_orig, zoom)
+    wheremin_x    = hbt.wheremin(np.amin(plane_radius,axis=1))
+    wheremin_y    = hbt.wheremin(np.amin(plane_radius,axis=0))
+    plane_radius  = np.roll(plane_radius, 512-wheremin_y, axis=1)
+    plane_radius  = np.roll(plane_radius, 512-wheremin_x, axis=0)
 
     # Pad this so it is the same size as the superstack
     
@@ -548,7 +557,18 @@ if (__name__ == '__main__'):
     
     # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
 
+    RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+    RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+    
+    # Define the solar flux, from Hal's paper.
+    FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+    F_solar       = FSOLAR_LORRI # Flux from Hal's paper
+    RSOLAR        = RSOLAR_LORRI_4X4
+
+    km2au = 1 / (u.au/u.km).to('1')
+        
     # Calculate the MU69-Sun distance, in AU (or look it up).         
+    
     et        = stack_haz[reqids_haz[-1]].t['et'][0] # ET for the final image stack
     (st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
     r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
@@ -627,49 +647,56 @@ if (__name__ == '__main__'):
     for i in range(len(profile_iof)):
         lun.write('{:10.3f} {:11.3e}\n'.format(radius[i], profile_iof[i]))
     lun.close()
-    print(f'Wrote: {file_out}')
-    print(f' scp {file_out} ixion:\~/astrometry' )  # We don't copy it, but we put up the string so user can.
+    
+    do_ring_out = False
+
+    if do_ring_out:
+        print(f'Wrote: {file_out}')
+        print(f' scp {file_out} ixion:\~/astrometry' )  # We don't copy it, but we put up the string so user can.
 
 
 # =============================================================================
 # Make an image overlaying a radius mask with the ring. This is just to visualize if the geometry is close.
 # =============================================================================
     
-    sigma_fit = popt[2]
-    radius_fit = popt[1]
+    do_ring_mask_plot = False
     
-    radius_fit = 10000
-    sigma_fit   = 2000
-    
-    
-    hbt.figsize(12,12)
-    alpha = 0.3
-
-    plt.subplot(1,2,1)    
-    dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
-    plane_radius = np.pad(plane_radius, int(dpad), 'constant')
-    plt.imshow(stretch( (plane_radius < 120000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
-    plt.gca().get_xaxis().set_visible(False)
-    plt.gca().get_yaxis().set_visible(False)
-    plt.imshow( (plane_radius < 0)[600:1000, 600:1000], cmap = 'Reds', alpha=alpha,
-                 origin='lower')
-    plt.title('Superstack')
-    
-    plt.subplot(1,2,2)    
-    dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
-    plane_radius = np.pad(plane_radius, int(dpad), 'constant')
-    plt.imshow(stretch( (plane_radius < 120000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
-    
-    mask = ((plane_radius < (radius_fit+sigma_fit/2)) & (plane_radius > (radius_fit-sigma_fit/2)))
-    
+    if do_ring_mask_plot:
+        sigma_fit = popt[2]
+        radius_fit = popt[1]
         
-    plt.imshow( ((plane_radius < (radius_fit+sigma_fit/2)) & 
-                 (plane_radius > (radius_fit-sigma_fit/2)))[600:1000, 600:1000], cmap = 'Reds', alpha=alpha,
-                 origin='lower')
-    plt.gca().get_xaxis().set_visible(False)
-    plt.gca().get_yaxis().set_visible(False)
-    plt.title('Superstack + derived ring image')
-    plt.show()
+        radius_fit = 10000
+        sigma_fit   = 2000
+        
+        
+        hbt.figsize(12,12)
+        alpha = 0.3
+    
+        plt.subplot(1,2,1)    
+        dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
+        plane_radius = np.pad(plane_radius, int(dpad), 'constant')
+        plt.imshow(stretch( (plane_radius < 120000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
+        plt.gca().get_xaxis().set_visible(False)
+        plt.gca().get_yaxis().set_visible(False)
+        plt.imshow( (plane_radius < 0)[600:1000, 600:1000], cmap = 'Reds', alpha=alpha,
+                     origin='lower')
+        plt.title('Superstack')
+        
+        plt.subplot(1,2,2)    
+        dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
+        plane_radius = np.pad(plane_radius, int(dpad), 'constant')
+        plt.imshow(stretch( (plane_radius < 120000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
+        
+        mask = ((plane_radius < (radius_fit+sigma_fit/2)) & (plane_radius > (radius_fit-sigma_fit/2)))
+        
+            
+        plt.imshow( ((plane_radius < (radius_fit+sigma_fit/2)) & 
+                     (plane_radius > (radius_fit-sigma_fit/2)))[600:1000, 600:1000], cmap = 'Reds', alpha=alpha,
+                     origin='lower')
+        plt.gca().get_xaxis().set_visible(False)
+        plt.gca().get_yaxis().set_visible(False)
+        plt.title('Superstack + derived ring image')
+        plt.show()
     
 # =============================================================================
 # Now, as a one-off for ORT3, try to measure the I/F of this edge-on boxy looking ring

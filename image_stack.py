@@ -96,7 +96,7 @@ class image_stack:
             
         """
         
-        # If we are passed a pickel file, then restore the file from pickle, rather than by reading in explicity.
+        # If we are passed a pickle file, then restore the file from pickle, rather than by reading in explicity.
         # I haven't tested this -- not sure if it works.
         
         if 'pkl' in dir:
@@ -120,7 +120,7 @@ class image_stack:
             
         num_files = len(files)
 
-        self.file_save = os.path.join(dir, 'image_stack_n{}.pkl'.format(num_files))
+        self.file_save      = os.path.join(dir, 'image_stack_n{}.pkl'.format(num_files))
         
         # Initialize the center of this image. The shfits of each image are taken to be relative to this.
         # It could be that we just keep this at zero. Time will tell.
@@ -322,8 +322,8 @@ class image_stack:
         # If we generated the files manually (not by reloading), and flag is not set, then offer to save them
         
         if not(do_save):
-            print(f'File to save: {self.file_save}')
-            answer = input("Save to pickle file self? ")
+            # print(f'File to save: {self.file_save}')
+            answer = input(f'Save to pickle file {self.file_save.split("/")[-1]}? ')
             if ('y' in answer):
                 do_save = True
                 
@@ -456,6 +456,28 @@ class image_stack:
         lun.close() 
 
 # =============================================================================
+# Load a pickle file from disk. 
+# Running this is just faster than flattening the array explicitly -- it duplicates no functionality
+# =============================================================================
+
+    def load_flat(self):
+        
+        """
+        Load a saved .pkl file from disk.
+        Running this is just faster than flattening explicity -- it duplicates no functionality.
+        """
+        print("Reading: " + self.file_flat_save)
+
+        lun = open(self.file_flat_save, 'rb')
+#        self = pickle.load(lun)
+        (            self.flattened,
+                     self.arr_flat,
+                     self.wcs_flat,
+                     self.num_planes ) = pickle.load(lun)
+        lun.close() 
+
+
+# =============================================================================
 # Save current state into a pickle file.
 # =============================================================================
 
@@ -478,6 +500,26 @@ class image_stack:
                      self.dx_pix, self.dy_pix, self.size), lun)
         lun.close()
         print("Wrote: " + self.file_save)     
+
+# =============================================================================
+# Save flattened stack into a pickle file.
+# =============================================================================
+
+    def save_flat(self):
+        
+        """
+        Save flattened stack into a .pkl file.
+        The filename is held internally and user does not need it.
+        """
+
+        lun = open(self.file_flat_save, 'wb')
+
+        pickle.dump((self.flattened, 
+                     self.arr_flat, 
+                     self.wcs_flat,
+                     self.num_planes), lun)
+        lun.close()
+        print("Wrote: " + self.file_flat_save)     
         
 # =============================================================================
 # Print the table
@@ -542,10 +584,11 @@ class image_stack:
                  (shift_y_pix_min, shift_y_pix_max)))
         
 # =============================================================================
-# Flatten a stack of images as per the currently-set indices
+# Flatten a stack of images as per the currently set indices
 # =============================================================================
 
-    def flatten(self, method='median', zoom=1, do_subpixel=False, do_wrap=False, padding = 'Auto', do_plot=True):
+    def flatten(self, method='median', zoom=1, do_subpixel=False, do_wrap=False, padding = 'Auto', do_plot=True,
+                do_force=False, do_save=False):
         
         """
         Flatten a stack of images as per the currently-set shift values and indices.
@@ -553,7 +596,8 @@ class image_stack:
         Sets the value of self.wcs to reflect the output image.
         
         As per Amanda Zangari's rules for the ORT, the parameters should be chosen to match the central
-        value of the stack -- not the first or last elements.
+        value of the stack -- not the first or last elements. **What parameters?? This is just an image
+        stack, which is a single image array, and a WCS array.**
         
         Return values
         ----
@@ -591,12 +635,28 @@ class image_stack:
             If int, then a fixed number of bins is added to each edge (R, L, T, B). Padding is added *before* the zoom.
             (Padding=10, Zoom=4) will increase the size of the output array by 80 pixels in each direction.
             
+        do_force:
+            Force explicit flattening from memory, rather than from a .pkl file.
+
+        do_save:
+            If set, save the results of this flattening as a .pkl file
+            
         """    
+        
         
         if self.flattened:
             print('Already flattened!')
             return (self.arr_flat, self.wcs_flat)       # If we try to flatten an already flattened stack, just return
                                                         # the already computed results.
+        
+        # Create the filename to save to, in case we need it
+        
+        self.file_flat_save      = self.file_save.replace('.pkl', f'_flat_z{zoom}.pkl')
+        # os.path.join(dir, f'image_stack_n{num_files}_flat_z{zoom}.pkl')
+        
+        if (os.path.isfile(self.file_flat_save)) and not(do_force):
+            self.load_flat()
+            return (self.arr_flat, self.wcs_flat)
         
         self.num_planes = np.sum(self.indices)
 
@@ -613,7 +673,7 @@ class image_stack:
         if type(padding) == str:
             if (padding == 'Auto'):
                 pad_xy = (self.calc_padding())[0]
-                print(f'Calculated padding: {pad_xy}')
+                print(f'Calculated padding: {pad_xy} pixels required')
 
         else:        
             pad_xy = padding
@@ -624,13 +684,17 @@ class image_stack:
         else:    
             arr = np.zeros((self.num_planes, self.dx_pix*zoom, self.dy_pix*zoom))
         
+# =============================================================================
+#         Now loop and do the actual shifting and zooming of each image
+# =============================================================================
+        
         for j,w_i in enumerate(w):  # Loop over all the indices. 'j' counts from 0 to N. w_i is each individual index.
             im = self.t['data'][w_i]
             im_expand = scipy.ndimage.zoom(im,zoom) # Expand the image. This increases total flux; keeps DN/px fixed.
 
             if not(do_wrap):
                 pad = np.array( ((pad_xy, pad_xy),(pad_xy, pad_xy)) ) * zoom
-                im_expand = np.pad(im_expand, pad, mode = 'constant')   # This adds a const
+                im_expand = np.pad(im_expand, pad, mode = 'constant')   # This pads each axis by a constant (eg, 5 pix)
                 
             # Look up the shift amount, and zoom it as necessary
             
@@ -652,11 +716,13 @@ class image_stack:
                 im_expand = np.roll(np.roll(im_expand, int(round(shift[0])), axis=0), int(round(shift[1])), axis=1)
 #                print(f'Adding image {j} with shifts dx {int(round(shift[0]))}, dy {int(round(shift[1]))}')
   
-            # Copy the shifted, zoomed image into place
+            # Copy the shifted, zoomed image into place in the output array
             
             arr[j,:,:] = im_expand              
         
-        # Merge all the individual frames, using mean or median
+# =============================================================================
+#       Flatten all the individual frames down to one, using mean or median
+# =============================================================================
         
         print(f'Flattening array with dimension {np.shape(arr)} using {method}; zoom={zoom}')
         print(f'  Pad_xy = {pad_xy}')
@@ -666,31 +732,50 @@ class image_stack:
             
         if (method == 'median'):
             arr_flat = np.nanmedian(arr,0)  # Slow -- about 15x longer
-        
-        # Copy the WCS over. Use the one from the 0th image -- which is arbitrary, but as good as any.
+
+# =============================================================================
+#      Make a new WCS structure to fit the new image that has been created
+# =============================================================================
+     
+        # Copy the WCS over. Start with the one from the 0th image (which is arbitrary),
+        # and we modify it to be correct.
         
         wcs = self.t[0]['wcs']
         
         # Plot Plane 0 to verify accuracy of its WCS
     
-        if do_plot:    
+        if do_plot:
             plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0') # XXX I want to plot the stack name here!
         
 #        print(f'WCS for above: {wcs}')
         
-        # Adjust the WCS 
+        # Adjust the WCS to reflect that of the flattened image.
         
         # Change the center position, in RA/Dec, by applying the known offset in pixels
         # Offset is in raw pixels (ie, not zoomed)
         # Take shift amount from 0th image.
         
-        dx_wcs_pix =  self.t['shift_pix_x'][0]  # Experiment with these to get them right.
+        dx_wcs_pix =  self.t['shift_pix_x'][0]  # Experiment with these to get them right. -- ie, probably wrong as is. XXX
         dy_wcs_pix =  self.t['shift_pix_y'][0]
         
-        print(f'Calling wcs_translate_pix({-dy_wcs_pix:.1f} + {pad_xy:.1f}; {-dx_wcs_pix:.1f} + {pad_xy:.1f})')
-        
-        wcs_translate_pix(wcs, dy_wcs_pix + pad_xy, dx_wcs_pix + pad_xy)
+        print(f'Shift_pix_x = {dx_wcs_pix} pixels horizontal')
+        print(f'Shift_pix_y = {dy_wcs_pix} pixels vertical')
+        print(f'Pad_xy      = {pad_xy}     pixels vertical and pixels horizontal')
+        print()
+        print(f'WCS original: {wcs}')  
+         
+        print(f'Calling wcs_translate_pix({pad_xy:.1f}, {pad_xy:.1f}) for pad only')
+        wcs_pad = wcs.copy()
+        wcs_translate_pix(wcs_pad, pad_xy, pad_xy)
+        plot_img_wcs(arr_flat, wcs_pad, title = 'pad only') 
+        print(f'WCS_PAD: {wcs_pad}')  
 
+        print(f'Calling wcs_translate_pix({dx_wcs_pix:.1f}, {dy_wcs_pix:.1f})')
+        wcs_pad_trans = wcs_pad.copy()
+        wcs_translate_pix(wcs_pad_trans, dx_wcs_pix, dy_wcs_pix) 
+        plot_img_wcs(arr_flat, wcs_pad_trans, title = 'pad + trans') 
+        print(f'WCS_PAD_TRANS: {wcs_pad_trans}')
+        
 #        print(f'WCS after above: {wcs}')
         
         # Change the image size, in the WCS, to reflect the larger image size. This is just the CRPIX value
@@ -707,7 +792,7 @@ class image_stack:
         # And return the WCS along with the image
 
         if do_plot:
-            plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust')  # XXX data OK, but pposition of red
+            plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust')  # XXX data OK, but position of red
                                                                # point on plot is sometimes incorrect.
 
 #        print(f'WCS after above: {wcs}')
@@ -716,7 +801,18 @@ class image_stack:
         
         self.arr_flat = arr_flat
         self.wcs_flat = wcs
+
+        # Prompt to save the flattened image, if requested
         
+        if not(do_save):
+            print(f'File to save: {self.file_flat_save}')
+            answer = input(f'Save to pickle file {self.file_flat_save}? ')
+            if ('y' in answer):
+                do_save = True
+                
+        if do_save:
+            self.save_flat()   
+            
         return (arr_flat, wcs)
 
 # =============================================================================
@@ -783,7 +879,6 @@ def wcs_translate_radec(wcs, dra, ddec):
     
 if (__name__ == '__main__'):
 
-
     # Demo function to try out the stack functionality
 
     plt.set_cmap('Greys_r')
@@ -800,39 +895,49 @@ if (__name__ == '__main__'):
     
     # Load a stack
     
-    do_force = True
+    do_force = False
     
-    dir = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ03/'
+    # dir = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ03/'
+    # dir = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ03/'
 #    stack = image_stack(dir, do_force=True, do_save=True)
+    
+    dir = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav_L4_2018301/'
     stack = image_stack(dir, do_force=do_force)
     
     # Plot a set of images from it
     
     i = 1
-    for i in range(4):
+    num_images = 4
+    for i in range(num_images):
         plt.subplot(2,2,i+1)
-        plt.imshow(stretch(stack.image_single(i)))
+        plt.imshow(stretch(stack.image_single(i)), origin='lower')
         plt.title(f"i={i}, et = {stack.t['et'][i]}")
     plt.show()
 
     # Align the stack.
     # The values for the shifts (in pixels) are calculated based 
     # on putting MU69's ra/dec in the center of each frame.
+    # This assumes that MU69 does not move. And to a very good approximation, that is true.
+    # Total MU69 motion 15-Aug .. 15-Dec < 1 pixel.
     
     radec_mu69 = (4.794979838984583, -0.3641418801015417)    
     stack.align(method = 'WCS', center = radec_mu69)
 
     # Flatten the stack
     
-    stack.padding = 55
+    stack.padding = 65
     zoom = 1
-    (arr_flat, wcs) = stack.flatten(zoom=zoom)
+    (arr_flat, wcs_flat) = stack.flatten(zoom=zoom, do_force=True, do_plot=True, do_save=True)
+    
+    plot_img_wcs(arr_flat, wcs_flat)
+    # XXX Bug here! The WCS is just not right after flattening.
+    
         
     # Make a plot of ET, showing it for each image and the whole stack
     
-    plt.plot(stack.t['et'], marker = 'o')
+    plt.plot(stack.t['et'] - np.amin(stack.t['et']), marker = 'o')
     plt.xlabel('Image number')
-    plt.ylabel('ET')
+    plt.ylabel('dET [sec]')
     plt.plot(stack.index_central, [stack.et], marker = 'o', color = 'red')
     plt.show()    
     
@@ -875,7 +980,6 @@ if (__name__ == '__main__'):
     plt.imshow(stretch(stack1.image_single(0)))
     plt.imshow(stretch(stack1.image_single(1)))
     plt.imshow(stretch(stack1.image_single(2)))
-    
     
     # Now WCS is messed up.
     
