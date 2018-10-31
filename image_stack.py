@@ -54,7 +54,7 @@ from   get_radial_profile_circular import get_radial_profile_circular
 
 from   get_radial_profile_circular import get_radial_profile_circular
 from   plot_img_wcs import plot_img_wcs
-from   wcs_translate_pix import wcs_translate_pix
+from   wcs_translate_pix import wcs_translate_pix, wcs_zoom
 
 # HBT imports
 
@@ -740,7 +740,7 @@ class image_stack:
         # Copy the WCS over. Start with the one from the 0th image (which is arbitrary),
         # and we modify it to be correct.
         
-        wcs = self.t[0]['wcs']
+        wcs = self.t[0]['wcs'].deepcopy()
         
         # Plot Plane 0 to verify accuracy of its WCS
     
@@ -758,39 +758,47 @@ class image_stack:
         dx_wcs_pix =  self.t['shift_pix_x'][0]  # Experiment with these to get them right. -- ie, probably wrong as is. XXX
         dy_wcs_pix =  self.t['shift_pix_y'][0]
         
-        print(f'Shift_pix_x = {dx_wcs_pix} pixels horizontal')
-        print(f'Shift_pix_y = {dy_wcs_pix} pixels vertical')
-        print(f'Pad_xy      = {pad_xy}     pixels vertical and pixels horizontal')
-        print()
-        print(f'WCS original: {wcs}')  
+        # print(f'Shift_pix_x = {dx_wcs_pix} pixels horizontal')
+        # print(f'Shift_pix_y = {dy_wcs_pix} pixels vertical')
+        # print(f'Pad_xy      = {pad_xy}     pixels vertical and pixels horizontal')
+        # print()
+        # print(f'WCS original: {wcs}')  
          
-        print(f'Calling wcs_translate_pix({pad_xy:.1f}, {pad_xy:.1f}) for pad only')
-        wcs_pad = wcs.copy()
+        # print(f'Calling wcs_translate_pix({pad_xy:.1f}, {pad_xy:.1f}) for pad only')
+        wcs_pad = wcs.deepcopy()
         wcs_translate_pix(wcs_pad, pad_xy, pad_xy)
-        plot_img_wcs(arr_flat, wcs_pad, title = 'pad only') 
-        print(f'WCS_PAD: {wcs_pad}')  
+        # plot_img_wcs(arr_flat, wcs_pad, title = 'pad only') 
+        # print(f'WCS_PAD: {wcs_pad}')  
 
-        print(f'Calling wcs_translate_pix({dx_wcs_pix:.1f}, {dy_wcs_pix:.1f})')
-        wcs_pad_trans = wcs_pad.copy()
+        # print(f'Calling wcs_translate_pix({dx_wcs_pix:.1f}, {dy_wcs_pix:.1f})')
+        wcs_pad_trans = wcs_pad.deepcopy()
         wcs_translate_pix(wcs_pad_trans, dx_wcs_pix, dy_wcs_pix) 
         plot_img_wcs(arr_flat, wcs_pad_trans, title = 'pad + trans') 
-        print(f'WCS_PAD_TRANS: {wcs_pad_trans}')
+        # print(f'WCS_PAD_TRANS: {wcs_pad_trans}')
         
 #        print(f'WCS after above: {wcs}')
         
-        # Change the image size, in the WCS, to reflect the larger image size. This is just the CRPIX value
+        # Change the image size, in the WCS, to reflect the larger image size.
         
-        wcs.wcs.crpix = [(hbt.sizex(im_expand)-1)/2, (hbt.sizey(im_expand)-1)/2]
+        ## wcs.wcs.crpix = [(hbt.sizex(im_expand)-1)/2, (hbt.sizey(im_expand)-1)/2] <
         
         # Change the pixel scale to reflect the zoom
         
-        try:
-            wcs.wcs.pc = wcs.wcs.pc / zoom
-        except AttributeError:
-            wcs.wcs.cd = wcs.wcs.cd / zoom
-            
-        # And return the WCS along with the image
+         # = wcs.deepcopy()
+        # try:
+            # wcs.wcs.pc = wcs.wcs.pc / zoom
+        # except AttributeError:
+            # wcs.wcs.cd = wcs.wcs.cd / zoom
+        
 
+        # zoom the WCS
+        
+        wcs = wcs_pad_trans.deepcopy()
+
+        wcs_zoom(wcs, zoom, np.array(np.shape(im)))
+
+        # And return the WCS along with the image
+        
         if do_plot:
             plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust')  # XXX data OK, but position of red
                                                                # point on plot is sometimes incorrect.
@@ -926,7 +934,7 @@ if (__name__ == '__main__'):
     # Flatten the stack
     
     stack.padding = 65
-    zoom = 1
+    zoom = 2
     (arr_flat, wcs_flat) = stack.flatten(zoom=zoom, do_force=True, do_plot=True, do_save=True)
     
     plot_img_wcs(arr_flat, wcs_flat)

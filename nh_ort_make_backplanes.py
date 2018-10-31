@@ -84,6 +84,8 @@ def nh_ort_make_backplanes():
         
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018287', '*_pwcs2.fits')) # OpNav data
+        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018298', '*_pwcs2.fits')) # OpNav data
+        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018301', '*_pwcs2.fits')) # OpNav data
             
 # =============================================================================
 #     Filter files if needed
@@ -94,7 +96,7 @@ def nh_ort_make_backplanes():
     # that only one CPU at a time can be used. To get around this, filter the files down,
     # and put each filter in its own Spyder tab.
     
-    do_digit_filter = True
+    do_digit_filter = False
 
     digit_filter = '12'
     digit_filter = '34'
