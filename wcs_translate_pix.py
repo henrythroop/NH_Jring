@@ -61,6 +61,8 @@ def wcs_zoom(wcs, zoom, shape_orig):
     
     """
     
+    # First change the pixel scale
+    
     try:
         wcs.wcs.pc = wcs.wcs.pc / zoom
     except AttributeError:
@@ -68,12 +70,13 @@ def wcs_zoom(wcs, zoom, shape_orig):
     
     crpix = wcs.wcs.crpix  # Location x and y of center. x = horizontal.
     
-    # Now set the pixel location of the center, stored in 
-
-    # XXX not sure if this is quite correct yet!
+    print(f'Before: crpix={crpix}')
+    
+    # Now change the center position
     
     crpix_new = np.array( [(crpix[0]+0.5)/shape_orig[0] * (zoom * shape_orig[0]) - 0.5,
-                           (crpix[0]+0.5)/shape_orig[1] * (zoom * shape_orig[1]) - 0.5] )
+                           (crpix[1]+0.5)/shape_orig[1] * (zoom * shape_orig[1]) - 0.5] )
+    print(f'After: crpix={crpix_new}')
     
     wcs.wcs.crpix = crpix_new
     
@@ -133,5 +136,69 @@ if (__name__ == '__main__'):
     wcs_pad_trans = wcs_pad.deepcopy()
     wcs_translate_pix(wcs_pad_trans, dx_pix, dy_pix)
     plot_img_wcs(arr_pad_trans, wcs_pad_trans, title=f'Padded by {dxy_pad}')
+
+    # Now test zooming. Start from scratch
     
+    file = '/Users/throop/Data/MU69_Approach/porter/KALR_MU69_OpNav_L4_2018301/lor_0403016638_0x633_pwcs2.fits'
+    hdulist = fits.open(file)
+    arr_orig = hdulist['PRIMARY'].data
+    hdulist.close()
+    wcs = WCS(file)
     
+    arr = arr_orig.copy()
+    plot_img_wcs(arr, wcs, title='original')
+
+    # Zoom
+
+    zoom = 1    
+    wcs_zoomed = wcs.deepcopy()
+    wcs_zoom(wcs_zoomed, zoom, np.shape(arr_pad))
+    arr_zoom = scipy.ndimage.zoom(arr, zoom)
+    plot_img_wcs(arr_zoom, wcs_zoomed, title=f'Zoomed by {zoom}')
+
+    # Translate, then zoom
+    zoom = 1
+    dx_pix = 10
+    dy_pix = 30
+    wcs_zoomed = wcs.deepcopy()
+    arr_trans = np.roll(np.roll(arr, dx_pix, axis=1), dy_pix, axis=0)
+    wcs_zoom(wcs_zoomed, zoom, np.shape(arr_pad_trans))
+    wcs_translate_pix(wcs_zoomed, dx_pix, dy_pix)
+    plot_img_wcs(arr_trans, wcs_zoomed, title=f'Translate by {dx_pix}, {dy_pix}, zoomed by {zoom}')
+
+    # Translate, then zoom. Damn -- this one is not working.
+
+    zoom = 2
+    dx_pix = 30
+    dy_pix = 60
+    wcs2 = wcs.deepcopy()
+    arr2 = arr.copy()
+    
+    plot_img_wcs(arr2, wcs2, title='Original')
+    
+    # Roll and zoom the image
+    
+    arr2 = np.roll(np.roll(arr2, dx_pix, axis=1), dy_pix, axis=0)  # axis=1, x, right.   axis=0, y, up
+    arr2 = scipy.ndimage.zoom(arr2,zoom)
+    
+    # Translate and zoom the WCS
+    
+    wcs_translate_pix(wcs2, dx_pix, dy_pix)
+    wcs_zoom(wcs2, zoom, np.shape(arr))
+    plot_img_wcs(arr2, wcs2, title=f'Translate by {dx_pix}, {dy_pix}, zoomed by {zoom}')
+    
+    # Translate
+    
+    zoom = 0.5
+
+    arr2 = np.roll(np.roll(arr2, dx_pix, axis=1), dy_pix, axis=0)
+    arr2 = scipy.ndimage.zoom(arr2,zoom)
+    wcs_translate_pix(wcs2, dx_pix, dy_pix)
+    wcs_zoom(wcs2, zoom, np.shape(arr2))
+    plot_img_wcs(arr2, wcs2, title=f'Translate by {dx_pix}, {dy_pix}, zoomed by {zoom}')
+
+    dx_pix = -10
+    dy_pix = -30        
+    arr2 = np.roll(np.roll(arr2, dx_pix, axis=1), dy_pix, axis=0)
+    wcs_translate_pix(wcs2, dx_pix, dy_pix)
+    plot_img_wcs(arr2, wcs2, title=f'Translate by {dx_pix}, {dy_pix}, zoomed by {zoom}')

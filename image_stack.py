@@ -765,37 +765,21 @@ class image_stack:
         # print(f'WCS original: {wcs}')  
          
         # print(f'Calling wcs_translate_pix({pad_xy:.1f}, {pad_xy:.1f}) for pad only')
-        wcs_pad = wcs.deepcopy()
-        wcs_translate_pix(wcs_pad, pad_xy, pad_xy)
+        # wcs_pad = wcs.deepcopy()
+        wcs_translate_pix(wcs, pad_xy, pad_xy)
         # plot_img_wcs(arr_flat, wcs_pad, title = 'pad only') 
         # print(f'WCS_PAD: {wcs_pad}')  
 
-        # print(f'Calling wcs_translate_pix({dx_wcs_pix:.1f}, {dy_wcs_pix:.1f})')
-        wcs_pad_trans = wcs_pad.deepcopy()
-        wcs_translate_pix(wcs_pad_trans, dx_wcs_pix, dy_wcs_pix) 
-        plot_img_wcs(arr_flat, wcs_pad_trans, title = 'pad + trans') 
+        print(f'Calling wcs_translate_pix({dx_wcs_pix:.1f}, {dy_wcs_pix:.1f})')
+        # wcs_pad_trans = wcs_pad.deepcopy()
+        wcs_translate_pix(wcs, dx_wcs_pix, dy_wcs_pix) 
+        plot_img_wcs(arr_flat, wcs, title = 'pad + trans') 
         # print(f'WCS_PAD_TRANS: {wcs_pad_trans}')
         
-#        print(f'WCS after above: {wcs}')
-        
-        # Change the image size, in the WCS, to reflect the larger image size.
-        
-        ## wcs.wcs.crpix = [(hbt.sizex(im_expand)-1)/2, (hbt.sizey(im_expand)-1)/2] <
-        
-        # Change the pixel scale to reflect the zoom
-        
-         # = wcs.deepcopy()
-        # try:
-            # wcs.wcs.pc = wcs.wcs.pc / zoom
-        # except AttributeError:
-            # wcs.wcs.cd = wcs.wcs.cd / zoom
-        
-
         # zoom the WCS
         
-        wcs = wcs_pad_trans.deepcopy()
-
         wcs_zoom(wcs, zoom, np.array(np.shape(im)))
+        plot_img_wcs(arr_flat, wcs, title = 'pad + trans + zoom') 
 
         # And return the WCS along with the image
         
@@ -823,6 +807,24 @@ class image_stack:
             
         return (arr_flat, wcs)
 
+# =============================================================================
+# Return the central index of an image stack (that is, the index of the image closest to the median ET)
+# =============================================================================
+
+    @property
+    def index_central(self):
+        """
+        Return the central index of a image stack.
+        """
+        
+        ets = sorted(self.t['et'])
+        
+        med = np.median(ets)
+        
+        index = np.where(ets >= med)[0]   # Median value is not always one of the values itself -- med([9,10]) = 9.5
+                                          # So, return a close one instead of an exact match. 
+        return index[0]
+    
 # =============================================================================
 # Align and retrieve a single image from the stack.
 # =============================================================================
@@ -937,26 +939,26 @@ if (__name__ == '__main__'):
     zoom = 2
     (arr_flat, wcs_flat) = stack.flatten(zoom=zoom, do_force=True, do_plot=True, do_save=True)
     
-    plot_img_wcs(arr_flat, wcs_flat)
-    # XXX Bug here! The WCS is just not right after flattening.
-    
+    plot_img_wcs(arr_flat, wcs_flat)    
         
     # Make a plot of ET, showing it for each image and the whole stack
+    # Highlight the central time in red.
     
-    plt.plot(stack.t['et'] - np.amin(stack.t['et']), marker = 'o')
+    t0 = np.amin(stack.t['et'])
+    plt.plot(stack.t['et'] - t0, marker = 'o')
     plt.xlabel('Image number')
     plt.ylabel('dET [sec]')
-    plt.plot(stack.index_central, [stack.et], marker = 'o', color = 'red')
+    plt.plot(stack.index_central, stack.t['et'][stack.index_central] - t0, marker = 'o', color = 'red')
     plt.show()    
     
 # =============================================================================
 #     Now try out stack alignment
 # =============================================================================
 
-    dir1 = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ01/'
+    dir1 = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav_L4_2018284/'
     stack1 = image_stack(dir1, nmax=3, do_force=1)
     
-    dir3 = '/Users/throop/Data/ORT2/throop/backplaned/K1LR_HAZ03/'
+    dir3 = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav_L4_2018301/'
     stack3 = image_stack(dir3)
 
     radec_mu69 = (4.794979838984583, -0.3641418801015417)    
@@ -966,7 +968,7 @@ if (__name__ == '__main__'):
     print("Stack 1: padding = {}".format(stack1.calc_padding()[0]))
     print("Stack 1: shift_pix_xy = {}, {}".format(stack1.t[0]['shift_pix_x'], stack1.t[0]['shift_pix_y']))
     
-    zoom = 1
+    zoom = 2
     
     hbt.figsize((12,12))
     
@@ -977,21 +979,11 @@ if (__name__ == '__main__'):
     
     # Flatten the frames
     
-    (arr_flat_1, wcs1) = stack1.flatten(zoom = 1)  # Bug: calling this over and over will shift WCS again and again.
-    (arr_flat_3, wcs3) = stack3.flatten(zoom = 1)
+    (arr_flat_1, wcs1) = stack1.flatten(zoom = 1, do_force=True)  
+    (arr_flat_3, wcs3) = stack3.flatten(zoom = 1, do_force=True)
     
-    # Plot the frames afterwards
-    # XXX THESE ARE CORRECT! THE image shifting is done properly.
-    # It is only the WCS translation which is getting messed up.
-    # That is, it is a problem in wcs_translate_pix, or the inputs into it. 
-
-    plt.imshow(stretch(stack1.image_single(0)))
-    plt.imshow(stretch(stack1.image_single(1)))
-    plt.imshow(stretch(stack1.image_single(2)))
-    
-    # Now WCS is messed up.
+    # Now verify that WCS remains OK
     
     plot_img_wcs(arr_flat_1, wcs1, title = f'After zoom x{zoom} + adjust')
     plot_img_wcs(arr_flat_3, wcs3, title = f'After zoom x{zoom} + adjust')
     
-    plot_img_wcs(arr_flat_3, stack3.t[22]['wcs'], title = f'After zoom x{zoom} + adjust')
