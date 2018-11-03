@@ -428,7 +428,6 @@ class image_stack:
             self.t['shift_pix_x'] = shift_x_pix
             self.t['shift_pix_y'] = shift_y_pix
             
-            
 # =============================================================================
 # Load a pickle file from disk. 
 # Running this is just faster than reading and processing the files explicitly -- it duplicates no functionality
@@ -644,10 +643,11 @@ class image_stack:
         """    
         
         
-        if self.flattened:
+        if self.flattened and (not do_force):
             print('Already flattened!')
             return (self.arr_flat, self.wcs_flat)       # If we try to flatten an already flattened stack, just return
-                                                        # the already computed results.
+                                                        # the already computed results... unless do_force is set,
+                                                        # in which case we manually do it.
         
         # Create the filename to save to, in case we need it
         
@@ -734,7 +734,7 @@ class image_stack:
             arr_flat = np.nanmedian(arr,0)  # Slow -- about 15x longer
 
 # =============================================================================
-#      Make a new WCS structure to fit the new image that has been created
+#      Modify the WCS structure to fit the new image that has been created
 # =============================================================================
      
         # Copy the WCS over. Start with the one from the 0th image (which is arbitrary),
@@ -766,17 +766,17 @@ class image_stack:
          
         # print(f'Calling wcs_translate_pix({pad_xy:.1f}, {pad_xy:.1f}) for pad only')
         # wcs_pad = wcs.deepcopy()
+
         wcs_translate_pix(wcs, pad_xy, pad_xy)
+        
         # plot_img_wcs(arr_flat, wcs_pad, title = 'pad only') 
         # print(f'WCS_PAD: {wcs_pad}')  
 
         print(f'Calling wcs_translate_pix({dx_wcs_pix:.1f}, {dy_wcs_pix:.1f})')
-        # wcs_pad_trans = wcs_pad.deepcopy()
         wcs_translate_pix(wcs, dx_wcs_pix, dy_wcs_pix) 
-        plot_img_wcs(arr_flat, wcs, title = 'pad + trans') 
-        # print(f'WCS_PAD_TRANS: {wcs_pad_trans}')
         
-        # zoom the WCS
+        
+        # Zoom the WCS to match the already zoomed image
         
         wcs_zoom(wcs, zoom, np.array(np.shape(im)))
         plot_img_wcs(arr_flat, wcs, title = 'pad + trans + zoom') 
@@ -930,7 +930,11 @@ if (__name__ == '__main__'):
     # This assumes that MU69 does not move. And to a very good approximation, that is true.
     # Total MU69 motion 15-Aug .. 15-Dec < 1 pixel.
     
-    radec_mu69 = (4.794979838984583, -0.3641418801015417)    
+    ra_mu69  = 274.73344   # Value for 2-Nov-2018. Matches plot_img_wcs.py
+    dec_mu69 = -20.86170
+    
+    radec_mu69 = (ra_mu69*hbt.d2r, dec_mu69*hbt.d2r)
+    
     stack.align(method = 'WCS', center = radec_mu69)
 
     # Flatten the stack
@@ -939,24 +943,27 @@ if (__name__ == '__main__'):
     zoom = 2
     (arr_flat, wcs_flat) = stack.flatten(zoom=zoom, do_force=True, do_plot=True, do_save=True)
     
-    plot_img_wcs(arr_flat, wcs_flat)    
+    plot_img_wcs(arr_flat, wcs_flat, title = f'Zoom {zoom}', width=50)
         
     # Make a plot of ET, showing it for each image and the whole stack
     # Highlight the central time in red.
     
-    t0 = np.amin(stack.t['et'])
-    plt.plot(stack.t['et'] - t0, marker = 'o')
-    plt.xlabel('Image number')
-    plt.ylabel('dET [sec]')
-    plt.plot(stack.index_central, stack.t['et'][stack.index_central] - t0, marker = 'o', color = 'red')
-    plt.show()    
+    do_plot_et = False
+    
+    if do_plot_et:
+        t0 = np.amin(stack.t['et'])
+        plt.plot(stack.t['et'] - t0, marker = 'o')
+        plt.xlabel('Image number')
+        plt.ylabel('dET [sec]')
+        plt.plot(stack.index_central, stack.t['et'][stack.index_central] - t0, marker = 'o', color = 'red')
+        plt.show()    
     
 # =============================================================================
 #     Now try out stack alignment
 # =============================================================================
 
     dir1 = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav_L4_2018284/'
-    stack1 = image_stack(dir1, nmax=3, do_force=1)
+    stack1 = image_stack(dir1, nmax=3)
     
     dir3 = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav_L4_2018301/'
     stack3 = image_stack(dir3)
@@ -979,11 +986,65 @@ if (__name__ == '__main__'):
     
     # Flatten the frames
     
-    (arr_flat_1, wcs1) = stack1.flatten(zoom = 1, do_force=True)  
-    (arr_flat_3, wcs3) = stack3.flatten(zoom = 1, do_force=True)
+    (arr_flat_1, wcs1) = stack1.flatten(zoom = 1, do_force=True, do_save=True)  
+    (arr_flat_3, wcs3) = stack3.flatten(zoom = 1, do_force=True, do_save=True)
+    (arr_flat_3, wcs3) = stack3.flatten(zoom = 1, do_force=True, do_save=True)
     
     # Now verify that WCS remains OK
     
-    plot_img_wcs(arr_flat_1, wcs1, title = f'After zoom x{zoom} + adjust')
-    plot_img_wcs(arr_flat_3, wcs3, title = f'After zoom x{zoom} + adjust')
+    plot_img_wcs(arr_flat_1, wcs1, title = f'After zoom x{zoom} + adjust', width=50)
+    plot_img_wcs(arr_flat_3, wcs3, title = f'After zoom x{zoom} + adjust', width=200)
     
+# =============================================================================
+# Now for debugging the small offsets, process some actual MU69 OpNav data.
+# =============================================================================
+
+    ra_mu69  = 274.73344   # Value for 2-Nov-2018. Matches plot_img_wcs.py
+    dec_mu69 = -20.86170
+    
+    radec_mu69 = (ra_mu69*hbt.d2r, dec_mu69*hbt.d2r)
+    
+    dir1 = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav_L4_2018301/'
+    stack1 = image_stack(dir1)  
+                
+    # Plot each individual frame. Check against each individual WCS.
+    # Concl: These are correct. MU69 is in exactly the right location at each one.
+    # It is just in the UL corner of the blob. 
+    # Also, MU69 should not be at the center. I haven't done the shifts for that yet.
+
+    hbt.figsize((12,12))
+    
+    for i in range(stack1.size[0]):
+        plot_img_wcs(stretch(stack1.t[i]['data']), stack1.t[i]['wcs'], width=100)
+    
+    # Calculate how to align the frames
+
+    stack1.align(method = 'WCS', center = radec_mu69)  # This sets values stack1.t[0]['shift_pix_x']
+
+    # print("Stack 1: padding = {}".format(stack1.calc_padding()[0]))
+    # print("Stack 1: shift_pix_xy = {}, {}".format(stack1.t[0]['shift_pix_x'], stack1.t[0]['shift_pix_y']))
+
+    # Flatten
+
+    zoom = 5
+     
+    (arr_flat_1, wcs1) = stack1.flatten(zoom = zoom, do_force=True, do_save=True)  
+
+    # Plot the result after align and flatten
+    # Concl: Yes, this looks definitely wrong. Off by ~0 pixels at zoom1, but a few at zoom4.
+    # The *array* does look properly centered on MU69 (ie, MU69 is in the center of the plot). 
+    # But the WCS red dot is shifted from where it should be.
+    
+    plot_img_wcs(stretch(arr_flat_1), wcs1,            title=f'Stack 1, zoom={zoom}')
+    plot_img_wcs(stretch(arr_flat_1), wcs1, width=100, title=f'Stack 1, zoom={zoom}')
+    plot_img_wcs(stretch(arr_flat_1), wcs1, width=30,  title=f'Stack 1, zoom={zoom}')
+    
+    # Flatten the frames
+    
+    (arr_flat_3, wcs3) = stack3.flatten(zoom = 1, do_force=True, do_save=True)
+    (arr_flat_3, wcs3) = stack3.flatten(zoom = 1, do_force=True, do_save=True)
+    
+    # Now verify that WCS remains OK
+    
+    plot_img_wcs(arr_flat_1, wcs1, title = f'After zoom x{zoom} + adjust', width=50)
+    plot_img_wcs(arr_flat_3, wcs3, title = f'After zoom x{zoom} + adjust', width=200)

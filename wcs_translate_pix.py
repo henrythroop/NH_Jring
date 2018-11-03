@@ -59,6 +59,18 @@ def wcs_zoom(wcs, zoom, shape_orig):
     
     This changes the value of CRPIX (ie, the pixel value of the center point), and pc + cd (the pixel scales)
     
+    Parameters
+    -----
+    
+    wcs:
+        The input WCS
+    
+    zoom: 
+        The amount of zoom. 1 = no zoom. 2 = double in size, 1x1 → 2x2.
+    
+    shape_orig:
+        np.shape() result from the original, non-zoomed array.
+        
     """
     
     # First change the pixel scale
@@ -73,9 +85,22 @@ def wcs_zoom(wcs, zoom, shape_orig):
     print(f'Before: crpix={crpix}')
     
     # Now change the center position
+    # This math is a bit weird here! It gives what appears to be the right answer, but it has more terms in it 
+    # than I'd expect. This answer is 'right' in that when I zoom an image with scipy.ndimage.zoom(), and then 
+    # do this transformation here on the WCS, I get the same results. But, it is basically experimental.
+    # 
+    # The reason for all this is that WCS coords start, apparently, at 0 in python arrays, but 1 in FITS files,
+    # or something bizarre like that. The documentation mentioned this. Here I am using both of course.
+    # So maybe that is contributing to the confusion.
+    #
+    # Also, it might be that my arguments to the shift or the ndimage.zoom() are incorrect, and here I am 
+    # doing weird manipulations to make up for my errors over there. That is basically OK though -- 
+    # as long as I am consistent and get the same answers both ways in the end.
+
+
+    crpix_new = np.array( [(crpix[0]+0.5)/shape_orig[0] * (zoom * shape_orig[0]) + 1 - (3/2.) * zoom,
+                           (crpix[1]+0.5)/shape_orig[1] * (zoom * shape_orig[1]) + 1 - (3/2.) * zoom] )
     
-    crpix_new = np.array( [(crpix[0]+0.5)/shape_orig[0] * (zoom * shape_orig[0]) - 0.5,
-                           (crpix[1]+0.5)/shape_orig[1] * (zoom * shape_orig[1]) - 0.5] )
     print(f'After: crpix={crpix_new}')
     
     wcs.wcs.crpix = crpix_new
@@ -120,7 +145,7 @@ if (__name__ == '__main__'):
     wcs_translate_pix(wcs, -dx_pix, -dy_pix)
     print(f'Center = {wcs.wcs.crval}')
     
-    # Now, read in an image, pad it, translate it, and see if I can keep the WCS properly done.
+    # Now, read in an image, pad it, translate it, and see if I can keep the WCS properly synced with the image.
 
     wcs = WCS(file)
     
@@ -166,7 +191,7 @@ if (__name__ == '__main__'):
     wcs_translate_pix(wcs_zoomed, dx_pix, dy_pix)
     plot_img_wcs(arr_trans, wcs_zoomed, title=f'Translate by {dx_pix}, {dy_pix}, zoomed by {zoom}')
 
-    # Translate, then zoom. Damn -- this one is not working.
+    # Translate, then zoom.
 
     zoom = 2
     dx_pix = 30
