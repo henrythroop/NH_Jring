@@ -84,8 +84,10 @@ def nh_ort_make_backplanes():
         
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018287', '*_pwcs2.fits')) # OpNav data
-        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018298', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018298', '*_pwcs2.fits')) # OpNav data
         files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018301', '*_pwcs2.fits')) # OpNav data
+        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018304', '*_pwcs2.fits')) # OpNav data
+        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018306', '*_pwcs2.fits')) # OpNav data
             
 # =============================================================================
 #     Filter files if needed
