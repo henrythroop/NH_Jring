@@ -6,7 +6,6 @@ Created on Fri Mar  2 11:43:11 2018
 @author: throop
 """
 
-
 import glob
 import math
 import os.path
@@ -37,6 +36,7 @@ from   plot_img_wcs import plot_img_wcs
 from   image_stack import image_stack
 from   compute_backplanes import compute_backplanes
 from   scipy.optimize import curve_fit
+from   wcs_translate_pix import wcs_translate_pix, wcs_zoom
 
 # Define a gaussian function, for the fit
     
@@ -48,8 +48,8 @@ def nh_ort_make_superstack(stack, img, img_field,
                            name_stack_base, 
                            do_save_all=True, do_backplanes=True, dir='', str_name='', 
                            method = 'wcs',
-                           do_center=True, 
-                           do_wcs = False):
+                           do_center=True,
+                           wcs = ''):
     
     """
     This makes a superstack image. The output image has resolution matching the lowest resolution 
@@ -94,9 +94,6 @@ def nh_ort_make_superstack(stack, img, img_field,
         Boolean. If set, code will do a centroiding on the central region of each image and center each 
         stack based on that. This is Q&D, but works if the brightest object is moving, and near the center,
         such as is the case for MU69 ORT.
-        
-    do_wcs:
-        Boolean. If set, will include a WCS in the outut tuple.
     
     method:
         Method used to align each individual stack. Can be 'brightest' or 'wcs'.
@@ -105,10 +102,12 @@ def nh_ort_make_superstack(stack, img, img_field,
     do_backplanes:
         Boolean. If set, will return a full set of backplanes for the superstacks.
         
+    wcs:
+        A pre-computed WCS which will be put into the output image. Should be already zoomed, centered, etc. 
+        as needed. This is desired to have, because the routine will output FITS files, which should have full WCS.
+        
     """
-    
-    cmap = 'plasma'
-    
+        
     keys = list(stack.keys())
     
     pixscale_km = {}
@@ -146,6 +145,8 @@ def nh_ort_make_superstack(stack, img, img_field,
         
         # If requested, do a centroid on the central region of the image. 
         # Then shift the entire image based on this, to put brightest object at center of frame.
+        # This is the old style of aligning. It does *not* work for actual MU69 OpNav approach images, because
+        # these are taken far enough out that MU69 is definitely not the brightest thing in the images.
     
         if (method == 'brightest'):
             extract = arr_out[int(size_out[0]/2)-50:int(size_out[0]/2+50),    # 100x100 pixel region. Hardcoded, ugh.
@@ -157,15 +158,17 @@ def nh_ort_make_superstack(stack, img, img_field,
             print(f'Rolling by {shift_x}, {shift_y} to align {key} into superstack')
         
         if (method == 'wcs'):
-            # XXX OK, I think my current problem is this. When I align the frames, I am not putting MU69 at the center.
-            # I should. It just would make everything easier, and somwhere along the way I am assuming it as well.
+            # Align based on WCS (ie, alignment has already been done). 
+            # This is a much better method. If we have done things right, then MU69 should
+            # be already centered, so we just copy the image right in.
+            # The only possible issue is that for MU69, I am currently assuming no target motion. Might have to 
+            # adjust my stack-creation routines later if this is an issue. And, this would not work properly for 
+            # (e.g.) HST images.
             
             shift_x = 0
             shift_y = 0
             arr_out = arr_out
             
-            extract = arr_out[int(size_out[0]/2)-50:int(size_out[0]/2+50),    # 100x100 pixel region. Hardcoded, ugh.
-                              int(size_out[0]/2)-50:int(size_out[0]/2+50)]
             print(f'Aligned by WCS. Rolling by {shift_x}, {shift_y} to align {key} into superstack')
                        
         img_rescale[reqid_i]  = arr_out
@@ -179,53 +182,22 @@ def nh_ort_make_superstack(stack, img, img_field,
             hdu = fits.PrimaryHDU(arr_out) 
             hdu.writeto(path_out, overwrite=True)
             print(f'Wrote: {path_out}')
-            
+    
+    # Do the actual image flattening
+        
     img_rescale_median = np.median(img_rescale_3d, axis=0)  
-    img_rescale_mean   = np.mean(img_rescale_3d, axis=0)
+    img_rescale_mean   = np.mean(  img_rescale_3d, axis=0)
     
-    # Get a WCS system, if requested. Just grab the one from the stack that we used.
-    # However, there may be some small mis-alignment issues [FIXED I THINK]
-    
-    wcs = stack[name_stack_base].t['wcs'][0]
-    
-    # Now adjust the WCS so the center of the image is is at dx/2, dy/2, *and* RA/Dec is position of MU69.
-    
-    # Look up RA, Dec of MU69 for that date
-    
-    et = stack_haz[name_stack_base].t['et'][0]    # name_stack_base indicates which of the stacks is used for 
-    (st,lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
-    (range_, ra, dec) = sp.recrad(st[0:3])
-    
-    wcs.wcs.crval = (ra*hbt.r2d, dec*hbt.r2d)
-    wcs.wcs.crpix = (hbt.sizex(img_rescale_mean)/2, hbt.sizey(img_rescale_mean)/2)
-    
-    # Put this WCS info in a header, which we will write to FITS file
+    # Put the WCS info in a header, which we will write to FITS file
     
     header = wcs.to_header()
     
-    # Also, put the correct ET into the FITS header.
+    # Also, put an ET into the FITS header. For this, just pick any ET.
     
     et = stack_haz[name_stack_base].t['et'][0]
     header['SPCSCET'] = f'{et}'
     header['SPCUTCID'] = sp.et2utc(et, 'C', 0)
     
-    # Make a 'small' version of the extracted image. It will be just much easier to deal with. Put WCS info it it too.
-    
-    x0 = int(hbt.sizex(img_rescale_mean) * 0.375) # This reduces size from 1600 pixels to 400 pixels
-    x1 = int(hbt.sizex(img_rescale_mean) * 0.625)
-    y0 = int(hbt.sizey(img_rescale_mean) * 0.375)
-    y1 = int(hbt.sizey(img_rescale_mean) * 0.625)
-    
-    img_rescale_mean_sm = img_rescale_mean[x0:x1, y0:y1]
-    img_rescale_median_sm = img_rescale_median[x0:x1, y0:y1]
-    
-    wcs_sm = wcs.copy()
-    wcs_sm.wcs.crpix = (hbt.sizex(img_rescale_mean_sm)/2, hbt.sizey(img_rescale_mean_sm)/2)
-
-    header_sm = wcs_sm.to_header()
-    header_sm['SPCSCET'] = f'{et}'
-    header_sm['SPCUTCID'] = sp.et2utc(et, 'C', 0)
-
     # Write the superstacks (with WCS) to disk, if requested
     
     if do_save_all:
@@ -245,20 +217,6 @@ def nh_ort_make_superstack(stack, img, img_field,
         path_out = os.path.join(dir_out, file_out)
         hdu.writeto(path_out, overwrite=True)
         print(f'Wrote: {path_out}')
-
-        # Write small images
-        
-        file_out_superstack_median_sm = f'superstack_{str_name}_median_wcs_sm_hbt.fits'
-        hdu = fits.PrimaryHDU(img_rescale_median_sm, header=header_sm)
-        path_out = os.path.join(dir_out, file_out_superstack_median_sm)
-        hdu.writeto(path_out, overwrite=True)
-        print(f'Wrote: {path_out}')
-      
-        file_out_superstack_mean_sm = f'superstack_{str_name}_mean_wcs_sm_hbt.fits'
-        hdu = fits.PrimaryHDU(img_rescale_mean_sm, header=header_sm)
-        path_out = os.path.join(dir_out, file_out_superstack_mean_sm)
-        hdu.writeto(path_out, overwrite=True)
-        print(f'Wrote: {path_out}')
         
         if do_backplanes:
             # Now that we have written a FITS file to disk, compute backplanes for it
@@ -268,10 +226,6 @@ def nh_ort_make_superstack(stack, img, img_field,
             
             print(f'Computing backplanes for file {path_out_main}')
             planes = compute_backplanes(path_out_main, 'MU69', frame, 'New Horizons', angle3=30*hbt.d2r)
-        
-        # And plot the Radius backplane
-        
-#        plt.imshow(planes[0]['Radius_eq'])
 
     if do_backplanes:        
         return((img_rescale_mean, img_rescale_median, planes))
@@ -358,7 +312,9 @@ if (__name__ == '__main__'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
         reqids_haz  = ['KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
-                       'KALR_MU69_OpNav_L4_2018301']
+                       'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
+                       'KALR_MU69_OpNav_L4_2018306',
+]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018287']
@@ -379,7 +335,10 @@ if (__name__ == '__main__'):
     
     # Load and stack the field images
     
-    do_force = True   # If set, reload the stacks from individual frames, rather than restoring from a pickle file.
+    do_force = False   # If set, reload the stacks from individual frames, rather than restoring from a pickle file.
+                      # NB: When adding a new set of OpNavs to an existing run, there sometimes is not enough padding
+                      # to allow for room for the latest OpNav to be added, if it has more jitter than previous.
+                      # So, typically do do_force=True when adding a new OpNav visit.
     
     stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force, do_save=do_force)
 
@@ -420,7 +379,7 @@ if (__name__ == '__main__'):
     
     # Flatten the field stack
     
-    do_force=True
+    do_force = False
     
     (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad,
                               do_force=do_force)
@@ -504,7 +463,8 @@ if (__name__ == '__main__'):
                                                                           name_stack_base, 
                                                                           do_save_all=True, dir=dir_out,
                                                                           str_name = str_name, do_center=True,
-                                                                          do_backplanes=False)
+                                                                          do_backplanes=False,
+                                                                          wcs = wcs_haz[name_stack_base])
 
     # Grab the WCS from the highest-res frame, and apply that to this frame.
     
@@ -517,7 +477,8 @@ if (__name__ == '__main__'):
                                                                           name_stack_base, 
                                                                           do_save_all=True, dir=dir_out,
                                                                           str_name = str_name, do_center=True,
-                                                                          do_backplanes=True)
+                                                                          do_backplanes=True,
+                                                                          wcs = wcs_haz[name_stack_base])
 
     # Plot the superstack to screen
     
@@ -535,9 +496,9 @@ if (__name__ == '__main__'):
     plt.show()
     hbt.figsize()
  
-    plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, title = 'Superstack')    
+    plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, title = f'Superstack, {str_reqid}')    
 
-    radius_superstack = backplanes[0]['Radius_eq']
+    plane_radius_superstack = backplanes[0]['Radius_eq']
     
     # Now plot a really nice image of the superstack
     # Plot these three things to verify alignment:
@@ -545,27 +506,61 @@ if (__name__ == '__main__'):
     #   - Backplane, generated from the superstack's WCS
     #   - MU69 position, generated from the superstack's WCS
 
-    a_ring_km = 20000
-    da_ring_km = 2000
+    # Tweak the WCS very slightly, to account for minor offsets. We're talking a quarter-pixel offset, which could
+    # be caused by anything. Not a big deal.
     
+    # For OpNav thru 2018_0301, use:     (dx_wcs_tweak, dy_wcs_tweak) = (1.5, 1.0)
+    # For OpNav thru 2018_0304, use:     (dx_wcs_tweak, dy_wcs_tweak) = (1.5, 1.0)
+
+    dx_wcs_tweak = 1.5
+    dy_wcs_tweak = 1.0
+    
+    wcs_superstack_tweak = wcs_superstack.deepcopy()
+    wcs_translate_pix(wcs_superstack_tweak, dx_wcs_tweak, dy_wcs_tweak)
+    
+    # Tweak the backplane slightly as well. Not sure quite why this is necessary, since backplane should 
+    # be exactly aligned w/ WCS. [Not sure -- WCS might be read from another file somewhere.]
+    
+    dx_backplane_tweak = -4
+    dy_backplane_tweak = 1
+    plane_radius_superstack_tweak = plane_radius_superstack.copy()
+    plane_radius_superstack_tweak = np.roll(np.roll(plane_radius_superstack_tweak, dx_backplane_tweak, axis=1), 
+                                      dy_backplane_tweak, axis=0)
+    
+    # Copy the tweaked versions over
+    
+    wcs_superstack          = wcs_superstack_tweak
+    plane_radius_superstack = plane_radius_superstack_tweak
+
+# =============================================================================
+#     Now that the WCS and all images are set, make some plots
+# =============================================================================
+    
+    # Make a useful string for titles
+    
+    str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
+    if 'OpNav' in reqids_haz[0]:
+        str_reqid = f'{len(reqids_haz)} OpNav visits, ' + str_reqid
+
+    a_ring_km = 5000
+    da_ring_km = 300
+
     hbt.figsize((12,12))
     hbt.fontsize(18)
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
-                 title = f'Superstack, ring at {a_ring_km} km', 
-                 width=150,do_show=False)
+                 title = f'Superstack, {str_reqid}, ring at {a_ring_km} km', 
+                 width=130,do_show=False)
     # plt.imshow(stretch(img_superstack_median),cmap='plasma', origin='lower')
-    plt.imshow( np.logical_and( (radius_superstack > a_ring_km), (radius_superstack < (a_ring_km + da_ring_km))),
+    plt.imshow( np.logical_and( (plane_radius_superstack > a_ring_km), 
+                                (plane_radius_superstack < (a_ring_km + da_ring_km))),
                alpha=0.08, origin='lower')
-    
-    (ra, dec) = (274.73344, -20.86170) # From GV for 2-Nov-2018. Matches value in plot_img_wcs.
-    
-    (x, y) = wcs_superstack.wcs_world2pix(ra, dec, 0)
-    alpha=0.9
-    color='red'
-    markersize=3
-    plt.plot(x, y, marker = 'o', markersize = markersize, alpha=alpha, color=color)
     plt.show()
-    hbt.fontsize(10) 
+    
+    
+    plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
+                 title = f'Superstack, {str_reqid}', 
+                 width=130,do_show=False)
+    plt.show()
     
 # =============================================================================
 # Make a set of plots showing the field, the superstack, and all the individual stacks
@@ -573,12 +568,14 @@ if (__name__ == '__main__'):
 
     hbt.figsize((8,8))
     
-    plot_img_wcs(stretch(img_field), wcs_field, cmap=cmap_superstack, width=150, title='Field')
+    plot_img_wcs(stretch(img_field), wcs_superstack, cmap=cmap_superstack, width=150, title='Field')
     
     for key in keys:
         plot_img_wcs(stretch(img_haz[key]), wcs_field, cmap=cmap_superstack, width=150, title = f'Stack, {key}')
-    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, title='Superstack')
-    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=75, title='Superstack')
+    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, 
+                 title=f'Superstack, {str_reqid}')
+    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=75, 
+                 title=f'Superstack, {str_reqid}')
     
     hbt.figsize() 
 
@@ -586,53 +583,35 @@ if (__name__ == '__main__'):
 # Make a plot showing the RA / Dec axes of the superstack zoom
 # =============================================================================
 
-    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, title='Superstack')
-
-
+    do_wcs_axes = False
     
+    if do_wcs_axes:
+        plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, title='Superstack')
+    
+        from astropy.visualization import wcsaxes
+        from astropy.utils.data import get_pkg_data_filename
+        
+        fig = plt.imshow(img_haz[key])
+        ax = fig.add_axes([0.15, 0.1, 0.8, 0.8], projection=wcs_field)
+        plt.show()
+        
+        ax = plt.subplot(projection=wcs_field)
+
 # =============================================================================
 # Now start to calculate radial profiles
 # =============================================================================
 
 # Create a backplane for this superstack
 # Look up the Radius backplane, in the chosen stack. Extracting the RADIUS_EQ backplane.
-    
-    file_backplanes = stack_haz[name_stack_base].t['filename'][0]
-    f = fits.open(file_backplanes)
-    plane_radius_orig = f['RADIUS_EQ'].data  # Read the RADIUS backplane value
-    f.close()
-    
-    radius_superstack = plane_radius_orig
-    
-    # Now take this radius plane, and apply the correct shift / zoom / pad to it.
-    
-    # Do a really brute-force thing: center this backplane, by just centroiding it. 
-    # I should be able to center it better, using shift coordinates from above.
-    # However, I don't actually ever compute these. Even in assembling the superstacks, I just center on the 
-    # brightest thing in the frame, rather than follow MU69's motion. I should fix that, but for now this works.
-    
-    plane_radius  = scipy.ndimage.zoom(plane_radius_orig, zoom)
-    wheremin_x    = hbt.wheremin(np.amin(plane_radius,axis=1))
-    wheremin_y    = hbt.wheremin(np.amin(plane_radius,axis=0))
-    plane_radius  = np.roll(plane_radius, 512-wheremin_y, axis=1)
-    plane_radius  = np.roll(plane_radius, 512-wheremin_x, axis=0)
-
-    # Pad this so it is the same size as the superstack
-    
-    dpad = int( (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius) )/2)
-    
-    plane_radius = np.pad(plane_radius, dpad, mode='maximum')    
-        
-    name_target = 'MU69'
-    frame = '2014_MU69_SUNFLOWER_ROT'
-    name_observer = 'New Horizons'
-
-    file_out_superstack_median_sm = f'superstack_{str_name}_median_wcs_sm_hbt.fits'
-
+ 
     # Look up the pole position of MU69, based on the loaded frame kernel
     # That is, the RA + Dec of the pole, in degrees, as derived from NH_ORT_FIND_RING_POLE.PY.
     # I put this value into the .tf frame file for MU69, and grab it here.
     # This is just for labeling plots -- nothing else.
+       
+    name_target = 'MU69'
+    frame = '2014_MU69_SUNFLOWER_ROT'
+    name_observer = 'New Horizons'
     
     vec = [0, -1, 0]                                # -Y vector is the rotational pole
     mx_frame_j2k =  sp.pxform(frame, 'J2000', et)
@@ -640,7 +619,7 @@ if (__name__ == '__main__'):
     (_, ra_pole, dec_pole) = sp.recrad(vec_j2k)
 
 # =============================================================================
-#     Make a radial profile, in I/F units 
+#     Calculate the radial profile, in I/F units 
 # =============================================================================
     
     # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
@@ -673,16 +652,17 @@ if (__name__ == '__main__'):
     
     # Take the radial profile of the superstack
     
-    num_pts = 800  # Number of radial points to use.
+    num_pts = 1000  # Number of radial points to use.
     
-    (radius,  profile_iof_mean)   = get_radial_profile_backplane(img_superstack_mean_iof,
-                                         plane_radius, method = 'mean', num_pts = num_pts)
+    (radius,  profile_iof_mean, profile_iof_std)   = get_radial_profile_backplane(img_superstack_mean_iof,
+                                         plane_radius_superstack, method = 'mean', num_pts = num_pts, 
+                                         do_std=True)
                                          
     (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
-                                         plane_radius, method = 'median', num_pts = num_pts)
+                                         plane_radius_superstack, method = 'median', num_pts = num_pts)
 
     profile_iof = profile_iof_median  # Just pick one -- they both are similar
-    
+
   # Fit a gaussian to the radial profile. Set the initial guesses.
     
     r_0         = 4000      # Inner radius to ignore in gauss fit, in km
@@ -695,11 +675,29 @@ if (__name__ == '__main__'):
     
     popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
 
-    hbt.figsize((8,6))
- 
     bias = 0.000004 +  7.5e-7
-    plt.plot(radius, profile_iof - bias, 
-             label = f'OpNav, backplaned, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
+
+    # Plot the radial profile
+    
+    hbt.figsize((8,6))
+    hbt.fontsize(14)
+    
+    plt.plot(radius, profile_iof - bias,
+             label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
+                     f'width {round(np.diff(radius)[0]):.0f} km')
+    
+    do_plot_errorbars = False
+    
+    if do_plot_errorbars:
+        plt.errorbar(radius, profile_iof - bias, yerr = profile_iof_std,
+             label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
+        
+    plt.xlim(0,50000)
+    plt.ylim(0,1e-5)
+    
+    do_plot_mean=False
+    if do_plot_mean:            # Can plot the mean. But the median is much more useful
+        plt.plot(radius, profile_iof_mean - bias, label = 'mean')
     
     do_plot_fit = False
     
@@ -708,19 +706,14 @@ if (__name__ == '__main__'):
                  label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
     
     # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
-    
-    if (len(reqids_haz)) == 1:
-        str_reqid = reqids_haz[0]
-    else:    
-        str_reqid = reqids_haz[0] + f' + {len(reqids_haz)-1} more'
 
     plt.ylim((0, 2e-6))
-    plt.xlim((0, 20000))
+    plt.xlim((0, 30000))
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
     plt.xlabel('Radius [km]')
     plt.ylabel('I/F')
     plt.legend(loc = 'upper right')
-    plt.title(f'Radial profile, superstack, backplane, {str_reqid}')
+    plt.title(f'Radial profile, superstack {str_reqid}')
     plt.show()
     
 # =============================================================================
@@ -742,7 +735,6 @@ if (__name__ == '__main__'):
         print(f'Wrote: {file_out}')
         print(f' scp {file_out} ixion:\~/astrometry' )  # We don't copy it, but we put up the string so user can.
 
-
 # =============================================================================
 # Make an image overlaying a radius mask with the ring. This is just to visualize if the geometry is close.
 # =============================================================================
@@ -755,7 +747,6 @@ if (__name__ == '__main__'):
         
         radius_fit = 10000
         sigma_fit   = 2000
-        
         
         hbt.figsize(12,12)
         alpha = 0.3
@@ -777,7 +768,6 @@ if (__name__ == '__main__'):
         
         mask = ((plane_radius < (radius_fit+sigma_fit/2)) & (plane_radius > (radius_fit-sigma_fit/2)))
         
-            
         plt.imshow( ((plane_radius < (radius_fit+sigma_fit/2)) & 
                      (plane_radius > (radius_fit-sigma_fit/2)))[600:1000, 600:1000], cmap = 'Reds', alpha=alpha,
                      origin='lower')
@@ -867,7 +857,6 @@ if (__name__ == '__main__'):
         plt.tight_layout()
         plt.show()
         
-
 ### Testing for ORT3
         
         path_out = '/Users/throop/Data/ORT4/superstack_ORT4_z1_mean_wcs_hbt.fits'
