@@ -16,8 +16,9 @@ Created on Fri Jan 19 16:20:36 2018
 
 import hbt
 import numpy as np
+import astropy.stats
 
-def get_radial_profile_backplane(im, radius_plane, method='median', num_pts = 100):
+def get_radial_profile_backplane(im, radius_plane, method='median', num_pts = 100, do_std=False):
 
     """
     Extract a radial profile from an image. 
@@ -43,10 +44,15 @@ def get_radial_profile_backplane(im, radius_plane, method='median', num_pts = 10
     method: 
         String. 'mean' or 'median'.
         
+    do_stdev: 
+        Boolean. If set, compute the standard deviation, and return in the tuple
+        
     """
     radius_1d = hbt.frange(0, int(np.amax(radius_plane)), num_pts)
     
     profile_1d    = 0. * radius_1d.copy()
+    
+    std_1d        = profile_1d.copy()
         
     for i in range(len(profile_1d)-2):
 
@@ -60,7 +66,14 @@ def get_radial_profile_backplane(im, radius_plane, method='median', num_pts = 10
     
         if (method == 'median'):
             profile_1d[i] = np.median(im[is_good])
+
+        clipped = astropy.stats.sigma_clip(im[is_good], sigma=1.5)
         
+        std_1d[i] = np.std(clipped)
+        
+    if do_std: 
+        return (radius_1d, profile_1d, std_1d)
+    
     return (radius_1d, profile_1d)
 
 ### END OF FUNCTION DEFINTION
