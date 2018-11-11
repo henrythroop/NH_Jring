@@ -1004,7 +1004,7 @@ if (__name__ == '__main__'):
     
     radec_mu69 = (ra_mu69*hbt.d2r, dec_mu69*hbt.d2r)
     
-    dir1 = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav_L4_2018301/'
+    dir1 = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav_L4_2018311/'
     stack1 = image_stack(dir1)  
                 
     # Plot each individual frame. Check against each individual WCS.

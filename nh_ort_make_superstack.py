@@ -311,9 +311,11 @@ if (__name__ == '__main__'):
     if (name_ort == 'MU69_Approach'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
-        reqids_haz  = ['KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
+        reqids_haz  = ['KALR_MU69_OpNav_L4_2018228', 'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
+                       'KALR_MU69_OpNav_L4_2018267', 
+                       'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
                        'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
-                       'KALR_MU69_OpNav_L4_2018306',
+                       'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
 ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
@@ -335,7 +337,7 @@ if (__name__ == '__main__'):
     
     # Load and stack the field images
     
-    do_force = False   # If set, reload the stacks from individual frames, rather than restoring from a pickle file.
+    do_force = True   # If set, reload the stacks from individual frames, rather than restoring from a pickle file.
                       # NB: When adding a new set of OpNavs to an existing run, there sometimes is not enough padding
                       # to allow for room for the latest OpNav to be added, if it has more jitter than previous.
                       # So, typically do do_force=True when adding a new OpNav visit.
@@ -436,6 +438,13 @@ if (__name__ == '__main__'):
         hdu.writeto(file_out, overwrite=True)
         print(f'Wrote: {file_out}')
 
+    # Make a useful string for titles
+    
+    str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
+    if 'OpNav' in reqids_haz[0]:
+        str_reqid = f'{len(reqids_haz)} OpNav visits, ' + str_reqid
+
+
 #%%%
     
 # =============================================================================
@@ -459,12 +468,12 @@ if (__name__ == '__main__'):
     # Create and save the median superstack
 
     str_name = f'{name_ort}_z{zoom}'
-    (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
-                                                                          name_stack_base, 
-                                                                          do_save_all=True, dir=dir_out,
-                                                                          str_name = str_name, do_center=True,
-                                                                          do_backplanes=False,
-                                                                          wcs = wcs_haz[name_stack_base])
+    # (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
+    #                                                                       name_stack_base, 
+    #                                                                       do_save_all=True, dir=dir_out,
+    #                                                                       str_name = str_name, do_center=True,
+    #                                                                       do_backplanes=False,
+    #                                                                       wcs = wcs_haz[name_stack_base])
 
     # Grab the WCS from the highest-res frame, and apply that to this frame.
     
@@ -473,6 +482,7 @@ if (__name__ == '__main__'):
     # Make the superstack, and return backplanes.
     # Bug: the backplanes returned are unzoomed.
     
+    # Make the *mea
     (img_superstack_mean, img_superstack_median, backplanes) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
                                                                           name_stack_base, 
                                                                           do_save_all=True, dir=dir_out,
@@ -536,12 +546,6 @@ if (__name__ == '__main__'):
 #     Now that the WCS and all images are set, make some plots
 # =============================================================================
     
-    # Make a useful string for titles
-    
-    str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
-    if 'OpNav' in reqids_haz[0]:
-        str_reqid = f'{len(reqids_haz)} OpNav visits, ' + str_reqid
-
     a_ring_km = 5000
     da_ring_km = 300
 
@@ -669,13 +673,18 @@ if (__name__ == '__main__'):
     radius_ring = 9000      # Starting point for gassfit for ring position, in km
     hw_ring     = 1000      # Starting point for ring halfwidth, in km
     
+    radius_max_km = 30000
+    
     bin_0 = hbt.x2bin(r_0, radius)
     x = radius[bin_0:]
     y = profile_iof[bin_0:]            
     
     popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
 
-    bias = 0.000004 +  7.5e-7
+    # Calculate the bias level, crudely
+    
+    bin_radial_end = np.digitize(radius_max_km, radius)
+    bias = np.amin(profile_iof[0:bin_radial_end])
 
     # Plot the radial profile
     
@@ -708,7 +717,7 @@ if (__name__ == '__main__'):
     # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
 
     plt.ylim((0, 2e-6))
-    plt.xlim((0, 30000))
+    plt.xlim((0, radius_max_km))
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
     plt.xlabel('Radius [km]')
     plt.ylabel('I/F')
@@ -726,14 +735,14 @@ if (__name__ == '__main__'):
     file_out = os.path.join(dir_out, f'{initials_user.lower()}_{name_ort.lower()}_v{version}.ring')
     lun = open(file_out,"w")
     for i in range(len(profile_iof)):
-        lun.write('{:10.3f} {:11.3e}\n'.format(radius[i], profile_iof[i]))
+        lun.write('{:10.3f} {:11.3e}\n'.format(radius[i], profile_iof[i]-bias))
     lun.close()
     
-    do_ring_out = False
+    do_ring_out = True
 
     if do_ring_out:
         print(f'Wrote: {file_out}')
-        print(f' scp {file_out} ixion:\~/astrometry' )  # We don't copy it, but we put up the string so user can.
+        print(f' scp {file_out} ixion:\~/MU69_Approach/astrometry' )  # We don't copy it, but put up string for user.
 
 # =============================================================================
 # Make an image overlaying a radius mask with the ring. This is just to visualize if the geometry is close.

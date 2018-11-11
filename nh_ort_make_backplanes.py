@@ -82,12 +82,16 @@ def nh_ort_make_backplanes():
         dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
         files = glob.glob(os.path.join(dir_in,'*', '*_pwcs.fits'))  # OpNav field data (older)
         
+        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018267', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018287', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018298', '*_pwcs2.fits')) # OpNav data
-        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018301', '*_pwcs2.fits')) # OpNav data
-        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018304', '*_pwcs2.fits')) # OpNav data
-        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018306', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018301', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018304', '*_pwcs2.fits')) # OpNav data
+        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018314', '*_pwcs2.fits')) # OpNav data
             
 # =============================================================================
 #     Filter files if needed
