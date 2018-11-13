@@ -316,6 +316,8 @@ if (__name__ == '__main__'):
                        'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
                        'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
                        'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
+                       'KALR_MU69_OpNav_L4_2018314', 'KALR_MU69_OpNav_L4_2018315',
+                       'KALR_MU69_OpNav_L4_2018316',
 ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
