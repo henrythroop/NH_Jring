@@ -311,13 +311,21 @@ if (__name__ == '__main__'):
     if (name_ort == 'MU69_Approach'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
-        reqids_haz  = ['KALR_MU69_OpNav_L4_2018228', 'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
-                       'KALR_MU69_OpNav_L4_2018267', 
-                       'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
-                       'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
-                       'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
-                       'KALR_MU69_OpNav_L4_2018314', 'KALR_MU69_OpNav_L4_2018315',
-                       'KALR_MU69_OpNav_L4_2018316',
+        reqids_haz  = [
+                       # 'KALR_MU69_OpNav_L4_2018228', 
+                       # 'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
+                       # 'KALR_MU69_OpNav_L4_2018267', 
+                       # 'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
+                       # 'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
+                       # 'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
+                       # 'KALR_MU69_OpNav_L4_2018314', 
+                       # 'KALR_MU69_OpNav_L4_2018315',
+                       # 'KALR_MU69_OpNav_L4_2018316',
+                       # 'KALR_MU69_OpNav_L4_2018317',
+                       # 'KALR_MU69_OpNav_L4_2018319',
+                       # 'KALR_MU69_OpNav_L4_2018325',
+                       # 'KALR_MU69_OpNav_L4_2018326',
+                       'KALR_MU69_Hazard_L4_2018325',
 ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
@@ -339,19 +347,21 @@ if (__name__ == '__main__'):
     
     # Load and stack the field images
     
-    do_force = True   # If set, reload the stacks from individual frames, rather than restoring from a pickle file.
+    do_force_stacks = True   # If set, reload the stacks from individual frames, rather than restoring from a pickle file.
                       # NB: When adding a new set of OpNavs to an existing run, there sometimes is not enough padding
                       # to allow for room for the latest OpNav to be added, if it has more jitter than previous.
                       # So, typically do do_force=True when adding a new OpNav visit.
     
-    stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force, do_save=do_force)
+    do_force_flatten = True
+
+    stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks, do_save=do_force_stacks)
 
     stack_haz = {}
     
     # Load and stack the data images
     
     for reqid_i in reqids_haz:
-        stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force, do_save=do_force)
+        stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force_stacks, do_save=do_force_stacks)
             
     # Set the rough position of MU69
     
@@ -379,14 +389,11 @@ if (__name__ == '__main__'):
        
     # Flatten the stacks into single output images
     # If we get an error here, it is probably due to a too-small 'pad' value.
-    # This step can be very slow. Right now results are not saved. In theory they could be.
     
     # Flatten the field stack
-    
-    do_force = False
-    
+        
     (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad,
-                              do_force=do_force)
+                              do_force=do_force_flatten)
 
     # Verify that the WCS has been properly preserved after flattening here.
     
@@ -413,7 +420,8 @@ if (__name__ == '__main__'):
     
     for reqid_i in reqids_haz:
         (img_haz[reqid_i], wcs_haz[reqid_i])  =\
-              stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, do_force=do_force)
+              stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
+                       do_force=do_force_flatten)
         img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field
         
         if do_plot_individual_stacks:
@@ -429,9 +437,10 @@ if (__name__ == '__main__'):
     plt.imshow(stretch(img_field), origin='lower')
     for i,reqid_i in enumerate(reqids_haz):        
         diff_trim = hbt.trim_image(img_haz_diff[reqid_i])
-        plt.imshow(stretch(diff_trim), origin='lower')
-        plt.title(f'Difference stack {i}/{len(reqids_haz)}: {reqid_i}')
-        plt.show()
+        
+        # plt.imshow(stretch(diff_trim), origin='lower')
+        # plt.title(f'Difference stack {i}/{len(reqids_haz)}: {reqid_i}')
+        # plt.show()
         
         # Save as FITS
     
@@ -445,7 +454,6 @@ if (__name__ == '__main__'):
     str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
     if 'OpNav' in reqids_haz[0]:
         str_reqid = f'{len(reqids_haz)} OpNav visits, ' + str_reqid
-
 
 #%%%
     
@@ -524,8 +532,8 @@ if (__name__ == '__main__'):
     # For OpNav thru 2018_0301, use:     (dx_wcs_tweak, dy_wcs_tweak) = (1.5, 1.0)
     # For OpNav thru 2018_0304, use:     (dx_wcs_tweak, dy_wcs_tweak) = (1.5, 1.0)
 
-    dx_wcs_tweak = 1.5
-    dy_wcs_tweak = 1.0
+    dx_wcs_tweak = 4.0   # Positive values shift to the right
+    dy_wcs_tweak = 4.0  #   was 1.5, 1. Now 3.5, 6. Now (4, 3). Now (4,4)
     
     wcs_superstack_tweak = wcs_superstack.deepcopy()
     wcs_translate_pix(wcs_superstack_tweak, dx_wcs_tweak, dy_wcs_tweak)
@@ -548,7 +556,7 @@ if (__name__ == '__main__'):
 #     Now that the WCS and all images are set, make some plots
 # =============================================================================
     
-    a_ring_km = 5000
+    a_ring_km = 3500
     da_ring_km = 300
 
     hbt.figsize((12,12))
@@ -574,10 +582,31 @@ if (__name__ == '__main__'):
 
     hbt.figsize((8,8))
     
-    plot_img_wcs(stretch(img_field), wcs_superstack, cmap=cmap_superstack, width=150, title='Field')
+    # plot_img_wcs(stretch(img_field), wcs_superstack, cmap=cmap_superstack, width=150, title='Field')
     
     for key in keys:
-        plot_img_wcs(stretch(img_haz[key]), wcs_field, cmap=cmap_superstack, width=150, title = f'Stack, {key}')
+        keystr = key.split('_')[-1]
+        plt.subplot(1,3,1)
+
+        plot_img_wcs(stretch(img_field), wcs_field, cmap=cmap_superstack, width=150, title = 'Field',
+                     do_show=False)
+
+        plt.subplot(1,3,2)
+        plot_img_wcs(stretch(img_haz[key]), wcs_field, cmap=cmap_superstack, width=150, title = f'Haz, {keystr}',
+                     do_show=False)
+        
+        plt.subplot(1,3,3)
+        # plot_img_wcs(stretch(img_haz[key] - img_field), wcs_field, cmap=cmap_superstack, width=150, title = f'Stack, {key}',
+        #              do_show=False)
+        
+        #XXX subtract IMG - FIELD. But roll by (1,1) to fix some offset issues. I should not do this in reality.
+        
+        plot_img_wcs(stretch(img_haz[key] - np.roll(np.roll(img_field,1,axis=1),1,axis=0)), 
+                     wcs_field, cmap=cmap_superstack, width=150, title = f'Haz-field, {keystr}',
+                     do_show=False)
+        
+        plt.show()
+        
     plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, 
                  title=f'Superstack, {str_reqid}')
     plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=75, 
@@ -873,5 +902,17 @@ if (__name__ == '__main__'):
         path_out = '/Users/throop/Data/ORT4/superstack_ORT4_z1_mean_wcs_hbt.fits'
         planes = compute_backplanes(path_out, 'MU69', frame, 'New Horizons')
         plt.imshow(planes[0]['Radius_eq'])
+
+# Just do a dummy check: how many pixels does position change during approach
+# A: It moves 6 pixels (at zoom 4) from 2018::228 thru 2018::319. So, it is 
+# totally a macroscopic amount, and this is 100% responsible for the issues I am seeing.         
+
+        utc_arr = ['2018::228 00:00:00', '2018::319 00:00:00']
         
+        for utc in utc_arr:
+            et = sp.utc2et(utc)
+            (st, lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
+            (_, ra,dec) = sp.recrad(st[0:3])
+            (x, y) = wcs_field.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
+            print(f'For UTC {utc}, x = {x} pix, y = {y} pix')
        

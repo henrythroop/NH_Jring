@@ -41,6 +41,7 @@ import hbt
 from   image_stack import image_stack
 from   compute_backplanes import compute_backplanes
 from   plot_backplanes import plot_backplanes
+import os.path 
 
 def create_backplanes_fits(file_in, name_target, frame, name_observer, file_out,
                               do_clobber = False,
@@ -87,8 +88,13 @@ def create_backplanes_fits(file_in, name_target, frame, name_observer, file_out,
     
     if not(file_out):
         file_out = file_in.replace('.fit', '_backplaned.fit')   # Works for both .fit and .fits
-        
-    if os.path.exists(file_out) and not(do_clobber):
+    
+    # Check the mod times. If there's a new input file, then we want to regenerate the output
+    
+    time_file_out = os.path.getmtime(file_out)
+    time_file_in  = os.path.getmtime(file_in)
+    
+    if os.path.exists(file_out) and not(do_clobber) and (time_file_out > time_file_in):
         raise(FileExistsError)
         
 # Load the input image

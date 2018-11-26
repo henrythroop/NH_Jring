@@ -53,6 +53,8 @@ def nh_ort_make_backplanes():
     do_ORT4 = False
     do_ACTUAL = True  # Run this on actual OpNav data!
     
+    do_force = True
+    
 #    dir_data_ort = '/Users/throop/Data/ORT1'
 #    dir_in  = os.path.join(dir_data_ort, 'porter', 'pwcs_ort1')
 #    dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
@@ -94,8 +96,19 @@ def nh_ort_make_backplanes():
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018311', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018314', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018315', '*_pwcs2.fits')) # OpNav data
-        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018316', '*_pwcs2.fits')) # OpNav data
-            
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018316', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018317', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018325', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018326', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018327', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018328', '*_pwcs2.fits')) # OpNav data
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_Hazard_L4_2018325', '*_pwcs2.fits')) # OpNav data
+
+        files = glob.glob(os.path.join(dir_in, '*', '*_pwcs2.fits')) # OpNav data
+        
+        do_force = False
+        do_clobber = False
+        
 # =============================================================================
 #     Filter files if needed
 # =============================================================================
@@ -142,6 +155,9 @@ def nh_ort_make_backplanes():
         file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned.fit') # Works for both .fit and .fits
         file_out = file_out.replace('_pwcs2.fit', '_pwcs2_backplaned.fit') # Works for both .fit and .fits
     
+        # Call the backplane function. Depending on settings, this will automatically run if a newer input file is 
+        # received, and thus we need to regenerate the output backplane.
+        
         try:
             create_backplanes_fits(file_in, 
                                       name_target,
