@@ -91,7 +91,7 @@ class nh_ort_track3_read:
         # https://www.spaceops.swri.org/nh/wiki/index.php/KBO/Hazards/Pipeline/Integrations-to-Density
         
         if do_kaufmann:
-            file_header = 'header.txt'
+            file_header = 'model.header'
             file_data   = f'model.array{binfmt}'
 
         if do_hamilton:
@@ -513,17 +513,22 @@ if (__name__ == '__main__'):
     
     dir_dph = dir_dph4
     
-    dir_dk  = '/Users/throop/data/ORT3/kaufmann/deliveries/'
+    dir_dk  = '/Users/throop/data/ORT_Nov18/kaufmann/deliveries/'
     
     
-    runs_full = ['ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset00',
-                 'ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset01',
-                 'ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset02',
+    # runs_full = ['ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset00',
+    #              'ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset01',
+    #              'ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset02',
+    #              ]
+    
+    runs_full = ['chr3_sunflower3.5k/chr3-0002/y2.2/beta1.0e+00/subset00',
+                 'chr3_sunflower3.5k/chr3-0002/y2.2/beta1.0e+00/subset01',
+                 'chr3_sunflower3.5k/chr3-0002/y2.2/beta1.0e+00/subset02',
                  ]
-                 
+
     for run in runs_full:
         
-        if 'syntrue' in run:
+        if ('syntrue' in run) or ('chr3' in run):
             dir = dir_dk
             
         if ('DPH' in run) or ('syn_ort' in run) or ('dph' in run):

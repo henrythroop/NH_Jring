@@ -678,13 +678,15 @@ if __name__ == '__main__':
     # Set which of DPH or DEK runs we are doing here. Each run has ~304 grids in it. I will usually do four runs.
     
 #    dir_in = '/Users/throop/data/ORT4/hamilton/ort4_bc3_10cbr2_dph/'   # Doug retrograde 
-    dir_in = '/Users/throop/data/ORT4/kaufmann/ort4_bc3_10cbr2_dek/'   # David retrograde 
+    # dir_in = '/Users/throop/data/ORT4/kaufmann/ort4_bc3_10cbr2_dek/'   # David retrograde 
+    dir_in = '/Users/throop/data/ORT_Nov18/kaufmann/deliveries/chr3_sunflower3.5k/'   # David retrograde 
 
     # Get a list of all of the individual runs in the input dir
     
     runs = glob.glob(os.path.join(dir_in, '*/*/*/subset*/'))
 
     # Create the output directory, and make sure it exists on disk
+    #   (Do this by changing hamilton→throop, and kaufmann→throop)
     
     dir_out = dir_in.replace('hamilton', 'throop').replace('kaufmann', 'throop')
     
