@@ -91,8 +91,15 @@ def create_backplanes_fits(file_in, name_target, frame, name_observer, file_out,
     
     # Check the mod times. If there's a new input file, then we want to regenerate the output
     
-    time_file_out = os.path.getmtime(file_out)
-    time_file_in  = os.path.getmtime(file_in)
+    if os.path.exists(file_out):
+        time_file_out = os.path.getmtime(file_out)
+    else:
+        time_file_out = -1
+    if os.path.exists(file_in):
+        time_file_in  = os.path.getmtime(file_in)
+    else:
+        time_file_in = 0
+    
     
     if os.path.exists(file_out) and not(do_clobber) and (time_file_out > time_file_in):
         raise(FileExistsError)
