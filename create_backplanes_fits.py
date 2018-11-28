@@ -200,12 +200,13 @@ if (__name__ == '__main__'):
 #    file_in =  '/Users/throop/Data/ORT1/porter/pwcs_ort1/K1LR_HAZ00/lor_0405175932_0x633_pwcs.fits'
 #    file_out = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405175932_0x633_pwcs_backplaned_rot.fits'
     
-    file_in       = '/Users/throop/Data/ORT1/Test/lor_0406731132_0x633_sci_HAZARD_test1.fit'
-    file_out      = '/Users/throop/Data/ORT1/Test/lor_0406731132_0x633_sci_HAZARD_test1_backplaned.fit'
+    file_in       = '/Users/throop/Data/MU69_Approach/throop/test/lor_0405121318_0x633_pwcs2.fits'
+    file_out      = file_in.replace('.fits', '_backplane.fits')
 
     name_observer = 'New Horizons'
     name_target   = 'MU69'
     frame         = '2014_MU69_SUNFLOWER_ROT'
+    frame         = '2014_MU69_TUNACAN_ROT'
     
     do_plot       = True
 

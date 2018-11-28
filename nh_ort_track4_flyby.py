@@ -338,7 +338,6 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
     lun.close()
     print(f'Wrote: {file_out}')
     
-    
 #%%%    
 
     # Now that all files have been created, compress results into an archive (.tar.gz) for Doug Mehoke
@@ -348,10 +347,11 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
 
     file_out = f'{name_run}_{name_trajectory}_n{num_files}.tgz'
     
-    str = f'cd {dir_out}; tar -czf {file_out} *.dust'
+    str = f'cd {dir_out}; tar -czf {file_out} *{name_trajectory}*.dust'
     
     _ = subprocess.Popen(str, shell=True)
     
+    print(str)
     print(f'Wrote: {dir_out}/{file_out}')
     
     
@@ -523,11 +523,13 @@ def make_table_grid_positions():
     
 if (__name__ == '__main__'):
     
+    # NB: It would make sense to parallelize this loop below. That way I could run a bunch of these in parallel.
+    
     name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
 
-    dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
-    dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_sunflower3.5k/'
-    dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_sunflower10k/'
+    # dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
+    # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_sunflower3.5k/'
+    # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_sunflower10k/'
     dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_tunacan10k/'
     
 #    dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dek/'

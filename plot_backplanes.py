@@ -68,20 +68,23 @@ def plot_backplanes(file,
     
     for i in range(num):
         plt.subplot(nxy,nxy,i+1)
-        plt.imshow(stretch(hdu[i].data))
+        plt.imshow(stretch(hdu[i].data), origin='lower')
+        # plt.gca().get_xaxis().set_visible(False)   # Inhibit axes labels, since they get squashed.
+        # plt.gca().get_yaxis().set_visible(False)
         plt.title(hdu[i].name)
         i+=1
 
+    plt.tight_layout()
     plt.show()
     
 #    Plot the image itself
  
     hbt.figsize((10,10)) 
-    plt.imshow(stretch(hdu[0].data))
+    plt.imshow(stretch(hdu[0].data), origin='lower')
 
-    # Plot one of the planes
+    # Over the images, superimpose one of the planes
 
-    plt.imshow(stretch(hdu['Longitude_eq'].data), alpha=0.5, cmap=plt.cm.Reds_r)
+    plt.imshow(stretch(hdu['Longitude_eq'].data), alpha=0.5, cmap=plt.cm.Reds_r, origin='lower')
 
     # If requested, look up position of target.
 
@@ -104,12 +107,17 @@ def plot_backplanes(file,
             radius_ring = 10_000  # This needs to be adjusted for different distances.
             radius_arr = hdu['Radius_eq'].data
             radius_good = np.logical_and(radius_arr > radius_ring*0.95, radius_arr < radius_ring*1.05)
-            plt.imshow(radius_good, alpha=0.3)
+            plt.imshow(radius_good, alpha=0.3, origin='lower')
         
         # Plot target body
         
-        plt.plot(pos_pix_x, pos_pix_y, ms=10, marker = 'o', color='green')    
+        plt.plot(pos_pix_x, pos_pix_y, ms=2, marker = 'o', color='green')    
         plt.title("{}, {}".format(os.path.basename(file), utc))
+
+        do_testXXX = True
+        if (do_testXXX):
+            plt.xlim([100,200])
+            plt.ylim([100,200])
         plt.show() 
     
     hdu.close()

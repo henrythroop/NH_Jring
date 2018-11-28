@@ -127,6 +127,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                            # differently and was not detected, I'll take a bit less than this -- say, I/F = 2e-8.
                            
                            # For ORT4 (the shepherd ring), the peak I/F is 2e-7.
+                           # For ORT5 (ie, CHORE3), I am assuming 2e-7?
                      
     origin = 'lower'
                       
