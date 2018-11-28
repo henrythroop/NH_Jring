@@ -397,7 +397,7 @@ class nh_ort_track4_grid:
 # This is the filename used for Doug Mehoke.       
 # =============================================================================
 
-    def create_filename_track4(self, base = 'ort4'):
+    def create_filename_track4(self, base = 'ort5'):
         
         str_traj = self.name_trajectory
         
@@ -801,7 +801,7 @@ class nh_ort_track4_grid:
             # Write the file using Astropy
             
             t.write(path_out, format = 'ascii', overwrite=True)
-            print("Wrote: {} using astropy writer".format(path_out))
+            print("Wrote: {}".format(path_out))
 
         else:
 
@@ -829,7 +829,8 @@ class nh_ort_track4_grid:
                                                     self.s[12],
                                                     ))
             for i in range(len(t)):                                                
-                lun.write("{} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e}\n".format(
+                lun.write(
+        "{} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e}\n".format(
                         t[i][1],
                         t[i][2],
                         t[i][3],
@@ -846,7 +847,7 @@ class nh_ort_track4_grid:
                         t[i][14],
                         ))
             lun.close()
-            print("Wrote: {} using manual writer".format(path_out))
+            print("Wrote: {}".format(path_out))
                    
         return
     

@@ -130,7 +130,7 @@ def nh_ort_make_backplanes():
         files_filtered = []
         for file in files:
             base = os.path.basename(file)
-            digit = base[12]  # Match the penultimate digit in LORRI filename (e.g., lor_0405348852_pwcs  ← matches '5')
+            digit = base[12]  # Match the penultimate digit in LORRI filename (e.g., lor_0405348852_pwcs ← matches '5')
                               # This is the digit that changes the most in the LORRI files, so it's a good choice.
             if (digit in digit_filter):
                 files_filtered.append(file)

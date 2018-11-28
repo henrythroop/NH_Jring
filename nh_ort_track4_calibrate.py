@@ -145,7 +145,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     do_short = False
     
     if do_short:
-        runs = runs[0:20]
+        runs = runs[0:2]
         
     num_files             = len(runs)                  # Scalar, number of files
     density_flattened_arr = np.zeros((num_files, 200, 200)) # Actual data, vertically flattened
@@ -672,34 +672,42 @@ if __name__ == '__main__':
         
 
     do_short = False  # If set, just read a subset of the data
-    do_force = False   # If set, read the raw N-body grid files from disk, rather than from a pre-saved pickle file
+    do_force = True   # If set, read the raw N-body grid files from disk, rather than from a pre-saved pickle file
     num_runs_max = 30
 
     # Set which of DPH or DEK runs we are doing here. Each run has ~304 grids in it. I will usually do four runs.
     
 #    dir_in = '/Users/throop/data/ORT4/hamilton/ort4_bc3_10cbr2_dph/'   # Doug retrograde 
     # dir_in = '/Users/throop/data/ORT4/kaufmann/ort4_bc3_10cbr2_dek/'   # David retrograde 
-    dir_in = '/Users/throop/data/ORT_Nov18/kaufmann/deliveries/chr3_sunflower3.5k/'   # David retrograde 
+    
+    # dir_in = '/Users/throop/data/ORT_Nov18/kaufmann/deliveries/chr3_sunflower3.5k/' # done
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3_sunflower10k/'
+    dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3_tunacan10k/'
 
     # Get a list of all of the individual runs in the input dir
     
     runs = glob.glob(os.path.join(dir_in, '*/*/*/subset*/'))
 
-    # Create the output directory, and make sure it exists on disk
-    #   (Do this by changing hamilton→throop, and kaufmann→throop)
+    if len(runs) == 0:
+        print(f'No files found in {dir_in}')
     
-    dir_out = dir_in.replace('hamilton', 'throop').replace('kaufmann', 'throop')
+    else:    
+        
+        # Create the output directory, and make sure it exists on disk
+        #   (Do this by changing hamilton→throop, and kaufmann→throop)
+        
+        dir_out = dir_in.replace('hamilton', 'throop').replace('kaufmann', 'throop')
+        
+        if not os.path.exists(dir_out):
+            os.makedirs(dir_out)
     
-    if not os.path.exists(dir_out):
-        os.makedirs(dir_out)
-
-    if do_short:
-        runs = runs[0:num_runs_max]
-    
-    # Now do the run!
-    
-    nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force = do_force)
-    
-    # NB: Takes about 70 seconds to decompress 304 files from pickle.
-    #     Takes 68 seconds to read raw files from disk. ie, my pickling and compressing saves zero time.
-    
+        if do_short:
+            runs = runs[0:num_runs_max]
+        
+        # Now do the run!
+        
+        nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force = do_force)
+        
+        # NB: Takes about 70 seconds to decompress 304 files from pickle.
+        #     Takes 68 seconds to read raw files from disk. ie, my pickling and compressing saves zero time.
+        
