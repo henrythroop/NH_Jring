@@ -206,14 +206,14 @@ if (__name__ == '__main__'):
     name_observer = 'New Horizons'
     name_target   = 'MU69'
     frame         = '2014_MU69_SUNFLOWER_ROT'
-    frame         = '2014_MU69_TUNACAN_ROT'
+    # frame         = '2014_MU69_TUNACAN_ROT'
     
     do_plot       = True
 
     # Start SPICE, if necessary
     
     if (sp.ktotal('ALL') == 0):
-        sp.furnsh('kernels_kem.tm')
+        sp.furnsh('kernels_kem_prime.tm')
 
     # Create the backplanes on disk
     
