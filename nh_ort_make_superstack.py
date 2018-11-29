@@ -354,14 +354,16 @@ if (__name__ == '__main__'):
     
     do_force_flatten = True
 
-    stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks, do_save=do_force_stacks)
+    stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks, 
+                              do_save=True)
 
     stack_haz = {}
     
     # Load and stack the data images
     
     for reqid_i in reqids_haz:
-        stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force_stacks, do_save=do_force_stacks)
+        stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force_stacks, 
+                              do_save=True)
             
     # Set the rough position of MU69
     
@@ -393,7 +395,7 @@ if (__name__ == '__main__'):
     # Flatten the field stack
         
     (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median',zoom=zoom, padding=pad,
-                              do_force=do_force_flatten)
+                              do_force=do_force_flatten, do_save=True)
 
     # Verify that the WCS has been properly preserved after flattening here.
     
@@ -421,7 +423,7 @@ if (__name__ == '__main__'):
     for reqid_i in reqids_haz:
         (img_haz[reqid_i], wcs_haz[reqid_i])  =\
               stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
-                       do_force=do_force_flatten)
+                       do_force=do_force_flatten, do_save=True)
         img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field
         
         if do_plot_individual_stacks:
@@ -450,8 +452,14 @@ if (__name__ == '__main__'):
         print(f'Wrote: {file_out}')
 
     # Make a useful string for titles
-    
-    str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
+
+    if len(reqids_haz) == 1:  # If only one reqid, say 'Stack of 10, 2018315'
+        str_reqid = reqids_haz[0].split('_')[-1]
+        str_stack = f'Stack of {stack_field.size[0]}'
+    else:    
+        str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
+        str_stack = 'Superstack'
+        
     if 'OpNav' in reqids_haz[0]:
         str_reqid = f'{len(reqids_haz)} OpNav visits, ' + str_reqid
 
@@ -516,7 +524,7 @@ if (__name__ == '__main__'):
     plt.show()
     hbt.figsize()
  
-    plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, title = f'Superstack, {str_reqid}')    
+    plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, title = f'{str_stack}, {str_reqid}')    
 
     plane_radius_superstack = backplanes[0]['Radius_eq']
     
@@ -541,8 +549,8 @@ if (__name__ == '__main__'):
     # Tweak the backplane slightly as well. Not sure quite why this is necessary, since backplane should 
     # be exactly aligned w/ WCS. [Not sure -- WCS might be read from another file somewhere.]
     
-    dx_backplane_tweak = -4
-    dy_backplane_tweak = 1
+    dx_backplane_tweak = 0
+    dy_backplane_tweak = 0
     plane_radius_superstack_tweak = plane_radius_superstack.copy()
     plane_radius_superstack_tweak = np.roll(np.roll(plane_radius_superstack_tweak, dx_backplane_tweak, axis=1), 
                                       dy_backplane_tweak, axis=0)
@@ -562,7 +570,7 @@ if (__name__ == '__main__'):
     hbt.figsize((12,12))
     hbt.fontsize(18)
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
-                 title = f'Superstack, {str_reqid}, ring at {a_ring_km} km', 
+                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
                  width=130,do_show=False)
     # plt.imshow(stretch(img_superstack_median),cmap='plasma', origin='lower')
     plt.imshow( np.logical_and( (plane_radius_superstack > a_ring_km), 
@@ -572,7 +580,7 @@ if (__name__ == '__main__'):
     
     
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
-                 title = f'Superstack, {str_reqid}', 
+                 title = f'{str_stack}, {str_reqid}', 
                  width=130,do_show=False)
     plt.show()
     
@@ -608,9 +616,9 @@ if (__name__ == '__main__'):
         plt.show()
         
     plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, 
-                 title=f'Superstack, {str_reqid}')
+                 title=f'{str_stack}, {str_reqid}')
     plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=75, 
-                 title=f'Superstack, {str_reqid}')
+                 title=f'{str_stack}, {str_reqid}')
     
     hbt.figsize() 
 
@@ -753,7 +761,7 @@ if (__name__ == '__main__'):
     plt.xlabel('Radius [km]')
     plt.ylabel('I/F')
     plt.legend(loc = 'upper right')
-    plt.title(f'Radial profile, superstack {str_reqid}')
+    plt.title(f'Radial profile, {str_stack} {str_reqid}')
     plt.show()
     
 # =============================================================================

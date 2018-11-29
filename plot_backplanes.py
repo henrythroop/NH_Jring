@@ -109,16 +109,28 @@ def plot_backplanes(file,
             radius_good = np.logical_and(radius_arr > radius_ring*0.95, radius_arr < radius_ring*1.05)
             plt.imshow(radius_good, alpha=0.3, origin='lower')
         
+        # Plot the center of the system, as determined from the radius backplane
+        # This shows up just as a bright pixel. It is not otherwise marked. It is really just for testing.
+
+        if name_target == 'MU69': 
+            radius_arr = hdu['Radius_eq'].data
+            radius_center_mask = (radius_arr == np.amin(radius_arr))
+            # plt.imshow(radius_center_mask, alpha=0.3, origin='lower')
+            plt.imshow(radius_arr < 3000, alpha=0.3, origin='lower')
+            
+            ddec_arr = hdu['dDec_km'].data
+            ddec_mask = (np.abs(ddec_arr) < 1000)
+            dra_arr = hdu['dRA_km'].data
+            dra_mask = (np.abs(dra_arr) < 1000)
+            dradec_mask = np.logical_or(dra_mask,ddec_mask)
+            plt.imshow(dradec_mask, alpha=0.3, origin='lower')
+              
         # Plot target body
         
         plt.plot(pos_pix_x, pos_pix_y, ms=2, marker = 'o', color='green')    
         plt.title("{}, {}".format(os.path.basename(file), utc))
 
-        do_testXXX = True
-        if (do_testXXX):
-            plt.xlim([100,200])
-            plt.ylim([100,200])
-        plt.show() 
+        print()
     
     hdu.close()
 
@@ -134,7 +146,7 @@ if (__name__ == '__main__'):
         
 #    file = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405178272_0x633_pwcs_backplaned.fits'
 
-    file  = '/Users/throop/Data/ORT3/throop/backplaned/lor_0406991502_0x633_wcs_HAZARD_ort3_backplaned.fit'
+    file  = '/Users/throop/Data/MU69_Approach/throop/test/lor_0405121318_0x633_pwcs2_backplane.fits'
     
     name_observer = 'New Horizons'
     name_target = 'MU69'
