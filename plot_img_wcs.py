@@ -6,9 +6,13 @@ Created on Wed Mar  7 15:24:45 2018
 @author: throop
 """
 
+import spiceypy as sp
+
 def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5, 
                  color='red', title=None, do_zoom_center = False, do_show=True,
-                 width=None, **kwargs):
+                 width=None, name_observer='New Horizons', name_target = 'MU69', 
+                 et = None,
+                 **kwargs):
  
 
     # Default RA, Dec above is for MU69 on approach
@@ -38,6 +42,18 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
     
     do_show:
         If False, suppress the final plt.show(). This allows other planes to be plotted on top later if requested.
+    
+    ra: 
+        RA to center on [degrees]
+        
+    dec:
+        Declination to center on [degrees]
+        
+    name_target:
+    name_observer:
+    et:
+        If *all* of these parameters are supplied, then the RA and Dec are taken from a call to SPKEZR,
+        rather than from the supplied RA/Dec.
         
     """
 
@@ -45,7 +61,22 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
     
     plt.imshow(stretch(img), origin='lower', **kwargs)
-    (x, y) = wcs.wcs_world2pix(ra, dec, 0)
+    
+    # If requested, use SPICE to determine the position to plot
+    
+    if name_target and name_observer and et:
+        abcorr = 'LT'
+        frame = 'J2000'
+        (st, lt) = sp.spkezr(name_target, et, frame, abcorr, name_observer)
+        vec = st[0:3]
+        (_, ra, dec) = sp.recrad(vec)
+        ra *= hbt.r2d
+        dec *= hbt.r2d
+        print(f'Computed RA/Dec from SPICE')
+        
+    (x, y) = wcs.wcs_world2pix(ra, dec, 0)    # The '0' seems to have something to do with coord definitions:
+                                              # FITS vs. python, etc.
+                                              
     plt.plot(x, y, marker = 'o', markersize = markersize, alpha=alpha, color=color)
 
     # Set the width and height appropriately
@@ -71,4 +102,33 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
     
     if do_show:
         plt.show()
+
+# =============================================================================
+# Run the function as a test case, if requested.
+# =============================================================================
+        
+if (__name__ == '__main__'):
     
+    # Load an example FITS file
+    
+    file = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_Hazard_L4_2018325/' + \
+           'lor_0405122518_0x633_pwcs2_backplaned.fits'
+    
+    # Start up SPICE if needed
+    
+    if (sp.ktotal('ALL') == 0):
+        sp.furnsh('kernels_kem_prime.tm')
+    
+    # Read and process the file.
+    
+    hdu = fits.open(file)
+    et  = hdu['PRIMARY'].header['SPCSCET']
+    w   = WCS(file)
+    img = hdu['PRIMARY'].data
+    hdu.close()
+    
+    # Pass the image data, WCS, and ET, and plot it
+    
+    plot_img_wcs(img, w, name_observer='New Horizons', name_target = 'MU69', et=et)
+    
+                
