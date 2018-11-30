@@ -7,6 +7,13 @@ Created on Wed Mar  7 15:24:45 2018
 """
 
 import spiceypy as sp
+import astropy
+from   astropy.io import fits
+import numpy as np
+import spiceypy as sp
+from   astropy.visualization import wcsaxes
+import hbt
+from   astropy.wcs import WCS
 
 def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5, 
                  color='red', title=None, do_zoom_center = False, do_show=True,
@@ -38,7 +45,9 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
         Flag. Zoom in on just the center region, or show the entire plot.
         
     width:
-        Width of plot, in pixels. It is assumed to be square (height=width). If missing, the entire plot is shown.
+        If set, crop the plot to the specified width in pixels, centered at the plot center.
+        Plot is assumed to be square (height=width).
+        If not set, the entire plot is shown.
     
     do_show:
         If False, suppress the final plt.show(). This allows other planes to be plotted on top later if requested.
@@ -72,7 +81,6 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
         (_, ra, dec) = sp.recrad(vec)
         ra *= hbt.r2d
         dec *= hbt.r2d
-        print(f'Computed RA/Dec from SPICE')
         
     (x, y) = wcs.wcs_world2pix(ra, dec, 0)    # The '0' seems to have something to do with coord definitions:
                                               # FITS vs. python, etc.
@@ -131,4 +139,3 @@ if (__name__ == '__main__'):
     
     plot_img_wcs(img, w, name_observer='New Horizons', name_target = 'MU69', et=et)
     
-                
