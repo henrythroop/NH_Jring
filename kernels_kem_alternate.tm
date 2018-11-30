@@ -19,9 +19,9 @@ Henry Throop 12-Jan-2018
 
 \begindata
 
-PATH_SYMBOLS = ('DIR')
+PATH_SYMBOLS = ('DIR', 'DIR2')
 
-PATH_VALUES  = ('/Users/throop/gv/dev/kernels')
+PATH_VALUES  = ('/Users/throop/gv/dev/kernels', '/Users/throop/git/NH_rings')
 
 KERNELS_TO_LOAD = (
 '$DIR/pck00009.tpc',
@@ -50,7 +50,7 @@ KERNELS_TO_LOAD = (
 '$DIR/nh_fss_v000.ti',
 '$DIR/nh_astr_v000.ti',
 '$DIR/naif0012.tls',
-'$DIR/new-horizons_1535.tsc',
+'$DIR/new-horizons_1646.tsc',
 '$DIR/gv_pck.tpc',
 '$DIR/gv_naif_ids.txt',
 '$DIR/pluto_solar_heliographic.tf',
@@ -70,9 +70,11 @@ KERNELS_TO_LOAD = (
 '$DIR/nh_lorri_wcs.bc'
 '$DIR/merged_18359_v1_cmd.bc'
 '$DIR/NavPE_de433_od128.bsp',
-'$DIR/2014MU69_SBP_170825_noocc5.bsp',
-'$DIR/nh_nom_20170201_20210714_v13_alternate.bsp',
+'$DIR/2014MU69_SBP_180112_rd2b.bsp',
+'$DIR/nh_nom_20170201_20210714_v13_alternate.bsp'
+'$DIR/NavSBE_2014MU69_od135.bsp',
+'$DIR/NavPE_de433_od135.bsp'
 '$DIR/gv_pluto_smallsats_lhr.tf',
 '$DIR/gv_pck.tpc',
-'$DIR/mu69_sunflower.tf',
+'$DIR2/mu69_ort.tf',
 )
