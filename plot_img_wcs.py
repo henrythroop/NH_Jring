@@ -82,9 +82,17 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
         ra *= hbt.r2d
         dec *= hbt.r2d
         
-    (x, y) = wcs.wcs_world2pix(ra, dec, 0)    # The '0' seems to have something to do with coord definitions:
-                                              # FITS vs. python, etc.
-                                              
+    (x, y) = wcs.wcs_world2pix(ra, dec, 0)    # The '0' is the 'origin': 1 for FITS, where [1,1] is origin.
+                                              #                          0 for numpy, where [0,0] is origin.
+                                              # (Though if I go into DS9, it says that LL pixel is 0,0.)
+                                              # I assume that I should use 0 here
+
+# Definition of 'origin', which is third argument of wcs_world2pix:  
+#  "Here, origin is the coordinate in the upper left corner of the image. In FITS and Fortran standards, 
+#   this is 1. In Numpy and C standards this is 0." 
+
+    print(f'Position xy: {x}, {y}')
+    
     plt.plot(x, y, marker = 'o', markersize = markersize, alpha=alpha, color=color)
 
     # Set the width and height appropriately

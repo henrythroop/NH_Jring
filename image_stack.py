@@ -569,6 +569,8 @@ class image_stack:
         # Calculate the total shift range, from negative to positive.
         # Use ceil() to assure that we have enough headroom for rounding.
         
+        # XXX bug: hbt.ceilout(0.0) = -1. This is causing a problem!
+        
         shift_x_pix_min = hbt.ceilout(np.amin(shift_x_pix))
         shift_x_pix_max = hbt.ceilout(np.amax(shift_x_pix))
         shift_y_pix_min = hbt.ceilout(np.amin(shift_y_pix))
@@ -735,6 +737,8 @@ class image_stack:
 
 # =============================================================================
 #      Modify the WCS structure to fit the new image that has been created
+#      We want to create one WCS which matches the final single output image --
+#      *not* a WCS for each plane.            
 # =============================================================================
      
         # Copy the WCS over. Start with the one from the 0th image (which is arbitrary),
@@ -745,7 +749,9 @@ class image_stack:
         # Plot Plane 0 to verify accuracy of its WCS
     
         if do_plot:
-            plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0') # XXX I want to plot the stack name here!
+            plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0',
+                         name_target='MU69', et = self.t['et'][0], name_observer='New Horizons') 
+               # XXX I want to plot the stack name here!
         
 #        print(f'WCS for above: {wcs}')
         
@@ -753,16 +759,17 @@ class image_stack:
         
         # Change the center position, in RA/Dec, by applying the known offset in pixels
         # Offset is in raw pixels (ie, not zoomed)
-        # Take shift amount from 0th image.
+        # Take shift amount from 0th image, because that is where I grabbed the WCS from.
         
-        dx_wcs_pix =  self.t['shift_pix_x'][0]  # Experiment with these to get them right. -- ie, probably wrong as is. XXX
+        dx_wcs_pix =  self.t['shift_pix_x'][0]  # Experiment with these to get them right. -- probably wrong as is. XXX
         dy_wcs_pix =  self.t['shift_pix_y'][0]
         
-        # print(f'Shift_pix_x = {dx_wcs_pix} pixels horizontal')
-        # print(f'Shift_pix_y = {dy_wcs_pix} pixels vertical')
-        # print(f'Pad_xy      = {pad_xy}     pixels vertical and pixels horizontal')
-        # print()
-        # print(f'WCS original: {wcs}')  
+        print('WCS before shifting')
+        print(f'Shift_pix_x = {dx_wcs_pix} pixels horizontal')
+        print(f'Shift_pix_y = {dy_wcs_pix} pixels vertical')
+        print(f'Pad_xy      = {pad_xy}     pixels vertical and pixels horizontal')
+        print()
+        print(f'WCS original: {wcs}')  
          
         # print(f'Calling wcs_translate_pix({pad_xy:.1f}, {pad_xy:.1f}) for pad only')
         # wcs_pad = wcs.deepcopy()
@@ -775,16 +782,17 @@ class image_stack:
         print(f'Calling wcs_translate_pix({dx_wcs_pix:.1f}, {dy_wcs_pix:.1f})')
         wcs_translate_pix(wcs, dx_wcs_pix, dy_wcs_pix) 
         
-        
         # Zoom the WCS to match the already zoomed image
         
         wcs_zoom(wcs, zoom, np.array(np.shape(im)))
-        plot_img_wcs(arr_flat, wcs, title = 'pad + trans + zoom') 
+        plot_img_wcs(arr_flat, wcs, title = 'pad + trans + zoom',
+                     name_target='MU69', et = self.t['et'][0], name_observer='New Horizons') 
 
         # And return the WCS along with the image
         
         if do_plot:
-            plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust')  # XXX data OK, but position of red
+            plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust',
+                         name_target='MU69', et = self.t['et'][0], name_observer='New Horizons')  # XXX data OK, but position of red
                                                                # point on plot is sometimes incorrect.
 
 #        print(f'WCS after above: {wcs}')
@@ -844,7 +852,9 @@ class image_stack:
 
         if (do_wrap):
             raise(ValueError('do_wrap = True not supported'))
-            
+        
+        print(f'image_single: retrieved pad_xy = {pad_xy}')
+        
         # Get the image
             
         im = self.t['data'][num]
@@ -868,7 +878,6 @@ class image_stack:
 
         return(im_expand)
 
-    
 # =============================================================================
 # End of method definition
 # =============================================================================
@@ -943,7 +952,8 @@ if (__name__ == '__main__'):
     zoom = 2
     (arr_flat, wcs_flat) = stack.flatten(zoom=zoom, do_force=True, do_plot=True, do_save=True)
     
-    plot_img_wcs(arr_flat, wcs_flat, title = f'Zoom {zoom}', width=50)
+    plot_img_wcs(arr_flat, wcs_flat, title = f'Zoom {zoom}', width=50,
+                 name_observer='New Horizons', name_target='MU69', et = )
         
     # Make a plot of ET, showing it for each image and the whole stack
     # Highlight the central time in red.

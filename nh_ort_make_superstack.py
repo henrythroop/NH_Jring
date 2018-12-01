@@ -329,6 +329,8 @@ if (__name__ == '__main__'):
                        'KALR_MU69_OpNav_L4_2018330',  # 10 frames
                        'KALR_MU69_OpNav_L4_2018331',  # 10 frames
                        'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                       'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+                       'KALR_MU69_OpNav_L4_2018335',  # 10 frames
 ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
@@ -357,7 +359,7 @@ if (__name__ == '__main__'):
   
     # DO_FORCE_FLATTEN: Same thing
       
-    do_force_stacks = False   
+    do_force_stacks = True   
     
     do_force_flatten = True
 
@@ -577,7 +579,7 @@ if (__name__ == '__main__'):
     
     da_ring_km = 300
 
-    trajectories = ['alternate', 'prime']
+    trajectories = ['alternate', 'prime']  # Make 'prime' second, so I don't screw things up for someone else.
     a_ring_km = [3500, 10000]
 
     hbt.figsize((10,10))
@@ -626,21 +628,8 @@ if (__name__ == '__main__'):
         (_, ra_aimpoint, dec_aimpoint) = sp.recrad(vec_nh_mu69_haz_aimpoint)
         (x, y) = wcs_superstack.wcs_world2pix(ra_aimpoint*hbt.r2d, dec_aimpoint*hbt.r2d, 0)
         
-        plt.plot(x, y, marker = 'X', markersize=10)
-    
-    # # Vector from 
-    # # Vector from Sun → NH at C/A
-    # (st_ca, lt) = sp.spkezr('New Horizons', et_ca, frame, abcorr, 'Sun')
-    # vec_sun_nh_ca = st_ca[0:3]
-    
-    # # Vector from Sun → NH today, at time of image
-    # (st_haz, lt) = sp.spkezr('New Horizons', et_haz, frame, abcorr, 'Sun')
-    # vec_sun_nh_haz = st_haz[0:3]
-    
-    # # Subtract these to get vec to NH at CA, as seen from NH today.
-    # vec_nh_haz_nh_ca = vec_sun_nh_ca - vec_sun_nh_haz
-    
-    
+        plt.plot(x, y, marker = 'X', markersize=10, color='blue')
+ 
     plt.show()
     
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
