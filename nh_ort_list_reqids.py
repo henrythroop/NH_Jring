@@ -20,8 +20,8 @@ def nh_ort_list_reqids():
     
     dir_data = '/Users/throop/Data/MU69_Approach'
     
-    dir_wcs        = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
-    dir_backplanes = os.path.join(dir_data, name_ort, 'porter')
+    dir_wcs        = os.path.join(dir_data, 'throop', 'backplaned')
+    dir_backplanes = os.path.join(dir_data, 'porter')
     
     dirs_wcs = glob.glob(os.path.join(dir_wcs, '*'))
     dirs_wcs = sorted(dirs_wcs)
@@ -33,6 +33,7 @@ def nh_ort_list_reqids():
         
         dir2=dir.replace(dir_wcs, dir_backplanes)
         list_backplanes = glob.glob(os.path.join(dir2, '*.fits'))
+        # print(dir2)
         num_backplanes = len(list_backplanes)
                                                
         print(f'{reqid:35}: {num_backplanes:3} / {num_wcs:3}')
