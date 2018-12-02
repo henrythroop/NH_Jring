@@ -35,6 +35,7 @@ KERNELS_TO_LOAD = (
 '$DIR/gv_pluto_smallsats_lhr.tf',
 '$DIR/gv_pck.tpc',
 '$DIR2/mu69_ort.tf',
+'$DIR/nh_ref_20150801_20190901_od128_tcm22.bsp',
 '$DIR/NavPE_de433_od138.bsp',
 '$DIR/NavSBE_2014MU69_od138.bsp',
 '$DIR/nh_pred_20180601_20250101_od138.bsp'
