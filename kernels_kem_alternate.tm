@@ -25,31 +25,8 @@ PATH_VALUES  = ('/Users/throop/gv/dev/kernels', '/Users/throop/git/NH_rings')
 
 KERNELS_TO_LOAD = (
 '$DIR/pck00009.tpc',
-'$DIR/p4p5.revised.bsp',
-'$DIR/plu020.bsp',
-'$DIR/de413.bsp',
-'$DIR/mar063.bsp',
-'$DIR/jup204.bsp',
-'$DIR/jup260.bsp',
-'$DIR/sat077_2000-2025.bsp'
-'$DIR/sat227.bsp',
-'$DIR/ura027-3.bsp',
-'$DIR/nep016.bsp',
-'$DIR/nh_plu017.bsp',
 '$DIR/2014MU69_SBP_170528_may25a.bsp',
 '$DIR/nh_v220.tf',
-'$DIR/nh_ralph_v100.ti',
-'$DIR/nh_lorri_v100.ti',
-'$DIR/nh_swap_v200.ti',
-'$DIR/nh_sdc_v100.ti',
-'$DIR/nh_pepssi_v110.ti',
-'$DIR/nh_alice_v200.ti',
-'$DIR/nh_alice_rows.ti',
-'$DIR/nh_alice_rows.tf',
-'$DIR/nh_rex_v100.ti',
-'$DIR/nh_fss_v000.ti',
-'$DIR/nh_astr_v000.ti',
-'$DIR/naif0012.tls',
 '$DIR/new-horizons_1646.tsc',
 '$DIR/gv_pck.tpc',
 '$DIR/gv_naif_ids.txt',
@@ -76,5 +53,5 @@ KERNELS_TO_LOAD = (
 '$DIR/NavPE_de433_od135.bsp'
 '$DIR/gv_pluto_smallsats_lhr.tf',
 '$DIR/gv_pck.tpc',
-'$DIR2/mu69_ort.tf',
+'$DIR2/mu69_ring_frames.tf',
 )

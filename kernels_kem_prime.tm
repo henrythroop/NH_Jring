@@ -26,7 +26,7 @@ PATH_VALUES  = ('/Users/throop/gv/dev/kernels', '/Users/throop/git/NH_rings')
 KERNELS_TO_LOAD = (
 '$DIR/pck00009.tpc',
 '$DIR/naif0012.tls',
-'$DIR/new-horizons_1646.tsc',
+'$DIR/new-horizons_1698.tsc',
 '$DIR/gv_pck.tpc',
 '$DIR/gv_naif_ids.txt',
 '$DIR/pluto_solar_heliographic.tf',
@@ -34,10 +34,10 @@ KERNELS_TO_LOAD = (
 '$DIR/gv_smallbodies.tf',
 '$DIR/gv_pluto_smallsats_lhr.tf',
 '$DIR/gv_pck.tpc',
-'$DIR2/mu69_ort.tf',
+'$DIR2/mu69_ring_frames.tf',
 '$DIR/nh_ref_20150801_20190901_od128_tcm22.bsp',
+'$DIR/nh_pred_20180601_20250101_od138_tcm28_burn.bsp'
 '$DIR/NavPE_de433_od138.bsp',
 '$DIR/NavSBE_2014MU69_od138.bsp',
-'$DIR/nh_pred_20180601_20250101_od138.bsp'
 
 )
