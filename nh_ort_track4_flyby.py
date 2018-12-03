@@ -150,12 +150,12 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
     
     sp.furnsh(f'kernels_kem_{name_trajectory}.tm')
     
-    do_short = False
+    do_short = True
     
     if do_short:
-        files = files[0]
-    
-    file = files[27]  # Just for testing w cut+paste. Can ignore these.
+        files = files[0:3]
+         
+#    file = files[27]  # Just for testing w cut+paste. Can ignore these.
     
     i=0
 #%%%    
@@ -345,7 +345,14 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
     num_files = len(files)
     name_run = dir_out.split('/')[-2]
 
-    file_out = f'{name_run}_{name_trajectory}_n{num_files}.tgz'
+    inits_track4    = 'hbt'
+    
+#    if 'hamilton' in files[0]:
+#        inits_track3 = 'dph'
+#    if 'kauf' in files[0]:
+#        inits_track3 = 'dk'
+        
+    file_out = f'{name_run}_{name_trajectory}_{inits_track4}_n{num_files}.tgz'
     
     str = f'cd {dir_out}; tar -czf {file_out} *{name_trajectory}*.dust'
     
@@ -406,10 +413,9 @@ def make_table_grid_positions():
     
     """
      
-    name_trajectory = 'alternate'  # ← Set this to 'prime' or 'alternate'
+    name_trajectory = 'prime'  # ← Set this to 'prime' or 'alternate'
    
-    sp.unload('kernels_kem_prime.tm')
-    sp.unload('kernels_kem_alternate.tm')
+    hbt.unload_kernels_all() 
    
     frame = '2014_MU69_SUNFLOWER_ROT'
     
@@ -419,7 +425,12 @@ def make_table_grid_positions():
  
     sp.furnsh(f'kernels_kem_{name_trajectory}.tm')
     
-    file_in = '/Users/throop/Data/ORT2/throop/track4/ort2-ring_v2.2_q2.0_pv0.10_rho0.22.grid4d.gz'
+#    file_in = '/Users/throop/Data/ORT2/throop/track4/ort2-ring_v2.2_q2.0_pv0.10_rho0.22.grid4d.gz'
+#    file_in = '/Users/throop/Data/ORT5/throop/deliveries/tuna9k/ort5_None_y3.0_q3.5_pv0.70_rho1.00.dust.txt'
+    file_in = '/Users/throop/Data/ORT5/kaufmann/deliveries/chr3_tunacan10k/chr3-0003' + \
+              '/y3.0/beta1.0e+00/subset00/model.array2'
+    
+    file_in = '/Users/throop/Data/ORT5/throop/deliveries/tuna9k/ort5_None_y3.0_q3.5_pv0.70_rho1.00.dust.pkl'
     
     grid = nh_ort_track4_grid(file_in)    # Load the grid from disk. Uses gzip, so it is quite slow (10 sec/file)
 
@@ -526,11 +537,15 @@ if (__name__ == '__main__'):
     # NB: It would make sense to parallelize this loop below. That way I could run a bunch of these in parallel.
     
     name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
-
+    name_trajectory = 'prime'
+    
     # dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
     # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_sunflower3.5k/'
     # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_sunflower10k/'
-    dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_tunacan10k/'
+
+    dir_in = '/Users/throop/data/ORT5/throop/deliveries/tuna9k/'
+    # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_a'
+    # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_b'
     
 #    dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dek/'
     

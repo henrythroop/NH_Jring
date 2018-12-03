@@ -630,7 +630,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
 
         if do_plot_xyz_slices_merged:
             hbt.figsize((20,20))
-            hbt.set_fontsize(7)
+            hbt.fontsize(7)
             grids_i.plot(axis_sum=0)
             grids_i.plot(axis_sum=1)
             grids_i.plot(axis_sum=2)
@@ -643,7 +643,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
         do_plot_tau_merged = True
         
         if (do_plot_tau_merged):
-            hbt.set_fontsize(10)
+            hbt.fontsize(10)
             hbt.figsize((6,6))
             grids_i.plot_tau()
         
@@ -681,13 +681,26 @@ if __name__ == '__main__':
 #    dir_in = '/Users/throop/data/ORT4/hamilton/ort4_bc3_10cbr2_dph/'   # Doug retrograde 
     # dir_in = '/Users/throop/data/ORT4/kaufmann/ort4_bc3_10cbr2_dek/'   # David retrograde 
     
+
+    # Kaufmann ORT5
+    
     # dir_in = '/Users/throop/data/ORT_Nov18/kaufmann/deliveries/chr3_sunflower3.5k/' # done
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3_sunflower10k/'
-    dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3_tunacan10k/'
-
-    # Get a list of all of the individual runs in the input dir
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3_tunacan10k/'
     
-    runs = glob.glob(os.path.join(dir_in, '*/*/*/subset*/'))
+    # Hamilton ORT5
+    
+    dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_a/'  # Not sure what the diff btwn sun10k_{ab} is
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_b/'
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/tuna9k/'
+
+    # Get a list of all of the individual runs in the input dir.
+    # DPH supplies a directory for each moon, while DK is one step thinner since he doesn't.
+    
+    if ('kauf') in dir_in:
+        runs = glob.glob(os.path.join(dir_in, '*/*/*/subset*/'))
+    if ('hamilton' in dir_in):
+        runs = glob.glob(os.path.join(dir_in, '*/*/subset*/'))
 
     if len(runs) == 0:
         print(f'No files found in {dir_in}')
