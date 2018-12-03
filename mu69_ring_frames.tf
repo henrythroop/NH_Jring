@@ -13,6 +13,7 @@ Frames defined in this file are:
   '2014_MU69_TUNACAN_ROT'  
   '2014_MU69_TUNACAN_INERT'
   '2014_MU69_ORT4_1'
+  '2014_MU69_ORT_NYT'
 
 Sunflower Frames
 ---
@@ -255,7 +256,7 @@ given RA/Dec.
   FRAME_1234584_PRI_ABCORR              = 'LT'
   FRAME_1234584_PRI_FRAME		= 'J2000'
   FRAME_1234584_PRI_RA                  = 275
-  FRAME_1234584_PRI_DEC                 = 13
+  FRAME_1234584_PRI_DEC                 = -56
  
   FRAME_1234584_SEC_AXIS                = '+Z'
   FRAME_1234584_SEC_VECTOR_DEF          = 'CONSTANT'
@@ -264,4 +265,45 @@ given RA/Dec.
   FRAME_1234584_SEC_RA                  = 000
   FRAME_1234584_SEC_DEC                 = 00 
   FRAME_1234584_SEC_FRAME		= 'J2000'
+\begintext
+
+---
+Define 2014_MU69_ORT_NYT frame, for the ring from the September 2018 'NYT ORT.' 
+
+This is just a fixed frame that points to a given RA/Dec, determined by Simon.
+This one has +Z be the main vertical axis, for ease of plotting because I
+adapted J-ring plotting routines in GV. However, other models for MU69's rings
+use +Y being the vertical axis, so we may need to adjust this for consistency
+later -- esp if we use this to make backplanes.
+
+---
+
+\begindata
+
+  FRAME_2014_MU69_ORT_NYT	        = 1234585
+  FRAME_1234585_NAME                    = '2014_MU69_ORT_NYT'
+  FRAME_1234585_CLASS                   = 5
+  FRAME_1234585_CENTER                  = '2014 MU69'
+  FRAME_1234585_CLASS_ID                = 1234585
+  FRAME_1234585_RELATIVE                = 'J2000'
+  FRAME_1234585_DEF_STYLE               = 'PARAMETERIZED'
+  FRAME_1234585_FAMILY                  = 'TWO-VECTOR'
+  FRAME_1234585_FREEZE_EPOCH            = @5-DEC-2018/00:00:00
+
+  FRAME_1234585_PRI_AXIS                = '-Z'
+  FRAME_1234585_PRI_VECTOR_DEF          = 'CONSTANT'
+  FRAME_1234585_PRI_SPEC                = 'RA/DEC'
+  FRAME_1234585_PRI_UNITS               = 'DEGREES'
+  FRAME_1234585_PRI_ABCORR              = 'LT'
+  FRAME_1234585_PRI_FRAME		= 'J2000'
+  FRAME_1234585_PRI_RA                  = 300
+  FRAME_1234585_PRI_DEC                 = 30
+ 
+  FRAME_1234585_SEC_AXIS                = '+Y'
+  FRAME_1234585_SEC_VECTOR_DEF          = 'CONSTANT'
+  FRAME_1234585_SEC_SPEC                = 'RA/DEC'
+  FRAME_1234585_SEC_UNITS               = 'DEGREES'
+  FRAME_1234585_SEC_RA                  = 000
+  FRAME_1234585_SEC_DEC                 = 00 
+  FRAME_1234585_SEC_FRAME		= 'J2000'
 \begintext
