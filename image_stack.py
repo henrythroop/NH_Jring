@@ -588,7 +588,7 @@ class image_stack:
 # Flatten a stack of images as per the currently set indices
 # =============================================================================
 
-    def flatten(self, method='median', zoom=1, do_subpixel=False, do_wrap=False, padding = 'Auto', do_plot=True,
+    def flatten(self, method='median', zoom=1, do_subpixel=False, do_wrap=False, padding = 'Auto', do_plot=False,
                 do_force=False, do_save=False):
         
         """
@@ -726,8 +726,8 @@ class image_stack:
 #       Flatten all the individual frames down to one, using mean or median
 # =============================================================================
         
-        print(f'Flattening array with dimension {np.shape(arr)} using {method}; zoom={zoom}')
-        print(f'  Pad_xy = {pad_xy}')
+#        print(f'Flattening array with dimension {np.shape(arr)} using {method}; zoom={zoom}')
+#        print(f'  Pad_xy = {pad_xy}')
         
         if (method == 'mean'):
             arr_flat   = np.nanmean(arr,0)    # Fast
@@ -764,12 +764,12 @@ class image_stack:
         dx_wcs_pix =  self.t['shift_pix_x'][0]  # Experiment with these to get them right. -- probably wrong as is. XXX
         dy_wcs_pix =  self.t['shift_pix_y'][0]
         
-        print('WCS before shifting')
-        print(f'Shift_pix_x = {dx_wcs_pix} pixels horizontal')
-        print(f'Shift_pix_y = {dy_wcs_pix} pixels vertical')
-        print(f'Pad_xy      = {pad_xy}     pixels vertical and pixels horizontal')
-        print()
-        print(f'WCS original: {wcs}')  
+#        print('WCS before shifting')
+#        print(f'Shift_pix_x = {dx_wcs_pix} pixels horizontal')
+#        print(f'Shift_pix_y = {dy_wcs_pix} pixels vertical')
+#        print(f'Pad_xy      = {pad_xy}     pixels vertical and pixels horizontal')
+#        print()
+#        print(f'WCS original: {wcs}')  
          
         # print(f'Calling wcs_translate_pix({pad_xy:.1f}, {pad_xy:.1f}) for pad only')
         # wcs_pad = wcs.deepcopy()
@@ -779,20 +779,22 @@ class image_stack:
         # plot_img_wcs(arr_flat, wcs_pad, title = 'pad only') 
         # print(f'WCS_PAD: {wcs_pad}')  
 
-        print(f'Calling wcs_translate_pix({dx_wcs_pix:.1f}, {dy_wcs_pix:.1f})')
+#        print(f'Calling wcs_translate_pix({dx_wcs_pix:.1f}, {dy_wcs_pix:.1f})')
         wcs_translate_pix(wcs, dx_wcs_pix, dy_wcs_pix) 
         
         # Zoom the WCS to match the already zoomed image
         
         wcs_zoom(wcs, zoom, np.array(np.shape(im)))
-        plot_img_wcs(arr_flat, wcs, title = 'pad + trans + zoom',
-                     name_target='MU69', et = self.t['et'][0], name_observer='New Horizons') 
+        
+#        plot_img_wcs(arr_flat, wcs, title = 'pad + trans + zoom',
+#                     name_target='MU69', et = self.t['et'][0], name_observer='New Horizons') 
 
         # And return the WCS along with the image
         
         if do_plot:
             plot_img_wcs(arr_flat, wcs, title = f'After zoom x{zoom} + adjust',
-                         name_target='MU69', et = self.t['et'][0], name_observer='New Horizons')  # XXX data OK, but position of red
+                         name_target='MU69', et = self.t['et'][0], name_observer='New Horizons')  
+                                                               # XXX data OK, but position of red
                                                                # point on plot is sometimes incorrect.
 
 #        print(f'WCS after above: {wcs}')

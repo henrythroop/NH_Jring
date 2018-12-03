@@ -44,7 +44,7 @@ def wcs_translate_pix(wcs, dx_pix, dy_pix):
     
     """
 
-    print(f'Translating WCS coords to offset by dx={dx_pix}, dy={dy_pix}')
+#    print(f'Translating WCS coords to offset by dx={dx_pix}, dy={dy_pix}')
     wcs.wcs.crpix[0] += dx_pix
     wcs.wcs.crpix[1] += dy_pix
 
@@ -82,7 +82,7 @@ def wcs_zoom(wcs, zoom, shape_orig):
     
     crpix = wcs.wcs.crpix  # Location x and y of center. x = horizontal.
     
-    print(f'Before: crpix={crpix}')
+#    print(f'Before: crpix={crpix}')
     
     # Now change the center position
     # This math is a bit weird here! It gives what appears to be the right answer, but it has more terms in it 
@@ -103,7 +103,7 @@ def wcs_zoom(wcs, zoom, shape_orig):
     # crpix_new = np.array( [(crpix[0]+0.5)/shape_orig[0] * (zoom * shape_orig[0]) + 1 - (3/2.) * zoom,
                            # (crpix[1]+0.5)/shape_orig[1] * (zoom * shape_orig[1]) + 1 - (3/2.) * zoom] )
     
-    print(f'After: crpix={crpix_new}')
+#    print(f'After: crpix={crpix_new}')
     
     wcs.wcs.crpix = crpix_new
     

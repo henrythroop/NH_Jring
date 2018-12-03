@@ -41,9 +41,12 @@ from   wcs_translate_pix import wcs_translate_pix, wcs_zoom
 # Define a gaussian function, for the fit
     
 def gaus(x,a,x0,sigma):
+    """
+    Just a simple Gaussian function, to be used for a fit function.
+    """
+    
     return a*np.exp(-(x-x0)**2/(2*sigma**2))
     
-
 def nh_ort_make_superstack(stack, img, img_field, 
                            name_stack_base, 
                            do_save_all=True, do_backplanes=True, dir='', str_name='', 
@@ -169,7 +172,7 @@ def nh_ort_make_superstack(stack, img, img_field,
             shift_y = 0
             arr_out = arr_out
             
-            print(f'Aligned by WCS. Rolling by {shift_x}, {shift_y} to align {key} into superstack')
+#            print(f'Aligned by WCS. Rolling by {shift_x}, {shift_y} to align {key} into superstack')
                        
         img_rescale[reqid_i]  = arr_out
         img_rescale_3d[i,:,:] = arr_out
@@ -204,19 +207,19 @@ def nh_ort_make_superstack(stack, img, img_field,
         
         # Write full-size images
         
-        file_out = f'superstack_n{len(keys)}_{str_name}_median_wcs_hbt.fits'
+        file_out = f'superstack_n{len(keys)}_{str_name}_median_wcs_hbt.fits'  # Write the median stack file
         hdu = fits.PrimaryHDU(img_rescale_median, header=header)
         path_out = os.path.join(dir_out, file_out)
         hdu.writeto(path_out, overwrite=True)
-        print(f'Wrote: {path_out}')
+        print(f'Wrote median stack: {path_out}')
       
         path_out_main = path_out  # Strangely, we don't need to .copy() a string. Ahh - that is just for np objects!
         
-        file_out = f'superstack_{str_name}_mean_wcs_hbt.fits'
+        file_out = f'superstack_n{len(keys)}_{str_name}_mean_wcs_hbt.fits'                 # Write the mean stack file
         hdu = fits.PrimaryHDU(img_rescale_mean, header=header)
         path_out = os.path.join(dir_out, file_out)
         hdu.writeto(path_out, overwrite=True)
-        print(f'Wrote: {path_out}')
+        print(f'Wrote mean   stack: {path_out}')
         
         if do_backplanes:
             # Now that we have written a FITS file to disk, compute backplanes for it
@@ -224,7 +227,7 @@ def nh_ort_make_superstack(stack, img, img_field,
             
             frame = '2014_MU69_SUNFLOWER_ROT'
             
-            print(f'Computing backplanes for file {path_out_main}')
+            print(f'Computing backplanes: {path_out_main}')
             planes = compute_backplanes(path_out_main, 'MU69', frame, 'New Horizons', angle3=30*hbt.d2r)
 
     if do_backplanes:        
@@ -325,12 +328,13 @@ if (__name__ == '__main__'):
                        # 'KALR_MU69_OpNav_L4_2018319',
                        # 'KALR_MU69_OpNav_L4_2018325',
                        # 'KALR_MU69_OpNav_L4_2018326',
-                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+#                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
                        # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
                        # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
                        # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
-                       # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
-                       # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+#                        'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+#                        'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+                       'KALR_MU69_Hazard_L4_2018334',
 ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
@@ -410,8 +414,8 @@ if (__name__ == '__main__'):
     
     hbt.figsize((10,10)) # This is ignored, for some reason.
     
-    plot_img_wcs(img_field, wcs_field, title = 'Field Stack',   # Plot MU69 here even in the field, just for ref. XXX delete !
-                 name_observer='New Horizons', name_target='MU69', et = et_haz, width=100)
+#    plot_img_wcs(img_field, wcs_field, title = 'Field Stack',   # Plot MU69 here on the field. XXX delete !
+#                 name_observer='New Horizons', name_target='MU69', et = et_haz, width=100)
     
 #%%%
     
@@ -428,7 +432,7 @@ if (__name__ == '__main__'):
     wcs_haz = {}
     img_haz_diff = {}
 
-    do_plot_individual_stacks = True
+    do_plot_individual_stacks = False
     
     for reqid_i in reqids_haz:
         (img_haz[reqid_i], wcs_haz[reqid_i])  =\
@@ -447,7 +451,8 @@ if (__name__ == '__main__'):
     hbt.figsize((10,10))
     hbt.fontsize(12)
     
-    plt.imshow(stretch(img_field), origin='lower')
+#    plt.imshow(stretch(img_field), origin='lower')
+    
     for i,reqid_i in enumerate(reqids_haz):        
         diff_trim = hbt.trim_image(img_haz_diff[reqid_i])
         
@@ -511,24 +516,27 @@ if (__name__ == '__main__'):
     # Make the superstack, and return backplanes.
     # Bug: the backplanes returned are unzoomed.
     
-    # Make the *mea
+    # Generate the backplanes
+    
     (img_superstack_mean, img_superstack_median, backplanes) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
                                                                           name_stack_base, 
                                                                           do_save_all=True, dir=dir_out,
-                                                                          str_name = str_name, do_center=True,
+                                                                          str_name=str_name, do_center=True,
                                                                           do_backplanes=True,
                                                                           wcs = wcs_haz[name_stack_base])
 
-    # Plot the superstack to screen
+#%%%
     
-    hbt.figsize(10,10)
-    plt.subplot(1,2,1)
+    # Adjust the WCS and backplanes, if needed
+    
+#    hbt.figsize(10,10)
+#    plt.subplot(1,2,1)
 
     # Do some testing on the WCS backplanes
     
-    plot_img_wcs(img_superstack_mean, wcs_superstack, cmap=cmap_superstack,
-                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100,
-                  do_show=False)
+#    plot_img_wcs(img_superstack_mean, wcs_superstack, cmap=cmap_superstack,
+#                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100,
+#                  do_show=False)
     
     # Test centering using crosshairs
     
@@ -548,13 +556,13 @@ if (__name__ == '__main__'):
     r = plane_radius_superstack.copy()
 
     centroid = scipy.ndimage.measurements.center_of_mass(r < 10000)
-    print(f'Centroid is {centroid}')
+#    print(f'Centroid is {centroid}')
 
     dxy = np.array(np.shape(r))/2 - np.array(scipy.ndimage.measurements.center_of_mass(r < 5000))  
     r_roll = np.roll(r, np.round(dxy.astype(int)), axis=(0, 1))
 
     centroid = scipy.ndimage.measurements.center_of_mass(r_roll < 10000)
-    print(f'Centroid is {centroid}')
+#    print(f'Centroid is {centroid}')
     
     # Save the shifted 'radius' backplane back to the array
     
@@ -612,30 +620,37 @@ if (__name__ == '__main__'):
     wcs_superstack          = wcs_superstack_tweak
     plane_radius_superstack = plane_radius_superstack_tweak
 
+#%%%
 # =============================================================================
 #     Now that the WCS and all images are set, make some plots
 # =============================================================================
     
-    da_ring_km = 300
+    hbt.figsize(12,12)
+    plt.subplot(1,2,1)
+    
+    da_ring_km = 300   # Width of the ring to plot, in km
+    
 #    da_ring_km = 900
 
-    trajectories = ['alternate', 'prime']  # Make 'prime' second, so I don't screw things up for someone else.
     a_ring_km = [3500, 10000]
 
-    hbt.figsize((10,10))
-    hbt.fontsize(14)
+    hbt.figsize((14,14))
+    hbt.fontsize(10)
+    
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
-                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
+#                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
+                 title = f'{str_stack}, {str_reqid}', 
                  width=130,do_show=False,
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
     
     # Construct the image of ring masks
     
-    mask_ring0 = np.logical_and( (plane_radius_superstack > a_ring_km[0]), 
-                                (plane_radius_superstack < (a_ring_km[0] + da_ring_km)) )
-    mask_ring1 = np.logical_and( (plane_radius_superstack > a_ring_km[1]), 
-                                (plane_radius_superstack < (a_ring_km[1] + da_ring_km)) )
-    plt.imshow(np.logical_or(mask_ring0, mask_ring1),
+    mask_ring0 = np.logical_and( (plane_radius_superstack >  a_ring_km[0]), 
+                                 (plane_radius_superstack < (a_ring_km[0] + da_ring_km)) )
+    mask_ring1 = np.logical_and( (plane_radius_superstack >  a_ring_km[1]), 
+                                 (plane_radius_superstack < (a_ring_km[1] + da_ring_km)) )
+
+    plt.imshow(np.logical_not(np.logical_or(mask_ring0, mask_ring1)),
                 alpha=0.08, origin='lower')
     
     # Mark the aimpoints on the plot
@@ -644,6 +659,8 @@ if (__name__ == '__main__'):
     et_ca = sp.utc2et(ut_ca)
     frame = 'J2000'
     abcorr = 'None' # Tried LT and NONE
+
+    trajectories = ['alternate', 'prime']  # Make 'prime' second, so I don't screw things up for someone else.
     
     for i,trajectory in enumerate(trajectories):
         
@@ -656,6 +673,7 @@ if (__name__ == '__main__'):
         # Vector from MU69 → NH at C/A
         (st, lt) = sp.spkezr('New Horizons', et_ca, frame, abcorr, 'MU69')
         vec_mu69_nh_ca = st[0:3]
+        print(f'Trajectory = {trajectory}, MU69-NH dist = {sp.vnorm(vec_mu69_nh_ca):7.6} km')
         
         # Vector from NH to MU69, at time of image
         (st, lt) = sp.spkezr('MU69', et_haz, frame, abcorr, 'New Horizons')
@@ -667,11 +685,14 @@ if (__name__ == '__main__'):
         # And convert into an xy position
         (_, ra_aimpoint, dec_aimpoint) = sp.recrad(vec_nh_mu69_haz_aimpoint)
         (x, y) = wcs_superstack.wcs_world2pix(ra_aimpoint*hbt.r2d, dec_aimpoint*hbt.r2d, 0)
+        print(f'Trajectory = {trajectory}, CA RA/Dec = {ra_aimpoint*hbt.r2d, (dec_aimpoint*hbt.r2d)}')
         
         plt.plot(x, y, marker = 'X', markersize=10, color='blue')
  
-    plt.show()
+#    plt.show()
     
+    plt.subplot(1,2,2)
+
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
                  title = f'{str_stack}, {str_reqid}', 
                  width=130,do_show=False,
@@ -688,11 +709,12 @@ if (__name__ == '__main__'):
 #    plot_img_wcs(imgt['data'][i], imgt['wcs'][i], cmap=cmap_superstack, width=50, 
 #                 title = 'test frame 0 raw',
 #                 name_observer = 'New Horizons', name_target = 'MU69', et = imgt['et'][i])
-    
+
+#%%%    
 # =============================================================================
 # Make a set of plots showing the field, the superstack, and all the individual stacks
 # =============================================================================
-
+    
     hbt.figsize((8,8))
     hbt.fontsize(12)
     
@@ -719,16 +741,18 @@ if (__name__ == '__main__'):
                      do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
         
         plt.show()
-        
-    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, 
-                 title=f'{str_stack}, {str_reqid}', name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
     
-    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=75, 
-                 title=f'{str_stack}, {str_reqid}', name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
+    
+#    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, 
+#                 title=f'{str_stack}, {str_reqid}', name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
+#    
+#    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=75, 
+#                 title=f'{str_stack}, {str_reqid}', name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
     
     hbt.figsize() 
     hbt.fontsize()
-    
+ 
+#%%%
 # =============================================================================
 # Make a plot showing the RA / Dec axes of the superstack zoom
 # =============================================================================
