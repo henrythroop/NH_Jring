@@ -325,12 +325,12 @@ if (__name__ == '__main__'):
                        # 'KALR_MU69_OpNav_L4_2018319',
                        # 'KALR_MU69_OpNav_L4_2018325',
                        # 'KALR_MU69_OpNav_L4_2018326',
-                        # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                       'KALR_MU69_OpNav_L4_2018330',  # 10 frames
-                       'KALR_MU69_OpNav_L4_2018331',  # 10 frames
-                       'KALR_MU69_OpNav_L4_2018332',  # 10 frames
-                       'KALR_MU69_OpNav_L4_2018334',  # 10 frames
-                       'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+                       # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
+                       # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
+                       # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                       # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+                       # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
 ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
@@ -359,7 +359,7 @@ if (__name__ == '__main__'):
   
     # DO_FORCE_FLATTEN: Same thing
       
-    do_force_stacks = True   
+    do_force_stacks = False
     
     do_force_flatten = True
 
@@ -523,21 +523,60 @@ if (__name__ == '__main__'):
     
     hbt.figsize(10,10)
     plt.subplot(1,2,1)
-    plot_img_wcs(img_superstack_mean, wcs_superstack, cmap=cmap_superstack,
-                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100)
+
+    # Do some testing on the WCS backplanes
     
-    plt.imshow( stretch(img_superstack_median), origin='lower', cmap=cmap_superstack)
-    plt.title(f'restretched and medianed, {name_ort}, n={len(keys)}')
+    plot_img_wcs(img_superstack_mean, wcs_superstack, cmap=cmap_superstack,
+                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100,
+                  do_show=False)
+    
+    # Test centering using crosshairs
+    
+    # plt.imshow( np.logical_or( np.abs(backplanes[0]['dDec_km']) < 1000,
+    #                            np.abs(backplanes[0]['dRA_km']) < 1000), alpha=0.5)
+    
+    # plt.imshow(backplanes[0]['Radius_eq'] < 5000, alpha=0.5)
+    
+    # OK, now do a q&d adjust. The radius backplane is off by a few pixels, and I don't know why. 
+    # Just go ahead and shift it and force it to be centered (that is, at center of array, which is where
+    # MU69 usually should be). 
+    # This is not the best solution, but it'll work for now.
+    
+    # Get the centroid of the radius 
 
-    plt.subplot(1,2,2)
-    plt.imshow( stretch(img_superstack_mean), origin='lower', cmap=cmap_superstack)
-    plt.title(f'restretched and mean, {name_ort}, n={len(keys)}')
+    plane_radius_superstack = backplanes[0]['Radius_eq']
+    r = plane_radius_superstack.copy()
 
-    plt.show()
-    hbt.figsize()
+    centroid = scipy.ndimage.measurements.center_of_mass(r < 10000)
+    print(f'Centroid is {centroid}')
+
+    dxy = np.array(np.shape(r))/2 - np.array(scipy.ndimage.measurements.center_of_mass(r < 5000))  
+    r_roll = np.roll(r, np.round(dxy.astype(int)), axis=(0, 1))
+
+    centroid = scipy.ndimage.measurements.center_of_mass(r_roll < 10000)
+    print(f'Centroid is {centroid}')
+    
+    # Save the shifted 'radius' backplane back to the array
+    
+    backplanes[0]['Radius_eq'] = r_roll
+    
+    # Get the center of MU69
+    
+#    plt.imshow(r_roll < 5000,alpha=0.5)
+#    plt.show()
+    
+    # plt.imshow( stretch(img_superstack_median), origin='lower', cmap=cmap_superstack)
+    # plt.title(f'restretched and medianed, {name_ort}, n={len(keys)}')
+
+    # plt.subplot(1,2,2)
+    # plt.imshow( stretch(img_superstack_mean), origin='lower', cmap=cmap_superstack)
+    # plt.title(f'restretched and mean, {name_ort}, n={len(keys)}')
+
+    # plt.show()
+    # hbt.figsize()
  
-    plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, title = f'{str_stack}, {str_reqid}',
-                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100)    
+    # plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, title = f'{str_stack}, {str_reqid}',
+    #              name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100)    
 
     plane_radius_superstack = backplanes[0]['Radius_eq']
     
@@ -560,7 +599,7 @@ if (__name__ == '__main__'):
     wcs_translate_pix(wcs_superstack_tweak, dx_wcs_tweak, dy_wcs_tweak)
     
     # Tweak the backplane slightly as well. Not sure quite why this is necessary, since backplane should 
-    # be exactly aligned w/ WCS. [Not sure -- WCS might be read from another file somewhere.]
+    # be exactly aligned w/ WCS.
     
     dx_backplane_tweak = 0
     dy_backplane_tweak = 0
@@ -578,6 +617,7 @@ if (__name__ == '__main__'):
 # =============================================================================
     
     da_ring_km = 300
+#    da_ring_km = 900
 
     trajectories = ['alternate', 'prime']  # Make 'prime' second, so I don't screw things up for someone else.
     a_ring_km = [3500, 10000]
@@ -643,11 +683,11 @@ if (__name__ == '__main__'):
 # For debugging only, plot the first image of the stack
 # =============================================================================
 
-    i = 4
-    imgt =  stack_haz[reqids_haz[0]].t
-    plot_img_wcs(imgt['data'][i], imgt['wcs'][i], cmap=cmap_superstack, width=50, 
-                 title = 'test frame 0 raw',
-                 name_observer = 'New Horizons', name_target = 'MU69', et = imgt['et'][i])
+#    i = 4
+#    imgt =  stack_haz[reqids_haz[0]].t
+#    plot_img_wcs(imgt['data'][i], imgt['wcs'][i], cmap=cmap_superstack, width=50, 
+#                 title = 'test frame 0 raw',
+#                 name_observer = 'New Horizons', name_target = 'MU69', et = imgt['et'][i])
     
 # =============================================================================
 # Make a set of plots showing the field, the superstack, and all the individual stacks
@@ -673,9 +713,8 @@ if (__name__ == '__main__'):
         # plot_img_wcs(stretch(img_haz[key] - img_field), wcs_field, cmap=cmap_superstack, 
         #    width=150, title = f'Stack, {key}', do_show=False)
         
-        #XXX subtract IMG - FIELD. But roll by (1,1) to fix some offset issues. I should not do this in reality.
         
-        plot_img_wcs(stretch(img_haz[key] - np.roll(np.roll(img_field,0,axis=1),0,axis=0)), 
+        plot_img_wcs(stretch(img_haz[key] - img_field), 
                      wcs_field, cmap=cmap_superstack, width=150, title = f'Haz-field, {keystr}',
                      do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
         
@@ -788,7 +827,7 @@ if (__name__ == '__main__'):
     x = radius[bin_0:]
     y = profile_iof[bin_0:]            
     
-    popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
+    # popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
 
     # Calculate the bias level, crudely
     

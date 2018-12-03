@@ -91,7 +91,7 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
 #  "Here, origin is the coordinate in the upper left corner of the image. In FITS and Fortran standards, 
 #   this is 1. In Numpy and C standards this is 0." 
 
-    print(f'Position xy: {x}, {y}')
+    # print(f'Position xy: {x}, {y}')
     
     plt.plot(x, y, marker = 'o', markersize = markersize, alpha=alpha, color=color)
 
