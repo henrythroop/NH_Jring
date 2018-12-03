@@ -814,40 +814,45 @@ class nh_ort_track4_grid:
             lun.write("#    n(r) are number per km3\n")
             lun.write("#    Henry Throop {}\n".format(str(datetime.now())))          
             lun.write("{} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(0, 
-                                                    self.s[0],   # self.s[] = particle size bins
-                                                    self.s[1],
-                                                    self.s[2],
-                                                    self.s[3],
-                                                    self.s[4],
-                                                    self.s[5],
-                                                    self.s[6],  # Was 0 .. 6. Now 0 .. 12
-                                                    self.s[7],
-                                                    self.s[8],
-                                                    self.s[9],
-                                                    self.s[10],
+                                                    self.s[12],   # self.s[] = particle size bins
                                                     self.s[11],
-                                                    self.s[12],
+                                                    self.s[10],
+                                                    self.s[9],
+                                                    self.s[8],
+                                                    self.s[7],
+                                                    self.s[6],  # Was 0 .. 6. Then 0 .. 12. Now 12 .. 0
+                                                    self.s[5],
+                                                    self.s[4],
+                                                    self.s[3],
+                                                    self.s[2],
+                                                    self.s[1],
+                                                    self.s[0],
                                                     ))
             for i in range(len(t)):                                                
                 lun.write(
         "{} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e}\n".format(
-                        t[i][1],
-                        t[i][2],
-                        t[i][3],
-                        t[i][4],
-                        t[i][5],
-                        t[i][6],
-                        t[i][7],
-                        t[i][8],  # Was 1 .. 8. Now 1 .. 14
-                        t[i][9],
-                        t[i][10],
-                        t[i][11],
-                        t[i][12],
-                        t[i][13],
                         t[i][14],
+                        t[i][13],
+                        t[i][12],
+                        t[i][11],
+                        t[i][10],
+                        t[i][9],
+                        t[i][8],
+                        t[i][7],  # Was 1 .. 8. Then 1 .. 14. Now 14 .. 1
+                        t[i][6],
+                        t[i][5],
+                        t[i][4],
+                        t[i][3],
+                        t[i][2],
+                        t[i][1],
                         ))
             lun.close()
             print("Wrote: {}".format(path_out))
                    
         return
+
+if (__name__ == '__main__'):
+
+    file = os.path.join('/Users/throop/Data/ORT5/throop/deliveries/chr3_sunflower10k/for_mehoke',
+                        'ort5_prime_y3.0_q3.5_pv0.70_rho1.00.dust')
     
