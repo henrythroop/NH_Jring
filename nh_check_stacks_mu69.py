@@ -130,7 +130,7 @@ if (__name__ == '__main__'):
     # Flatten the stack
     
     stack.padding = 65
-    zoom = 1
+    zoom = 4
     
     self = stack
     

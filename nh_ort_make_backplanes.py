@@ -118,12 +118,12 @@ def nh_ort_make_backplanes():
     # that only one CPU at a time can be used. To get around this, filter the files down,
     # and put each filter in its own Spyder tab.
     
-    do_digit_filter = True
+    do_digit_filter = False
 
-    digit_filter = '12'
+    # digit_filter = '12'
     # digit_filter = '34'
     # digit_filter = '56'
-    # digit_filter = '78'
+    digit_filter = '78'
     # digit_filter = '90'
     
     if (do_digit_filter):
