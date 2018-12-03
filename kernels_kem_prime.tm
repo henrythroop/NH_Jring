@@ -32,7 +32,8 @@ KERNELS_TO_LOAD = (
 '$DIR/gv_pluto_smallsats.tf',
 '$DIR/gv_smallbodies.tf',
 '$DIR/gv_pluto_smallsats_lhr.tf',
-'$DIR2/mu69_ring_frames.tf',
+'$DIR/mu69_ring_frames.tf',
+'$DIR/nh_ref_20150801_20190901_od128_tcm22.bsp'
 '$DIR/nh_pred_20180601_20250101_od138_tcm28b_burn.bsp'
 '$DIR/NavPE_de433_od138.bsp',
 '$DIR/NavSBE_2014MU69_od138.bsp',
