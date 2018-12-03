@@ -377,7 +377,7 @@ class image_stack:
             
         """
         
-        if (method.upper() == 'WCS_SIMPLE'):
+        if (method.upper() == 'WCS_SIMPLE'):  # Do not use this!
             
             # If 'radec' is passed, then set the shifts s.t. the right amount is applied to put 
             # specified RA/Dec in the center.
@@ -403,7 +403,7 @@ class image_stack:
             self.t['shift_pix_x'] = shift_x_pix
             self.t['shift_pix_y'] = shift_y_pix
        
-        if (method.upper() == 'WCS'):
+        if (method.upper() == 'WCS'):  # This is the normal method
             
             # If 'WCS' is passed, do the same as 'radec', but use the whole WCS object explicitly.
             # This should give very nearly the same results.
@@ -953,7 +953,7 @@ if (__name__ == '__main__'):
     (arr_flat, wcs_flat) = stack.flatten(zoom=zoom, do_force=True, do_plot=True, do_save=True)
     
     plot_img_wcs(arr_flat, wcs_flat, title = f'Zoom {zoom}', width=50,
-                 name_observer='New Horizons', name_target='MU69', et = )
+                 name_observer='New Horizons', name_target='MU69', et = stack.t['et'][0])
         
     # Make a plot of ET, showing it for each image and the whole stack
     # Highlight the central time in red.
