@@ -74,5 +74,5 @@ KERNELS_TO_LOAD = (
 '$DIR/nh_nom_20170201_20210714_v13_prime.bsp',
 '$DIR/gv_pluto_smallsats_lhr.tf',
 '$DIR/gv_pck.tpc',
-'$DIR/mu69_sunflower.tf',
+'$DIR/mu69_ring_frames.tf',
 )
