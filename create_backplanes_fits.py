@@ -35,7 +35,7 @@ from   astropy.coordinates import SkyCoord # To define coordinates to use in sta
 
 from   matplotlib.figure import Figure
 
-# HBT imports
+# HBT imports    
 
 import hbt
 from   image_stack import image_stack
@@ -200,7 +200,10 @@ if (__name__ == '__main__'):
 #    file_in =  '/Users/throop/Data/ORT1/porter/pwcs_ort1/K1LR_HAZ00/lor_0405175932_0x633_pwcs.fits'
 #    file_out = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405175932_0x633_pwcs_backplaned_rot.fits'
     
-    file_in       = '/Users/throop/Data/MU69_Approach/throop/test/lor_0405121318_0x633_pwcs2.fits'
+            # file = '/Users/throop/Data/MU69_Approach/throop/backplaned/' + \
+            #    'KALR_MU69_OpNav_L4_2018332/lor_0405688048_0x633_pwcs2_backplaned.fits'
+               
+    file_in       = '/Users/throop/Data/MU69_Approach/throop/test/lor_0405688138_0x633_pwcs2.fits'
     file_out      = file_in.replace('.fits', '_backplane.fits')
 
     name_observer = 'New Horizons'
