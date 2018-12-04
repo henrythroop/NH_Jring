@@ -56,7 +56,8 @@ def nh_ort_make_superstack(stack, img, img_field,
                            method = 'wcs',
                            do_center=True,
                            frame='2014_MU69_SUNFLOWER_ROT',
-                           wcs = ''):
+                           wcs = '',
+                           do_fast_backplanes = False):
     
     """
     This makes a superstack image. The output image has resolution matching the lowest resolution 
@@ -107,7 +108,11 @@ def nh_ort_make_superstack(stack, img, img_field,
         I used to use 'brightest' (where center was set based on seeing MU69), but now should use 'wcs'.
         
     do_backplanes:
-        Boolean. If set, will return a full set of backplanes for the superstacks.
+        Boolean. If set, will return a set of backplanes for the superstacks.
+    
+    do_fast_backplanes:
+        Boolean. If set, and generating backplanes, then will generate only an abbreviated set.
+        [NOT CURRENTLY IMPLEMENTED.]
         
     wcs:
         A pre-computed WCS which will be put into the output image. Should be already zoomed, centered, etc. 
@@ -268,12 +273,12 @@ if (__name__ == '__main__'):
 
     ########## SET PARAMETERS HERE #################
     
-    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 2     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
     
-    do_tunacan = True
+    do_tunacan = False
     
 #    name_ort = 'ORT1'
 #    name_ort = 'ORT2_OPNAV'
@@ -340,13 +345,13 @@ if (__name__ == '__main__'):
                        # 'KALR_MU69_OpNav_L4_2018319',
                        # 'KALR_MU69_OpNav_L4_2018325',
                         # 'KALR_MU69_OpNav_L4_2018326',
-                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                        'KALR_MU69_OpNav_L4_2018330',  # 10 frames
-                        'KALR_MU69_OpNav_L4_2018331',  # 10 frames
-                        'KALR_MU69_OpNav_L4_2018332',  # 10 frames
-                        'KALR_MU69_OpNav_L4_2018334',  # 10 frames
-                        'KALR_MU69_OpNav_L4_2018335',  # 10 frames
-                        'KALR_MU69_Hazard_L4_2018334',
+                        # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+                        # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018338',
 ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
@@ -383,11 +388,13 @@ if (__name__ == '__main__'):
   
     # DO_FORCE_FLATTEN: Same thing
       
-    do_force_stacks = False
-    
-    do_force_flatten = True
+    do_force_stacks_field = False  # Keep as False. Except if using new parameters
+    do_force_flatten_field= False  # Keep as False
+ 
+    do_force_stacks_haz   = True      
+    do_force_flatten_haz  = True
 
-    stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks, 
+    stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks_field, 
                               do_save=True)
 
     stack_haz = {}
@@ -395,7 +402,7 @@ if (__name__ == '__main__'):
     # Load and stack the data images
     
     for reqid_i in reqids_haz:
-        stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force_stacks, 
+        stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force_stacks_haz, 
                               do_save=True)
             
     # Look up the position of MU69
@@ -428,7 +435,7 @@ if (__name__ == '__main__'):
     # Flatten the field stack
         
     (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median', zoom=zoom, padding=pad,
-                              do_force=do_force_flatten, do_save=True)
+                              do_force=do_force_flatten_field, do_save=True)
 
     # Verify that the WCS has been properly preserved after flattening here.
     
@@ -457,7 +464,7 @@ if (__name__ == '__main__'):
     for reqid_i in reqids_haz:
         (img_haz[reqid_i], wcs_haz[reqid_i])  =\
               stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
-                       do_force=do_force_flatten, do_save=True)
+                       do_force=do_force_flatten_haz, do_save=True)
         img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field
         
         if do_plot_individual_stacks:
@@ -544,7 +551,8 @@ if (__name__ == '__main__'):
                                                                           str_name=str_name, do_center=True,
                                                                           do_backplanes=True,
                                                                           frame=frame,
-                                                                          wcs = wcs_haz[name_stack_base])
+                                                                          wcs = wcs_haz[name_stack_base],
+                                                                          )
 
 #%%%
     
@@ -656,7 +664,9 @@ if (__name__ == '__main__'):
                                   
     dist_midplane_km = [1000, 2000]  # Midplane distance to limit to, in km. For TUNACAN only. This is used in 
                                      # computing the ring profile. 
-     
+    
+    plt.show()  # for some reason the figsize() isn't working, so maybe flush things out??
+    
     hbt.figsize((15,15))
     hbt.fontsize(10)
 
@@ -672,7 +682,7 @@ if (__name__ == '__main__'):
     # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly
     
     if do_tunacan:
-        da_ring_km = 600
+        da_ring_km = 300
         
         rad = plane_radius_superstack
         vert = backplanes[0]['Altitude_eq']
@@ -875,9 +885,11 @@ if (__name__ == '__main__'):
     
     num_pts = 1000  # Number of radial points to use.
     
-    if is_tunacan:
-        
-        num_pts = 500  # Number of radial points to use. Fewer for tunacan, since fewer pixels
+    if do_tunacan:
+        if zoom == 4:
+            num_pts = 300  # Number of radial points to use. Fewer for tunacan, since fewer pixels
+        else:
+            num_pts = 200
         
         # For tunacan, take two different radial profiles. One for an outer ring, and one for an inner.
         # My code here is so awful! This clearly should be a loop, and it should be made to be the same for both
@@ -923,6 +935,8 @@ if (__name__ == '__main__'):
         profile_iof = profile_iof_median  # Just pick one -- they both are similar
 
   # Fit a gaussian to the radial profile. Set the initial guesses.
+
+    radius_max_km = 30000
     
     do_fit_profile = False
     
@@ -931,7 +945,6 @@ if (__name__ == '__main__'):
         radius_ring = 9000      # Starting point for gaussfit for ring position, in km
         hw_ring     = 1000      # Starting point for ring halfwidth, in km
         
-        radius_max_km = 30000
         
         bin_0 = hbt.x2bin(r_0, radius)
         x = radius[bin_0:]
@@ -942,7 +955,9 @@ if (__name__ == '__main__'):
     # Calculate the bias level, crudely
         
     bin_radial_end = np.digitize(radius_max_km, radius)
-    bias = np.amin(profile_iof[0:bin_radial_end])
+    
+    if not(do_tunacan):
+        bias = np.amin(profile_iof[0:bin_radial_end])
 
     # Plot the radial profile
     

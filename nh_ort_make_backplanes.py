@@ -209,7 +209,7 @@ if (__name__ == '__main__'):
         
     # Set paramters here
     
-    do_tuna = False
+    do_tuna      = False
     digit_filter = None
     
     # digit_filter = '12'
