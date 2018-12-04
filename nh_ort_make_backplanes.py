@@ -21,7 +21,7 @@ import glob
 from create_backplanes_fits import create_backplanes_fits
 from plot_backplanes        import plot_backplanes
 
-def nh_ort_make_backplanes():
+def nh_ort_make_backplanes(frame = '2014_MU69_SUNFLOWER_ROT', digit_filter=None):
     
     """
     Process all of the MU69 ORT files. 
@@ -40,7 +40,8 @@ def nh_ort_make_backplanes():
     
     name_target   = 'MU69'
     name_observer = 'New Horizons'
-    frame         = '2014_MU69_SUNFLOWER_ROT'  # Change this to tuna can if needed, I think??
+    # frame         = '2014_MU69_SUNFLOWER_ROT'  # Change this to tuna can if needed, I think??
+    # frame         = '2014_MU69_TUNACAN_ROT'
     # frame         = '2014_MU69_ORT4_1'  # Change this to tuna can if needed, I think??
     
 # =============================================================================
@@ -108,6 +109,13 @@ def nh_ort_make_backplanes():
         
         do_force = False
         do_clobber = False
+
+# =============================================================================
+# Check what FRAME we are using, and change output directory appropriately
+# =============================================================================
+
+    if 'TUNACAN' in frame.upper():
+        dir_out = dir_out.replace('backplaned', 'backplaned_tunacan')
         
 # =============================================================================
 #     Filter files if needed
@@ -118,15 +126,17 @@ def nh_ort_make_backplanes():
     # that only one CPU at a time can be used. To get around this, filter the files down,
     # and put each filter in its own Spyder tab.
     
-    do_digit_filter = False
+    if digit_filter:
+        
+    # do_digit_filter = False
 
     # digit_filter = '12'
     # digit_filter = '34'
     # digit_filter = '56'
-    digit_filter = '78'
+    # digit_filter = '78'
     # digit_filter = '90'
     
-    if (do_digit_filter):
+    # if (do_digit_filter):
         files_filtered = []
         for file in files:
             base = os.path.basename(file)
@@ -187,11 +197,35 @@ def test():
     
 # =============================================================================
 # Run the function if requested
+# When run, this program regenerates all of the backplanes    
 # =============================================================================
         
 if (__name__ == '__main__'):
     file_tm = 'kernels_kem_prime.tm'
     sp.unload(file_tm)
     sp.furnsh(file_tm)
-    nh_ort_make_backplanes()
-            
+
+ # NB: This would be an ideal candidate for multi-processing
+        
+    # Set paramters here
+    
+    do_tuna = False
+    digit_filter = None
+    
+    # digit_filter = '12'
+    # digit_filter = '34'
+    # digit_filter = '56'
+    # digit_filter = '78'
+    # digit_filter = '90'
+    
+    # Run code here
+
+    if do_tuna:
+        print("WARNING: USING TUNACAN FRAME!")
+        nh_ort_make_backplanes(frame='2014_MU69_TUNACAN_ROT', digit_filter=digit_filter)
+        print("WARNING: USING TUNACAN FRAME!")
+        
+    else:
+        nh_ort_make_backplanes(digit_filter=digit_filter)
+        
+        

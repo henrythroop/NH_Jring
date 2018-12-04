@@ -49,9 +49,13 @@ def gaus(x,a,x0,sigma):
     
 def nh_ort_make_superstack(stack, img, img_field, 
                            name_stack_base, 
-                           do_save_all=True, do_backplanes=True, dir='', str_name='', 
+                           do_save_all=True, 
+                           do_backplanes=True, 
+                           dir='', 
+                           str_name='', 
                            method = 'wcs',
                            do_center=True,
+                           frame='2014_MU69_SUNFLOWER_ROT',
                            wcs = ''):
     
     """
@@ -108,6 +112,9 @@ def nh_ort_make_superstack(stack, img, img_field,
     wcs:
         A pre-computed WCS which will be put into the output image. Should be already zoomed, centered, etc. 
         as needed. This is desired to have, because the routine will output FITS files, which should have full WCS.
+        
+    frame: 
+        A SPICE frame to use for creating the backplane.
         
     """
         
@@ -172,7 +179,7 @@ def nh_ort_make_superstack(stack, img, img_field,
             shift_y = 0
             arr_out = arr_out
             
-#            print(f'Aligned by WCS. Rolling by {shift_x}, {shift_y} to align {key} into superstack')
+            print(f'Aligned by WCS. Rolling by {shift_x}, {shift_y} to align {key} into superstack')
                        
         img_rescale[reqid_i]  = arr_out
         img_rescale_3d[i,:,:] = arr_out
@@ -225,7 +232,7 @@ def nh_ort_make_superstack(stack, img, img_field,
             # Now that we have written a FITS file to disk, compute backplanes for it
             # ** for compute_backplanes to work, use_sky_plane = False must be set in that function.
             
-            frame = '2014_MU69_SUNFLOWER_ROT'
+            # frame = '2014_MU69_SUNFLOWER_ROT'
             
             print(f'Computing backplanes: {path_out_main}')
             planes = compute_backplanes(path_out_main, 'MU69', frame, 'New Horizons', angle3=30*hbt.d2r)
@@ -258,10 +265,12 @@ if (__name__ == '__main__'):
     
     plt.set_cmap(cmap_stack)
 
-    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 2     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
+    
+    do_tunacan = True
     
 #    name_ort = 'ORT1'
 #    name_ort = 'ORT2_OPNAV'
@@ -327,14 +336,14 @@ if (__name__ == '__main__'):
                        # 'KALR_MU69_OpNav_L4_2018317',
                        # 'KALR_MU69_OpNav_L4_2018319',
                        # 'KALR_MU69_OpNav_L4_2018325',
-                       # 'KALR_MU69_OpNav_L4_2018326',
-#                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                       # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
-                       # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
-                       # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
-#                        'KALR_MU69_OpNav_L4_2018334',  # 10 frames
-#                        'KALR_MU69_OpNav_L4_2018335',  # 10 frames
-                       'KALR_MU69_Hazard_L4_2018334',
+                        # 'KALR_MU69_OpNav_L4_2018326',
+                        # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+                        # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+                        'KALR_MU69_Hazard_L4_2018334',
 ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
@@ -343,6 +352,11 @@ if (__name__ == '__main__'):
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         a_xy = (1, math.cos(hbt.d2r * 30))
     
+    # Check for a tunacan profile
+    
+    if do_tunacan:
+        frame = '2014_MU69_TUNACAN_ROT'
+
     # Start up SPICE if needed
     
     if (sp.ktotal('ALL') == 0):
@@ -523,6 +537,7 @@ if (__name__ == '__main__'):
                                                                           do_save_all=True, dir=dir_out,
                                                                           str_name=str_name, do_center=True,
                                                                           do_backplanes=True,
+                                                                          frame=frame,
                                                                           wcs = wcs_haz[name_stack_base])
 
 #%%%
@@ -619,23 +634,21 @@ if (__name__ == '__main__'):
     
     wcs_superstack          = wcs_superstack_tweak
     plane_radius_superstack = plane_radius_superstack_tweak
+    backplanes[0]['Radius_eq']
 
 #%%%
 # =============================================================================
 #     Now that the WCS and all images are set, make some plots
 # =============================================================================
     
-    hbt.figsize(12,12)
-    plt.subplot(1,2,1)
-    
-    da_ring_km = 300   # Width of the ring to plot, in km
-    
+    da_ring_km = 300   # Width of the ring to plot, in km    
 #    da_ring_km = 900
-
     a_ring_km = [3500, 10000]
 
-    hbt.figsize((14,14))
+    hbt.figsize((15,15))
     hbt.fontsize(10)
+
+    plt.subplot(1,2,1)
     
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
 #                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
@@ -644,6 +657,7 @@ if (__name__ == '__main__'):
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
     
     # Construct the image of ring masks
+    # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly
     
     mask_ring0 = np.logical_and( (plane_radius_superstack >  a_ring_km[0]), 
                                  (plane_radius_superstack < (a_ring_km[0] + da_ring_km)) )

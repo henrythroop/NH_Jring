@@ -18,6 +18,8 @@ from   astropy.wcs import WCS
 import os
 import matplotlib.pyplot as plt
 
+from plot_img_wcs import plot_img_wcs
+
 def plot_backplanes(file,
                        name_target = None,
                        name_observer = None):
@@ -63,8 +65,8 @@ def plot_backplanes(file,
   
     # Plot all the backplanes, one by one
 
-    fig = plt.subplots()
     hbt.figsize((12,12))
+    fig = plt.subplots()
     
     for i in range(num):
         plt.subplot(nxy,nxy,i+1)
@@ -76,61 +78,83 @@ def plot_backplanes(file,
 
     plt.tight_layout()
     plt.show()
+
+# Plot the image, using plot_img_wcs
+
+    hbt.figsize((8,8)) 
+    
+    w = WCS(file)
+    plot_img_wcs(hdu[0].data, w, do_show=False, name_target='MU69', name_observer = 'New Horizons',
+         et = hdu[0].header['SPCSCET'], width=100)
+    
+    radius_ring = 10_000  # This needs to be adjusted for different distances.
+    radius_arr = hdu['Radius_eq'].data
+    radius_good = np.logical_and(radius_arr > radius_ring*0.95, radius_arr < radius_ring*1.05)
+    plt.imshow(radius_good, alpha=0.3, origin='lower', cmap='plasma')
+    plt.show()    
     
 #    Plot the image itself
  
-    hbt.figsize((10,10)) 
-    plt.imshow(stretch(hdu[0].data), origin='lower')
+    # plt.imshow(stretch(hdu[0].data), origin='lower')
 
-    # Over the images, superimpose one of the planes
+    # # Over the images, superimpose one of the planes
 
-    plt.imshow(stretch(hdu['Longitude_eq'].data), alpha=0.5, cmap=plt.cm.Reds_r, origin='lower')
+    # plt.imshow(stretch(hdu['Longitude_eq'].data), alpha=0.5, cmap=plt.cm.Reds_r, origin='lower')
 
-    # If requested, look up position of target.
+    # # If requested, look up position of target.
 
-    if (name_target):
-        et = hdu[0].header['SPCSCET']
-        utc = sp.et2utc(et, 'C', 0)
-        abcorr = 'LT'
-        frame = 'J2000'  
+    # if (name_target):
+    #     et = hdu[0].header['SPCSCET']
+    #     utc = sp.et2utc(et, 'C', 0)
+    #     abcorr = 'LT'
+    #     frame = 'J2000'  
 
-        w = WCS(file)
         
-        (st,lt) = sp.spkezr(name_target, et, frame, abcorr, name_observer)
-        vec_obs_target = st[0:3]
-        (_, ra, dec) = sp.recrad(vec_obs_target)
-        (pos_pix_x, pos_pix_y) = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
+        
+        
+        
+        
+        
+        
+        
+        
+    #     (st,lt) = sp.spkezr(name_target, et, frame, abcorr, name_observer)
+    #     vec_obs_target = st[0:3]
+    #     (_, ra, dec) = sp.recrad(vec_obs_target)
+    #     (pos_pix_x, pos_pix_y) = w.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
 
-        # Plot a ring, if we are looking at MU69. Use the backplane to filter by radius
+    #     # Plot a ring, if we are looking at MU69. Use the backplane to filter by radius
      
-        if name_target == 'MU69': 
-            radius_ring = 10_000  # This needs to be adjusted for different distances.
-            radius_arr = hdu['Radius_eq'].data
-            radius_good = np.logical_and(radius_arr > radius_ring*0.95, radius_arr < radius_ring*1.05)
-            plt.imshow(radius_good, alpha=0.3, origin='lower')
+    #     if name_target == 'MU69': 
+    #         radius_ring = 10_000  # This needs to be adjusted for different distances.
+    #         radius_arr = hdu['Radius_eq'].data
+    #         radius_good = np.logical_and(radius_arr > radius_ring*0.95, radius_arr < radius_ring*1.05)
+    #         plt.imshow(radius_good, alpha=0.3, origin='lower')
         
-        # Plot the center of the system, as determined from the radius backplane
-        # This shows up just as a bright pixel. It is not otherwise marked. It is really just for testing.
+    #     # Plot the center of the system, as determined from the radius backplane
+    #     # This shows up just as a bright pixel. It is not otherwise marked. It is really just for testing.
 
-        if name_target == 'MU69': 
-            radius_arr = hdu['Radius_eq'].data
-            radius_center_mask = (radius_arr == np.amin(radius_arr))
-            # plt.imshow(radius_center_mask, alpha=0.3, origin='lower')
-            plt.imshow(radius_arr < 3000, alpha=0.3, origin='lower')
+    #     if name_target == 'MU69': 
+    #         radius_arr = hdu['Radius_eq'].data
+    #         radius_center_mask = (radius_arr == np.amin(radius_arr))
+    #         # plt.imshow(radius_center_mask, alpha=0.3, origin='lower')
+    #         plt.imshow(radius_arr < 3000, alpha=0.3, origin='lower')
             
-            ddec_arr = hdu['dDec_km'].data
-            ddec_mask = (np.abs(ddec_arr) < 1000)
-            dra_arr = hdu['dRA_km'].data
-            dra_mask = (np.abs(dra_arr) < 1000)
-            dradec_mask = np.logical_or(dra_mask,ddec_mask)
-            plt.imshow(dradec_mask, alpha=0.3, origin='lower')
+    # MAKE A SET OF CROSSHAIRS. THIS IS COOL FOR DEBUGGING, BUT NOT NEEDED NOW
+    
+    #         ddec_arr = hdu['dDec_km'].data
+    #         ddec_mask = (np.abs(ddec_arr) < 1000)
+    #         dra_arr = hdu['dRA_km'].data
+    #         dra_mask = (np.abs(dra_arr) < 1000)
+    #         dradec_mask = np.logical_or(dra_mask,ddec_mask)
+    #         plt.imshow(dradec_mask, alpha=0.3, origin='lower')
               
         # Plot target body
         
-        plt.plot(pos_pix_x, pos_pix_y, ms=2, marker = 'o', color='green')    
-        plt.title("{}, {}".format(os.path.basename(file), utc))
+        # plt.plot(pos_pix_x, pos_pix_y, ms=2, marker = 'o', color='green')    
+        # plt.title("{}, {}".format(os.path.basename(file), utc))
 
-        print()
+        # print()
     
     hdu.close()
 

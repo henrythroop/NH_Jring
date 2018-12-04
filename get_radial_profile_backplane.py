@@ -62,10 +62,10 @@ def get_radial_profile_backplane(im, radius_plane, method='median', num_pts = 10
                                  radius_plane <= radius_1d[i+1]) 
     
         if (method == 'mean'):
-            profile_1d[i]   = np.mean(im[is_good])
+            profile_1d[i]   = np.nanmean(im[is_good])
     
         if (method == 'median'):
-            profile_1d[i] = np.median(im[is_good])
+            profile_1d[i] = np.nanmedian(im[is_good])
 
         clipped = astropy.stats.sigma_clip(im[is_good], sigma=1.5)
         
