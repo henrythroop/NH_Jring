@@ -853,6 +853,6 @@ class nh_ort_track4_grid:
 
 if (__name__ == '__main__'):
 
-    file = os.path.join('/Users/throop/Data/ORT5/throop/deliveries/chr3_sunflower10k/for_mehoke',
+    file = os.path.join('/Users/throop/Data/ORT5/throop/deliveries/chr3-sunflower10k/for_mehoke',
                         'ort5_prime_y3.0_q3.5_pv0.70_rho1.00.dust')
     

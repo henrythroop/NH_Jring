@@ -412,8 +412,10 @@ def make_table_grid_positions():
     It is included in this file because it directly relates to the grids.
     
     """
+
+#%%%
      
-    name_trajectory = 'prime'  # ← Set this to 'prime' or 'alternate'
+    name_trajectory = 'alternate'  # ← Set this to 'prime' or 'alternate'
    
     hbt.unload_kernels_all() 
    
@@ -427,7 +429,7 @@ def make_table_grid_positions():
     
 #    file_in = '/Users/throop/Data/ORT2/throop/track4/ort2-ring_v2.2_q2.0_pv0.10_rho0.22.grid4d.gz'
 #    file_in = '/Users/throop/Data/ORT5/throop/deliveries/tuna9k/ort5_None_y3.0_q3.5_pv0.70_rho1.00.dust.txt'
-    file_in = '/Users/throop/Data/ORT5/kaufmann/deliveries/chr3_tunacan10k/chr3-0003' + \
+    file_in = '/Users/throop/Data/ORT5/kaufmann/deliveries/chr3-tunacan10k/chr3-0003' + \
               '/y3.0/beta1.0e+00/subset00/model.array2'
     
     file_in = '/Users/throop/Data/ORT5/throop/deliveries/tuna9k/ort5_None_y3.0_q3.5_pv0.70_rho1.00.dust.pkl'
@@ -523,11 +525,13 @@ def make_table_grid_positions():
     # Save the table to a file
     
     file_out = f'positions_trajectory_{name_trajectory}.txt'
-    path_out = os.path.join(dir_out, file_out)
+    path_out = os.path.join('/Users/throop/Data/ORT5', file_out)
     
     t.write(path_out, format = 'ascii.csv', overwrite=True)
     print(f'Wrote: {path_out}')
-         
+ 
+#%%%
+        
 # =============================================================================
 # Call the main function when this program as run
 # =============================================================================
@@ -540,8 +544,8 @@ if (__name__ == '__main__'):
     name_trajectory = 'prime'
     
     # dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
-    # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_sunflower3.5k/'
-    # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3_sunflower10k/'
+    # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3-sunflower3.5k/'
+    # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3-sunflower10k/'
 
     dir_in = '/Users/throop/data/ORT5/throop/deliveries/tuna9k/'
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_a'

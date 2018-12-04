@@ -521,9 +521,9 @@ if (__name__ == '__main__'):
     #              'ort4_bc3_10cbr2_dph_3moon/ort4-0003/y3.0/beta1.0e-06/subset02',
     #              ]
     
-    runs_full = ['chr3_sunflower3.5k/chr3-0002/y2.2/beta1.0e+00/subset00',
-                 'chr3_sunflower3.5k/chr3-0002/y2.2/beta1.0e+00/subset01',
-                 'chr3_sunflower3.5k/chr3-0002/y2.2/beta1.0e+00/subset02',
+    runs_full = ['chr3-sunflower3.5k/chr3-0002/y2.2/beta1.0e+00/subset00',
+                 'chr3-sunflower3.5k/chr3-0002/y2.2/beta1.0e+00/subset01',
+                 'chr3-sunflower3.5k/chr3-0002/y2.2/beta1.0e+00/subset02',
                  ]
 
     for run in runs_full:

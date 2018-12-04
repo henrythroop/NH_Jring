@@ -684,9 +684,9 @@ if __name__ == '__main__':
 
     # Kaufmann ORT5
     
-    # dir_in = '/Users/throop/data/ORT_Nov18/kaufmann/deliveries/chr3_sunflower3.5k/' # done
-    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3_sunflower10k/'
-    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3_tunacan10k/'
+    # dir_in = '/Users/throop/data/ORT_Nov18/kaufmann/deliveries/chr3-sunflower3.5k/' # done
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k/'
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-tunacan10k/'
     
     # Hamilton ORT5
     
