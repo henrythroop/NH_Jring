@@ -6,56 +6,26 @@ Created on Wed Mar 28 14:41:44 2018
 @author: throop
 """
 
-import pdb
 import glob
 import math       # We use this to get pi. Documentation says math is 'always available' 
                   # but apparently it still must be imported.
-from   subprocess import call
-import warnings
-import pdb
+
 import os.path
 import os
-import subprocess
 
 import astropy
-from   astropy.io import fits
 from   astropy.table import Table
 import astropy.table   # I need the unique() function here. Why is in in table and not Table??
-import matplotlib
 import matplotlib.pyplot as plt # pyplot
-from   matplotlib.figure import Figure
 import numpy as np
 import astropy.modeling
-from   scipy.optimize import curve_fit
-#from   pylab import *  # So I can change plot size.
                        # Pylab defines the 'plot' command
-import spiceypy as sp
 #from   itertools import izip    # To loop over groups in a table -- see astropy tables docs
-from   astropy.wcs import WCS
-from   astropy import units as u           # Units library
-from   astropy.coordinates import SkyCoord # To define coordinates to use in star search
-#from   photutils import datasets
-from   scipy.stats import mode
-from   scipy.stats import linregress
-from   astropy.visualization import wcsaxes
-import time
-from   scipy.interpolate import griddata
-from   importlib import reload            # So I can do reload(module)
-import imreg_dft as ird                    # Image translation
-import struct
 
-import re # Regexp
 import pickle # For load/save
-
-from   datetime import datetime
-
 import scipy
-
-from   matplotlib.figure import Figure
 from   get_radial_profile_circular import get_radial_profile_circular
-
-#import cPickle
-import zlib
+import zlib  # For pickle decompression.
 
 # HBT imports
 
@@ -92,8 +62,8 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     
     """
     This file does the 'calibration' for NH MU69 ORT 'Track 4'.
-    Calibration refers to merging all of the Track-3 trajectories (from DPH), in various 
-    combinations, and saving them as grid files ('.grid4d.gz').
+    Calibration refers to merging all of the Track-3 trajectories (from DPH/DK), in various 
+    combinations, and saving them as grid files ('.grid4d.gz', or 
     
     I then use another program to fly thru these grids, and output as .dust file for Doug Mehoke.
     
@@ -110,9 +80,11 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
         
     """
 #%%%    
-    
-#    runs_full = runs
-    
+        
+    run_shortname = dir_in.split('/')[-1]  # Extract the DPH/DK run name. Have to do hoops to avoid final '/' in path.
+    if len(run_shortname) == 0:
+        run_shortname = dir_in.split('/')[-2]
+        
     plt.set_cmap('plasma')
 
     pi = math.pi
@@ -204,8 +176,8 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
         
         for i,run in enumerate(runs):
     
-            run_short  = run.replace(dir_in, '')  # Remove the base pathname from this, and initial '/'
-            ring = nh_ort_track3_read(run_short, dir_base=dir_in)            # Read the data array itself.
+            run_shortname  = run.replace(dir_in, '')  # Remove the base pathname from this, and initial '/'
+            ring = nh_ort_track3_read(run_shortname, dir_base=dir_in)            # Read the data array itself.
             
             do_print_ring_info = False
             do_plot_ring       = False
@@ -266,6 +238,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     
     num_subsets = len(np.unique(subset_arr))
     
+#%%    
 # =============================================================================
 #  Now that we have read all of the input files, we combine these to make the output files. 
 # =============================================================================
@@ -321,11 +294,27 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     #    And, if dust is small, there can be a lot more dust. So, albedo might well enter as a square. I only have it
     #    as a single power.
 
+    # Create an array for 'extent', which is for plotting. Base this on the size of the grid, which we now know.
+    
+    halfwidth_km = ring.km_per_cell_x * hbt.sizex(ring.density) / 2
+    extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
+
+
 #%%%
     (albedo_i, q_i, rho_i, speed_i) = (albedo[0], q[0], rho[0], speed[0]) # Set up values, for testing only. Can ignore.
     
-    # Now, do the loop in output space
-    # For each of the combinations of output requested, find the input runs that should go into that grid.
+    # =============================================================================
+    # Now combine the runs of different particle sizes into output grids, and normalize to a target I/F value.
+    # =============================================================================
+
+    # Do the loop in output space. For each of the combinations of output requested, find the input runs 
+    # that should go into that grid. This just takes a few seconds to run.
+    
+    hbt.figsize((10,5))
+    
+    # Just for reference, calculate the number of output files we will make. We use this just for plotting.
+    
+    num_combos = len(albedo) * len(q) * len(rho) * len(speed)
     
     for albedo_i in albedo:
         for q_i in q:
@@ -408,16 +397,27 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                     
                     # Take a radial profile
                     
-                    (radius_pix, profile) = get_radial_profile_circular(img)
+                    # pos_center = np.array(np.shape(img))/2
+                    (radius_pix, profile) = get_radial_profile_circular(img, method='median')
                     
                     # Plot the radial profile
                     # XXX For now, disable this, because DPH's inputs are not even in the right plane.
                     # It is pointless to take a radial profile.
                     
-                    do_plot_radial_profile = False
+                    do_plot_radial_profile = True
                     
-                    if do_plot_radial_profile:                    
-                        plt.imshow(stretch_hbt(img))
+                    if do_plot_radial_profile:      
+                        plt.subplot(1,2,1)
+                        plt.imshow(stretch_hbt(img), extent=extent)  # This is actually an image, not a radial profile
+                        plt.title(f'{run_name_base}, {i}/{num_combos})
+                        plt.subplot(1,2,2)
+                        plt.plot(radius_pix * ring.km_per_cell_x, profile * E_0_i)
+                        plt.axvline(10000, color='blue', alpha=0.3)
+                        plt.axvline(3500,  color='blue', alpha=0.3)
+                        plt.xlabel('[km]')
+                        plt.ylabel('I/F Median')
+        
+                        plt.tight_layout()
                         plt.show()
 
                     # We are now finished with summing this array over particle size (ie, beta). Save it!
@@ -435,16 +435,17 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
 
 # Make a plot of radial profile for each run, all stacked
 
-    do_plot_profile_radial = False
+    do_plot_profile_radial = True
     
     if do_plot_profile_radial:
         hbt.figsize((8,6))
-        for i in range(len(t)):        
+        for i in range(len(t)):        # Loop over run number
             plt.plot(radius_pix * ring.km_per_cell_x, t['profile'][i])
         plt.yscale('log')    
         plt.xlabel('Radius [km]')
         plt.ylabel('I/F (non-normalized)')
-        plt.ylim((1e-12, 1e-6))
+        plt.ylim((1e-8, 1e-0))
+        plt.title(f'Radial profiles, {len(t)} runs, {run_shortname}' )
         plt.show()
     
 # Make a gridded layout of various quantities
@@ -501,7 +502,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
 # ** We will do the latter! **    
 # =============================================================================
 
-    # Loop over all paramters in output space.
+    # Loop over all parameters in output space.
     # At each of these combinations, we will want to find the *input* parameters that match this --
     # specifically, all of the subsets.
     
@@ -666,15 +667,18 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     
 if __name__ == '__main__':
 
+#%%%
         # Search for the input files to use
     
 # For Hamilton, sample is ~/Data/ORT2/hamilton/deliveries/sbp_ort2_ba2pro4_v1_DPH/sbp_ort2_ba2pro4_v1/
 #                          ort2-0003/y2.2/beta2.2e-01/subset04/grid.array2'
         
 
-    do_short = False  # If set, just read a subset of the data
-    do_force = True   # If set, read the raw N-body grid files from disk, rather than from a pre-saved pickle file
-    num_runs_max = 30
+    do_force = False   # If set, read the raw N-body grid files from disk, rather than from a pre-saved pickle file
+
+    do_short = False  # If set, just read a subset of the data ← Do not use
+    # num_runs_max = 3  # ← This does not make sense to use here. Do not use it. This limits the number of input
+                      #   files, but # of output files remains the same, and is what takes the time.
 
     # Set which of DPH or DEK runs we are doing here. Each run has ~304 grids in it. I will usually do four runs.
     
@@ -684,13 +688,13 @@ if __name__ == '__main__':
 
     # Kaufmann ORT5
     
-    # dir_in = '/Users/throop/data/ORT_Nov18/kaufmann/deliveries/chr3-sunflower3.5k/' # done
-    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k/'
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower3.5k/' # done
+    dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k/'
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-tunacan10k/'
     
     # Hamilton ORT5
     
-    dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_a/'  # Not sure what the diff btwn sun10k_{ab} is
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_a/'  # Not sure what the diff btwn sun10k_{ab} is
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_b/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/tuna9k/'
 
@@ -702,11 +706,8 @@ if __name__ == '__main__':
     if ('hamilton' in dir_in):
         runs = glob.glob(os.path.join(dir_in, '*/*/subset*/'))
 
-    if len(runs) == 0:
-        print(f'No files found in {dir_in}')
+    if runs:
     
-    else:    
-        
         # Create the output directory, and make sure it exists on disk
         #   (Do this by changing hamilton→throop, and kaufmann→throop)
         
@@ -719,9 +720,14 @@ if __name__ == '__main__':
             runs = runs[0:num_runs_max]
         
         # Now do the run!
+ 
+#%%%
         
         nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force = do_force)
         
         # NB: Takes about 70 seconds to decompress 304 files from pickle.
         #     Takes 68 seconds to read raw files from disk. ie, my pickling and compressing saves zero time.
+
+    else:
+        print(f'No files found in {dir_in}')
         
