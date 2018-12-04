@@ -409,7 +409,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                     if do_plot_radial_profile:      
                         plt.subplot(1,2,1)
                         plt.imshow(stretch_hbt(img), extent=extent)  # This is actually an image, not a radial profile
-                        plt.title(f'{run_name_base}, {i}/{num_combos})
+                        plt.title(f'{run_name_base}, {i}/{num_combos}')
                         plt.subplot(1,2,2)
                         plt.plot(radius_pix * ring.km_per_cell_x, profile * E_0_i)
                         plt.axvline(10000, color='blue', alpha=0.3)
