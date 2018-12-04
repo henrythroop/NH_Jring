@@ -11,6 +11,7 @@ import glob
 import time
 
 from astropy.table import Table
+import numpy as np
 
 def nh_ort_list_reqids():
     
@@ -71,7 +72,8 @@ def nh_ort_list_reqids():
     
     # Add column for number remaining to process
     
-    t['# Unproc Sun'] = t['# WCS'] - t['# Sun']
+    t['# UnSun'] = t['# WCS'] - t['# Sun']
+    t['# UnTuna'] = t['# WCS'] - t['# Tuna']
           
     # Sort the table, and prepare a copy for printing
           
@@ -82,6 +84,11 @@ def nh_ort_list_reqids():
     # Print it
     
     print(t2)
+    
+    # Sum and print.
+    # I wish I could then do t2.add_row() to add this to the main column, but there is a column mismatch
+    
+    print(t2.groups.aggregate(np.sum))
     
 if __name__ == '__main__':
 
