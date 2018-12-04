@@ -265,7 +265,10 @@ if (__name__ == '__main__'):
     
     plt.set_cmap(cmap_stack)
 
-    zoom = 2     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+
+    ########## SET PARAMETERS HERE #################
+    
+    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
@@ -337,12 +340,12 @@ if (__name__ == '__main__'):
                        # 'KALR_MU69_OpNav_L4_2018319',
                        # 'KALR_MU69_OpNav_L4_2018325',
                         # 'KALR_MU69_OpNav_L4_2018326',
-                        # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                        # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+                        'KALR_MU69_OpNav_L4_2018330',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018331',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018335',  # 10 frames
                         'KALR_MU69_Hazard_L4_2018334',
 ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
@@ -356,6 +359,9 @@ if (__name__ == '__main__'):
     
     if do_tunacan:
         frame = '2014_MU69_TUNACAN_ROT'
+        frametype = 'Tunacan'
+    else:
+        frametype = 'Sunflower'
 
     # Start up SPICE if needed
     
@@ -634,17 +640,23 @@ if (__name__ == '__main__'):
     
     wcs_superstack          = wcs_superstack_tweak
     plane_radius_superstack = plane_radius_superstack_tweak
-    backplanes[0]['Radius_eq']
-
+    
 #%%%
 # =============================================================================
 #     Now that the WCS and all images are set, make some plots
 # =============================================================================
     
-    da_ring_km = 300   # Width of the ring to plot, in km    
-#    da_ring_km = 900
-    a_ring_km = [3500, 10000]
-
+    # Define the ring sizes.
+    # For the SUNFLOWER ring, we just take a radial profile outward, and plot it.
+    # For the TUNACAN   ring, we need to assume a vertical thickness. I make two rings, assuming two thicknesses.
+    
+    a_ring_km = [3500, 10000]         # For the sunflower *and* the tunacan, we use these as the central ring radii.
+                                      # These values are used to *plot* both TUNA and SUNFLOWER. But they are not
+                                      # used in computation of either one.
+                                  
+    dist_midplane_km = [1000, 2000]  # Midplane distance to limit to, in km. For TUNACAN only. This is used in 
+                                     # computing the ring profile. 
+     
     hbt.figsize((15,15))
     hbt.fontsize(10)
 
@@ -652,20 +664,46 @@ if (__name__ == '__main__'):
     
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
 #                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
-                 title = f'{str_stack}, {str_reqid}', 
+                 title = f'{str_stack}, {str_reqid}, {frametype}', 
                  width=130,do_show=False,
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
     
     # Construct the image of ring masks
     # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly
     
-    mask_ring0 = np.logical_and( (plane_radius_superstack >  a_ring_km[0]), 
-                                 (plane_radius_superstack < (a_ring_km[0] + da_ring_km)) )
-    mask_ring1 = np.logical_and( (plane_radius_superstack >  a_ring_km[1]), 
-                                 (plane_radius_superstack < (a_ring_km[1] + da_ring_km)) )
+    if do_tunacan:
+        da_ring_km = 600
+        
+        rad = plane_radius_superstack
+        vert = backplanes[0]['Altitude_eq']
+        
+        mask_ring0topbot = ( ((np.abs(vert) > dist_midplane_km[0]) & (np.abs(vert) < (dist_midplane_km[0] + da_ring_km)))
+                              &
+                             (np.abs(rad) < a_ring_km[0]) )
+        
+        mask_ring1topbot = ( ((np.abs(vert) > dist_midplane_km[1]) & (np.abs(vert) < (dist_midplane_km[1] + da_ring_km)))
+                               &
+                               (np.abs(rad) < a_ring_km[1]) )
+        
+        mask_ring0rl     = ( ((np.abs(rad)  > a_ring_km[0]) & (np.abs(rad) < (a_ring_km[0] + da_ring_km)))
+                              &
+                              (np.abs(vert) < dist_midplane_km[0]) )
+        
+        mask_ring1rl     = ( ((np.abs(rad)  > a_ring_km[1]) & (np.abs(rad) < (a_ring_km[1] + da_ring_km)))
+                              &
+                              (np.abs(vert) < dist_midplane_km[1]) )
+        
+        mask_ring = (mask_ring0topbot | mask_ring1topbot | mask_ring0rl | mask_ring1rl)
 
-    plt.imshow(np.logical_not(np.logical_or(mask_ring0, mask_ring1)),
-                alpha=0.08, origin='lower')
+    else:
+        da_ring_km = 300   # Width of the ring to plot, in km    
+        rad = plane_radius_superstack    
+        mask_ring0 = (rad > a_ring_km[0]) & (rad < (a_ring_km[0] + da_ring_km) )
+        mask_ring1 = (rad > a_ring_km[1]) & (rad < (a_ring_km[1] + da_ring_km) )
+    
+        mask_ring = (mask_ring0 | mask_ring1)
+    
+    plt.imshow(np.logical_not(mask_ring), alpha=0.08, origin='lower')
     
     # Mark the aimpoints on the plot
     
@@ -702,9 +740,7 @@ if (__name__ == '__main__'):
         print(f'Trajectory = {trajectory}, CA RA/Dec = {ra_aimpoint*hbt.r2d, (dec_aimpoint*hbt.r2d)}')
         
         plt.plot(x, y, marker = 'X', markersize=10, color='blue')
- 
-#    plt.show()
-    
+     
     plt.subplot(1,2,2)
 
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
@@ -713,16 +749,6 @@ if (__name__ == '__main__'):
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
     plt.show()
 
-# XXX FOR DEBUGGING 
-# =============================================================================
-# For debugging only, plot the first image of the stack
-# =============================================================================
-
-#    i = 4
-#    imgt =  stack_haz[reqids_haz[0]].t
-#    plot_img_wcs(imgt['data'][i], imgt['wcs'][i], cmap=cmap_superstack, width=50, 
-#                 title = 'test frame 0 raw',
-#                 name_observer = 'New Horizons', name_target = 'MU69', et = imgt['et'][i])
 
 #%%%    
 # =============================================================================
@@ -800,7 +826,12 @@ if (__name__ == '__main__'):
     # This is just for labeling plots -- nothing else.
        
     name_target = 'MU69'
-    frame = '2014_MU69_SUNFLOWER_ROT'
+    
+    if do_tunacan:
+        frame = '2014_MU69_TUNACAN_ROT'
+    else:
+        frame = '2014_MU69_SUNFLOWER_ROT'
+        
     name_observer = 'New Horizons'
     
     vec = [0, -1, 0]                                # -Y vector is the rotational pole
@@ -844,31 +875,72 @@ if (__name__ == '__main__'):
     
     num_pts = 1000  # Number of radial points to use.
     
-    (radius,  profile_iof_mean, profile_iof_std)   = get_radial_profile_backplane(img_superstack_mean_iof,
-                                         plane_radius_superstack, method = 'mean', num_pts = num_pts, 
-                                         do_std=True)
-                                         
-    (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
-                                         plane_radius_superstack, method = 'median', num_pts = num_pts)
+    if is_tunacan:
+        
+        num_pts = 500  # Number of radial points to use. Fewer for tunacan, since fewer pixels
+        
+        # For tunacan, take two different radial profiles. One for an outer ring, and one for an inner.
+        # My code here is so awful! This clearly should be a loop, and it should be made to be the same for both
+        # tunacan and sunflower. Ugh!
+        
+        is_good0 = (np.abs(backplanes[0]['Altitude_eq']) < dist_midplane_km[0])
+        is_good1 = (np.abs(backplanes[0]['Altitude_eq']) < dist_midplane_km[1])
+        
+        img_superstack_median_iof_masked0 = img_superstack_median_iof * is_good0
+        img_superstack_median_iof_masked0[is_good0 == 0] = np.nan    # Set all pixel > vertical altitude to NaN
+        img_superstack_mean_iof_masked0 = img_superstack_mean_iof * is_good0
+        img_superstack_mean_iof_masked0[is_good0 == 0] = np.nan    # Set all pixel > vertical altitude to NaN
+        
+        img_superstack_median_iof_masked1 = img_superstack_median_iof * is_good1
+        img_superstack_median_iof_masked1[is_good1 == 0] = np.nan    # Set all pixel > vertical altitude to NaN
+        img_superstack_mean_iof_masked1 = img_superstack_mean_iof * is_good1
+        img_superstack_mean_iof_masked1[is_good1 == 0] = np.nan    # Set all pixel > vertical altitude to NaN
+        
+        (radius,  profile_iof_mean0, profile_iof_std) = get_radial_profile_backplane(img_superstack_mean_iof_masked0,
+                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
+                                             do_std=True)
+        (radius,  profile_iof_median0, profile_iof_std) = get_radial_profile_backplane(img_superstack_median_iof_masked0,
+                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
+                                             do_std=True)
 
-    profile_iof = profile_iof_median  # Just pick one -- they both are similar
+        (radius,  profile_iof_mean1, profile_iof_std) = get_radial_profile_backplane(img_superstack_mean_iof_masked1,
+                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
+                                             do_std=True)
+        (radius,  profile_iof_median1, profile_iof_std) = get_radial_profile_backplane(img_superstack_median_iof_masked1,
+                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
+                                             do_std=True)
+        profile_iof0 = profile_iof_median0  # Just pick one -- they both are similar
+        profile_iof1 = profile_iof_median1  # Just pick one -- they both are similar
+          
+    else:
+        (radius,  profile_iof_mean, profile_iof_std)   = get_radial_profile_backplane(img_superstack_mean_iof,
+                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
+                                             do_std=True)
+                                             
+        (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
+                                             plane_radius_superstack, method = 'median', num_pts = num_pts)
+
+        profile_iof = profile_iof_median  # Just pick one -- they both are similar
 
   # Fit a gaussian to the radial profile. Set the initial guesses.
     
-    r_0         = 4000      # Inner radius to ignore in gauss fit, in km
-    radius_ring = 9000      # Starting point for gassfit for ring position, in km
-    hw_ring     = 1000      # Starting point for ring halfwidth, in km
+    do_fit_profile = False
     
-    radius_max_km = 30000
+    if do_fit_profile:
+        r_0         = 4000      # Inner radius to ignore in gauss fit, in km
+        radius_ring = 9000      # Starting point for gaussfit for ring position, in km
+        hw_ring     = 1000      # Starting point for ring halfwidth, in km
+        
+        radius_max_km = 30000
+        
+        bin_0 = hbt.x2bin(r_0, radius)
+        x = radius[bin_0:]
+        y = profile_iof[bin_0:]            
+        
+        # popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
     
-    bin_0 = hbt.x2bin(r_0, radius)
-    x = radius[bin_0:]
-    y = profile_iof[bin_0:]            
-    
-    # popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
-
     # Calculate the bias level, crudely
-    
+        
     bin_radial_end = np.digitize(radius_max_km, radius)
     bias = np.amin(profile_iof[0:bin_radial_end])
 
@@ -877,9 +949,18 @@ if (__name__ == '__main__'):
     hbt.figsize((8,6))
     hbt.fontsize(14)
     
-    plt.plot(radius, profile_iof - bias,
+    if do_tunacan:
+        plt.plot(radius, profile_iof1 - np.nanmin(profile_iof1[0:bin_radial_end]),
+             label = f'Median, pole=({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
+                     f'dr={round(np.diff(radius)[0]):.0f} km, z/2={dist_midplane_km[1]} km')
+        plt.plot(radius, profile_iof0 - np.nanmin(profile_iof0[0:bin_radial_end]),
+             label = f'Median, pole=({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
+                     f'dr={round(np.diff(radius)[0]):.0f} km, z/2={dist_midplane_km[0]} km')
+    
+    else:    
+        plt.plot(radius, profile_iof - bias,
              label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
-                     f'width {round(np.diff(radius)[0]):.0f} km')
+                     f'dr={round(np.diff(radius)[0]):.0f} km')
     
     do_plot_errorbars = False
     
@@ -888,27 +969,27 @@ if (__name__ == '__main__'):
              label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
         
     plt.xlim(0,50000)
-    plt.ylim(0,1e-5)
+    if do_tunacan:
+        plt.ylim((0,1e-5))
+    else:
+        plt.ylim((0,2e-6))
     
     do_plot_mean=False
     if do_plot_mean:            # Can plot the mean. But the median is much more useful
         plt.plot(radius, profile_iof_mean - bias, label = 'mean')
     
-    do_plot_fit = False
-    
-    if do_plot_fit:
+    if do_fit_profile:
         plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=1.5, 
                  label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
     
     # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
-
-    plt.ylim((0, 2e-6))
+        
     plt.xlim((0, radius_max_km))
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
     plt.xlabel('Radius [km]')
     plt.ylabel('I/F')
     plt.legend(loc = 'upper right')
-    plt.title(f'Radial profile, {str_stack} {str_reqid}')
+    plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
     plt.show()
                          
 # =============================================================================
@@ -920,8 +1001,13 @@ if (__name__ == '__main__'):
     
     file_out = os.path.join(dir_out, f'{initials_user.lower()}_{name_ort.lower()}_v{version}.ring')
     lun = open(file_out,"w")
-    for i in range(len(profile_iof)):
-        lun.write('{:10.3f} {:11.3e}\n'.format(radius[i], profile_iof[i]-bias))
+    
+    if do_tunacan:
+        for i in range(len(profile_iof1)):
+            lun.write('{:10.3f} {:11.3e} {:11.3e}\n'.format(radius[i], profile_iof0[i], profile_iof1[i]))
+    else:
+        for i in range(len(profile_iof)):
+            lun.write('{:10.3f} {:11.3e}\n'.format(radius[i], profile_iof[i]-bias))
     lun.close()
     
     do_ring_out = True
@@ -930,7 +1016,6 @@ if (__name__ == '__main__'):
         print(f'Wrote: {file_out}')
         print(f' scp {file_out} ixion:\~/MU69_Approach/astrometry' )  # We don't copy it, but put up string for user.
 
-        
 # =============================================================================
 # Make an image overlaying a radius mask with the ring. This is just to visualize if the geometry is close.
 # =============================================================================

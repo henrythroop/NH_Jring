@@ -93,7 +93,7 @@ def plot_backplanes(file,
     plt.imshow(radius_good, alpha=0.3, origin='lower', cmap='plasma')
     plt.show()    
     
-#    Plot the image itself
+#    Plot the image, using an older stupider method.
  
     # plt.imshow(stretch(hdu[0].data), origin='lower')
 
@@ -108,15 +108,6 @@ def plot_backplanes(file,
     #     utc = sp.et2utc(et, 'C', 0)
     #     abcorr = 'LT'
     #     frame = 'J2000'  
-
-        
-        
-        
-        
-        
-        
-        
-        
         
     #     (st,lt) = sp.spkezr(name_target, et, frame, abcorr, name_observer)
     #     vec_obs_target = st[0:3]
