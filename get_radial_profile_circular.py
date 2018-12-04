@@ -9,7 +9,7 @@ Created on Fri Jan 19 16:20:36 2018
 import hbt
 import numpy as np
 
-def get_radial_profile_circular(arr, pos = (0,0), width=1, a_xy = (1,1), method='median'):
+def get_radial_profile_circular(arr, pos = None, width=1, a_xy = (1,1), method='median'):
 
     """
     Extract a radial profile from an image. 
@@ -23,9 +23,11 @@ def get_radial_profile_circular(arr, pos = (0,0), width=1, a_xy = (1,1), method=
     
     arr:
         Array of data values (e.g., the image).
+    
+    Optional Keyword Paramters:
         
     pos:
-        Position of the center of the circle, in pixels
+        Position of the center of the circle, in pixels. If omitted, assume center of image.
         
     width:
         Some sort of scaling? Not really sure. Just keep at default.
@@ -38,6 +40,9 @@ def get_radial_profile_circular(arr, pos = (0,0), width=1, a_xy = (1,1), method=
         
     """
 
+    if not pos:
+        pos = np.array(np.shape(arr))/2
+        
     dx = hbt.sizex(arr) 
     dy = hbt.sizey(arr)
     
