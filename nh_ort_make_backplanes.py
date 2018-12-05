@@ -18,10 +18,16 @@ import os
 import matplotlib.pyplot as plt
 import glob
 
+import random
+import time
+import sys
+from multiprocessing import Process, Queue
+
 from create_backplanes_fits import create_backplanes_fits
 from plot_backplanes        import plot_backplanes
 
-def nh_ort_make_backplanes(frame = '2014_MU69_SUNFLOWER_ROT', digit_filter=None):
+# def nh_ort_make_backplanes(frame = '2014_MU69_SUNFLOWER_ROT', digit_filter=None):
+def nh_ort_make_backplanes(digit_filter, frame):
     
     """
     Process all of the MU69 ORT files. 
@@ -34,6 +40,8 @@ def nh_ort_make_backplanes(frame = '2014_MU69_SUNFLOWER_ROT', digit_filter=None)
 # =============================================================================
 # Initialize
 # =============================================================================
+
+    do_print_diag = False
 
     do_plot    = True
     do_clobber = True
@@ -144,7 +152,8 @@ def nh_ort_make_backplanes(frame = '2014_MU69_SUNFLOWER_ROT', digit_filter=None)
                               # This is the digit that changes the most in the LORRI files, so it's a good choice.
             if (digit in digit_filter):
                 files_filtered.append(file)
-        print("Filtered on '{}': {} files → {}".format(digit_filter, len(files), len(files_filtered)))
+        if do_print_diag:
+            print("Filtered on '{}': {} files → {}".format(digit_filter, len(files), len(files_filtered)))
         
         files = files_filtered            
 
@@ -159,8 +168,13 @@ def nh_ort_make_backplanes(frame = '2014_MU69_SUNFLOWER_ROT', digit_filter=None)
 # Loop and create each backplane
 # =============================================================================
         
+    count_run = 0
+    count_skipped = 0
+    
+    
     for i,file_in in enumerate(files):
-        print("{}/{}".format(i,len(files))) 
+        if do_print_diag:
+            print("{}/{}".format(i,len(files))) 
         file_out = file_in.replace(dir_in, dir_out)
         file_out = file_out.replace('_pwcs.fit', '_pwcs_backplaned.fit') # Works for both .fit and .fits
         file_out = file_out.replace('_pwcs2.fit', '_pwcs2_backplaned.fit') # Works for both .fit and .fits
@@ -177,55 +191,66 @@ def nh_ort_make_backplanes(frame = '2014_MU69_SUNFLOWER_ROT', digit_filter=None)
                                       do_plot=False, 
                                       do_clobber=do_clobber,
                                       do_verbose=True)
+            count_run += 1
             if (do_plot):
                 plot_backplanes(file_out, name_observer = name_observer, name_target = name_target)
      
         except FileExistsError:
-            print('File exists -- skipping. {}'.format(os.path.basename(file_out)))
-    
+            if do_print_diag:
+                print('File exists -- skipping. {}'.format(os.path.basename(file_out)))
+            count_skipped +=1
+            
+    print(f'Digit filter {digit_filter}, {frame}: {len(files)} files examined; ' +
+          f'{count_run} run; {count_skipped} skipped')
        
 # =============================================================================
 # End of function
 # =============================================================================
 
-def test():
-
-    dir = '/Users/throop/Data/ORT3/throop/backplaned'
-    file = 'lor_0406991502_0x633_wcs_HAZARD_ort3_backplaned.fit'
-    file = pwcs_ort4/K1LR_OPNAV27B/lor_0407015627_0x633_pwcs.fits
-    plane = nh_ort_make_backplanes(os.path.join(dir,file))
-    
 # =============================================================================
 # Run the function if requested
 # When run, this program regenerates all of the backplanes    
 # =============================================================================
         
 if (__name__ == '__main__'):
+    
     file_tm = 'kernels_kem_prime.tm'
     sp.unload(file_tm)
     sp.furnsh(file_tm)
 
  # NB: This would be an ideal candidate for multi-processing
+ # NB: Done!
         
     # Set paramters here
     
     do_tuna      = False
     digit_filter = None
     
-    # digit_filter = '12'
-    # digit_filter = '34'
-    # digit_filter = '56'
-    # digit_filter = '78'
-    # digit_filter = '90'
-    
     # Run code here
 
-    if do_tuna:
-        print("WARNING: USING TUNACAN FRAME!")
-        nh_ort_make_backplanes(frame='2014_MU69_TUNACAN_ROT', digit_filter=digit_filter)
-        print("WARNING: USING TUNACAN FRAME!")
+    digit_filters = ['12', '34', '56', '78', '90']
+    frames        = ['2014_MU69_SUNFLOWER_ROT', '2014_MU69_TUNACAN_ROT']
+    
+    q = Queue()  # Start up the process queue
+
+    func = nh_ort_make_backplanes
+    
+    procs   = []   # List of processes
+    results = []   # List of results. This is empty, since we don't return anything
+    
+    for digit_filter in digit_filters:
+        for frame in frames:
+            proc = Process(target=func, args=(digit_filter, frame)) # I can't figure out how to pass keyword args here.
+            proc.start()
+            procs.append(proc)
+            # print(f'Started process with filter={digit_filter}, frame={frame}')
+    
+    for proc in procs:        
         
-    else:
-        nh_ort_make_backplanes(digit_filter=digit_filter)
+        # results.append(q.get(True))  # No output to wait for -- so don't.
+        
+        proc.join()  # 'Wait until child process terminates'
+     
+
         
         
