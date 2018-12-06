@@ -150,10 +150,7 @@ class nh_ort_track3_read:
                 (density[ix-1,iy-1,iz-1],) = struct.unpack('f', data[start+6:start+10])   # HBT modified order XYZ, 
                                                                                           # to match wiki API.
                 
-    
         #### END OF DK CODE FRAGMENT ####
-        
-        self.density = density
         
         # Read a bunch of values from the header, and save them into the object
         
@@ -170,6 +167,10 @@ class nh_ort_track3_read:
         self.grains    = self.get_header_val('grains')
         self.state_file= self.get_header_val('state_file')
         self.obj_file  = self.get_header_val('obj_file')
+
+        # Set the grain density. Depends on residence time within each cell, and timestep, and number of grains.
+        
+        self.density   = density * self.time_step.value / self.grains
         
         return  # Return the object so we can chain calls (but, we don't really do that here)
 
