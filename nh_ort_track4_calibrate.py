@@ -165,8 +165,10 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     if (os.path.isfile(file_pickle) and (not do_force)):
         lun = open(file_pickle, 'rb')
         print(f'Reading pickle file {file_pickle}')
+        
         (run, ring, rings_Z, beta_arr, time_step_arr, duration_arr, speed_arr, body_id_arr, subset_arr, grains_arr,
                      density_flattened_arr, halfwidth_km) = pickle.load(lun)
+
         rings = pickle.loads(zlib.decompress(rings_Z))
         lun.close()
         print(f'Read pickle file {file_pickle}')
@@ -284,8 +286,12 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     else:                       # For ORT4 and beyond
         b = hbt.frange(-18,0)
 
-    sarea = pi * (5)**2  # Moon surface area. First term in MRS eq @ Slide 6.4 . This is in km2. 
-                         # The actual value here should be taken from Track1, and I don't have it here. 
+    r_moon_km = 1            # Radius of moon. THis will scale out in the end, but will change value of E_0.
+    
+    sarea = 4 * pi * (r_moon_km)**2  # Moon surface area. First term in MRS eq @ Slide 6.4 . This is in km2. 
+                                     # The actual value here should be taken from Track1, and I don't have it here. 
+                                     # 4 pi r^2 because this is production, which is assumed to go equally from 
+                                     # all surfaces of the moon. Not cross-sectional sweepup.
     
     epsilon = 1e-5               # A small value for testing equality of floats.    
     
@@ -420,7 +426,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                     if do_plot_profile_individual:
                         plt.subplot(1,2,1)
                         plt.imshow(stretch_hbt(img), extent=extent)  
-                        plt.title(f'{run_name_base}, {i}/{num_combos}')
+                        plt.title(f'{name_run}, {i}/{num_combos}')
                         plt.xlabel('X')
                         plt.ylabel('Z')
                         plt.subplot(1,2,2)
@@ -750,7 +756,7 @@ if __name__ == '__main__':
     
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower3.5k/' # done
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k/'
-    dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-tunacan10k/'
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-tunacan10k/'
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k-subsets16-dek'
     
     # Hamilton ORT5 [Nov 2018]
@@ -758,7 +764,7 @@ if __name__ == '__main__':
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_a/'  # Not sure what the diff btwn sun10k_{ab} is
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_b/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/tuna9k/'
-    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k-DPH/'
+    dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k-DPH/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10kfast-DPH/'
 
     # Make sure directory is properly terminated. This is what os.path is supposed to do, but does not!
