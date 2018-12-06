@@ -46,6 +46,8 @@ def gaus(x,a,x0,sigma):
     """
     
     return a*np.exp(-(x-x0)**2/(2*sigma**2))
+
+#%%%
     
 def nh_ort_make_superstack(stack, img, img_field, 
                            name_stack_base, 
@@ -239,7 +241,7 @@ def nh_ort_make_superstack(stack, img, img_field,
             
             # frame = '2014_MU69_SUNFLOWER_ROT'
             
-            print(f'Computing backplanes: {path_out_main}')
+            print(f'Computing backplanes using frame={frame}: {path_out_main}')
             planes = compute_backplanes(path_out_main, 'MU69', frame, 'New Horizons', angle3=30*hbt.d2r)
 
     if do_backplanes:        
@@ -279,18 +281,59 @@ if (__name__ == '__main__'):
     width = 1  # Bin width for radial profiles
     
     do_tunacan = False
-    
-#    name_ort = 'ORT1'
-#    name_ort = 'ORT2_OPNAV'
-#    name_ort = 'ORT3'
-#    name_ort = 'ORT4'
-    
-    name_ort = 'MU69_Approach'  # This is the actual encounter -- not ORT!
-    initials_user = 'HBT'
-    dir_data = '/Users/throop/Data'
-    
-    a_xy = (1,1)   # Projected ellipticity of ring
 
+    # DO_FORCE_STACKS: If set, reload the stacks from individual frames, rather than restoring from a pickle file.
+    # NB: When adding a new set of OpNavs to an existing run, there sometimes is not enough padding
+    # to allow for room for the latest OpNav to be added, if it has more jitter than previous.
+    # So, typically do do_force=True when adding a new OpNav visit.
+  
+    # DO_FORCE_FLATTEN: Same thing
+      
+    do_force_stacks_haz   = True      
+    do_force_flatten_haz  = True    
+
+    do_force_stacks_field = True  # Keep as False. Except if using new parameters  [well, not sure. Maybe better True]
+    do_force_flatten_field= True  # Keep as False
+     
+    ########## END PARAMETERS HERE #################
+    
+    name_ort      = 'MU69_Approach'  # This is the actual encounter -- not ORT!
+    initials_user = 'HBT'
+    dir_data      = '/Users/throop/Data'
+    
+    if (name_ort == 'MU69_Approach'):
+        dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
+        dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
+        reqids_haz  = [
+                       # 'KALR_MU69_OpNav_L4_2018228', 
+                       # 'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
+                       # 'KALR_MU69_OpNav_L4_2018267', 
+                       # 'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
+                       # 'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
+                       # 'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
+                       # 'KALR_MU69_OpNav_L4_2018314', 
+                       # 'KALR_MU69_OpNav_L4_2018315',
+                       # 'KALR_MU69_OpNav_L4_2018316',
+                       # 'KALR_MU69_OpNav_L4_2018317',
+                       # 'KALR_MU69_OpNav_L4_2018319',
+                       # 'KALR_MU69_OpNav_L4_2018325',
+                        # 'KALR_MU69_OpNav_L4_2018326',
+                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+                        # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018337',  # 10 frames
+                        # 'KALR_MU69_Hazard_L4_2018334',  # 96 frames
+                        'KALR_MU69_OpNav_L4_2018338',
+                       ]
+        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
+        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
+        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018287']
+        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018284']
+        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
+        
     if (name_ort == 'ORT1'):
         dir_images    = os.path.join(dir_data, name_ort, 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort)
@@ -328,44 +371,14 @@ if (__name__ == '__main__'):
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         a_xy = (1, math.cos(hbt.d2r * 30))
 
-    if (name_ort == 'MU69_Approach'):
-        dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
-        dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
-        reqids_haz  = [
-                       # 'KALR_MU69_OpNav_L4_2018228', 
-                       # 'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
-                       # 'KALR_MU69_OpNav_L4_2018267', 
-                       # 'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
-                       # 'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
-                       # 'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
-                       # 'KALR_MU69_OpNav_L4_2018314', 
-                       # 'KALR_MU69_OpNav_L4_2018315',
-                       # 'KALR_MU69_OpNav_L4_2018316',
-                       # 'KALR_MU69_OpNav_L4_2018317',
-                       # 'KALR_MU69_OpNav_L4_2018319',
-                       # 'KALR_MU69_OpNav_L4_2018325',
-                        # 'KALR_MU69_OpNav_L4_2018326',
-                        # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                        # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
-                        'KALR_MU69_OpNav_L4_2018338',
-]
-        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
-        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
-        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018287']
-        # reqids_haz  = ['KALR_MU69_OpNav_L4_2018284']
-        reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
-        a_xy = (1, math.cos(hbt.d2r * 30))
-    
+
     # Check for a tunacan profile
     
     if do_tunacan:
         frame = '2014_MU69_TUNACAN_ROT'
         frametype = 'Tunacan'
     else:
+        frame = '2014_MU69_SUNFLOWER_ROT'
         frametype = 'Sunflower'
 
     # Start up SPICE if needed
@@ -381,18 +394,7 @@ if (__name__ == '__main__'):
     
     # Load and stack the field images
     
-    # DO_FORCE_STACKS: If set, reload the stacks from individual frames, rather than restoring from a pickle file.
-    # NB: When adding a new set of OpNavs to an existing run, there sometimes is not enough padding
-    # to allow for room for the latest OpNav to be added, if it has more jitter than previous.
-    # So, typically do do_force=True when adding a new OpNav visit.
-  
-    # DO_FORCE_FLATTEN: Same thing
-      
-    do_force_stacks_field = False  # Keep as False. Except if using new parameters
-    do_force_flatten_field= False  # Keep as False
- 
-    do_force_stacks_haz   = True      
-    do_force_flatten_haz  = True
+
 
     stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks_field, 
                               do_save=True)
@@ -504,10 +506,9 @@ if (__name__ == '__main__'):
         str_stack = 'Superstack'
         
     if 'OpNav' in reqids_haz[0]:
-        str_reqid = f'{len(reqids_haz)} OpNav visits, ' + str_reqid
+        str_reqid = f'{len(reqids_haz)} visits, ' + str_reqid
 
 #%%%
-    
 # =============================================================================
 #     Make a 'superstack' -- ie stack of stacks, put on the same spatial scale and stacked
 # =============================================================================
@@ -526,15 +527,7 @@ if (__name__ == '__main__'):
     
     name_stack_base = keys[np.where(pixscale_km_out == np.array(list(pixscale_km.values())))[0][0]]
     
-    # Create and save the median superstack
-
     str_name = f'{name_ort}_z{zoom}'
-    # (img_superstack_mean, img_superstack_median) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
-    #                                                                       name_stack_base, 
-    #                                                                       do_save_all=True, dir=dir_out,
-    #                                                                       str_name = str_name, do_center=True,
-    #                                                                       do_backplanes=False,
-    #                                                                       wcs = wcs_haz[name_stack_base])
 
     # Grab the WCS from the highest-res frame, and apply that to this frame.
     
@@ -555,13 +548,11 @@ if (__name__ == '__main__'):
                                                                           )
 
 #%%%
-    
-    # Adjust the WCS and backplanes, if needed
-    
-#    hbt.figsize(10,10)
-#    plt.subplot(1,2,1)
+# =============================================================================
+#     Adjust the WCS and backplanes, if needed
+# =============================================================================
 
-    # Do some testing on the WCS backplanes
+# Do some testing on the WCS backplanes
     
 #    plot_img_wcs(img_superstack_mean, wcs_superstack, cmap=cmap_superstack,
 #                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100,
@@ -647,7 +638,7 @@ if (__name__ == '__main__'):
     # Copy the tweaked versions over
     
     wcs_superstack          = wcs_superstack_tweak
-    plane_radius_superstack = plane_radius_superstack_tweak
+    plane_radius_superstack = plane_radius_superstack_tweak # Do not copy this back to the backplane itself! Breaks.
     
 #%%%
 # =============================================================================
@@ -662,7 +653,7 @@ if (__name__ == '__main__'):
                                       # These values are used to *plot* both TUNA and SUNFLOWER. But they are not
                                       # used in computation of either one.
                                   
-    dist_midplane_km = [1000, 2000]  # Midplane distance to limit to, in km. For TUNACAN only. This is used in 
+    thick_tuna_km = [1000, 2000]  # Midplane distance to limit to, in km. For TUNACAN only. This is used in 
                                      # computing the ring profile. 
     
     plt.show()  # for some reason the figsize() isn't working, so maybe flush things out??
@@ -681,37 +672,35 @@ if (__name__ == '__main__'):
     # Construct the image of ring masks
     # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly
     
+    mask_tuna = {}
+    
     if do_tunacan:
-        da_ring_km = 300
-        
-        rad = plane_radius_superstack
-        vert = backplanes[0]['Altitude_eq']
-        
-        mask_ring0topbot = ( ((np.abs(vert) > dist_midplane_km[0]) & (np.abs(vert) < (dist_midplane_km[0] + da_ring_km)))
-                              &
-                             (np.abs(rad) < a_ring_km[0]) )
-        
-        mask_ring1topbot = ( ((np.abs(vert) > dist_midplane_km[1]) & (np.abs(vert) < (dist_midplane_km[1] + da_ring_km)))
-                               &
-                               (np.abs(rad) < a_ring_km[1]) )
-        
-        mask_ring0rl     = ( ((np.abs(rad)  > a_ring_km[0]) & (np.abs(rad) < (a_ring_km[0] + da_ring_km)))
-                              &
-                              (np.abs(vert) < dist_midplane_km[0]) )
-        
-        mask_ring1rl     = ( ((np.abs(rad)  > a_ring_km[1]) & (np.abs(rad) < (a_ring_km[1] + da_ring_km)))
-                              &
-                              (np.abs(vert) < dist_midplane_km[1]) )
-        
-        mask_ring = (mask_ring0topbot | mask_ring1topbot | mask_ring0rl | mask_ring1rl)
 
-    else:
-        da_ring_km = 300   # Width of the ring to plot, in km    
+        da_ring_km = 300    # Define the edge sizes of the tunacan ring, for plotting only 
+
+        rad  = plane_radius_superstack
+        vert = backplanes[0]['Altitude_eq']  # Extract the vertical height backplane
+        
+        for i in range(len(thick_tuna_km)):
+        
+            mask_tuna_topbot = ( ((np.abs(vert) > thick_tuna_km[i]) & (np.abs(vert) < (thick_tuna_km[i] + da_ring_km)))
+                                  & (np.abs(rad) < a_ring_km[i]) )
+            
+            mask_tuna_rl     = ( ((np.abs(rad)  > a_ring_km[i]) & (np.abs(rad) < (a_ring_km[i] + da_ring_km)))
+                                  & (np.abs(vert) < thick_tuna_km[i]) )
+    
+            mask_tuna[i] = mask_tuna_topbot | mask_tuna_rl
+       
+        mask_ring = mask_tuna[0] | mask_tuna[1]  # Combine inner and outer tunacans, to make one pretty plot with both.
+
+    else: # Make the sunflower ring masks
+        
+        da_ring_km = 300   # Width of the lines in the ring to plot, in km    
         rad = plane_radius_superstack    
         mask_ring0 = (rad > a_ring_km[0]) & (rad < (a_ring_km[0] + da_ring_km) )
         mask_ring1 = (rad > a_ring_km[1]) & (rad < (a_ring_km[1] + da_ring_km) )
     
-        mask_ring = (mask_ring0 | mask_ring1)
+        mask_ring = mask_ring0 | mask_ring1
     
     plt.imshow(np.logical_not(mask_ring), alpha=0.08, origin='lower')
     
@@ -770,35 +759,34 @@ if (__name__ == '__main__'):
     
     # plot_img_wcs(stretch(img_field), wcs_superstack, cmap=cmap_superstack, width=150, title='Field')
     
+    stretchz=astropy.visualization.ManualInterval(vmin=2, vmax=40)
+    
+    width_postage = 50
+    
     for key in keys:
         keystr = key.split('_')[-1]
         plt.subplot(1,3,1)
 
-        plot_img_wcs(stretch(img_field), wcs_field, cmap=cmap_superstack, width=150, title = 'Field',
-                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
+        plot_img_wcs(stretch(img_field), wcs_field, cmap=cmap_superstack, width=width_postage, title = 'Field',
+                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz,
+                     )
 
         plt.subplot(1,3,2)
-        plot_img_wcs(stretch(img_haz[key]), wcs_field, cmap=cmap_superstack, width=150, title = f'Haz, {keystr}',
-                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
+        plot_img_wcs(stretch(img_haz[key]), wcs_field, cmap=cmap_superstack, width=width_postage, 
+                     title = f'Haz, {keystr}',
+                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz,
+                     do_inhibit_axes=True,
+                     )
         
         plt.subplot(1,3,3)
-        # plot_img_wcs(stretch(img_haz[key] - img_field), wcs_field, cmap=cmap_superstack, 
-        #    width=150, title = f'Stack, {key}', do_show=False)
-        
-        
         plot_img_wcs(stretch(img_haz[key] - img_field), 
-                     wcs_field, cmap=cmap_superstack, width=150, title = f'Haz-field, {keystr}',
-                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
+                     wcs_field, cmap=cmap_superstack, width=width_postage, title = f'Haz-field, {keystr}',
+                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz,
+                     do_inhibit_axes=True,
+                     )
         
         plt.show()
-    
-    
-#    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, 
-#                 title=f'{str_stack}, {str_reqid}', name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
-#    
-#    plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=75, 
-#                 title=f'{str_stack}, {str_reqid}', name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
-    
+     
     hbt.figsize() 
     hbt.fontsize()
  
@@ -827,12 +815,7 @@ if (__name__ == '__main__'):
 # Now start to calculate radial profiles
 # =============================================================================
 
-# Create a backplane for this superstack
-# Look up the Radius backplane, in the chosen stack. Extracting the RADIUS_EQ backplane.
- 
     # Look up the pole position of MU69, based on the loaded frame kernel
-    # That is, the RA + Dec of the pole, in degrees, as derived from NH_ORT_FIND_RING_POLE.PY.
-    # I put this value into the .tf frame file for MU69, and grab it here.
     # This is just for labeling plots -- nothing else.
        
     name_target = 'MU69'
@@ -850,7 +833,7 @@ if (__name__ == '__main__'):
     (_, ra_pole, dec_pole) = sp.recrad(vec_j2k)
 
 # =============================================================================
-#     Calculate the radial profile, in I/F units 
+# Convert the stacks from DN to I/F
 # =============================================================================
     
     # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
@@ -880,13 +863,19 @@ if (__name__ == '__main__'):
     
     img_superstack_median_iof = math.pi * I_median * r_sun_mu69**2 / F_solar # Equation from Hal's paper
     img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+
+# =============================================================================
+#     Calculate the radial profile, in I/F units 
+# =============================================================================
     
     # Take the radial profile of the superstack
     
     num_pts = 1000  # Number of radial points to use.
     
+    profile_iof = {}  # Create a dictionary to save the radial profiles in
+    
     if do_tunacan:
-        if zoom == 4:
+        if zoom == 2:
             num_pts = 300  # Number of radial points to use. Fewer for tunacan, since fewer pixels
         else:
             num_pts = 200
@@ -894,37 +883,35 @@ if (__name__ == '__main__'):
         # For tunacan, take two different radial profiles. One for an outer ring, and one for an inner.
         # My code here is so awful! This clearly should be a loop, and it should be made to be the same for both
         # tunacan and sunflower. Ugh!
-        
-        is_good0 = (np.abs(backplanes[0]['Altitude_eq']) < dist_midplane_km[0])
-        is_good1 = (np.abs(backplanes[0]['Altitude_eq']) < dist_midplane_km[1])
-        
-        img_superstack_median_iof_masked0 = img_superstack_median_iof * is_good0
-        img_superstack_median_iof_masked0[is_good0 == 0] = np.nan    # Set all pixel > vertical altitude to NaN
-        img_superstack_mean_iof_masked0 = img_superstack_mean_iof * is_good0
-        img_superstack_mean_iof_masked0[is_good0 == 0] = np.nan    # Set all pixel > vertical altitude to NaN
-        
-        img_superstack_median_iof_masked1 = img_superstack_median_iof * is_good1
-        img_superstack_median_iof_masked1[is_good1 == 0] = np.nan    # Set all pixel > vertical altitude to NaN
-        img_superstack_mean_iof_masked1 = img_superstack_mean_iof * is_good1
-        img_superstack_mean_iof_masked1[is_good1 == 0] = np.nan    # Set all pixel > vertical altitude to NaN
-        
-        (radius,  profile_iof_mean0, profile_iof_std) = get_radial_profile_backplane(img_superstack_mean_iof_masked0,
-                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
-                                             do_std=True)
-        (radius,  profile_iof_median0, profile_iof_std) = get_radial_profile_backplane(img_superstack_median_iof_masked0,
-                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
-                                             do_std=True)
+    
+        for i in range(len(thick_tuna_km)): # Iterate over tuna thickness:   
+            is_good = (np.abs(backplanes[0]['Altitude_eq']) < thick_tuna_km[i])
 
-        (radius,  profile_iof_mean1, profile_iof_std) = get_radial_profile_backplane(img_superstack_mean_iof_masked1,
-                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
-                                             do_std=True)
-        (radius,  profile_iof_median1, profile_iof_std) = get_radial_profile_backplane(img_superstack_median_iof_masked1,
-                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
-                                             do_std=True)
-        profile_iof0 = profile_iof_median0  # Just pick one -- they both are similar
-        profile_iof1 = profile_iof_median1  # Just pick one -- they both are similar
+            # Mask only the ring pixels in the 'mean' stack
+            
+            img_superstack_median_iof_masked = img_superstack_median_iof * is_good
+            img_superstack_median_iof_masked[is_good == 0] = np.nan    # Set all pixel > vertical altitude to NaN
+
+            # Mask only the ring the pixels in the 'median' stack
+            
+            img_superstack_mean_iof_masked = img_superstack_mean_iof * is_good
+            img_superstack_mean_iof_masked[is_good == 0] = np.nan    # Set all pixel > vertical altitude to NaN
+
+            (radius,  profile_iof_mean) = \
+                                        get_radial_profile_backplane(img_superstack_mean_iof_masked,
+                                                 plane_radius_superstack, method = 'mean', num_pts = num_pts, 
+                                                 do_std=False)
+                                        
+            (radius,  profile_iof_median) = \
+                                        get_radial_profile_backplane(img_superstack_median_iof_masked,
+                                                 plane_radius_superstack, method = 'mean', num_pts = num_pts, 
+                                                 do_std=False)
+            # Save this profile to a dictionary
+            
+            profile_iof[i] = profile_iof_median
           
-    else:
+    else:  # Take a sunflower radial profile
+        
         (radius,  profile_iof_mean, profile_iof_std)   = get_radial_profile_backplane(img_superstack_mean_iof,
                                              plane_radius_superstack, method = 'mean', num_pts = num_pts, 
                                              do_std=True)
@@ -932,12 +919,20 @@ if (__name__ == '__main__'):
         (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
                                              plane_radius_superstack, method = 'median', num_pts = num_pts)
 
-        profile_iof = profile_iof_median  # Just pick one -- they both are similar
+        profile_iof[0] = profile_iof_median  # Just pick one -- they both are similar
 
-  # Fit a gaussian to the radial profile. Set the initial guesses.
+    # Calculate the bias level, crudely
 
     radius_max_km = 30000
+        
+    bin_radial_end = np.digitize(radius_max_km, radius)
     
+    bias = np.amin(profile_iof[0][0:bin_radial_end])
+        
+# =============================================================================
+# Fit a gaussian to the radial profile, if requested
+# =============================================================================
+
     do_fit_profile = False
     
     if do_fit_profile:
@@ -950,30 +945,21 @@ if (__name__ == '__main__'):
         x = radius[bin_0:]
         y = profile_iof[bin_0:]            
         
-        # popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
+        popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
     
-    # Calculate the bias level, crudely
-        
-    bin_radial_end = np.digitize(radius_max_km, radius)
-    
-    if not(do_tunacan):
-        bias = np.amin(profile_iof[0:bin_radial_end])
-
     # Plot the radial profile
     
     hbt.figsize((8,6))
     hbt.fontsize(14)
     
     if do_tunacan:
-        plt.plot(radius, profile_iof1 - np.nanmin(profile_iof1[0:bin_radial_end]),
-             label = f'Median, pole=({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
-                     f'dr={round(np.diff(radius)[0]):.0f} km, z/2={dist_midplane_km[1]} km')
-        plt.plot(radius, profile_iof0 - np.nanmin(profile_iof0[0:bin_radial_end]),
-             label = f'Median, pole=({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
-                     f'dr={round(np.diff(radius)[0]):.0f} km, z/2={dist_midplane_km[0]} km')
-    
+        for i,thick in enumerate(thick_tuna_km):
+            plt.plot(radius, profile_iof[i] - np.nanmin(profile_iof[i][0:bin_radial_end]),
+                 label = f'Median, pole=({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
+                         f'dr={round(np.diff(radius)[0]):.0f} km, z/2={thick_tuna_km[i]} km')
+        
     else:    
-        plt.plot(radius, profile_iof - bias,
+        plt.plot(radius, profile_iof[0] - bias,
              label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
                      f'dr={round(np.diff(radius)[0]):.0f} km')
     
@@ -1017,12 +1003,15 @@ if (__name__ == '__main__'):
     file_out = os.path.join(dir_out, f'{initials_user.lower()}_{name_ort.lower()}_v{version}.ring')
     lun = open(file_out,"w")
     
+    # This needs to be generalized to print as many profiles as we have. 
+    # I don't know how to write a print format line with a variable number of fields!
+    
     if do_tunacan:
-        for i in range(len(profile_iof1)):
-            lun.write('{:10.3f} {:11.3e} {:11.3e}\n'.format(radius[i], profile_iof0[i], profile_iof1[i]))
+        for i in range(len(profile_iof[i])):
+                lun.write('{:10.3f} {:11.3e} {:11.3e}\n'.format(radius[i], profile_iof[0][i], profile_iof[1][i]))
     else:
         for i in range(len(profile_iof)):
-            lun.write('{:10.3f} {:11.3e}\n'.format(radius[i], profile_iof[i]-bias))
+            lun.write('{:10.3f} {:11.3e}\n'.format(radius[i], profile_iof[0][i]-bias))
     lun.close()
     
     do_ring_out = True
@@ -1030,145 +1019,3 @@ if (__name__ == '__main__'):
     if do_ring_out:
         print(f'Wrote: {file_out}')
         print(f' scp {file_out} ixion:\~/MU69_Approach/astrometry' )  # We don't copy it, but put up string for user.
-
-# =============================================================================
-# Make an image overlaying a radius mask with the ring. This is just to visualize if the geometry is close.
-# =============================================================================
-    
-    do_ring_mask_plot = False
-    
-    if do_ring_mask_plot:
-        sigma_fit = popt[2]
-        radius_fit = popt[1]
-        
-        radius_fit = 10000
-        sigma_fit   = 2000
-        
-        hbt.figsize(10,10)
-        alpha = 0.3
-    
-        plt.subplot(1,2,1)    
-        dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
-        plane_radius = np.pad(plane_radius, int(dpad), 'constant')
-        plt.imshow(stretch( (plane_radius < 120000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
-        plt.gca().get_xaxis().set_visible(False)
-        plt.gca().get_yaxis().set_visible(False)
-        plt.imshow( (plane_radius < 0)[600:1000, 600:1000], cmap = 'Reds', alpha=alpha,
-                     origin='lower')
-        plt.title('Superstack')
-        
-        plt.subplot(1,2,2)    
-        dpad = (hbt.sizex(img_superstack_mean) - hbt.sizex(plane_radius))/2
-        plane_radius = np.pad(plane_radius, int(dpad), 'constant')
-        plt.imshow(stretch( (plane_radius < 120000) * img_superstack_mean)[600:1000, 600:1000], origin='lower') 
-        
-        mask = ((plane_radius < (radius_fit+sigma_fit/2)) & (plane_radius > (radius_fit-sigma_fit/2)))
-        
-        plt.imshow( ((plane_radius < (radius_fit+sigma_fit/2)) & 
-                     (plane_radius > (radius_fit-sigma_fit/2)))[600:1000, 600:1000], cmap = 'Reds', alpha=alpha,
-                     origin='lower')
-        plt.gca().get_xaxis().set_visible(False)
-        plt.gca().get_yaxis().set_visible(False)
-        plt.title('Superstack + derived ring image')
-        plt.show()
-    
-# =============================================================================
-# Now, as a one-off for ORT3, try to measure the I/F of this edge-on boxy looking ring
-# =============================================================================
-
-    if (name_ort == 'ORT3'):
-#        ring_extract_large      = img_superstack_mean_iof[325:440,310:500]
-        
-        hbt.figsize((8,8))
-        hbt.fontsize(12)
-        center_x = int(hbt.sizex(img_superstack_mean)/2)
-        center_y = int(hbt.sizex(img_superstack_mean)/2)
-        
-        pos_mu69 = ( center_x, center_y )   # x, y 
-        dy = 200
-        dx = 200
-        img_extract_large      = img_superstack_median_iof[pos_mu69[1]-int(dy/2):pos_mu69[1]+int(dy/2),
-                                                         pos_mu69[0]-int(dx/2):pos_mu69[0]+int(dx/2)]  
-        
-                                                                # MU69 is centered on 100, 100
-
-        mask = hbt.dist_center(dx) > 0  # Mask anything this far from MU69 as True
-        m = img_extract_large.copy()
-        m[mask == False] = np.nan
-        plt.imshow(stretch(m), origin='lower')
-        
-        img_extract_large = m.copy()     # Copy the masked image back to the full extracted image
-        
-        plt.imshow(stretch(img_extract_large), origin='lower', cmap='plasma')
-        plt.show()
-        
-        plt.imshow(stretch(img_superstack_mean_iof), origin='lower')
-
-        width_ring = 100
-        height_ring = 30
-        padding_x = 20         # Padding on each edge (half-padding)
-        padding_y = 30
-        
-        img_extract_yprofile   = img_extract_large[
-                          int(dy/2 - height_ring/2-padding_y):int(dy/2+height_ring/2+padding_y),
-                          int(dx/2 - width_ring/2):int(dx/2+width_ring/2)]
-        plt.imshow(stretch(img_extract_yprofile), origin='lower') 
-        plt.show()
-                          
-        img_extract_xprofile   = img_extract_large[
-                          int(dy/2 - height_ring/2):int(dy/2+height_ring/2),
-                          int(dx/2 - width_ring/2-padding_x):int(dx/2+width_ring/2+padding_x)]
-        plt.imshow(stretch(img_extract_xprofile), origin='lower')
-        plt.show()
-                
-        # Make profile in X dir
-        
-        profile_x = np.nanmedian(img_extract_xprofile, axis=0)
-    
-        x_km = np.arange(len(profile_x)) * pixscale_km
-        x_km -= np.mean(x_km)
-        
-        plt.subplot(2,1,1)
-        plt.plot(x_km, profile_x, color='pink', lw=5)
-        plt.xlabel('km')
-        plt.title('Profile, X dir')
-        plt.ylabel('I/F')    
-        plt.ylim((-4e-7, 6e-7))
-            
-        # Make profile in Y dir
-        
-        profile_y = np.nanmedian(img_extract_yprofile, axis=1)
-        
-        y_km = np.arange(len(profile_y)) * pixscale_km
-        y_km -= np.mean(y_km)
-
-        plt.subplot(2,1,2)        
-        plt.plot(y_km, profile_y, color='pink', lw=5)
-
-        plt.xlabel('km')
-        plt.title('Profile, Y dir')
-        plt.ylabel('I/F')
-    
-        plt.ylim((-4e-7, 6e-7))
-        plt.tight_layout()
-        plt.show()
-        
-### Testing for ORT3
-        
-        path_out = '/Users/throop/Data/ORT4/superstack_ORT4_z1_mean_wcs_hbt.fits'
-        planes = compute_backplanes(path_out, 'MU69', frame, 'New Horizons')
-        plt.imshow(planes[0]['Radius_eq'])
-
-# Just do a dummy check: how many pixels does position change during approach
-# A: It moves 6 pixels (at zoom 4) from 2018::228 thru 2018::319. So, it is 
-# totally a macroscopic amount, and this is 100% responsible for the issues I am seeing.         
-
-        utc_arr = ['2018::228 00:00:00', '2018::319 00:00:00']
-        
-        for utc in utc_arr:
-            et = sp.utc2et(utc)
-            (st, lt) = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
-            (_, ra,dec) = sp.recrad(st[0:3])
-            (x, y) = wcs_field.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)
-            print(f'For UTC {utc}, x = {x} pix, y = {y} pix')
-       
