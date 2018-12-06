@@ -37,7 +37,7 @@ def nh_ort_make_backplanes(digit_filter, frame, q):
     Call this function in order to generate the backplanes from Simon's WCS files.
 
     Thus function is part of HBT's pipeline, and not a general-purpose routine.
-    '    
+    
     Arguments
     -----
 
@@ -48,8 +48,9 @@ def nh_ort_make_backplanes(digit_filter, frame, q):
         '12', '34', etc -- something to filter the FITS files by.
     q:
         The multiprocessor queue object.
-        
-        
+    
+    NB: I could not figure out how to pass keyword arguments  to the Process() function.
+    So, that's why this function uses positional arguments only.           
     """
 
 # =============================================================================
@@ -215,7 +216,7 @@ def nh_ort_make_backplanes(digit_filter, frame, q):
                 print('File exists -- skipping. {}'.format(os.path.basename(file_out)))
             count_skipped +=1
             
-    q.put(f'Digit filter {digit_filter}, {frame}: {len(files)} files examined; ' +
+    q.put(f'Digit filter {digit_filter}, {frame:25} {len(files)} files examined; ' +
           f'{count_run} run; {count_skipped} skipped')
        
 # =============================================================================
@@ -235,7 +236,7 @@ if (__name__ == '__main__'):
     sp.unload(file_tm)
     sp.furnsh(file_tm)
 
- # NB: This would be an ideal candidate for multi-processing
+ # NB: This would be an ideal candidate for multi-processing 
  # NB: Done!
         
     # Set paramters here
@@ -255,12 +256,16 @@ if (__name__ == '__main__'):
     procs   = []   # List of processes
     results = []   # List of results. This is empty, since we don't return anything
     
+    # Loop over and start up all the child processes.
+    # Wait between each spawn. Otherwise SP.FURNSH() seems to get confused
+    
     for digit_filter in digit_filters:
         for frame in frames:
-            proc = Process(target=func, args=(digit_filter, frame, q)) # I can't figure out how to pass keyword args here.
+            proc = Process(target=func, args=(digit_filter, frame, q)) # Can't figure out how to pass keyword args here.
             proc.start()
             procs.append(proc)
-            # print(f'Started process with filter={digit_filter}, frame={frame}')
+            time.sleep(0.5)   # Sleep briefly.
+            print(f'Started process with filter={digit_filter}, frame={frame}')
     
     for proc in procs:        
         
