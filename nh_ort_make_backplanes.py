@@ -209,7 +209,8 @@ def nh_ort_make_backplanes(digit_filter, frame):
 
 # =============================================================================
 # Run the function if requested
-# When run, this program regenerates all of the backplanes    
+# When run, this program regenerates all of the backplanes
+# It uses multiprocessing to run these in parallel    
 # =============================================================================
         
 if (__name__ == '__main__'):
@@ -247,7 +248,7 @@ if (__name__ == '__main__'):
     
     for proc in procs:        
         
-        # results.append(q.get(True))  # No output to wait for -- so don't.
+        # results.append(q.get(True))  # No output to wait for -- so don't. We really should take output, though.
         
         proc.join()  # 'Wait until child process terminates'
      
