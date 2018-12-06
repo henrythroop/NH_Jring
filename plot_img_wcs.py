@@ -18,7 +18,8 @@ from   astropy.wcs import WCS
 def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5, 
                  color='red', title=None, do_zoom_center = False, do_show=True,
                  width=None, name_observer='New Horizons', name_target = 'MU69', 
-                 et = None,
+                 et = None, do_stretch=True,
+                 do_inhibit_axes=False,
                  **kwargs):
  
 
@@ -52,6 +53,12 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
     do_show:
         If False, suppress the final plt.show(). This allows other planes to be plotted on top later if requested.
     
+    do_stretch:
+        [Default True]. Boolean. If set, apply a stretch to the outuput image before plotting.
+    
+    do_inhibit_axes:
+        Boolean. If set, do not print the x and y values on the respective axes.
+    
     ra: 
         RA to center on [degrees]
         
@@ -69,7 +76,16 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
     
-    plt.imshow(stretch(img), origin='lower', **kwargs)
+    if not(do_stretch):    
+        plt.imshow(img, origin='lower', **kwargs)
+    else:
+        plt.imshow(stretch(img), origin='lower', **kwargs)
+    
+    # If requested, inhibit printing values on the x and y axes
+    
+    if do_inhibit_axes:
+        plt.gca().get_xaxis().set_visible(False)
+        plt.gca().get_yaxis().set_visible(False)
     
     # If requested, use SPICE to determine the position to plot
     
