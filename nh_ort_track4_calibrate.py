@@ -413,11 +413,11 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                     
                     # Plot the radial profile, next to an image of that run, as seen from sun. 
                     
-                    do_plot_radial_profile_individual = True
+                    do_plot_profile_individual = True
                     
                     vals_radial_fiducial = [3500, 10000]
 
-                    if do_plot_radial_profile_individual:
+                    if do_plot_profile_individual:
                         plt.subplot(1,2,1)
                         plt.imshow(stretch_hbt(img), extent=extent)  
                         plt.title(f'{run_name_base}, {i}/{num_combos}')
@@ -432,8 +432,10 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                             plt.axvline(val, color='blue', alpha=0.3)
                             if is_tuna:
                                 plt.axvline(-val, color='blue', alpha=0.3)
-                                
-                        plt.xlabel('Radius [km]')
+                        if is_tuna:        
+                            plt.xlabel('Z [km]')
+                        else:            
+                            plt.xlabel('Radius [km]')
                         plt.ylabel('I/F Median in annulus')
         
                         plt.tight_layout()
@@ -452,9 +454,9 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
 #  All of the output quantities are in the table 't' -- one entry per combination of parameters.
 # =============================================================================
 
-# Make a plot of radial profile for each run, all stacked
+# Make a plot of radial (or linear) profile for each run, all stacked
 
-    do_plot_profile_radial_merged = True
+    do_plot_profile_merged = True
     
     # Find the maximum value of all of the profiles. This is cool: use an iterator and a lambda function!
     # profile * E_0 is the final I/F value (I think). We first find which index has the max, and then look up the max.
@@ -469,7 +471,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     
     vals_radius_fiducial = [0, 1000, 2000, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
     
-    if do_plot_profile_radial_merged:
+    if do_plot_profile_merged:
         hbt.figsize((14,5))
         hbt.fontsize(14)
         for num_plot in range(num_plots):
@@ -479,14 +481,23 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                          t['profile'][i] * t['E_0'][i],
                          color='black', alpha=0.3)
             plt.yscale(yscales[num_plot]) # ** This is the difference: one log, one linear
-            plt.xlabel('Radius [km]')
             plt.ylabel('I/F median')
             plt.ylim((1e-9, val_max*1.1))
             for val in vals_radius_fiducial:
                 plt.axvline(val, color='blue', alpha=0.3)
                 if is_tuna:
                     plt.axvline(-val, color='blue', alpha=0.3)            
-            plt.title(f'Radial profiles, {len(t)} runs, {name_run}' )
+
+            # Make an appropriate label, depending on if tunacan or not
+
+            if is_tuna:  
+                plt.title(f'Profiles, {len(t)} runs, {name_run}' )
+                plt.xlabel('Z [km]')
+                
+            else: 
+                plt.title(f'Radial profiles, {len(t)} runs, {name_run}' )
+                plt.xlabel('Radius [km]')
+
             plt.tight_layout()
         plt.show()
 
