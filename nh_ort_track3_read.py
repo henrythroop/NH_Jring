@@ -219,10 +219,8 @@ class nh_ort_track3_read:
             The scaling method to use. Can be `log` or `linear`.
             
         """
-        
-        # For the order, we always want (0,0) to be lower left when we plot.
-        
-        origin = 'lower'                               # Does imshow() plot start w/ (0,0) at lower-left, or upper-left?
+                
+        origin = 'lower'                               # Set imshow() to start w/ (0,0) at lower-left
     
         do_stretch_log = ('log' in scale)
         
@@ -234,7 +232,7 @@ class nh_ort_track3_read:
         
         # Now, make a dictionary to show us what the axes will be of the output image after doing np.sum().
         # The dictionary here means: 
-        #     If we sum along the X axis (0), and we plot the result, what will be on vertical axis of the imshow() plot.
+        #     If we sum along the X axis (0), and we plot the result, what will be on vert axis of the imshow() plot.
         #     In this case, first remaining axis (Y) is on vertical, and second (Z) is on horizontal.
         #     That is how imshow() works.
         
