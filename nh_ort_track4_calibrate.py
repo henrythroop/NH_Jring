@@ -24,7 +24,7 @@ import astropy.modeling
 
 import pickle # For load/save
 import scipy
-from   get_radial_profile_circular import get_radial_profile_circular
+from   get_radial_profile_circular import get_radial_profile_circular, get_profile_linear
 import zlib  # For pickle decompression.
 
 # HBT imports
@@ -37,6 +37,7 @@ from nh_ort_track3_read            import nh_ort_track3_read
 from nh_ort_track3_read            import stretch_hbt, stretch_hbt_invert  # Some stretch routines good for trajectories
 from nh_ort_track3_read            import plot_flattened_grids_table
 
+#%%%
 # =============================================================================
 # 
 # This is the main code to read Doug Hamilton's "Track 3" dust trajectories, and merge them to 
@@ -81,9 +82,9 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     """
 #%%%    
         
-    run_shortname = dir_in.split('/')[-1]  # Extract the DPH/DK run name. Have to do hoops to avoid final '/' in path.
-    if len(run_shortname) == 0:
-        run_shortname = dir_in.split('/')[-2]
+    name_run = dir_in.split('/')[-1]  # Extract the DPH/DK run name. Have to do hoops to avoid final '/' in path.
+    if len(name_run) == 0:
+        name_run = dir_in.split('/')[-2]
         
     plt.set_cmap('plasma')
 
@@ -144,6 +145,11 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     
     hbt.figsize((10,10))
     run_name_base = runs[0].split('/')[-6]       # Extract the 'ort4_bc3_10cbr2_dph' portion if we need it
+    
+    # Parse the run name and guess if we are doing a tunacan here. Not guaranteed, but probably a good guess for tuna.
+    
+    is_tuna      = ('TUNA'      in name_run.upper())
+    is_sunflower = ('SUNFLOWER' in name_run.upper())
     
     # Create the pickle save name.
     
@@ -395,27 +401,40 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                     # XXX Validated! The quantity np.percentile(E_0 * img,99) now is exactly the target I/F.
                     # E0 is a constant for the ring. It is not size-dependent (not a func of b, aka s).
                     
-                    # Take a radial profile
+                    # Take a profile. This a radial profile in the case of a sunflower, 
+                    # but a vertical profile in the case of a tunacan. This is because we want to get the 
+                    # density at the point of flyby, which will be very nearly directly below the center, 
+                    # in the Z direction (as labeled on the plot).
                     
-                    # pos_center = np.array(np.shape(img))/2
-                    (radius_pix, profile) = get_radial_profile_circular(img, method='median')
+                    if is_tuna:
+                        (radius_pix, profile) = get_profile_linear(img, method='median', axis_move=1)
+                    else:    
+                        (radius_pix, profile) = get_radial_profile_circular(img, method='median')
                     
-                    # Plot the radial profile
-                    # XXX For now, disable this, because DPH's inputs are not even in the right plane.
-                    # It is pointless to take a radial profile.
+                    # Plot the radial profile, next to an image of that run, as seen from sun. 
                     
-                    do_plot_radial_profile = True
+                    do_plot_radial_profile_individual = True
                     
-                    if do_plot_radial_profile:      
+                    vals_radial_fiducial = [3500, 10000]
+
+                    if do_plot_radial_profile_individual:
                         plt.subplot(1,2,1)
-                        plt.imshow(stretch_hbt(img), extent=extent)  # This is actually an image, not a radial profile
+                        plt.imshow(stretch_hbt(img), extent=extent)  
                         plt.title(f'{run_name_base}, {i}/{num_combos}')
+                        plt.xlabel('X')
+                        plt.ylabel('Z')
                         plt.subplot(1,2,2)
                         plt.plot(radius_pix * ring.km_per_cell_x, profile * E_0_i)
-                        plt.axvline(10000, color='blue', alpha=0.3)
-                        plt.axvline(3500,  color='blue', alpha=0.3)
-                        plt.xlabel('[km]')
-                        plt.ylabel('I/F Median')
+                        
+                        # Plot grid lines at fixed distances, for references
+                        
+                        for val in vals_radial_fiducial:                        
+                            plt.axvline(val, color='blue', alpha=0.3)
+                            if is_tuna:
+                                plt.axvline(-val, color='blue', alpha=0.3)
+                                
+                        plt.xlabel('Radius [km]')
+                        plt.ylabel('I/F Median in annulus')
         
                         plt.tight_layout()
                         plt.show()
@@ -435,19 +454,47 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
 
 # Make a plot of radial profile for each run, all stacked
 
-    do_plot_profile_radial = True
+    do_plot_profile_radial_merged = True
     
-    if do_plot_profile_radial:
-        hbt.figsize((8,6))
-        for i in range(len(t)):        # Loop over run number
-            plt.plot(radius_pix * ring.km_per_cell_x, t['profile'][i])
-        plt.yscale('log')    
-        plt.xlabel('Radius [km]')
-        plt.ylabel('I/F (non-normalized)')
-        plt.ylim((1e-8, 1e-0))
-        plt.title(f'Radial profiles, {len(t)} runs, {run_shortname}' )
+    # Find the maximum value of all of the profiles. This is cool: use an iterator and a lambda function!
+    # profile * E_0 is the final I/F value (I think). We first find which index has the max, and then look up the max.
+    
+    index_profile_max = max(range(len(t)), key = lambda i:np.amax(t['profile'][i] * t['E_0'][i]))
+    val_max = np.amax(t['profile'][index_profile_max] * t['E_0'][index_profile_max])
+    
+    num_plots = 2
+    yscales = ['log', 'linear']
+    
+    # Define some fiducual markers
+    
+    vals_radius_fiducial = [0, 1000, 2000, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
+    
+    if do_plot_profile_radial_merged:
+        hbt.figsize((14,5))
+        hbt.fontsize(14)
+        for num_plot in range(num_plots):
+            plt.subplot(2,1,num_plot+1)
+            for i in range(len(t)):                 # Loop over run number
+                plt.plot(radius_pix * ring.km_per_cell_x, 
+                         t['profile'][i] * t['E_0'][i],
+                         color='black', alpha=0.3)
+            plt.yscale(yscales[num_plot]) # ** This is the difference: one log, one linear
+            plt.xlabel('Radius [km]')
+            plt.ylabel('I/F median')
+            plt.ylim((1e-9, val_max*1.1))
+            for val in vals_radius_fiducial:
+                plt.axvline(val, color='blue', alpha=0.3)
+                if is_tuna:
+                    plt.axvline(-val, color='blue', alpha=0.3)            
+            plt.title(f'Radial profiles, {len(t)} runs, {name_run}' )
+            plt.tight_layout()
         plt.show()
-    
+
+        hbt.fontsize()
+        hbt.figsize()
+        
+#%%%
+        
 # Make a gridded layout of various quantities
     
     columns = ['albedo', 'q', 'rho', 'speed']
@@ -686,26 +733,36 @@ if __name__ == '__main__':
     # dir_in = '/Users/throop/data/ORT4/kaufmann/ort4_bc3_10cbr2_dek/'   # David retrograde 
     
 
-    # Kaufmann ORT5
+    # Kaufmann ORT5 [Nov 2018]
+    
+    ## These directories must end with '/'
     
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower3.5k/' # done
-    dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k/'
-    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-tunacan10k/'
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k/'
+    dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-tunacan10k/'
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k-subsets16-dek'
     
-    # Hamilton ORT5
+    # Hamilton ORT5 [Nov 2018]
     
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_a/'  # Not sure what the diff btwn sun10k_{ab} is
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_b/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/tuna9k/'
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k-DPH/'
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10kfast-DPH/'
+
+    # Make sure directory is properly terminated. This is what os.path is supposed to do, but does not!
+    
+    if dir_in[-1] != '/':
+        dir_in += '/'
 
     # Get a list of all of the individual runs in the input dir.
     # DPH supplies a directory for each moon, while DK is one step thinner since he doesn't.
-    
+            
     if ('kauf') in dir_in:
         runs = glob.glob(os.path.join(dir_in, '*/*/*/subset*/'))
     if ('hamilton' in dir_in):
         runs = glob.glob(os.path.join(dir_in, '*/*/subset*/'))
-
+        
     if runs:
     
         # Create the output directory, and make sure it exists on disk
@@ -719,10 +776,13 @@ if __name__ == '__main__':
         if do_short:
             runs = runs[0:num_runs_max]
         
-        # Now do the run!
  
 #%%%
         
+# =============================================================================
+#         Now do the run!
+# =============================================================================
+
         nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force = do_force)
         
         # NB: Takes about 70 seconds to decompress 304 files from pickle.

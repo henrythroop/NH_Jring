@@ -9,6 +9,53 @@ Created on Fri Jan 19 16:20:36 2018
 import hbt
 import numpy as np
 
+def get_profile_linear(arr, pos=None, method='median', axis_move = 1):
+
+    """
+    Get the linear profile of an array. That is, the rowsum or the column-sum.
+    
+    Also:
+        - Returns the row numbers (or column numbers).
+        - Allows summing along either axis.
+        - Properly handles case of odd # vs. even # of rows.
+    
+
+    Arguments
+    -----
+    
+    arr:
+        An array. Typically 2d NumPy array.
+    
+    Optional keyword arguments:
+    -----
+    
+    pos:
+        Positon of the center. Otherwise, it is calculated to be at the middle.
+        
+    method:
+        String. Either 'mean' or 'median'.
+        
+    axis_move:
+        Which axis do we use (ie, move along). 0 or 1, typically. **Needs to be validated -- might be swapped**
+        
+    """
+        
+    if not(pos):
+        pos = np.shape(arr)[axis_move]/2
+        
+    dist_pix_1d = np.array(hbt.frange(0, np.shape(arr)[axis_move]-1)).astype(float)
+    dist_pix_1d = dist_pix_1d - pos + 0.5
+
+    if method=='median':
+        profile = np.nanmedian(arr, axis=axis_move)
+    if method=='mean':
+        profile = np.nanmean(arr, axis=axis_move)
+
+    # plt.plot(dist_pix_1d, profile)
+    # plt.show()
+    
+    return(dist_pix_1d, profile)    
+    
 def get_radial_profile_circular(arr, pos = None, width=1, a_xy = (1,1), method='median'):
 
     """
