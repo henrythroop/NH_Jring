@@ -151,7 +151,7 @@ def nh_ort_make_superstack(stack, img, img_field,
     for i,key in enumerate(keys):
         
         magfac    = stack[key].pixscale_x_km / pixscale_km_out
-        arr       = scipy.ndimage.zoom(img[key] - img_field, magfac)
+        arr       = scipy.ndimage.zoom(img[key] - img_field[key], magfac)
         
         size_in   = np.shape(arr)
         edge_left = int( (size_in[0]-size_out[0])/2)
@@ -209,7 +209,7 @@ def nh_ort_make_superstack(stack, img, img_field,
     
     header = wcs.to_header()
     
-    # Also, put an ET into the FITS header. For this, just pick any ET.
+    # Also, put an ET into the FITS header. Get this from the stack.
     
     et = stack_haz[name_stack_base].t['et'][0]
     header['SPCSCET'] = f'{et}'
@@ -275,7 +275,7 @@ if (__name__ == '__main__'):
 
     ########## SET PARAMETERS HERE #################
     
-    zoom = 2     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
@@ -317,16 +317,17 @@ if (__name__ == '__main__'):
                        # 'KALR_MU69_OpNav_L4_2018317',
                        # 'KALR_MU69_OpNav_L4_2018319',
                        # 'KALR_MU69_OpNav_L4_2018325',
-                        # 'KALR_MU69_OpNav_L4_2018326',
                         'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                        # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018337',  # 10 frames
-                        # 'KALR_MU69_Hazard_L4_2018334',  # 96 frames
+                        'KALR_MU69_OpNav_L4_2018326',
+                        'KALR_MU69_OpNav_L4_2018330',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018331',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018337',  # 10 frames
+                        'KALR_MU69_Hazard_L4_2018334',  # 96 frames
                         'KALR_MU69_OpNav_L4_2018338',
+
                        ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
@@ -393,42 +394,60 @@ if (__name__ == '__main__'):
     os.makedirs(dir_out, exist_ok=True)
     
     # Load and stack the field images
+
+    # We create a field stack for each reqid. The contents are the same, but the shift values will be different
     
+    stack_field = {}
 
-
-    stack_field = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks_field, 
+    for reqid_i in reqids_haz:    # Use the FIELD reqid, but store under the haz reqid. It is a field, shifted for that reqid
+        stack_field[reqid_i] = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks_field, 
                               do_save=True)
-
+    
+    # Load and stack the data images. One per reqid.
+    
     stack_haz = {}
-    
-    # Load and stack the data images
-    
+
     for reqid_i in reqids_haz:
         stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force_stacks_haz, 
                               do_save=True)
             
-    # Look up the position of MU69
+    # Look up the position of MU69 in each frame
     
-    et_haz = stack_haz[reqids_haz[0]].t['et'][0] # Look up ET for first image in the Hazard stack
-    (st, lt) = sp.spkezr('MU69', et_haz, 'J2000', 'LT', 'New Horizons')
-    (_, ra, dec) = sp.recrad(st[0:3])
-    radec_mu69 = (ra, dec) # Keep in radians
+    radec_mu69_haz = {}
+    
+    et_haz = {}
+    
+    for reqid_i in reqids_haz:
+        et_haz[reqid_i] = stack_haz[reqid_i].t['et'][0] # Look up ET for each stack Hazard stack (0th frame in each)
+        (st, lt) = sp.spkezr('MU69', et_haz[reqid_i], 'J2000', 'LT', 'New Horizons')
+        (_, ra, dec) = sp.recrad(st[0:3])
+        radec_mu69_haz[reqid_i] = (ra, dec) # Keep in radians
     
     # Align the field frames to MU69 position
+    # But, which MU69 position do we align them to? This is a problem with my code currently!
     
-    stack_field.align(method = 'wcs', center = (radec_mu69))
+    # XXX For now, assume one reqid for the stack. But I will have to fix this.
+    
+    # stack_field.align(method = 'wcs', center = (radec_mu69_haz[reqids_haz[0]]))
+    
     for reqid_i in reqids_haz:
-        stack_haz[reqid_i].align(method  = 'wcs', center = (radec_mu69))  # In each individual stack, align all images
+        stack_haz[reqid_i].align(  method  = 'wcs', center = (radec_mu69_haz[reqid_i]))  # align all images in stack
+        stack_field[reqid_i].align(method  = 'wcs', center = (radec_mu69_haz[reqid_i]))
     
     # Calc the padding required. This can only be done after the images are loaded and aligned.
 
-    pad_field = stack_field.calc_padding()[0]
-    pad_haz = []
+    # pad_field = stack_field.calc_padding()[0]
+    
+    pad_haz   = []
+    pad_field = []
+
     for reqid_i in reqids_haz:
-        pad_haz.append(stack_haz[reqid_i].calc_padding()[0])
-    pad_haz.append(pad_field)
+        pad_haz.append(  stack_haz  [reqid_i].calc_padding()[0])
+        pad_field.append(stack_field[reqid_i].calc_padding()[0])
+
+    # pad_haz.append(pad_field)
         
-    pad = max(pad_haz)
+    pad = np.amax([pad_haz, pad_field])
        
     # Flatten the stacks into single output images
     # If we get an error here, it is probably due to a too-small 'pad' value. This often is caused by 
@@ -436,8 +455,10 @@ if (__name__ == '__main__'):
     
     # Flatten the field stack
         
-    (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median', zoom=zoom, padding=pad,
-                              do_force=do_force_flatten_field, do_save=True)
+    ## SKIP THIS FOR NOW
+    
+    # (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median', zoom=zoom, padding=pad,
+    #                           do_force=do_force_flatten_field, do_save=True)
 
     # Verify that the WCS has been properly preserved after flattening here.
     
@@ -454,24 +475,42 @@ if (__name__ == '__main__'):
     # And the expectation would be that all of these individual WCS would match. That would be the point.
     
 # =============================================================================
-#     Flatten the main image stacks
+#     Flatten the main hazard image stacks
 # =============================================================================
     
     img_haz = {}
     wcs_haz = {}
     img_haz_diff = {}
+    img_field = {}
+    wcs_field = {}
 
-    do_plot_individual_stacks = False
+    do_plot_individual_stacks = True
     
     for reqid_i in reqids_haz:
+        
+        # Flatten the hazard frames. This returns a WCS
+        
         (img_haz[reqid_i], wcs_haz[reqid_i])  =\
               stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
                        do_force=do_force_flatten_haz, do_save=True)
-        img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field
+        
+        # Flatten the field frames
+        
+        (img_field[reqid_i], wcs_field[reqid_i])  =\
+              stack_field[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
+                       do_force=do_force_flatten_field, do_save=True)
+              
+        img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field[reqid_i]
+              
+        # img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field
+        
+        
+        # Plot the stacks. 325 is OK. 338 has wrong shift. So, problem is in flatten().
+        # Whichever one is done *second* fails.
         
         if do_plot_individual_stacks:
             plot_img_wcs(img_haz[reqid_i], wcs_haz[reqid_i], title = reqid_i, 
-                         name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100)
+                         name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[reqid_i], width=100)
         
 # =============================================================================
 #     Plot the stacks, differenced with the field image.
@@ -535,7 +574,17 @@ if (__name__ == '__main__'):
     
     # Make the superstack, and return backplanes.
     # Bug: the backplanes returned are unzoomed.
+
+
+    # For testing: plot all the frames, before superstacking
+    # Result: 338 center is incorrect even before stacking. 325 is correct.
     
+    for key in keys:
+        plot_img_wcs(img_haz[key], wcs_haz[key], cmap=cmap_superstack,
+                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key], width=100,
+                  do_show=False, title=key)
+        plt.show()
+        
     # Generate the backplanes
     
     (img_superstack_mean, img_superstack_median, backplanes) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
@@ -547,6 +596,18 @@ if (__name__ == '__main__'):
                                                                           wcs = wcs_haz[name_stack_base],
                                                                           )
 
+### Testing for 325 vs. 338
+    
+    # plot_img_wcs(img_superstack_mean, wcs_superstack, cmap=cmap_superstack,
+    #               name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100,
+    #               do_show=False)
+    
+    for key in keys:
+        plot_img_wcs(img_haz[key], wcs_haz[key], cmap=cmap_superstack,
+                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key], width=100,
+                  do_show=False, title=key)
+        plt.show()
+    
 #%%%
 # =============================================================================
 #     Adjust the WCS and backplanes, if needed
@@ -667,7 +728,7 @@ if (__name__ == '__main__'):
 #                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
                  title = f'{str_stack}, {str_reqid}, {frametype}', 
                  width=130,do_show=False,
-                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
+                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base])
     
     # Construct the image of ring masks
     # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly
@@ -727,7 +788,7 @@ if (__name__ == '__main__'):
         print(f'Trajectory = {trajectory}, MU69-NH dist = {sp.vnorm(vec_mu69_nh_ca):7.6} km')
         
         # Vector from NH to MU69, at time of image
-        (st, lt) = sp.spkezr('MU69', et_haz, frame, abcorr, 'New Horizons')
+        (st, lt) = sp.spkezr('MU69', et_haz[name_stack_base], frame, abcorr, 'New Horizons')
         vec_nh_mu69_haz = st[0:3]
         
         # Add these two vectors, to get the vec from NH to aimpoint, at time of image
@@ -745,7 +806,7 @@ if (__name__ == '__main__'):
     plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
                  title = f'{str_stack}, {str_reqid}', 
                  width=130,do_show=False,
-                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
+                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base])
     plt.show()
 
 
@@ -767,21 +828,22 @@ if (__name__ == '__main__'):
         keystr = key.split('_')[-1]
         plt.subplot(1,3,1)
 
-        plot_img_wcs(stretch(img_field), wcs_field, cmap=cmap_superstack, width=width_postage, title = 'Field',
-                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz,
+        plot_img_wcs(stretch(img_field[key]), wcs_field[key], cmap=cmap_superstack, width=width_postage, 
+                     title = 'Field',
+                     do_show=False, name_observer = 'New Horizons', name_target = 'Sun', et = et_haz[key],
                      )
 
         plt.subplot(1,3,2)
-        plot_img_wcs(stretch(img_haz[key]), wcs_field, cmap=cmap_superstack, width=width_postage, 
+        plot_img_wcs(stretch(img_haz[key]), wcs_field[key], cmap=cmap_superstack, width=width_postage, 
                      title = f'Haz, {keystr}',
-                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz,
+                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key],
                      do_inhibit_axes=True,
                      )
         
         plt.subplot(1,3,3)
-        plot_img_wcs(stretch(img_haz[key] - img_field), 
-                     wcs_field, cmap=cmap_superstack, width=width_postage, title = f'Haz-field, {keystr}',
-                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz,
+        plot_img_wcs(stretch(img_haz[key] - img_field[key]), 
+                     wcs_field[key], cmap=cmap_superstack, width=width_postage, title = f'Haz-field, {keystr}',
+                     do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key],
                      do_inhibit_axes=True,
                      )
         
@@ -791,6 +853,11 @@ if (__name__ == '__main__'):
     hbt.fontsize()
  
 #%%%
+    
+# =============================================================================
+# Now make a bunch of summary plots, including radial profile
+# =============================================================================
+    
 # =============================================================================
 # Make a plot showing the RA / Dec axes of the superstack zoom
 # =============================================================================
@@ -800,12 +867,12 @@ if (__name__ == '__main__'):
     if do_wcs_axes:
         plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, 
                      title='Superstack',
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz)
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base])
     
         from astropy.visualization import wcsaxes
         from astropy.utils.data import get_pkg_data_filename
         
-        fig = plt.imshow(img_haz[key])
+        fig = plt.imshow(stretch(img_haz[key]))
         ax = fig.add_axes([0.15, 0.1, 0.8, 0.8], projection=wcs_field)
         plt.show()
         
@@ -828,7 +895,7 @@ if (__name__ == '__main__'):
     name_observer = 'New Horizons'
     
     vec = [0, -1, 0]                                # -Y vector is the rotational pole
-    mx_frame_j2k =  sp.pxform(frame, 'J2000', et_haz)
+    mx_frame_j2k =  sp.pxform(frame, 'J2000', et_haz[name_stack_base])
     vec_j2k = sp.mxv(mx_frame_j2k, vec)
     (_, ra_pole, dec_pole) = sp.recrad(vec_j2k)
 
