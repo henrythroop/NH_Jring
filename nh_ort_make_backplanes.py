@@ -27,7 +27,7 @@ from create_backplanes_fits import create_backplanes_fits
 from plot_backplanes        import plot_backplanes
 
 # def nh_ort_make_backplanes(frame = '2014_MU69_SUNFLOWER_ROT', digit_filter=None):
-def nh_ort_make_backplanes(digit_filter, frame):
+def nh_ort_make_backplanes(digit_filter, frame, q):
     
     """
     Process all of the MU69 ORT files. 
@@ -35,6 +35,21 @@ def nh_ort_make_backplanes(digit_filter, frame):
     Takes Simon's WCS'd FITS files as inputs, and creates backplaned FITS as output.
     
     Call this function in order to generate the backplanes from Simon's WCS files.
+
+    Thus function is part of HBT's pipeline, and not a general-purpose routine.
+    '    
+    Arguments
+    -----
+
+    frame:
+        The SPICE frame to use
+    
+    digit_filter:
+        '12', '34', etc -- something to filter the FITS files by.
+    q:
+        The multiprocessor queue object.
+        
+        
     """
 
 # =============================================================================
@@ -200,7 +215,7 @@ def nh_ort_make_backplanes(digit_filter, frame):
                 print('File exists -- skipping. {}'.format(os.path.basename(file_out)))
             count_skipped +=1
             
-    print(f'Digit filter {digit_filter}, {frame}: {len(files)} files examined; ' +
+    q.put(f'Digit filter {digit_filter}, {frame}: {len(files)} files examined; ' +
           f'{count_run} run; {count_skipped} skipped')
        
 # =============================================================================
@@ -212,7 +227,8 @@ def nh_ort_make_backplanes(digit_filter, frame):
 # When run, this program regenerates all of the backplanes
 # It uses multiprocessing to run these in parallel    
 # =============================================================================
-        
+
+#%%%        
 if (__name__ == '__main__'):
     
     file_tm = 'kernels_kem_prime.tm'
@@ -241,16 +257,20 @@ if (__name__ == '__main__'):
     
     for digit_filter in digit_filters:
         for frame in frames:
-            proc = Process(target=func, args=(digit_filter, frame)) # I can't figure out how to pass keyword args here.
+            proc = Process(target=func, args=(digit_filter, frame, q)) # I can't figure out how to pass keyword args here.
             proc.start()
             procs.append(proc)
             # print(f'Started process with filter={digit_filter}, frame={frame}')
     
     for proc in procs:        
         
-        # results.append(q.get(True))  # No output to wait for -- so don't. We really should take output, though.
+        results.append(q.get(True))  # No output to wait for -- so don't. We really should take output, though.
         
         proc.join()  # 'Wait until child process terminates'
+     
+    for result in results:
+        print(result)
+
      
 
         
