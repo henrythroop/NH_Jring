@@ -813,7 +813,8 @@ class nh_ort_track4_grid:
             lun.write("#    Remaining are delta_ET, n(r_1), n(r_2), n(r_3) ... n(r_13)\n")
             lun.write("#    n(r) are number per km3\n")
             lun.write("#    Henry Throop {}\n".format(str(datetime.now())))          
-            lun.write("{} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(0, 
+            lun.write("{} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(
+                                                    0, 
                                                     self.s[12],   # self.s[] = particle size bins
                                                     self.s[11],
                                                     self.s[10],
@@ -826,11 +827,12 @@ class nh_ort_track4_grid:
                                                     self.s[3],
                                                     self.s[2],
                                                     self.s[1],
-                                                    self.s[0],
+                                                    self.s[0],  
                                                     ))
             for i in range(len(t)):                                                
                 lun.write(
         "{} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e} {:.2e}\n".format(
+                        t[i][1],
                         t[i][14],
                         t[i][13],
                         t[i][12],
@@ -844,7 +846,6 @@ class nh_ort_track4_grid:
                         t[i][4],
                         t[i][3],
                         t[i][2],
-                        t[i][1],
                         ))
             lun.close()
             print("Wrote: {}".format(path_out))
