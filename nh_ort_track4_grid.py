@@ -777,23 +777,13 @@ class nh_ort_track4_grid:
             t['Y [km]'] = np.array(self.y_t).astype(int)
             t['Z [km]'] = np.array(self.z_t).astype(int)
         
-#        for i in range(len(self.s)):    # Loop over particle size, and add a new table column for each particle size.
-#                t['n_{}, {:.3f}, # per km3'.format(i, self.s[i])] = np.array(self.number_t[i]).astype(int)
-
         for i in range(len(self.s)):    # Loop over particle size, and add a new table column for each particle size.
                 t['n_{}, {:.3f}, # per km3'.format(i, self.s[i])] = np.array(self.number_t[i])
         
         # Create the output filename
         
-#        if not dir_out:
-#        dir_out = '/Users/throop/Data/ORT4/throop/track4/'
-        
         file_out = self.create_filename_track4()
         
-#        file_out = 'ort1_q{}_i{}_a{}.txt'.format(self.q_dust, self.inclination, self.albedo)
-#        if do_positions:
-#            file_out = file_out.replace('.txt', '_pos.txt')
-#       
         path_out = os.path.join(dir_out, file_out)
         
         if do_write_astropy:

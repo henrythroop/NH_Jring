@@ -206,7 +206,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
             # Read various values from the ring
             
             halfwidth_km = ring.km_per_cell_x * hbt.sizex(ring.density) / 2
-            extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
+            extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X Y axes
             
             beta_arr[i]                  = ring.beta  # Take the params from individual runs, and stuff into an array   
             time_step_arr[i]             = ring.time_step.value
@@ -218,7 +218,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     
             # Flatten the arrays, along the axis of the viewer (ie, the sun).
             # The output to this is bascially D2D of MRS slide 6.4 -- called 'density_flattened_arr' here.
-            # This is a 2D image. When displayed with imshow(origin='lower'), it will be oriented approx as seen from Sun.
+            # This is a 2D image. When displayed with imshow(origin='lower'), oriented approx as seen from Sun.
             
             density_flattened_arr[i,:,:] = np.transpose(np.sum(ring.density, axis=axis_sum))
             
@@ -356,16 +356,25 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                         # Now apply MRS eq @ slide 6.4. Divide by num_subsets so we don't sum.
                         # The np.sum(axis=0) here does the sum over all the matching subsets.
                         # They have already been flattened -- we are not summing in XYZ space again
-                        # This time we want to pick ut the density_flattened_array for the proper size.
+                        # This time we want to pick out the density_flattened_arr for the proper size.
+                        
+                        # density_flattened_arr must be summed along the line-of-sight. I use it to make the I/F
+                        # images, which we do here, and calc E_0. Then we go back to the grids, read those,
+                        # and use them and E_0 to calc the final output.
                         
                         # Axis=0 means to sum along all of the 'is_good' arrays -- that is, ones that
                         # match the proper subset.
                         
+                        # I am summing over subsets here. I am not sure about why dividing by num_good. That 
+                        # seems to make it *averaging* over subsets, rather than *summing*.
+                        
                         # Units of 'img' are s.t. img * E_0 = unitless.
+                        
+                        # NB: density_flattened_arr = [304, 200, 200]
                         
                         img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
                                  np.sum(density_flattened_arr[is_good], axis=0) /
-                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_good
+                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12)  #  / num_good # XXX just a test!!!
                         
                         # Add this image (with one beta) to the existing image (with a dfft beta)
                         
@@ -419,7 +428,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                     
                     # Plot the radial profile, next to an image of that run, as seen from sun. 
                     
-                    do_plot_profile_individual = True
+                    do_plot_profile_individual = False
                     
                     vals_radial_fiducial = [3500, 10000]
 
@@ -654,7 +663,10 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
 
             is_good = ( (speed_arr == speed_i) & ((np.abs(beta_i - beta_arr) / beta_i) < epsilon) )   
             
-            num_good = np.sum(is_good)  # Number of grids that are selected, to sum
+            print(f'Found {np.sum(is_good)} matching subsets to combine, with E0 = {E_0_i:8.3},' +
+                           f'v = {speed_i}, q={q_i}, beta={beta_i:.3e}, rho={rho_i:.3}')
+            
+            # num_good = np.sum(is_good)  # Number of grids that are selected, to sum XXX NOT USED SO COMMENTED OUT
             
             # Finally, sum up all of the appropriate subsets, weighted by q, E_0, sarea, etc., into an output array
             # This array is in units of # per km3.  MRS slide 6.6.

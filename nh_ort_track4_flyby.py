@@ -65,6 +65,7 @@ from nh_ort_track4_grid            import nh_ort_track4_grid    # Includes .read
 #from nh_ort_track3_read            import stretch_hbt, stretch_hbt_invert  # Some stretch routines good for traj's
 #from nh_ort_track3_read            import plot_flattened_grids_table
 
+#%%%
 # =============================================================================
 # Main function to fly s/c through the grids. All of the 4D grids must already 
 # be generated and saved to disk. This routine loops over them, and creates the 
@@ -150,21 +151,22 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
     
     sp.furnsh(f'kernels_kem_{name_trajectory}.tm')
     
-    do_short = True
+    do_short = False
     
     if do_short:
         files = files[0:3]
          
-#    file = files[27]  # Just for testing w cut+paste. Can ignore these.
+    file = files[63]  # Just for testing w cut+paste. Can ignore these.
     
-    i=0
+    i=63
 #%%%    
     for i,file in enumerate(files):
         
-#%%%        
+#%%%       
         print(f'Starting file {i}/{len(files)}')
               
         grid = nh_ort_track4_grid(file)    # Load the grid from disk. Uses gzip, so it is quite slow (10 sec/file)
+        print(f'Loading file {file}')
          
     # Load the trajectory parameters
 
@@ -236,24 +238,39 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
                   'deepskyblue',
                   'lightsalmon',
                   'pink',
-                  'aqua']
+                  ]
+                  # 'aqua']
                   
 #                  'antiquewhite4', 'aqua', 'aquamarine4', 'black', 'blue', 'blueviolet', 
 #                  'brown1', 'chartreuse1', 'darkgreen', 'darkorange1', 'dodgerblue1', 'lightpink', 'magenta']
+        
+        # Make a plot of dust number density. This is straight out of the grid, and for comparison with MRS.
+        
+        vals_fiducial = [1e-10, 1e-8, 1e-6,1e-4, 1e-2, 1e-0]
+        
         plt.subplot(3,1,1)
         for j,s in enumerate(grid.s):
             plt.plot(grid.delta_et_t, grid.number_t[j],
-                     label = 's={:.2f} mm'.format(s))
+                     label = 's={:.2f} mm'.format(s),
+                     color=colors[j])
         plt.legend()
         plt.title('Dust number density'.format(grid.area_sc))
         plt.xlabel('ET from C/A')
         plt.yscale('log')
+        plt.ylim((1e-10, 1e2))  # Match to MRS.
+        plt.axvline(0, color='black', alpha=0.05)
         plt.ylabel(r'Dust,, # km$^{-3}$')
+                   
+        for val in vals_fiducial:
+            plt.axhline(val, color='black', alpha=0.05)
 
+        # Make a plot of impact rate. This assumes a s/c area.
+        
         plt.subplot(3,1,2)
         for j,s in enumerate(grid.s):   # 's' is dust size
             plt.plot(grid.delta_et_t, grid.number_sc_t[j],
-                     label = f's={s:.2f} mm')
+                     label = f's={s:.2f} mm',
+                     color=colors[j])
         plt.title('Impact rate, A={}'.format(grid.area_sc))
         plt.yscale('log')    
         plt.xlabel('ET from C/A')
@@ -541,22 +558,25 @@ if (__name__ == '__main__'):
     # NB: It would make sense to parallelize this loop below. That way I could run a bunch of these in parallel.
     
     name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
-    name_trajectory = 'prime'
+    # name_trajectory = 'prime'
     
     # dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
     # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3-sunflower3.5k/'
     # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3-sunflower10k/'
 
-    dir_in = '/Users/throop/data/ORT5/throop/deliveries/tuna9k/'
+    # dir_in = '/Users/throop/data/ORT5/throop/deliveries/tuna9k/'
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_a'
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_b'
-    
-#    dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dek/'
+    # dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dek/'
+
+    dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k-DPH/'
     
     dir_out = os.path.join(dir_in, 'for_mehoke')
     
     if not os.path.exists(dir_out):
         os.makedirs(dir_out)
+
+#%%%
         
     nh_ort_track4_flyby(dir_in=dir_in, dir_out=dir_out, name_trajectory = name_trajectory)
     
