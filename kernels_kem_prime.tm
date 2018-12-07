@@ -1,5 +1,6 @@
 -----
-MU69 Flyby Kernel Set, for Hazard Team use at MU69 ORT1 (January 2018).
+MU69 Flyby Kernel Set, for Hazard Team use at MU69 flyby, Dec 2018.
+
 -----
 
 This metakernel file is a copy of NHGV's default kernel set for the NH MU69
@@ -9,11 +10,8 @@ frames kernels, instrument kernels, etc. This is a larger set than necessary
 for KEM (e.g., it includes kernels for the Pluto system and other planets), but
 it is guaranteed to be complete.
 
-All of these files exist on ixion, in GV's kernel respository at
-/home/html/nh/gv-dev/kernels. For code run on ixion, this metakernel can be
-incorporated using FURNSH() with nothing else necessary.
-
-Henry Throop 12-Jan-2018
+All of these files exist on ixion, in GV-dev's kernel respository at
+/home/html/nh/gv-dev/kernels. 
 
 -----
 
@@ -34,8 +32,8 @@ KERNELS_TO_LOAD = (
 '$DIR/gv_pluto_smallsats_lhr.tf',
 '$DIR/mu69_ring_frames.tf',
 '$DIR/nh_ref_20150801_20190901_od128_tcm22.bsp'
-'$DIR/nh_pred_20180601_20250101_od138_tcm28b_burn.bsp'
-'$DIR/NavPE_de433_od138.bsp',
-'$DIR/NavSBE_2014MU69_od138.bsp',
+'$DIR/nh_pred_20180601_20250101_od139.bsp'
+'$DIR/NavPE_de433_od139.bsp',
+'$DIR/NavSBE_2014MU69_od139.bsp',
 
 )
