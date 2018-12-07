@@ -20,6 +20,7 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
                  width=None, name_observer='New Horizons', name_target = 'MU69', 
                  et = None, do_stretch=True,
                  do_inhibit_axes=False,
+                 do_colorbar=False,
                  **kwargs):
  
 
@@ -75,11 +76,17 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
 
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+
+    vmax = np.percentile(img, 95)
+    vmin = np.percentile(img,  5)
+    
+    img_stretch = np.clip(img, a_min=vmin, a_max=vmax)
+    
     
     if not(do_stretch):    
         plt.imshow(img, origin='lower', **kwargs)
     else:
-        plt.imshow(stretch(img), origin='lower', **kwargs)
+        fig = plt.imshow(img_stretch, origin='lower', **kwargs)
     
     # If requested, inhibit printing values on the x and y axes
     
@@ -130,6 +137,11 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
         
     plt.title(title)
 
+    # Plot a colorbar, if requested
+    
+    if do_colorbar:
+        plt.colorbar(fig, format='%.0e')
+        
     # Display the whole thing
     
     if do_show:
@@ -161,5 +173,5 @@ if (__name__ == '__main__'):
     
     # Pass the image data, WCS, and ET, and plot it
     
-    plot_img_wcs(img, w, name_observer='New Horizons', name_target = 'MU69', et=et)
+    plot_img_wcs(img, w, name_observer='New Horizons', name_target = 'MU69', et=et, do_colorbar=True)
     

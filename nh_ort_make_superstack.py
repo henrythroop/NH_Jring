@@ -24,6 +24,8 @@ from   astropy import units as u           # Units library
 import pickle # For load/save
 
 import scipy
+import copy
+
 
 # HBT imports
 
@@ -280,7 +282,7 @@ if (__name__ == '__main__'):
 
     width = 1  # Bin width for radial profiles
     
-    do_tunacan = False
+    do_tunacan = True
 
     # DO_FORCE_STACKS: If set, reload the stacks from individual frames, rather than restoring from a pickle file.
     # NB: When adding a new set of OpNavs to an existing run, there sometimes is not enough padding
@@ -317,16 +319,21 @@ if (__name__ == '__main__'):
                        # 'KALR_MU69_OpNav_L4_2018317',
                        # 'KALR_MU69_OpNav_L4_2018319',
                        # 'KALR_MU69_OpNav_L4_2018325',
-                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                        'KALR_MU69_OpNav_L4_2018326',
+                        # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+                        # 'KALR_MU69_OpNav_L4_2018326',
                         'KALR_MU69_OpNav_L4_2018330',  # 10 frames
                         'KALR_MU69_OpNav_L4_2018331',  # 10 frames
                         'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                        
                         'KALR_MU69_OpNav_L4_2018334',  # 10 frames
                         'KALR_MU69_OpNav_L4_2018335',  # 10 frames
                         'KALR_MU69_OpNav_L4_2018337',  # 10 frames
                         'KALR_MU69_Hazard_L4_2018334',  # 96 frames
                         'KALR_MU69_OpNav_L4_2018338',
+                        'KALR_MU69_OpNav_L4_2018339',
+                        'KALR_MU69_Hazard_L4_2018340',
+                        'KALR_MU69_OpNav_L4_2018340',
+                        'KALR_MU69_OpNav_L4_2018341',
 
                        ]
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
@@ -399,10 +406,14 @@ if (__name__ == '__main__'):
     
     stack_field = {}
 
-    for reqid_i in reqids_haz:    # Use the FIELD reqid, but store under the haz reqid. It is a field, shifted for that reqid
-        stack_field[reqid_i] = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks_field, 
-                              do_save=True)
-    
+    for i,reqid_i in enumerate(reqids_haz):    # Use the FIELD reqid, but store under the haz reqid. It is a field, shifted for that reqid
+        
+        if i == 0:
+            stack_field[reqid_i] = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks_field, 
+                                  do_save=True)
+        else:
+            stack_field[reqid_i] = copy.deepcopy(stack_field[reqids_haz[0]])
+            
     # Load and stack the data images. One per reqid.
     
     stack_haz = {}
@@ -513,27 +524,21 @@ if (__name__ == '__main__'):
                          name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[reqid_i], width=100)
         
 # =============================================================================
-#     Plot the stacks, differenced with the field image.
+#     Save a set of FITS files, which are the HAZ - FIELD, for each of the HAZ stacks.
 # =============================================================================
     
     hbt.figsize((10,10))
     hbt.fontsize(12)
     
-#    plt.imshow(stretch(img_field), origin='lower')
-    
     for i,reqid_i in enumerate(reqids_haz):        
         diff_trim = hbt.trim_image(img_haz_diff[reqid_i])
-        
-        # plt.imshow(stretch(diff_trim), origin='lower')
-        # plt.title(f'Difference stack {i}/{len(reqids_haz)}: {reqid_i}')
-        # plt.show()
-        
+                
         # Save as FITS
     
         file_out = os.path.join(dir_out, 'stack_{}_{}_z{}_hbt.fits'.format(reqid_i, name_ort, zoom))
         hdu = fits.PrimaryHDU(stretch(diff_trim))
         hdu.writeto(file_out, overwrite=True)
-        print(f'Wrote: {file_out}')
+        print(f'Wrote FITS: {file_out}')
 
     # Make a useful string for titles
 
@@ -573,18 +578,7 @@ if (__name__ == '__main__'):
     wcs_superstack = wcs_haz[name_stack_base]
     
     # Make the superstack, and return backplanes.
-    # Bug: the backplanes returned are unzoomed.
 
-
-    # For testing: plot all the frames, before superstacking
-    # Result: 338 center is incorrect even before stacking. 325 is correct.
-    
-    for key in keys:
-        plot_img_wcs(img_haz[key], wcs_haz[key], cmap=cmap_superstack,
-                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key], width=100,
-                  do_show=False, title=key)
-        plt.show()
-        
     # Generate the backplanes
     
     (img_superstack_mean, img_superstack_median, backplanes) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
@@ -700,11 +694,45 @@ if (__name__ == '__main__'):
     
     wcs_superstack          = wcs_superstack_tweak
     plane_radius_superstack = plane_radius_superstack_tweak # Do not copy this back to the backplane itself! Breaks.
+
+# =============================================================================
+# Convert the stacks from DN to I/F
+# =============================================================================
+    
+    # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
+
+    RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+    RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+    
+    # Define the solar flux, from Hal's paper.
+    FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+    F_solar       = FSOLAR_LORRI # Flux from Hal's paper
+    RSOLAR        = RSOLAR_LORRI_4X4
+
+    km2au = 1 / (u.au/u.km).to('1')
+        
+    # Calculate the MU69-Sun distance, in AU (or look it up).         
+    
+    et        = stack_haz[reqids_haz[-1]].t['et'][0] # ET for the final image stack
+    (st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
+    r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+    (st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
+    r_sun_mu69= sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+    pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming LORRI 4x4)
+    TEXP        = stack_haz[reqid_i].t['exptime'][0]
+
+    I_median = img_superstack_median / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
+    I_mean   = img_superstack_mean   / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
+    
+    img_superstack_median_iof = math.pi * I_median * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+    img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
     
 #%%%
 # =============================================================================
 #     Now that the WCS and all images are set, make some plots
 # =============================================================================
+    
+    width_pix_plot = 40*zoom
     
     # Define the ring sizes.
     # For the SUNFLOWER ring, we just take a radial profile outward, and plot it.
@@ -719,17 +747,18 @@ if (__name__ == '__main__'):
     
     plt.show()  # for some reason the figsize() isn't working, so maybe flush things out??
     
-    hbt.figsize((15,15))
+    hbt.figsize((20,8))
     hbt.fontsize(10)
 
     plt.subplot(1,2,1)
     
-    plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
+    plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
 #                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
                  title = f'{str_stack}, {str_reqid}, {frametype}', 
-                 width=130,do_show=False,
-                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base])
-    
+                 width=width_pix_plot,do_show=False,
+                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                 do_colorbar=True)
+        
     # Construct the image of ring masks
     # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly
     
@@ -803,10 +832,27 @@ if (__name__ == '__main__'):
      
     plt.subplot(1,2,2)
 
-    plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, 
+    plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
                  title = f'{str_stack}, {str_reqid}', 
-                 width=130,do_show=False,
-                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base])
+                 width=width_pix_plot,do_show=False,
+                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                 do_colorbar=True)
+
+#%%%
+    
+    # fig =     plt.subplot(1,2,2)
+
+    # vmax = np.percentile(img_superstack_median_iof, 95)
+    # vmin = np.percentile(img_superstack_median_iof,  5)
+    
+    # arr = np.clip(img_superstack_median_iof, a_min=vmin, a_max=vmax)
+    # plt.imshow(arr, origin='lower')
+    
+    # plt.xlim((720,820))
+    # plt.ylim((720,820))
+    # # plt.set_cmap('plasma')
+    # plt.colorbar(fig, format='%.0e')
+    
     plt.show()
 
 
@@ -900,38 +946,6 @@ if (__name__ == '__main__'):
     (_, ra_pole, dec_pole) = sp.recrad(vec_j2k)
 
 # =============================================================================
-# Convert the stacks from DN to I/F
-# =============================================================================
-    
-    # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
-
-    RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
-    RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
-    
-    # Define the solar flux, from Hal's paper.
-    FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
-    F_solar       = FSOLAR_LORRI # Flux from Hal's paper
-    RSOLAR        = RSOLAR_LORRI_4X4
-
-    km2au = 1 / (u.au/u.km).to('1')
-        
-    # Calculate the MU69-Sun distance, in AU (or look it up).         
-    
-    et        = stack_haz[reqids_haz[-1]].t['et'][0] # ET for the final image stack
-    (st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'New Horizons')
-    r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
-    (st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
-    r_sun_mu69= sp.vnorm(st[0:3]) * km2au # NH distance, in AU
-    pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming LORRI 4x4)
-    TEXP        = stack_haz[reqid_i].t['exptime'][0]
-
-    I_median = img_superstack_median / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
-    I_mean   = img_superstack_mean   / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
-    
-    img_superstack_median_iof = math.pi * I_median * r_sun_mu69**2 / F_solar # Equation from Hal's paper
-    img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
-
-# =============================================================================
 #     Calculate the radial profile, in I/F units 
 # =============================================================================
     
@@ -990,7 +1004,7 @@ if (__name__ == '__main__'):
 
     # Calculate the bias level, crudely
 
-    radius_max_km = 30000
+    radius_max_km = 20000
         
     bin_radial_end = np.digitize(radius_max_km, radius)
     
@@ -1017,7 +1031,7 @@ if (__name__ == '__main__'):
     # Plot the radial profile
     
     hbt.figsize((8,6))
-    hbt.fontsize(14)
+    hbt.fontsize(12)
     
     if do_tunacan:
         for i,thick in enumerate(thick_tuna_km):
