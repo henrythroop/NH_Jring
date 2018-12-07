@@ -589,7 +589,7 @@ class image_stack:
 # =============================================================================
 
     def flatten(self, method='median', zoom=1, do_subpixel=False, do_wrap=False, padding = 'Auto', do_plot=False,
-                do_force=False, do_save=False):
+                do_force=False, do_save=False, do_fast_field=False):
         
         """
         Flatten a stack of images as per the currently-set shift values and indices.
@@ -640,7 +640,11 @@ class image_stack:
             Force explicit flattening from memory, rather than from a .pkl file.
 
         do_save:
-            If set, save the results of this flattening as a .pkl file
+            Boolean. If set, save the results of this flattening as a .pkl file
+            
+        do_fast_field:
+            Boolean. If set, do a q&d bypass of the scaling, to speed up processing of the field frames.
+            Read the pre-scaled frames from memory or disk, instead of calculating from the first.
             
         """    
         
@@ -690,6 +694,12 @@ class image_stack:
 #         Now loop and do the actual shifting and zooming of each image
 # =============================================================================
         
+        # NB: This routine is really slow, and a real bottleneck.
+        #     In production, the main problem comes when flattening the 96 field frames.
+        #     We do these over and over, but at slightly different shift values.
+        
+        
+        
         for j,w_i in enumerate(w):  # Loop over all the indices. 'j' counts from 0 to N. w_i is each individual index.
             im = self.t['data'][w_i]
             im_expand = scipy.ndimage.zoom(im,zoom) # Expand the image. This increases total flux; keeps DN/px fixed.
@@ -716,7 +726,6 @@ class image_stack:
             
             else:
                 im_expand = np.roll(np.roll(im_expand, int(round(shift[0])), axis=0), int(round(shift[1])), axis=1)
-#                print(f'Adding image {j} with shifts dx {int(round(shift[0]))}, dy {int(round(shift[1]))}')
   
             # Copy the shifted, zoomed image into place in the output array
             
@@ -804,17 +813,17 @@ class image_stack:
         self.arr_flat = arr_flat
         self.wcs_flat = wcs
 
-        # Prompt to save the flattened image, if requested
-        
-        if not(do_save):
-            print(f'File to save: {self.file_flat_save}')
-            answer = input(f'Save to pickle file {self.file_flat_save}? ')
-            if ('y' in answer):
-                do_save = True
-                
+        # Save the flattened pickle file, if requested
+
         if do_save:
-            self.save_flat()   
+            self.save_flat() 
             
+        # if not(do_save):
+        #     print(f'File to save: {self.file_flat_save}')
+        #     answer = input(f'Save to pickle file {self.file_flat_save}? ')
+        #     if ('y' in answer):
+        #         do_save = True
+                
         return (arr_flat, wcs)
 
 # =============================================================================
