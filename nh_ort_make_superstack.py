@@ -321,6 +321,9 @@ if (__name__ == '__main__'):
                        # 'KALR_MU69_OpNav_L4_2018325',
                         # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
                         # 'KALR_MU69_OpNav_L4_2018326',
+
+                 # A pretty good stack: 330 .. 341
+                 
                         'KALR_MU69_OpNav_L4_2018330',  # 10 frames
                         'KALR_MU69_OpNav_L4_2018331',  # 10 frames
                         'KALR_MU69_OpNav_L4_2018332',  # 10 frames
@@ -406,7 +409,9 @@ if (__name__ == '__main__'):
     
     stack_field = {}
 
-    for i,reqid_i in enumerate(reqids_haz):    # Use the FIELD reqid, but store under the haz reqid. It is a field, shifted for that reqid
+    for i,reqid_i in enumerate(reqids_haz):    # Use the FIELD reqid, but store under the HAZ reqid. 
+                                               # This is so that we will have a version of each FIELD 
+                                               # shifted appropriately for each HAZ REQID.
         
         if i == 0:
             stack_field[reqid_i] = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks_field, 
@@ -899,7 +904,6 @@ if (__name__ == '__main__'):
     hbt.fontsize()
  
 #%%%
-    
 # =============================================================================
 # Now make a bunch of summary plots, including radial profile
 # =============================================================================
@@ -925,7 +929,7 @@ if (__name__ == '__main__'):
         ax = plt.subplot(projection=wcs_field)
 
 # =============================================================================
-# Now start to calculate radial profiles
+# Now look up the pole position, for plot labels
 # =============================================================================
 
     # Look up the pole position of MU69, based on the loaded frame kernel
