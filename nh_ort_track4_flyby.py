@@ -153,11 +153,13 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
     do_short = True
     
     if do_short:
-        files = files[0:3]
+        files = files[0:4]
          
 #    file = files[27]  # Just for testing w cut+paste. Can ignore these.
     
-    i=0
+    i=3
+    file = files[i]
+    
 #%%%    
     for i,file in enumerate(files):
         
@@ -537,17 +539,20 @@ def make_table_grid_positions():
 # =============================================================================
     
 if (__name__ == '__main__'):
+
+#%%%
     
     # NB: It would make sense to parallelize this loop below. That way I could run a bunch of these in parallel.
     
-    name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
     name_trajectory = 'prime'
+    name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
     
     # dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
     # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3-sunflower3.5k/'
     # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3-sunflower10k/'
 
-    dir_in = '/Users/throop/data/ORT5/throop/deliveries/tuna9k/'
+    # dir_in = '/Users/throop/data/ORT5/throop/deliveries/tuna9k/'
+    dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k-DPH/'
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_a'
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_b'
     
@@ -557,6 +562,7 @@ if (__name__ == '__main__'):
     
     if not os.path.exists(dir_out):
         os.makedirs(dir_out)
-        
+
+#%%%        
     nh_ort_track4_flyby(dir_in=dir_in, dir_out=dir_out, name_trajectory = name_trajectory)
     

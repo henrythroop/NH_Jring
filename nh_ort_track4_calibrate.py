@@ -419,7 +419,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                     
                     # Plot the radial profile, next to an image of that run, as seen from sun. 
                     
-                    do_plot_profile_individual = True
+                    do_plot_profile_individual = False
                     
                     vals_radial_fiducial = [3500, 10000]
 
@@ -453,6 +453,10 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                                val_img_med, val_img_typical, val_img_max, 
                                img, E_0_i, profile))
 
+    # For debugging, print value for y2.2_q2.5_pv0.05_rho1
+
+    print( t['speed', 'q', 'albedo', 'rho', 'E_0'][0] )  # Check. I am getting same E_0 value.
+    
 #%%%
                     
 # =============================================================================
@@ -512,7 +516,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
         
 #%%%
         
-# Make a gridded layout of various quantities
+# Make a some diagnostic plots, and a beautiful family portrait, of all the combined 64 disks
     
     columns = ['albedo', 'q', 'rho', 'speed']
     for i,column in enumerate(columns):
@@ -572,7 +576,10 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     
     do_short = False
 
-    indices_short = [52,53,54]
+    indices_short = [52,5]
+    
+    k = 0
+    t_i = t[0]
     
     if do_short:
         print (f'For output to Doug Mehoke, reducing output number from {len(t)} → {len(indices_short)}')
@@ -721,6 +728,10 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
 
         grids_i.write(style = 'xyz', dir = dir_out)
         
+        # Save the 2D array as an image. This is so I can merge them in NH_ORT_MAKE_SUPERSTACK.PY.
+        
+        grids_i.write(style = 'image', dir=dir_out)
+        
         print('---')
         
 #%%%
@@ -767,6 +778,11 @@ if __name__ == '__main__':
     dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k-DPH/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10kfast-DPH/'
 
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan10k/'
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan3.5k/'
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-sunflower10k/'
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-sunflower3.5k/'
+
     # Make sure directory is properly terminated. This is what os.path is supposed to do, but does not!
     
     if dir_in[-1] != '/':
@@ -774,11 +790,12 @@ if __name__ == '__main__':
 
     # Get a list of all of the individual runs in the input dir.
     # DPH supplies a directory for each moon, while DK is one step thinner since he doesn't.
+    # [fixed 6-Dec-2018; they are both the same now, with a moon directory]
             
     if ('kauf') in dir_in:
         runs = glob.glob(os.path.join(dir_in, '*/*/*/subset*/'))
     if ('hamilton' in dir_in):
-        runs = glob.glob(os.path.join(dir_in, '*/*/subset*/'))
+        runs = glob.glob(os.path.join(dir_in, '*/*/*/subset*/'))
         
     if runs:
     
