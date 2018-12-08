@@ -529,7 +529,24 @@ class nh_ort_track4_grid:
             f.write('1.00')  # I don't know what this is. But the file seems to require it.
             f.close()
             print(f'Wrote: {os.path.join(dir,file)}, {num_pts_low}+{num_pts_high} points')
-                
+
+    # Write an image. This is just the density array (3D), which can be easily flattened 
+                    
+        if (style == 'image'):
+            file = file + '_img.pkl'  # Extension .xyz sometimes works, but .txt is def more reliable
+            
+            # Collapse the density array, and sum over particle size
+
+            lun = open(os.path.join(dir, file), 'wb')        
+            
+            density = np.sum(self.density,axis=0)
+
+            pickle.dump(density, lun)
+            
+            lun.close()
+
+            print("Wrote: " + os.path.join(dir,file))            
+            
         return
 
 # =============================================================================
