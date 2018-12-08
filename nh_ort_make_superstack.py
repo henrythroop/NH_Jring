@@ -282,7 +282,7 @@ if (__name__ == '__main__'):
 
     width = 1  # Bin width for radial profiles
     
-    do_tunacan = True
+    do_tunacan = False
 
     # DO_FORCE_STACKS: If set, reload the stacks from individual frames, rather than restoring from a pickle file.
     # NB: When adding a new set of OpNavs to an existing run, there sometimes is not enough padding
@@ -337,8 +337,19 @@ if (__name__ == '__main__'):
                         'KALR_MU69_Hazard_L4_2018340',
                         'KALR_MU69_OpNav_L4_2018340',
                         'KALR_MU69_OpNav_L4_2018341',
+                        'KALR_MU69_OpNav_L4_2018342',
 
                        ]
+
+        # reqids_haz  = [
+        #                 'KALR_MU69_Hazard_L4_2018334',  # 96 frames
+        
+        #                         'KALR_MU69_Hazard_L4_2018340',
+        #                 'KALR_MU69_OpNav_L4_2018340',
+        #                 'KALR_MU69_OpNav_L4_2018341',
+        #                 'KALR_MU69_OpNav_L4_2018342',
+       # ]
+                        
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018287']
@@ -731,7 +742,82 @@ if (__name__ == '__main__'):
     
     img_superstack_median_iof = math.pi * I_median * r_sun_mu69**2 / F_solar # Equation from Hal's paper
     img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+
+#%%%    
+# =============================================================================
+# Read a model ring image and implant it over the data image, if requested
+# =============================================================================
     
+    do_implant = True
+    
+    if do_superimpose:
+        dir_ring_img =    '/Users/throop/data/ORT5/throop/deliveries/'
+                
+        file_pickle = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl'
+        # file_ring_pickle = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
+        # file_ring_pickle = dir_ring_img + 'dph-tunacan3.5k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
+        
+        file_ring_short = file_ring_pickle.split('/')[7]
+      
+        lun = open(file_ring_pickle, 'rb')
+        print(f'Reading pickle file {file_ring_pickle}')
+        (density) = pickle.load(lun)
+        lun.close()
+    
+        if 'sunflower' in file_pickle:
+            axis_sum = 1
+    
+        if 'tunacan' in file_pickle:
+            axis_sum = 1
+                
+        # Flatten, rotate, and scale the image appropriately, from 3D → 2D
+    
+        img_ring     = np.rot90(np.sum(density, axis_sum),1)
+        iof_max_ring = 2e-7   
+        img_ring_iof = iof_max_ring * img_ring / np.amax(img_ring) 
+        
+        # Get the km per pix of the superstack, and scale ring to match it
+        
+        scale_superstack = np.abs( (backplanes[0]['dRA_km'][0,1]) - (backplanes[0]['dRA_km'][0,0]) )
+        scale_ring = 500  # 500 km/pix, fixed
+        magfac = scale_ring / scale_superstack
+        
+        img_ring_iof_zoom = scipy.ndimage.zoom(img_ring_iof, magfac)
+        
+        shape_ss = np.shape(img_superstack_median_iof)
+        shape_ring = np.shape(img_ring_iof_zoom)
+        
+        # Tweak the scaled image so it's even
+        
+        if shape_ring[0] %2:
+            img_ring_iof_zoom = img_ring_iof_zoom[:,0:-1]
+    
+        if shape_ring[1] %2:
+            img_ring_iof_zoom = img_ring_iof_zoom[0:-1,:]
+            
+        shape_ring = np.shape(img_ring_iof_zoom)
+    
+        img_merged_iof = img_superstack_median_iof.copy()
+        
+        img_merged_iof[ int(shape_ss[0]/2-shape_ring[0]/2) : int(shape_ss[0]/2+shape_ring[0]/2),
+                    int(shape_ss[1]/2-shape_ring[1]/2) : int(shape_ss[1]/2+shape_ring[1]/2) ] += img_ring_iof_zoom
+        
+    
+        hbt.figsize((15,15))
+        plt.subplot(1,3,1)                   
+        plot_img_wcs(img_superstack_median_iof, wcs_superstack, width=250, do_show=False, title='Stack',
+                     cmap='plasma')
+        plt.subplot(1,3,2)
+        plot_img_wcs(img_ring_iof_zoom, wcs_superstack, width=250, do_show=False, 
+                     title=f'{file_ring_short}, I/F={iof_max_ring:.0e}', do_stretch=False, do_inhibit_axes=True, 
+                     cmap='plasma')
+        plt.subplot(1,3,3)        
+        plot_img_wcs(img_merged_iof, wcs_superstack, width=250, do_show=False, 
+                      title=f'Stack + implant ring', cmap='plasma')
+        
+        plt.show()
+        hbt.figsize()
+
 #%%%
 # =============================================================================
 #     Now that the WCS and all images are set, make some plots
@@ -843,24 +929,6 @@ if (__name__ == '__main__'):
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
                  do_colorbar=True)
 
-#%%%
-    
-    # fig =     plt.subplot(1,2,2)
-
-    # vmax = np.percentile(img_superstack_median_iof, 95)
-    # vmin = np.percentile(img_superstack_median_iof,  5)
-    
-    # arr = np.clip(img_superstack_median_iof, a_min=vmin, a_max=vmax)
-    # plt.imshow(arr, origin='lower')
-    
-    # plt.xlim((720,820))
-    # plt.ylim((720,820))
-    # # plt.set_cmap('plasma')
-    # plt.colorbar(fig, format='%.0e')
-    
-    plt.show()
-
-
 #%%%    
 # =============================================================================
 # Make a set of plots showing the field, the superstack, and all the individual stacks
@@ -902,7 +970,7 @@ if (__name__ == '__main__'):
      
     hbt.figsize() 
     hbt.fontsize()
- 
+    
 #%%%
 # =============================================================================
 # Now make a bunch of summary plots, including radial profile
@@ -1004,6 +1072,12 @@ if (__name__ == '__main__'):
         (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
                                              plane_radius_superstack, method = 'median', num_pts = num_pts)
 
+        if do_implant:
+            (radius,  profile_merged_iof)   = get_radial_profile_backplane(img_merged_iof,
+                                             plane_radius_superstack, method = 'median', num_pts = num_pts)
+
+            
+            
         profile_iof[0] = profile_iof_median  # Just pick one -- they both are similar
 
     # Calculate the bias level, crudely
@@ -1012,7 +1086,8 @@ if (__name__ == '__main__'):
         
     bin_radial_end = np.digitize(radius_max_km, radius)
     
-    bias = np.amin(profile_iof[0][0:bin_radial_end])
+    bias       = np.amin(profile_iof[0][0:bin_radial_end])
+    bias_merged = np.amin(profile_merged_iof[0:bin_radial_end])
         
 # =============================================================================
 # Fit a gaussian to the radial profile, if requested
@@ -1032,7 +1107,9 @@ if (__name__ == '__main__'):
         
         popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
     
-    # Plot the radial profile
+# =============================================================================
+# Plot the radial profile
+# =============================================================================
     
     hbt.figsize((8,6))
     hbt.fontsize(12)
@@ -1077,6 +1154,58 @@ if (__name__ == '__main__'):
     plt.legend(loc = 'upper right')
     plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
     plt.show()
+
+#%%%
+# =============================================================================
+# Plot the radial profile, with implant
+# =============================================================================
+    
+    if do_implant:
+        hbt.figsize((8,6))
+        hbt.fontsize(12)
+        
+        if do_tunacan:
+            for i,thick in enumerate(thick_tuna_km):
+                plt.plot(radius, profile_merged_iof[i] - np.nanmin(profile_iof[i][0:bin_radial_end]),
+                      label = f'Median, pole=({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
+                              f'dr={round(np.diff(radius)[0]):.0f} km, z/2={thick_tuna_km[i]} km')
+            
+        else:    
+            plt.plot(radius, profile_merged_iof - bias_merged,
+                 label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
+                         f'dr={round(np.diff(radius)[0]):.0f} km')
+        
+        do_plot_errorbars = False
+        
+        if do_plot_errorbars:
+            plt.errorbar(radius, profile_iof - bias, yerr = profile_iof_std,
+                 label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
+            
+        plt.xlim(0,50000)
+        if do_tunacan:
+            plt.ylim((0,1e-5))
+        else:
+            plt.ylim((0,2e-6))
+        
+        do_plot_mean=False
+        if do_plot_mean:            # Can plot the mean. But the median is much more useful
+            plt.plot(radius, profile_iof_mean - bias, label = 'mean')
+        
+        if do_fit_profile:
+            plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=1.5, 
+                     label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
+        
+        # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
+            
+        plt.xlim((0, radius_max_km))
+        plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
+        plt.xlabel('Radius [km]')
+        plt.ylabel('I/F')
+        plt.legend(loc = 'upper right')
+        plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
+        plt.show()
+#%%%
+
                          
 # =============================================================================
 #      Write the ring profile to a text file as per wiki
@@ -1104,3 +1233,10 @@ if (__name__ == '__main__'):
     if do_ring_out:
         print(f'Wrote: {file_out}')
         print(f' scp {file_out} ixion:\~/MU69_Approach/astrometry' )  # We don't copy it, but put up string for user.
+
+
+######
+        
+    
+
+        
