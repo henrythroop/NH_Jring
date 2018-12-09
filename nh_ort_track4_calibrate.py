@@ -807,7 +807,7 @@ if __name__ == '__main__':
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_a/'  # Not sure what the diff btwn sun10k_{ab} is
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k_b/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/tuna9k/'
-    dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k-DPH/'
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k-DPH/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10kfast-DPH/'
 
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan10k/'
@@ -815,6 +815,8 @@ if __name__ == '__main__':
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-sunflower10k/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-sunflower3.5k/'
 
+    dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan3.5kinc55/'
+    
     # Make sure directory is properly terminated. This is what os.path is supposed to do, but does not!
     
     if dir_in[-1] != '/':
