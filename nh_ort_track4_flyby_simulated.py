@@ -81,8 +81,13 @@ class nh_ort_track4_flyby:
     For Hazard team. Jan 2019. New Horizons KEM. ORT.
     
     Mark Showalter has his own code to do this. 
+
     My code (here) accomplishes the same goals as his, but is independent.
     
+    ****************************************************************
+    ** THIS IS NOT USED FOR MY ACTUAL ENCOUNTER TRACK-4 PROCESSING.*
+    ** I THINK IT WAS A PROTOTYPE OR SOMETHING??                  **
+    ****************************************************************
     List of all parameters:
         
     Albedo
