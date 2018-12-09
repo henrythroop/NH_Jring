@@ -242,10 +242,6 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
         print(f'Wrote: {file_pickle}')
         lun.close()
     
-    # Count the number of 'subsets' (that is, azimuthal starting locations)
-    
-    num_subsets = len(np.unique(subset_arr))
-    
 #%%    
 # =============================================================================
 #  Now that we have read all of the input files, we combine these to make the output files. 
@@ -294,6 +290,8 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                                      # all surfaces of the moon. Not cross-sectional sweepup.
     
     epsilon = 1e-5               # A small value for testing equality of floats.    
+ 
+    #%%%
     
     # We create an astropy table for the output.
     
@@ -312,7 +310,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     extent = [-halfwidth_km, halfwidth_km, -halfwidth_km, halfwidth_km]  # Make calibrated labels for X and Y axes
 
 
-#%%%
+
     (albedo_i, q_i, rho_i, speed_i) = (albedo[0], q[0], rho[0], speed[0]) # Set up values, for testing only. Can ignore.
     
     # =============================================================================
@@ -333,7 +331,8 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
             for rho_i in rho:
                 for speed_i in speed:
                 
-                    img = np.zeros((200, 200))  # Create the output array
+                    print() 
+                    img = np.zeros((200, 200))  # Create the output array. Zero it for a new albedo/q/rho/speed combo.
                     
                     for b_i in b:  # This is the loop over particle size. b is index used for beta, particle size, etc.
                         
@@ -345,15 +344,18 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                         # Find all runs that match this set of parameters. 
                         # Typically this will match 8 'subsets' -- or 16 if we have two moons, etc.
 
-                        is_good = ( (speed_arr == speed_i) & ((np.abs(beta_i - beta_arr) / beta_i) < epsilon) )   
+                        is_subset = ( (speed_arr == speed_i) & ((np.abs(beta_i - beta_arr) / beta_i) < epsilon) )   
                         
-                        num_good = np.sum(is_good)  # Number of grids that are selected, to sum
+                        num_subsets = np.sum(is_subset)  # Number of grids that are selected, to sum. 
+                                                    # (ie, # of subsets)
                         
                         print(f'Found {num_good} matching runs for speed={speed_i:4.1f},' + 
                               f' beta={beta_i:5.2e}, s={s_i:7.3f} mm; applying q={q_i:3.2f},' + 
                               f' rho={rho_i:4.2f}, albedo={albedo_i} ')
+                        print(f'  Indices = {np.where(is_good)[0]}')
                         
                         # Now apply MRS eq @ slide 6.4. Divide by num_subsets so we don't sum.
+                        #   [Huh? What does this comment above mean? It is the key issue I think.]
                         # The np.sum(axis=0) here does the sum over all the matching subsets.
                         # They have already been flattened -- we are not summing in XYZ space again
                         # This time we want to pick out the density_flattened_arr for the proper size.
@@ -372,9 +374,18 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                         
                         # NB: density_flattened_arr = [304, 200, 200]
                         
+                        # XX Confirmed. This summation here looks OK.
+                        
+                        # XX We need to divide by num_subsets, because that is the number of subsets.
+                        # By adding all these subsets, we increase the dust production. But we really only
+                        # have one moon, not 8. So, must divide out by 8.
+                        # This factor of 8 is *not* in the writeups. It should be.
+                        # MRS didn't have it, but as long as you omit the same term in two places (when computing E_0,
+                        #  and when making the grids), then those things cancel out.
+                        
                         img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
                                  np.sum(density_flattened_arr[is_good], axis=0) /
-                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12)  #  / num_good # XXX just a test!!!
+                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_good 
                         
                         # Add this image (with one beta) to the existing image (with a dfft beta)
                         
@@ -464,7 +475,8 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
 
     # For debugging, print value for y2.2_q2.5_pv0.05_rho1
 
-    print( t['speed', 'q', 'albedo', 'rho', 'E_0'][0] )  # Check. I am getting same E_0 value.
+    print( t['speed', 'q', 'albedo', 'rho', 'E_0'][0] )  # Check. I am *not* getting same E_0 value. Low by 8x.
+    print( f'Total combinations made: {len(t)} combins. Each one has a 13 beta, and 8 subsets.')
     
 #%%%
                     
@@ -587,16 +599,19 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
 
     indices_short = [52,5]
     
-    k = 0
+    k = 3
     t_i = t[0]
     
     if do_short:
         print (f'For output to Doug Mehoke, reducing output number from {len(t)} → {len(indices_short)}')
         t = t[indices_short]   # Index 4/64 is a good one to try - a classic 'question mark' to check proper orientation.
+
+#%%%
         
     for k,t_i in enumerate(t):   # Loop over every element in the combination of output parameters,
                                  # which have already been tabulated in table 't'.  
-        
+
+#%%%        
         print(f'Starting output {k}/{len(t)}')
         
         # Calculate the indices of the smallest and largest grains, based on table.
@@ -652,7 +667,8 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
         
         hbt.figsize((6,6))
         
-        # Now that we have found the values of b (=size), loop over them
+        # Now that we have found the values of b (= index to beta = size) to be used for this 
+        # particular grid (ie, combo of q, velocity, etc), loop over them
         
         i = 0  # i stores the particle size index, that we loop over to sum.
         
@@ -668,22 +684,29 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
             # Typically this will be 8 -- since this is the number of subsets.
             # The indices calculated here are in the list of input arrays from DPH's Track 3.
 
-            is_good = ( (speed_arr == speed_i) & ((np.abs(beta_i - beta_arr) / beta_i) < epsilon) )   
+            is_subset = ( (speed_arr == speed_i) & ((np.abs(beta_i - beta_arr) / beta_i) < epsilon) )   
             
-            print(f'Found {np.sum(is_good)} matching subsets to combine, with E0 = {E_0_i:8.3},' +
+            print(f'Found {np.sum(is_subset)} matching subsets to combine, with E0 = {E_0_i:8.3},' +
                            f'v = {speed_i}, q={q_i}, beta={beta_i:.3e}, rho={rho_i:.3}')
+            print(f'  Indices = {np.where(is_subset)[0]} are the matching subsets')
             
-            # num_good = np.sum(is_good)  # Number of grids that are selected, to sum XXX NOT USED SO COMMENTED OUT
+            num_good = np.sum(is_good)  # Number of grids that are selected, to sum XXX NOT USED SO COMMENTED OUT
             
             # Finally, sum up all of the appropriate subsets, weighted by q, E_0, sarea, etc., into an output array
             # This array is in units of # per km3.  MRS slide 6.6.
             
-            for j in np.where(is_good)[0]:
-                D3D += E_0_i * sarea * (s_i**q_i) * ds_i * rings[j].density / dxdydz_km3
+            # D3D will usually be the sum of 13 values of b (=size) * 8 subsets (locations)
+            
+            # XX In the end we divide by num_subsets. This is *not* in MRS eq! But it should be.
+            # If the num_subsets is omitted above when we compute E_0, then it needs to be omitted here too.
+            
+            for j in np.where(is_subset)[0]:
+                D3D += E_0_i * sarea * (s_i**q_i) * ds_i * rings[j].density / dxdydz_km3 / num_subsets
+                print(f'  Adding subset with index {j}')
 
 # ** For reference, the equation for calculating E0 is:
 #                        img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
-#                                 np.sum(density_flattened_arr[is_good], axis=0) /
+#                                 np.sum(density_flattened_arr[is_subset], axis=0) /
 #                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_subsets
 #                        E_0_i = iof_limit_ring / max(img)
 
