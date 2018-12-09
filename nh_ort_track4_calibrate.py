@@ -349,10 +349,9 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                         num_subsets = np.sum(is_subset)  # Number of grids that are selected, to sum. 
                                                     # (ie, # of subsets)
                         
-                        print(f'Found {num_good} matching runs for speed={speed_i:4.1f},' + 
+                        print(f'Found {num_subsets} matching runs for speed={speed_i:4.1f},' + 
                               f' beta={beta_i:5.2e}, s={s_i:7.3f} mm; applying q={q_i:3.2f},' + 
                               f' rho={rho_i:4.2f}, albedo={albedo_i} ')
-                        print(f'  Indices = {np.where(is_good)[0]}')
                         
                         # Now apply MRS eq @ slide 6.4. Divide by num_subsets so we don't sum.
                         #   [Huh? What does this comment above mean? It is the key issue I think.]
@@ -364,7 +363,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                         # images, which we do here, and calc E_0. Then we go back to the grids, read those,
                         # and use them and E_0 to calc the final output.
                         
-                        # Axis=0 means to sum along all of the 'is_good' arrays -- that is, ones that
+                        # Axis=0 means to sum along all of the 'is_subset' arrays -- that is, ones that
                         # match the proper subset.
                         
                         # I am summing over subsets here. I am not sure about why dividing by num_good. That 
@@ -384,8 +383,8 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                         #  and when making the grids), then those things cancel out.
                         
                         img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *
-                                 np.sum(density_flattened_arr[is_good], axis=0) /
-                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_good 
+                                 np.sum(density_flattened_arr[is_subset], axis=0) /
+                                 (ring.km_per_cell_x * ring.km_per_cell_y) * 1e-12) / num_subsets
                         
                         # Add this image (with one beta) to the existing image (with a dfft beta)
                         
@@ -688,9 +687,8 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
             
             print(f'Found {np.sum(is_subset)} matching subsets to combine, with E0 = {E_0_i:8.3},' +
                            f'v = {speed_i}, q={q_i}, beta={beta_i:.3e}, rho={rho_i:.3}')
-            print(f'  Indices = {np.where(is_subset)[0]} are the matching subsets')
             
-            num_good = np.sum(is_good)  # Number of grids that are selected, to sum XXX NOT USED SO COMMENTED OUT
+            num_subsets = np.sum(is_subset)  # Number of grids that are selected, to sum XXX NOT USED SO COMMENTED OUT
             
             # Finally, sum up all of the appropriate subsets, weighted by q, E_0, sarea, etc., into an output array
             # This array is in units of # per km3.  MRS slide 6.6.
@@ -702,7 +700,6 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
             
             for j in np.where(is_subset)[0]:
                 D3D += E_0_i * sarea * (s_i**q_i) * ds_i * rings[j].density / dxdydz_km3 / num_subsets
-                print(f'  Adding subset with index {j}')
 
 # ** For reference, the equation for calculating E0 is:
 #                        img_i = (sarea * albedo_i * pi * s_i**2 * ds_i * s_i**q_i *

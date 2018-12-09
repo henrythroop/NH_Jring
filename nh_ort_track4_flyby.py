@@ -156,9 +156,9 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
     if do_short:
         files = files[0:4]
              
-    i=3
-    file = files[i]
-    
+        i=3
+        file = files[i]
+        
 #%%%    
     for i,file in enumerate(files):
         
