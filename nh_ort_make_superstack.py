@@ -753,9 +753,12 @@ if (__name__ == '__main__'):
     if do_implant:
         dir_ring_img =    '/Users/throop/data/ORT5/throop/deliveries/'
                 
-        file_ring_pickle = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl'
-        # file_ring_pickle = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
-        # file_ring_pickle = dir_ring_img + 'dph-tunacan3.5k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
+        # file_ring_pickle = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
+        # file_ring_pickle = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
+        
+        file_ring_pickle = dir_ring_img + 'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
+        
+        # dph-tunacan3.5kinc55
         
         file_ring_short = file_ring_pickle.split('/')[7]
       
@@ -773,19 +776,32 @@ if (__name__ == '__main__'):
         # Flatten, rotate, and scale the image appropriately, from 3D → 2D
     
         img_ring     = np.rot90(np.sum(density, axis_sum),1)
-        iof_max_ring = 1e-6   
+        iof_max_ring = 2e-7   
         img_ring_iof = iof_max_ring * img_ring / np.amax(img_ring) 
         
         # Get the km per pix of the superstack, and scale ring to match it
         
         scale_superstack = np.abs( (backplanes[0]['dRA_km'][0,1]) - (backplanes[0]['dRA_km'][0,0]) )
         scale_ring = 500  # 500 km/pix, fixed
+        # if 'sunflower10k' in file_ring_pickle:
+            
         magfac = scale_ring / scale_superstack
         
         img_ring_iof_zoom = scipy.ndimage.zoom(img_ring_iof, magfac)
         
+        # Convolve a PSF with the ring
+        
+        psf = img_superstack_median_iof.copy()
+        wheremax = np.where(psf == np.amax(psf))  # Returns 2D position
+        dxy_psf = 12  # Approx fullwidth of MU69, in pixels, to extract the PSF. Even number.
+        psf_extract = psf[int(wheremax[0]-dxy_psf/2):int(wheremax[0]+dxy_psf/2), 
+                          int(wheremax[1]-dxy_psf/2):int(wheremax[1]+dxy_psf/2)] 
+        psf_extract = psf_extract / np.sum(psf_extract)
+        
         shape_ss = np.shape(img_superstack_median_iof)
         shape_ring = np.shape(img_ring_iof_zoom)
+        
+        img_ring_iof_zoom_c = scipy.signal.convolve2d(img_ring_iof_zoom, psf_extract)
         
         # Tweak the scaled image so it's even
         
@@ -795,30 +811,38 @@ if (__name__ == '__main__'):
         if shape_ring[1] %2:
             img_ring_iof_zoom = img_ring_iof_zoom[0:-1,:]
             
-        shape_ring = np.shape(img_ring_iof_zoom)
+        shape_ring = np.shape(img_ring_iof_zoom_c)
     
         img_merged_iof = img_superstack_median_iof.copy()
         
         img_merged_iof[ int(shape_ss[0]/2-shape_ring[0]/2) : int(shape_ss[0]/2+shape_ring[0]/2),
-                    int(shape_ss[1]/2-shape_ring[1]/2) : int(shape_ss[1]/2+shape_ring[1]/2) ] += img_ring_iof_zoom
+                    int(shape_ss[1]/2-shape_ring[1]/2) : int(shape_ss[1]/2+shape_ring[1]/2) ] += img_ring_iof_zoom_c
         
     
         hbt.figsize((15,15))
-        plt.subplot(1,3,1)
-        width_plot_pix = 150
+        plt.subplot(2,2,1)
+        width_plot_pix = 450
                 
         plot_img_wcs(img_superstack_median_iof, wcs_superstack, width=width_plot_pix, do_show=False, title='Stack',
                      name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
                      cmap='plasma')
         
-        plt.subplot(1,3,2)
+        plt.subplot(2,2,2)
         plot_img_wcs(img_ring_iof_zoom, wcs_superstack, width=width_plot_pix, do_show=False, 
                      title=f'{file_ring_short}, I/F={iof_max_ring:.0e}', do_stretch=False, do_inhibit_axes=True, 
                      name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
                      cmap='plasma')
-        plt.subplot(1,3,3)        
+
+        plt.subplot(2,2,3)
+        plot_img_wcs(img_ring_iof_zoom_c, wcs_superstack, width=width_plot_pix, do_show=False, 
+                     title=f'Convolved', do_stretch=False, do_inhibit_axes=True, 
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     cmap='plasma')
+
+        plt.subplot(2,2,4)        
         plot_img_wcs(img_merged_iof, wcs_superstack, width=width_plot_pix, do_show=False, 
                      name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     title=f'Stack + Convolved',
                      cmap='plasma')
         
         plt.show()
@@ -1208,7 +1232,7 @@ if (__name__ == '__main__'):
         plt.xlabel('Radius [km]')
         plt.ylabel('I/F')
         plt.legend(loc = 'upper right')
-        plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
+        plt.title(f'With ring implant {file_ring_short}, I/F={iof_max_ring:.0e}')
         plt.show()
 #%%%
 
