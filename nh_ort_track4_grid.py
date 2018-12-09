@@ -294,7 +294,7 @@ class nh_ort_track4_grid:
 
         self.calc_tau()
         
-        do_stretch_linear = True
+        do_stretch_linear = False
 
         img = self.tau_2d
         
@@ -319,8 +319,9 @@ class nh_ort_track4_grid:
 
         # Render the image
         
-        # plt.imshow(img_stretch_t, origin=origin, extent=extent)
-        plt.imshow(img, origin=origin, extent=extent) # XXX remove this
+        plt.imshow(img_stretch_t, origin=origin, extent=extent)
+        
+        # plt.imshow(img, origin=origin, extent=extent) # Plot a linear, non-scaled image for comparison w MRS
                 
         # Create the labels for the colorbar, and individually place them
             
