@@ -433,6 +433,7 @@ def make_table_grid_positions():
 #%%%
      
     name_trajectory = 'alternate'  # ← Set this to 'prime' or 'alternate'
+    name_trajectory = 'prime'  # ← Set this to 'prime' or 'alternate'
    
     hbt.unload_kernels_all() 
    
@@ -560,7 +561,7 @@ if (__name__ == '__main__'):
     # NB: It would make sense to parallelize this loop below. That way I could run a bunch of these in parallel.
     
     name_trajectory = 'prime'
-    name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
+    # name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
 
     
     # dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
@@ -569,7 +570,8 @@ if (__name__ == '__main__'):
 
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/tuna9k/'
 
-    dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k-DPH/'
+    # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k-DPH/'
+    dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-tunacan3.5kinc55/'
 
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_a'
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_b'
