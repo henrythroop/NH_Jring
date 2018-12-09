@@ -96,7 +96,7 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
     # Define the limit for the I/F we want to match.
     
     iof_limit_ring = 2e-7  # The actual observed ring in ORT2 Track1 was 5e-8.
-                           # So, for the ORT2 'test' case, since we are using DPH's ring which is oriented
+                           # So, for the ORT2 'test' case, sitnce we are using DPH's ring which is oriented
                            # differently and was not detected, I'll take a bit less than this -- say, I/F = 2e-8.
                            
                            # For ORT4 (the shepherd ring), the peak I/F is 2e-7.
@@ -781,7 +781,7 @@ if __name__ == '__main__':
 #                          ort2-0003/y2.2/beta2.2e-01/subset04/grid.array2'
         
 
-    do_force = False   # If set, read the raw N-body grid files from disk, rather than from a pre-saved pickle file
+    do_force = True   # If set, read the raw N-body grid files from disk, rather than from a pre-saved pickle file
 
     do_short = False  # If set, just read a subset of the data ← Do not use
     # num_runs_max = 3  # ← This does not make sense to use here. Do not use it. This limits the number of input
@@ -816,6 +816,8 @@ if __name__ == '__main__':
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-sunflower3.5k/'
 
     dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan3.5kinc55/'
+    
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan10kinc55/'
     
     # Make sure directory is properly terminated. This is what os.path is supposed to do, but does not!
     
