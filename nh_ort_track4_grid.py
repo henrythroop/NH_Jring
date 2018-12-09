@@ -294,7 +294,7 @@ class nh_ort_track4_grid:
 
         self.calc_tau()
         
-        do_stretch_linear = False
+        do_stretch_linear = True
 
         img = self.tau_2d
         
@@ -319,7 +319,8 @@ class nh_ort_track4_grid:
 
         # Render the image
         
-        plt.imshow(img_stretch_t, origin=origin, extent=extent)
+        # plt.imshow(img_stretch_t, origin=origin, extent=extent)
+        plt.imshow(img, origin=origin, extent=extent) # XXX remove this
                 
         # Create the labels for the colorbar, and individually place them
             
@@ -816,10 +817,15 @@ class nh_ort_track4_grid:
             # There are seven size radial bins.  ** Updated to 13 bins in ORT4.
             
             lun = open(path_out, "w")
-            lun.write("#    First line is '0' and then size bins, in mm\n")
-            lun.write("#    Remaining are delta_ET, n(r_1), n(r_2), n(r_3) ... n(r_13)\n")
-            lun.write("#    n(r) are number per km3\n")
-            lun.write("#    Henry Throop {}\n".format(str(datetime.now())))          
+            
+            do_header = False
+            
+            if do_header:
+                lun.write("#    First line is '0' and then size bins, in mm\n")
+                lun.write("#    Remaining are delta_ET, n(r_1), n(r_2), n(r_3) ... n(r_13)\n")
+                lun.write("#    n(r) are number per km3\n")
+                lun.write("#    Henry Throop {}\n".format(str(datetime.now())))          
+                
             lun.write("{} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(
                                                     0, 
                                                     self.s[12],   # self.s[] = particle size bins
