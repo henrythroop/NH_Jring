@@ -750,10 +750,10 @@ if (__name__ == '__main__'):
     
     do_implant = True
     
-    if do_superimpose:
+    if do_implant:
         dir_ring_img =    '/Users/throop/data/ORT5/throop/deliveries/'
                 
-        file_pickle = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl'
+        file_ring_pickle = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl'
         # file_ring_pickle = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
         # file_ring_pickle = dir_ring_img + 'dph-tunacan3.5k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
         
@@ -773,7 +773,7 @@ if (__name__ == '__main__'):
         # Flatten, rotate, and scale the image appropriately, from 3D → 2D
     
         img_ring     = np.rot90(np.sum(density, axis_sum),1)
-        iof_max_ring = 2e-7   
+        iof_max_ring = 1e-6   
         img_ring_iof = iof_max_ring * img_ring / np.amax(img_ring) 
         
         # Get the km per pix of the superstack, and scale ring to match it
@@ -804,16 +804,22 @@ if (__name__ == '__main__'):
         
     
         hbt.figsize((15,15))
-        plt.subplot(1,3,1)                   
-        plot_img_wcs(img_superstack_median_iof, wcs_superstack, width=250, do_show=False, title='Stack',
+        plt.subplot(1,3,1)
+        width_plot_pix = 150
+                
+        plot_img_wcs(img_superstack_median_iof, wcs_superstack, width=width_plot_pix, do_show=False, title='Stack',
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
                      cmap='plasma')
+        
         plt.subplot(1,3,2)
-        plot_img_wcs(img_ring_iof_zoom, wcs_superstack, width=250, do_show=False, 
+        plot_img_wcs(img_ring_iof_zoom, wcs_superstack, width=width_plot_pix, do_show=False, 
                      title=f'{file_ring_short}, I/F={iof_max_ring:.0e}', do_stretch=False, do_inhibit_axes=True, 
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
                      cmap='plasma')
         plt.subplot(1,3,3)        
-        plot_img_wcs(img_merged_iof, wcs_superstack, width=250, do_show=False, 
-                      title=f'Stack + implant ring', cmap='plasma')
+        plot_img_wcs(img_merged_iof, wcs_superstack, width=width_plot_pix, do_show=False, 
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     cmap='plasma')
         
         plt.show()
         hbt.figsize()
