@@ -399,11 +399,10 @@ class nh_ort_track4_grid:
 # This is the filename used for Doug Mehoke.       
 # =============================================================================
 
-    def create_filename_track4(self, base = 'ort5'):
+    def create_filename_track4(self, name_run = None):
         
         str_traj = self.name_trajectory
         
-        str_base = base
         
         str_speed = 'y{:3.1f}'.format(abs(self.speed))
         
@@ -413,7 +412,8 @@ class nh_ort_track4_grid:
         
         str_rho = 'rho{:4.2f}'.format(self.rho)
         
-        file_out = f"{str_base}_{str_traj}_{str_speed}_{str_q}_{str_albedo}_{str_rho}.dust"
+        # file_out = f"{str_base}_{str_traj}_{str_speed}_{str_q}_{str_albedo}_{str_rho}.dust"
+        file_out = f"{str_traj}_{name_run}_{str_speed}_{str_q}_{str_albedo}_{str_rho}.dust"
         
         return file_out
     
@@ -761,7 +761,7 @@ class nh_ort_track4_grid:
 # Output the trajectory and particle intercept info to a file
 # =============================================================================
         
-    def output_trajectory(self, suffix=None, do_positions=True, dir_out=None):
+    def output_trajectory(self, name_run, do_positions=True, dir_out=None):
 
         """
         Write an output table. The filename is auto-generated based on the parameters already supplied.
@@ -801,7 +801,7 @@ class nh_ort_track4_grid:
         
         # Create the output filename
         
-        file_out = self.create_filename_track4()
+        file_out = self.create_filename_track4(name_run)
         
         path_out = os.path.join(dir_out, file_out)
         
