@@ -89,7 +89,6 @@ from nh_ort_track4_grid            import nh_ort_track4_grid    # Includes .read
 def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
 
     #%%%
-#    name_trajectory = 'alternate'  # Can be 'prime' or 'alternate'
     
 
 #    dir_in = '/Users/throop/
@@ -100,7 +99,7 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
 
 #    dir_data = os.path.expanduser('~/Data/')
     
-    dir_in 
+    # dir_in git
     do_compress = False   # Do we use .gzip compression on the Track-4 input grids?
                           # If we used compression on the track4_calibrate routine, we must use it here too.
     
@@ -116,6 +115,7 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
     # Alphabetize file list
     
     files = sorted(files)
+
     
     plt.set_cmap('plasma')
 
@@ -158,6 +158,9 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
              
         i=3
         file = files[i]
+
+    num_files = len(files)
+    name_run = dir_out.split('/')[-2]
         
 #%%%    
     for i,file in enumerate(files):
@@ -335,7 +338,7 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
 
         # Output the dust population for this run to a file. This is the file that Doug Mehoke will read.
         
-        grid.output_trajectory(suffix=f'{name_trajectory}', do_positions=False, dir_out=dir_out)
+        grid.output_trajectory(name_run=name_run, do_positions=False, dir_out=dir_out)
     
         print('---')
                         
@@ -359,9 +362,6 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
 
     # Now that all files have been created, compress results into an archive (.tar.gz) for Doug Mehoke
     
-    num_files = len(files)
-    name_run = dir_out.split('/')[-2]
-
     inits_track4    = 'hbt'
     
 #    if 'hamilton' in files[0]:
@@ -369,7 +369,7 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
 #    if 'kauf' in files[0]:
 #        inits_track3 = 'dk'
         
-    file_out = f'{name_run}_{name_trajectory}_{inits_track4}_n{num_files}.tgz'
+    file_out = f'{name_trajectory}_{name_run}_{inits_track4}_n{num_files}.tgz'
     
     str = f'cd {dir_out}; tar -czf {file_out} *{name_trajectory}*.dust'
     
@@ -564,9 +564,8 @@ if (__name__ == '__main__'):
     
     # NB: It would make sense to parallelize this loop below. That way I could run a bunch of these in parallel.
     
-    # name_trajectory = 'prime'
-    name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
-
+    name_trajectory = 'prime'
+    # name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
     
     # dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
     # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3-sunflower3.5k/'
@@ -575,7 +574,8 @@ if (__name__ == '__main__'):
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/tuna9k/'
 
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k-DPH/'
-    dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-tunacan3.5kinc55/'
+    # dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-tunacan3.5kinc55/'
+    dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-tunacan3.5kinc70v1/'
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-sunflower10k/'
 
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_a'
