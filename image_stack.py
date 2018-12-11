@@ -321,11 +321,11 @@ class image_stack:
     
         # If we generated the files manually (not by reloading), and flag is not set, then offer to save them
         
-        if not(do_save):
-            # print(f'File to save: {self.file_save}')
-            answer = input(f'Save to pickle file {self.file_save.split("/")[-1]}? ')
-            if ('y' in answer):
-                do_save = True
+        # if not(do_save):
+        #     # print(f'File to save: {self.file_save}')
+        #     answer = input(f'Save to pickle file {self.file_save.split("/")[-1]}? ')
+        #     if ('y' in answer):
+        #         do_save = True
                 
         if do_save:
             self.save()            
@@ -918,7 +918,7 @@ if (__name__ == '__main__'):
     # Start up SPICE if needed
     
     if (sp.ktotal('ALL') == 0):
-        sp.furnsh('kernels_kem_prime.tm')
+        sp.furnsh('kernels_kem_num.tm')
         
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) 
