@@ -307,20 +307,20 @@ if (__name__ == '__main__'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
         reqids_haz  = [
-                       # 'KALR_MU69_OpNav_L4_2018228', 
-                       # 'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
-                       # 'KALR_MU69_OpNav_L4_2018267', 
-                       # 'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
-                       # 'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
-                       # 'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
-                       # 'KALR_MU69_OpNav_L4_2018314', 
-                       # 'KALR_MU69_OpNav_L4_2018315',
-                       # 'KALR_MU69_OpNav_L4_2018316',
-                       # 'KALR_MU69_OpNav_L4_2018317',
-                       # 'KALR_MU69_OpNav_L4_2018319',
-                       # 'KALR_MU69_OpNav_L4_2018325',
-                        # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                        # 'KALR_MU69_OpNav_L4_2018326',
+                        'KALR_MU69_OpNav_L4_2018228', 
+                        'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
+                        'KALR_MU69_OpNav_L4_2018267', 
+                        'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
+                        'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
+                        'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
+                        'KALR_MU69_OpNav_L4_2018314', 
+                        'KALR_MU69_OpNav_L4_2018315',
+                        'KALR_MU69_OpNav_L4_2018316',
+                        'KALR_MU69_OpNav_L4_2018317',
+                        'KALR_MU69_OpNav_L4_2018319',
+                        'KALR_MU69_OpNav_L4_2018325',
+                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+                        'KALR_MU69_OpNav_L4_2018326',
 
                  # A pretty good stack: 330 .. 341
                  
@@ -338,17 +338,15 @@ if (__name__ == '__main__'):
                         'KALR_MU69_OpNav_L4_2018340',
                         'KALR_MU69_OpNav_L4_2018341',
                         'KALR_MU69_OpNav_L4_2018342',
+                        'KALR_MU69_OpNav_L4_2018343',
+                        'KALR_MU69_OpNav_L4_2018344',
 
                        ]
 
-        # reqids_haz  = [
-        #                 'KALR_MU69_Hazard_L4_2018334',  # 96 frames
-        
-        #                         'KALR_MU69_Hazard_L4_2018340',
-        #                 'KALR_MU69_OpNav_L4_2018340',
-        #                 'KALR_MU69_OpNav_L4_2018341',
-        #                 'KALR_MU69_OpNav_L4_2018342',
-       # ]
+        # reqids_haz  = [        
+        #                          'KALR_MU69_Hazard_L4_2018340',
+        #                          'KALR_MU69_Hazard_L4_2018344',
+        # ]
                         
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
@@ -393,7 +391,6 @@ if (__name__ == '__main__'):
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         a_xy = (1, math.cos(hbt.d2r * 30))
 
-
     # Check for a tunacan profile
     
     if do_tunacan:
@@ -407,9 +404,7 @@ if (__name__ == '__main__'):
     
     if (sp.ktotal('ALL') == 0):
         sp.furnsh('kernels_kem_prime.tm')
-    
-    hbt.figsize((10,10))
-    
+        
     # Make sure output dir exists
     
     os.makedirs(dir_out, exist_ok=True)
@@ -418,155 +413,198 @@ if (__name__ == '__main__'):
 
     # We create a field stack for each reqid. The contents are the same, but the shift values will be different
     
-    stack_field = {}
+    stack_haz    = {}
+    stack_field  = {}
+    img_haz      = {}
+    img_field    = {}
+    wcs_haz      = {}
+    wcs_field    = {}
+    et_haz       = {}
+    img_haz_diff = {}
+    radec_mu69_haz={}    
 
+    pad_haz      = []  # Array, not a dictionary, since all we do here is take a max
+    pad_field    = []
+
+#%%%
+    
+# =============================================================================
+# Load each stack from disk, from the raw FITS files
+# =============================================================================
+
+    is_stack_ready = {}
+    
     for i,reqid_i in enumerate(reqids_haz):    # Use the FIELD reqid, but store under the HAZ reqid. 
                                                # This is so that we will have a version of each FIELD 
                                                # shifted appropriately for each HAZ REQID.
+
+        # Generate a filename which we'll use for saving files from this stack.
+        # This is not the path of the original FITS files
+           
+        # Load the hazard stack
         
-        if i == 0:
-            stack_field[reqid_i] = image_stack(os.path.join(dir_images, reqid_field),   do_force=do_force_stacks_field, 
-                                  do_save=True)
-        else:
-            stack_field[reqid_i] = copy.deepcopy(stack_field[reqids_haz[0]])
+        num_frames = len(glob.glob(os.path.join(dir_images, reqid_i, '*_backplaned.fits')))
+
+        file_stack_base = os.path.join(dir_out, 
+                                     f'stack_{reqid_i}_{name_ort}_n{num_frames}_z{zoom}')
+
+        file_stack_pkl = file_stack_base + '.pkl'
+
+        # Check if we have a flattened, zoomed stack already on disk.
+        # If we do, then reload it. This lets us skip this loop (to load), *and* the next loop (to flatten).
+        
+        if os.path.isfile(file_stack_pkl):
+            print(f'Restoring flattened stack: {file_stack_pkl}')
+
+            lun = open(file_stack_pkl, 'rb')
             
-    # Load and stack the data images. One per reqid.
-    
-    stack_haz = {}
-
-    for reqid_i in reqids_haz:
-        stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force_stacks_haz, 
-                              do_save=True)
+            (stack_haz[reqid_i], stack_field[reqid_i], 
+             img_haz[reqid_i],   img_field[reqid_i],
+             wcs_haz[reqid_i],   wcs_field[reqid_i],
+             et_haz[reqid_i],
+             img_haz_diff[reqid_i],
+             radec_mu69_haz[reqid_i],
+             )                                              = pickle.load(lun)
             
-    # Look up the position of MU69 in each frame
-    
-    radec_mu69_haz = {}
-    
-    et_haz = {}
-    
-    for reqid_i in reqids_haz:
-        et_haz[reqid_i] = stack_haz[reqid_i].t['et'][0] # Look up ET for each stack Hazard stack (0th frame in each)
-        (st, lt) = sp.spkezr('MU69', et_haz[reqid_i], 'J2000', 'LT', 'New Horizons')
-        (_, ra, dec) = sp.recrad(st[0:3])
-        radec_mu69_haz[reqid_i] = (ra, dec) # Keep in radians
-    
-    # Align the field frames to MU69 position
-    # But, which MU69 position do we align them to? This is a problem with my code currently!
-    
-    # XXX For now, assume one reqid for the stack. But I will have to fix this.
-    
-    # stack_field.align(method = 'wcs', center = (radec_mu69_haz[reqids_haz[0]]))
-    
-    for reqid_i in reqids_haz:
-        stack_haz[reqid_i].align(  method  = 'wcs', center = (radec_mu69_haz[reqid_i]))  # align all images in stack
-        stack_field[reqid_i].align(method  = 'wcs', center = (radec_mu69_haz[reqid_i]))
-    
-    # Calc the padding required. This can only be done after the images are loaded and aligned.
+            lun.close()             
+            
+            is_stack_ready[reqid_i] = True               # Set a flag to indicate flattened, zoomed stack is ready.
 
-    # pad_field = stack_field.calc_padding()[0]
+        else: # Reload raw files from disk
+
+            stack_haz[reqid_i] = image_stack(os.path.join(dir_images, reqid_i), do_force=do_force_stacks_haz, 
+                                  do_save=False)
     
-    pad_haz   = []
-    pad_field = []
-
-    for reqid_i in reqids_haz:
-        pad_haz.append(  stack_haz  [reqid_i].calc_padding()[0])
-        pad_field.append(stack_field[reqid_i].calc_padding()[0])
-
-    # pad_haz.append(pad_field)
+            # Load the corresponding field stack
+            
+            if i == 0:
+                stack_field[reqid_i] = image_stack(os.path.join(dir_images, reqid_field), 
+                                      do_force = do_force_stacks_field, 
+                                      do_save = False)
+            else:
+                stack_field[reqid_i] = copy.deepcopy(stack_field[reqids_haz[0]])
+                    
+            # Look up ET and MU69 position in each stack
+            
+            et_haz[reqid_i] = stack_haz[reqid_i].t['et'][0] # Look up ET for each stack Hazard stack (0th frame in each)
+            (st, lt) = sp.spkezr('MU69', et_haz[reqid_i], 'J2000', 'LT', 'New Horizons')
+            (_, ra, dec) = sp.recrad(st[0:3])
+            radec_mu69_haz[reqid_i] = (ra, dec) # Keep in radians
         
-    pad = np.amax([pad_haz, pad_field])
-       
-    # Flatten the stacks into single output images
-    # If we get an error here, it is probably due to a too-small 'pad' value. This often is caused by 
-    # adding new files, but not force-reloading the stack from scratch.
-    
-    # Flatten the field stack
+        # Align the field frames and hazard frames to MU69 position
         
-    ## SKIP THIS FOR NOW
-    
-    # (img_field, wcs_field) = stack_field.flatten(do_subpixel=False, method='median', zoom=zoom, padding=pad,
-    #                           do_force=do_force_flatten_field, do_save=True)
+            stack_haz[reqid_i].align(  method  = 'wcs', center = (radec_mu69_haz[reqid_i]))  # align all images in stack
+            stack_field[reqid_i].align(method  = 'wcs', center = (radec_mu69_haz[reqid_i]))
+        
+        # Calc the padding required. This can only be done after the images are loaded and aligned.
+        
+            pad_haz.append(  stack_haz  [reqid_i].calc_padding()[0])
+            pad_field.append(stack_field[reqid_i].calc_padding()[0])
+            
+            is_stack_ready[reqid_i] = False
+            
+# Done with loading stacks. Now calculate the padding, or take a large fixed values
+# To save memory we can calculate an optimum padding. But it is more flexible if we just take a large one.
+            
+    do_calc_padding = False
 
-    # Verify that the WCS has been properly preserved after flattening here.
-    
-    hbt.figsize((10,10)) # This is ignored, for some reason.
-    
-#    plot_img_wcs(img_field, wcs_field, title = 'Field Stack',   # Plot MU69 here on the field. XXX delete !
-#                 name_observer='New Horizons', name_target='MU69', et = et_haz, width=100)
+    if do_calc_padding:        
+        pad = np.amax([pad_haz, pad_field])
+    else:
+        pad = 80
     
 #%%%
-    
-    # Loop over and flatten the main hazard stacks (HAZ00, HAZ01, etc)
-    # When we do this, the output image is shifted around within the padding amount, so that *all* 
-    # ouput images have the same size. So, maybe flatten should return img *and* wcs?
-    # And the expectation would be that all of these individual WCS would match. That would be the point.
+
+    # Loop over and flatten the stacks.
+    # All images returned here will have identical size, and have a good WCS.
+    # NB: If we get an error here, it is probably due to a too-small 'pad' value, often caused by adding new
+    # files and not increasing pad() to accomodate them all.
     
 # =============================================================================
-#     Flatten the main hazard image stacks
+#     Flatten the stacks
 # =============================================================================
-    
-    img_haz = {}
-    wcs_haz = {}
-    img_haz_diff = {}
-    img_field = {}
-    wcs_field = {}
 
     do_plot_individual_stacks = True
     
     for reqid_i in reqids_haz:
         
-        # Flatten the hazard frames. This returns a WCS
-        
-        (img_haz[reqid_i], wcs_haz[reqid_i])  =\
-              stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
-                       do_force=do_force_flatten_haz, do_save=True)
-        
-        # Flatten the field frames
-        
-        (img_field[reqid_i], wcs_field[reqid_i])  =\
-              stack_field[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
-                       do_force=do_force_flatten_field, do_save=True)
-              
-        img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field[reqid_i]
-              
-        # img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field
-        
-        
-        # Plot the stacks. 325 is OK. 338 has wrong shift. So, problem is in flatten().
-        # Whichever one is done *second* fails.
-        
-        if do_plot_individual_stacks:
-            plot_img_wcs(img_haz[reqid_i], wcs_haz[reqid_i], title = reqid_i, 
-                         name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[reqid_i], width=100)
-        
-# =============================================================================
-#     Save a set of FITS files, which are the HAZ - FIELD, for each of the HAZ stacks.
-# =============================================================================
+        if is_stack_ready[reqid_i]:
+            print(f'Stack {reqid_i} ready and zoomed')
+            
+        else:
+
+            num_planes = stack_haz[reqid_i].num_planes
+            
+            # Flatten the hazard frames
+            
+            (img_haz[reqid_i], wcs_haz[reqid_i])  =\
+                  stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
+                           do_force=do_force_flatten_haz, do_save=False)
+            
+            # Flatten the field frames
+            
+            (img_field[reqid_i], wcs_field[reqid_i])  =\
+                  stack_field[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
+                           do_force=do_force_flatten_field, do_save=False)
+                  
+            img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field[reqid_i]
     
-    hbt.figsize((10,10))
-    hbt.fontsize(12)
-    
-    for i,reqid_i in enumerate(reqids_haz):        
-        diff_trim = hbt.trim_image(img_haz_diff[reqid_i])
+            # Make a useful string for titles
+        
+            if len(reqids_haz) == 1:  # If only one reqid, say 'Stack of 10, 2018315'
+                str_reqid = reqids_haz[0].split('_')[-1]
+                str_stack = f'Stack of {stack_haz[reqids_haz[0]].size[0]}'
+            else:    
+                str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
+                str_stack = 'Superstack'
                 
-        # Save as FITS
+            if 'OpNav' in reqids_haz[0]: 
+                str_reqid = f'{len(reqids_haz)} visits, ' + str_reqid
+                                  
+            # Save stack as FITS
+            
+            file_out_fits = os.path.join(dir_out, 
+                                         f'stack_{reqid_i}_{name_ort}_n{num_planes}_z{zoom}.fits')
+            
+            hdu = fits.PrimaryHDU(img_haz[reqid_i])
+            hdu.writeto(file_out_fits, overwrite=True)
+            print(f'Wrote FITS: {file_out_fits}')
+            
+            # Plot an extracted image, and save as PNG
+            
+            file_out_png = file_out_fits.replace('fits', 'png')
+            width_extract = 100
+            
+            plot_img_wcs(img_haz[reqid_i], wcs_haz[reqid_i], title = reqid_i, 
+                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[reqid_i], 
+                 width=width_extract,
+                 do_show=False,
+                 cmap = 'plasma')
+            plt.savefig(file_out_png)
+            plt.show()
+            print(f'Wrote: {file_out_png}')
+            
+            # Save stack as pickle
+            
+            file_stack_base = os.path.join(dir_out, 
+                                 f'stack_{reqid_i}_{name_ort}_n{num_planes}_z{zoom}')
     
-        file_out = os.path.join(dir_out, 'stack_{}_{}_z{}_hbt.fits'.format(reqid_i, name_ort, zoom))
-        hdu = fits.PrimaryHDU(stretch(diff_trim))
-        hdu.writeto(file_out, overwrite=True)
-        print(f'Wrote FITS: {file_out}')
-
-    # Make a useful string for titles
-
-    if len(reqids_haz) == 1:  # If only one reqid, say 'Stack of 10, 2018315'
-        str_reqid = reqids_haz[0].split('_')[-1]
-        str_stack = f'Stack of {stack_haz[reqids_haz[0]].size[0]}'
-    else:    
-        str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
-        str_stack = 'Superstack'
-        
-    if 'OpNav' in reqids_haz[0]:
-        str_reqid = f'{len(reqids_haz)} visits, ' + str_reqid
+            
+            file_stack_pkl = file_stack_base + '.pkl'
+            lun = open(file_stack_pkl, 'wb')
+            pickle.dump((stack_haz[reqid_i], stack_field[reqid_i], 
+                         img_haz[reqid_i],   img_field[reqid_i],
+                         wcs_haz[reqid_i],   wcs_field[reqid_i],
+                         et_haz[reqid_i],
+                         img_haz_diff[reqid_i],
+                         radec_mu69_haz[reqid_i]), lun)
+    
+            pickle.dump(stack_haz[reqid_i], lun)
+    
+            lun.close()
+            print("Wrote: " + file_stack_pkl)    
+            
+            is_stack_ready[reqid_i] = True
 
 #%%%
 # =============================================================================
@@ -753,30 +791,30 @@ if (__name__ == '__main__'):
     if do_implant:
         dir_ring_img =    '/Users/throop/data/ORT5/throop/deliveries/'
                 
-        # file_ring_pickle = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
-        # file_ring_pickle = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
+        # file_ring_implant = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
+        # file_ring_implant = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
         
-        file_ring_pickle = dir_ring_img + 'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
+        file_ring_implant = dir_ring_img + 'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
         
         # dph-tunacan3.5kinc55
         
-        file_ring_short = file_ring_pickle.split('/')[7]
+        file_ring_short = file_ring_implant.split('/')[7]
       
-        lun = open(file_ring_pickle, 'rb')
-        print(f'Reading pickle file {file_ring_pickle}')
+        lun = open(file_ring_implant, 'rb')
+        print(f'Reading ring implant pickle file {file_ring_implant}')
         (density) = pickle.load(lun)
         lun.close()
     
-        if 'sunflower' in file_pickle:
+        if 'sunflower' in file_ring_implant:
             axis_sum = 1
     
-        if 'tunacan' in file_pickle:
+        if 'tunacan' in file_ring_implant:
             axis_sum = 1
                 
         # Flatten, rotate, and scale the image appropriately, from 3D → 2D
     
         img_ring     = np.rot90(np.sum(density, axis_sum),1)
-        iof_max_ring = 2e-7   
+        iof_max_ring = 1e-6   
         img_ring_iof = iof_max_ring * img_ring / np.amax(img_ring) 
         
         # Get the km per pix of the superstack, and scale ring to match it
@@ -802,6 +840,10 @@ if (__name__ == '__main__'):
         shape_ring = np.shape(img_ring_iof_zoom)
         
         img_ring_iof_zoom_c = scipy.signal.convolve2d(img_ring_iof_zoom, psf_extract)
+        
+        # Scale the ring s.t. I/F = 2e-7 is the max. We should do this after convolve, rather than before, 
+        # since that is what we did in NH_ORT_TRACK4_CALIBRATE.PY as well
+        # XXXXX FIX THIS XXXXXX
         
         # Tweak the scaled image so it's even
         
