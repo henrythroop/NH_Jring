@@ -12,6 +12,12 @@ import numpy as np
 SPEED_KM_SEC = 14. # km/sec
 
 # =============================================================================
+# This is a test file from MRS. It basically flies thru our grids, but using just a straight path, rather than the 
+# actual path. This is for ballpark checks.
+#
+# MRS / HBT ~5-Dec-2018
+#
+# MRS:
 # "I had a thought about how to check the approximate I/Fs of a set of dust files _after_they are generated. The program is 
 # attached. It sums up the density along each trajectory and converts it to a rough I/F. The answer is only approximate, 
 # depending upon how much of the I/F comes from outside the set of size bins tabulated, and it also uses a hard-wired 
