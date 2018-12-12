@@ -53,7 +53,7 @@ def gaus(x,a,x0,sigma):
     
 def nh_ort_make_superstack(stack, img, img_field, 
                            name_stack_base, 
-                           do_save_all=True, 
+                           do_save_all=False, 
                            do_backplanes=True, 
                            dir='', 
                            str_name='', 
@@ -68,7 +68,7 @@ def nh_ort_make_superstack(stack, img, img_field,
     of all the input images (that is, the closest to MU69).
     
     This is a standalone function -- not part of any class.
-    
+    al
     If requested, the superstacks *and* the rescaled individual stacks, are all written to disk.
     
     Parameters
@@ -113,6 +113,7 @@ def nh_ort_make_superstack(stack, img, img_field,
         
     do_backplanes:
         Boolean. If set, will return a set of backplanes for the superstacks.
+        NB: THIS REQUIRES DO_SAVE_ALL = True.
     
     do_fast_backplanes:
         Boolean. If set, and generating backplanes, then will generate only an abbreviated set.
@@ -174,7 +175,8 @@ def nh_ort_make_superstack(stack, img, img_field,
             shift_y = 50 - hbt.wheremax(np.sum(extract, axis=1))  # vertical axis on screen. 
                                                                   #  Axis=0. - means value is too large. 
             arr_out = np.roll(np.roll(arr_out, shift_x, axis=1), shift_y, axis=0)
-            print(f'Rolling by {shift_x}, {shift_y} to align {key} into superstack')
+            
+            # print(f'Rolling by {shift_x}, {shift_y} to align {key} into superstack')
         
         if (method == 'wcs'):
             # Align based on WCS (ie, alignment has already been done). 
@@ -188,7 +190,7 @@ def nh_ort_make_superstack(stack, img, img_field,
             shift_y = 0
             arr_out = arr_out
             
-            print(f'Aligned by WCS. Rolling by {shift_x}, {shift_y} to align {key} into superstack')
+            # print(f'Aligned by WCS. Rolling by {shift_x}, {shift_y} to align {key} into superstack')
                        
         img_rescale[reqid_i]  = arr_out
         img_rescale_3d[i,:,:] = arr_out
@@ -250,9 +252,125 @@ def nh_ort_make_superstack(stack, img, img_field,
         return((img_rescale_mean, img_rescale_median, planes))
     else:
         return((img_rescale_mean, img_rescale_median))
- 
+
 # =============================================================================
-# End of function definition
+# Implant a ring into an image
+# =============================================================================
+
+def ring_implant(img, file_ring_implant, iof_max_ring, backplanes, do_plot=True):
+    """
+    Implant a ring into an image.
+
+    Parameters
+    -----
+     
+    img: 
+        Image array to implant in. Assumed units of I/F
+     
+    file_ring_implant:
+        Filename of a 'grid file' defining the ring. This file is output by NH_ORT_TRACK4_FLYBY.PY
+         
+    iof:
+        The I/F of the peak of the smeared image
+         
+    do_plot:
+        Boolean. Make plots of the implanted ring?
+     
+    """
+         
+    lun = open(file_ring_implant, 'rb')
+    print(f'Reading ring implant pickle file {file_ring_implant}')
+    (density) = pickle.load(lun)
+    lun.close()
+
+    if 'sunflower' in file_ring_implant:
+        axis_sum = 1
+
+    if 'tunacan' in file_ring_implant:
+        axis_sum = 1
+            
+    # Flatten, rotate, and scale the image appropriately, from 3D → 2D
+
+    img_ring     = np.rot90(np.sum(density, axis_sum),1)
+    img_ring_iof = iof_max_ring * img_ring / np.amax(img_ring) 
+    
+    # Get the km per pix of the superstack, and scale ring to match it
+    
+    scale_superstack = np.abs( (backplanes[0]['dRA_km'][0,1]) - (backplanes[0]['dRA_km'][0,0]) )
+    scale_ring = 500  # 500 km/pix, fixed
+    # if 'sunflower10k' in file_ring_pickle:
+        
+    magfac = scale_ring / scale_superstack
+    
+    img_ring_iof_zoom = scipy.ndimage.zoom(img_ring_iof, magfac)
+    
+    # Convolve a PSF with the ring
+    
+    psf = img_superstack_median_iof.copy()
+    wheremax = np.where(psf == np.amax(psf))  # Returns 2D position
+    dxy_psf = 12  # Approx fullwidth of MU69, in pixels, to extract the PSF. Even number.
+    psf_extract = psf[int(wheremax[0]-dxy_psf/2):int(wheremax[0]+dxy_psf/2), 
+                      int(wheremax[1]-dxy_psf/2):int(wheremax[1]+dxy_psf/2)] 
+    psf_extract = psf_extract / np.sum(psf_extract)
+    
+    shape_ss = np.shape(img_superstack_median_iof)
+    shape_ring = np.shape(img_ring_iof_zoom)
+    
+    img_ring_iof_zoom_c = scipy.signal.convolve2d(img_ring_iof_zoom, psf_extract)
+    
+    # Scale the ring s.t. I/F = 2e-7 is the max. We should do this after convolve, rather than before, 
+    # since that is what we did in NH_ORT_TRACK4_CALIBRATE.PY as well
+    # XXXXX FIX THIS XXXXXX
+    
+    # Tweak the scaled image so it's even
+    
+    if shape_ring[0] %2:
+        img_ring_iof_zoom = img_ring_iof_zoom[:,0:-1]
+
+    if shape_ring[1] %2:
+        img_ring_iof_zoom = img_ring_iof_zoom[0:-1,:]
+        
+    shape_ring = np.shape(img_ring_iof_zoom_c)
+
+    img_merged_iof = img_superstack_median_iof.copy()
+    
+    img_merged_iof[ int(shape_ss[0]/2-shape_ring[0]/2) : int(shape_ss[0]/2+shape_ring[0]/2),
+                int(shape_ss[1]/2-shape_ring[1]/2) : int(shape_ss[1]/2+shape_ring[1]/2) ] += img_ring_iof_zoom_c
+    
+    if do_plot:               
+        hbt.figsize((15,15))
+        plt.subplot(2,2,1)
+        width_plot_pix = 450
+                
+        plot_img_wcs(img_superstack_median_iof, wcs_superstack, width=width_plot_pix, do_show=False, title='Stack',
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     cmap='plasma')
+        
+        plt.subplot(2,2,2)
+        plot_img_wcs(img_ring_iof_zoom, wcs_superstack, width=width_plot_pix, do_show=False, 
+                     title=f'{file_ring_short}, I/F={iof_max_ring:.0e}', do_stretch=False, do_inhibit_axes=True, 
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     cmap='plasma')
+
+        plt.subplot(2,2,3)
+        plot_img_wcs(img_ring_iof_zoom_c, wcs_superstack, width=width_plot_pix, do_show=False, 
+                     title=f'Convolved', do_stretch=False, do_inhibit_axes=True, 
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     cmap='plasma')
+
+        plt.subplot(2,2,4)        
+        plot_img_wcs(img_merged_iof, wcs_superstack, width=width_plot_pix, do_show=False, 
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     title=f'Stack + Convolved',
+                     cmap='plasma')
+        
+        plt.show()
+        hbt.figsize()
+        
+    return img_merged_iof
+    
+# =============================================================================
+# End of function definitions
 # =============================================================================
     
 # =============================================================================
@@ -277,7 +395,7 @@ if (__name__ == '__main__'):
 
     ########## SET PARAMETERS HERE #################
     
-    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 6     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
@@ -307,51 +425,69 @@ if (__name__ == '__main__'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
         reqids_haz  = [
-                        'KALR_MU69_OpNav_L4_2018228', 
-                        'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
-                        'KALR_MU69_OpNav_L4_2018267', 
-                        'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
-                        'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
-                        'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
-                        'KALR_MU69_OpNav_L4_2018314', 
-                        'KALR_MU69_OpNav_L4_2018315',
-                        'KALR_MU69_OpNav_L4_2018316',
-                        'KALR_MU69_OpNav_L4_2018317',
-                        'KALR_MU69_OpNav_L4_2018319',
-                        'KALR_MU69_OpNav_L4_2018325',
-                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                        'KALR_MU69_OpNav_L4_2018326',
+                        # 'KALR_MU69_OpNav_L4_2018228', 
+                        # 'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
+                        # 'KALR_MU69_OpNav_L4_2018267', 
+                        # 'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
+                        # 'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
+                        # 'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
+                        # 'KALR_MU69_OpNav_L4_2018314', 
+                        # 'KALR_MU69_OpNav_L4_2018315',
+                        # 'KALR_MU69_OpNav_L4_2018316',
+                        # 'KALR_MU69_OpNav_L4_2018317',
+                        # 'KALR_MU69_OpNav_L4_2018319',
+                        # 'KALR_MU69_OpNav_L4_2018325',
+                        # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+                        # 'KALR_MU69_OpNav_L4_2018326',
 
                  # A pretty good stack: 330 .. 341
                  
-                        'KALR_MU69_OpNav_L4_2018330',  # 10 frames
-                        'KALR_MU69_OpNav_L4_2018331',  # 10 frames
-                        'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
                         
-                        'KALR_MU69_OpNav_L4_2018334',  # 10 frames
-                        'KALR_MU69_OpNav_L4_2018335',  # 10 frames
-                        'KALR_MU69_OpNav_L4_2018337',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+                        # 'KALR_MU69_OpNav_L4_2018337',  # 10 frames
                         'KALR_MU69_Hazard_L4_2018334',  # 96 frames
-                        'KALR_MU69_OpNav_L4_2018338',
-                        'KALR_MU69_OpNav_L4_2018339',
-                        'KALR_MU69_Hazard_L4_2018340',
-                        'KALR_MU69_OpNav_L4_2018340',
-                        'KALR_MU69_OpNav_L4_2018341',
-                        'KALR_MU69_OpNav_L4_2018342',
-                        'KALR_MU69_OpNav_L4_2018343',
-                        'KALR_MU69_OpNav_L4_2018344',
+
+                        # 'KALR_MU69_OpNav_L4_2018338',
+                        # 'KALR_MU69_OpNav_L4_2018339',
+                        'KALR_MU69_Hazard_L4_2018340',  # 61 frames
+                        # 'KALR_MU69_OpNav_L4_2018340',
+                        # 'KALR_MU69_OpNav_L4_2018341',
+                        
+                        'KALR_MU69_OpNav_L4_2018342', # 6 frames
+                        'KALR_MU69_OpNav_L4_2018343',  # 6 frames 
+                        'KALR_MU69_OpNav_L4_2018344', # 6 frames
+                        'KALR_MU69_OpNav_L4_2018345', # 6 frames
+                        'KALR_MU69_Hazard_L4_2018340',  # 61 frames
+                        'KALR_MU69_Hazard_L4_2018344',  # 28 frames
 
                        ]
 
+        reqids_haz  = [        
+                                    # 'KALR_MU69_Hazard_L4_2018334',
+                                    # 'KALR_MU69_Hazard_L4_2018340',
+                                    'KALR_MU69_Hazard_L4_2018344',
+        ]
+
         # reqids_haz  = [        
-        #                          'KALR_MU69_Hazard_L4_2018340',
-        #                          'KALR_MU69_Hazard_L4_2018344',
+
+        #                 'KALR_MU69_OpNav_L4_2018342', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018343',  # 6 frames 
+        #                 'KALR_MU69_OpNav_L4_2018344', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018345', # 6 frames
+
         # ]
+  
+#####
                         
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018298','KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018301']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018287']
         # reqids_haz  = ['KALR_MU69_OpNav_L4_2018284']
+        
         reqid_field = 'K1LR_MU69ApprField_115d_L2_2017264'
         
     if (name_ort == 'ORT1'):
@@ -502,6 +638,8 @@ if (__name__ == '__main__'):
             pad_field.append(stack_field[reqid_i].calc_padding()[0])
             
             is_stack_ready[reqid_i] = False
+
+#%%%
             
 # Done with loading stacks. Now calculate the padding, or take a large fixed values
 # To save memory we can calculate an optimum padding. But it is more flexible if we just take a large one.
@@ -512,21 +650,26 @@ if (__name__ == '__main__'):
         pad = np.amax([pad_haz, pad_field])
     else:
         pad = 80
-    
-#%%%
 
-    # Loop over and flatten the stacks.
-    # All images returned here will have identical size, and have a good WCS.
+#%%%
+        
+# =============================================================================
+#     Loop over the reqids, and zoom and flatten each stack.
+# =============================================================================
+
     # NB: If we get an error here, it is probably due to a too-small 'pad' value, often caused by adding new
     # files and not increasing pad() to accomodate them all.
     
 # =============================================================================
-#     Flatten the stacks
+#     Flatten the stacks and zoom them
 # =============================================================================
 
     do_plot_individual_stacks = True
     
     for reqid_i in reqids_haz:
+        
+        # First check if we already loaded the stacks from above. If so, then the flag will 
+        # be set, and we're good to go. The zooming is the time-sink here, so no need to repeat it.
         
         if is_stack_ready[reqid_i]:
             print(f'Stack {reqid_i} ready and zoomed')
@@ -548,18 +691,6 @@ if (__name__ == '__main__'):
                            do_force=do_force_flatten_field, do_save=False)
                   
             img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field[reqid_i]
-    
-            # Make a useful string for titles
-        
-            if len(reqids_haz) == 1:  # If only one reqid, say 'Stack of 10, 2018315'
-                str_reqid = reqids_haz[0].split('_')[-1]
-                str_stack = f'Stack of {stack_haz[reqids_haz[0]].size[0]}'
-            else:    
-                str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
-                str_stack = 'Superstack'
-                
-            if 'OpNav' in reqids_haz[0]: 
-                str_reqid = f'{len(reqids_haz)} visits, ' + str_reqid
                                   
             # Save stack as FITS
             
@@ -575,20 +706,32 @@ if (__name__ == '__main__'):
             file_out_png = file_out_fits.replace('fits', 'png')
             width_extract = 100
             
+            hbt.figsize((15,15))
+            plt.subplot(1,2,1)   # Plot image
             plot_img_wcs(img_haz[reqid_i], wcs_haz[reqid_i], title = reqid_i, 
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[reqid_i], 
                  width=width_extract,
                  do_show=False,
                  cmap = 'plasma')
+
+            plt.subplot(1,2,2)  # Plot image - field
+            plot_img_wcs(img_haz[reqid_i]-img_field[reqid_i], wcs_haz[reqid_i], title = reqid_i, 
+                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[reqid_i], 
+                 width=width_extract,
+                 do_show=False,
+                 cmap = 'plasma')
+            
             plt.savefig(file_out_png)
             plt.show()
             print(f'Wrote: {file_out_png}')
             
-            # Save stack as pickle
+            # Save stack as pickle. This is a large pickle file, that includes
+            # the hazard stack *and its accompanying field stack*. They are in matched pairs 
+            # with same shift values so it really makes sense to save them together.
+            # Also save the WCS, and the ET, and the radec, all in one big pickle.
             
             file_stack_base = os.path.join(dir_out, 
                                  f'stack_{reqid_i}_{name_ort}_n{num_planes}_z{zoom}')
-    
             
             file_stack_pkl = file_stack_base + '.pkl'
             lun = open(file_stack_pkl, 'wb')
@@ -604,8 +747,48 @@ if (__name__ == '__main__'):
             lun.close()
             print("Wrote: " + file_stack_pkl)    
             
+            # Finally, set a flat indicating that the stack is ready
+            
             is_stack_ready[reqid_i] = True
 
+# =============================================================================
+# # Make a useful string for titles
+# =============================================================================
+
+    num_frames       = 0
+    num_visits_opnav = 0
+    num_visits_haz   = 0
+    for reqid_i in reqids_haz:
+        num_frames += stack_haz[reqid_i].num_planes
+        if 'HAZ' in reqid_i.upper():
+            num_visits_haz +=1
+        if 'OPNAV' in reqid_i.upper():
+            num_visits_opnav +=1
+            
+    if (num_visits_opnav + num_visits_haz) == 1:  # If only one reqid, say 'Stack of 10, 2018315'
+        str_stack = 'Stack'
+    else:
+        str_stack = 'Superstack'
+        # str_reqid = reqids_haz[0].split('_')[-1]
+        # str_stack = f'Stack of {stack_haz[reqids_haz[0]].size[0]}'
+    # else:    
+    
+    if len(reqids_haz) == 1:    
+        str_reqid = reqids_haz[0].split('_')[-1]
+    else:
+        str_reqid = reqids_haz[0].split('_')[-1] + ' .. ' + reqids_haz[-1].split('_')[-1]
+        
+    str_reqid = str_reqid.replace('2018', '')  # Shorten REQID from '2018345' → '345'
+    
+    # str_stack = 'Superstack'
+    
+    if num_visits_haz >= 1:
+        str_stack += f', {num_visits_haz} HAZ'
+    if num_visits_opnav >= 1:
+        str_stack += f', {num_visits_opnav} OPNAV'
+        
+    str_stack += f', {num_frames} frames'
+            
 #%%%
 # =============================================================================
 #     Make a 'superstack' -- ie stack of stacks, put on the same spatial scale and stacked
@@ -631,9 +814,9 @@ if (__name__ == '__main__'):
     
     wcs_superstack = wcs_haz[name_stack_base]
     
-    # Make the superstack, and return backplanes.
-
-    # Generate the backplanes
+    # Make the superstack, and get the backplanes.
+    
+    print('Making superstack...')
     
     (img_superstack_mean, img_superstack_median, backplanes) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
                                                                           name_stack_base, 
@@ -643,12 +826,6 @@ if (__name__ == '__main__'):
                                                                           frame=frame,
                                                                           wcs = wcs_haz[name_stack_base],
                                                                           )
-
-### Testing for 325 vs. 338
-    
-    # plot_img_wcs(img_superstack_mean, wcs_superstack, cmap=cmap_superstack,
-    #               name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100,
-    #               do_show=False)
     
     for key in keys:
         plot_img_wcs(img_haz[key], wcs_haz[key], cmap=cmap_superstack,
@@ -659,20 +836,7 @@ if (__name__ == '__main__'):
 #%%%
 # =============================================================================
 #     Adjust the WCS and backplanes, if needed
-# =============================================================================
-
-# Do some testing on the WCS backplanes
-    
-#    plot_img_wcs(img_superstack_mean, wcs_superstack, cmap=cmap_superstack,
-#                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100,
-#                  do_show=False)
-    
-    # Test centering using crosshairs
-    
-    # plt.imshow( np.logical_or( np.abs(backplanes[0]['dDec_km']) < 1000,
-    #                            np.abs(backplanes[0]['dRA_km']) < 1000), alpha=0.5)
-    
-    # plt.imshow(backplanes[0]['Radius_eq'] < 5000, alpha=0.5)
+# =============================================================================    
     
     # OK, now do a q&d adjust. The radius backplane is off by a few pixels, and I don't know why. 
     # Just go ahead and shift it and force it to be centered (that is, at center of array, which is where
@@ -696,59 +860,33 @@ if (__name__ == '__main__'):
     # Save the shifted 'radius' backplane back to the array
     
     backplanes[0]['Radius_eq'] = r_roll
-    
-    # Get the center of MU69
-    
-#    plt.imshow(r_roll < 5000,alpha=0.5)
-#    plt.show()
-    
-    # plt.imshow( stretch(img_superstack_median), origin='lower', cmap=cmap_superstack)
-    # plt.title(f'restretched and medianed, {name_ort}, n={len(keys)}')
-
-    # plt.subplot(1,2,2)
-    # plt.imshow( stretch(img_superstack_mean), origin='lower', cmap=cmap_superstack)
-    # plt.title(f'restretched and mean, {name_ort}, n={len(keys)}')
-
-    # plt.show()
-    # hbt.figsize()
- 
-    # plot_img_wcs(img_superstack_median, wcs_superstack, cmap=cmap_superstack, title = f'{str_stack}, {str_reqid}',
-    #              name_observer = 'New Horizons', name_target = 'MU69', et = et_haz, width=100)    
 
     plane_radius_superstack = backplanes[0]['Radius_eq']
     
-    # Now plot a really nice image of the superstack
-    # Plot these three things to verify alignment:
-    #   - Superstack image
-    #   - Backplane, generated from the superstack's WCS
-    #   - MU69 position, generated from the superstack's WCS
-
-    # Tweak the WCS very slightly, to account for minor offsets. We're talking a quarter-pixel offset, which could
-    # be caused by anything. Not a big deal.
+    do_wcs_tweaks = False
+        
+    if do_wcs_tweaks:
+        
+        dx_wcs_tweak = 0.0   # Positive values shift to the right
+        dy_wcs_tweak = 0.0  #   was 1.5, 1. Now 3.5, 6. Now (4, 3). Now (4,4). Now (0,0)
+        
+        wcs_superstack_tweak = wcs_superstack.deepcopy()
+        wcs_translate_pix(wcs_superstack_tweak, dx_wcs_tweak, dy_wcs_tweak)
+        
+        # Tweak the backplane slightly as well. Not sure quite why this is necessary, since backplane should 
+        # be exactly aligned w/ WCS.
+        
+        dx_backplane_tweak = 0
+        dy_backplane_tweak = 0
+        plane_radius_superstack_tweak = plane_radius_superstack.copy()
+        plane_radius_superstack_tweak = np.roll(np.roll(plane_radius_superstack_tweak, dx_backplane_tweak, axis=1), 
+                                          dy_backplane_tweak, axis=0)
+        
+        # Copy the tweaked versions over
+        
+        wcs_superstack          = wcs_superstack_tweak
+        plane_radius_superstack = plane_radius_superstack_tweak # Do not copy this back to the backplane itself! Breaks.
     
-    # For OpNav thru 2018_0301, use:     (dx_wcs_tweak, dy_wcs_tweak) = (1.5, 1.0)
-    # For OpNav thru 2018_0304, use:     (dx_wcs_tweak, dy_wcs_tweak) = (1.5, 1.0)
-
-    dx_wcs_tweak = 0.0   # Positive values shift to the right
-    dy_wcs_tweak = 0.0  #   was 1.5, 1. Now 3.5, 6. Now (4, 3). Now (4,4). Now (0,0)
-    
-    wcs_superstack_tweak = wcs_superstack.deepcopy()
-    wcs_translate_pix(wcs_superstack_tweak, dx_wcs_tweak, dy_wcs_tweak)
-    
-    # Tweak the backplane slightly as well. Not sure quite why this is necessary, since backplane should 
-    # be exactly aligned w/ WCS.
-    
-    dx_backplane_tweak = 0
-    dy_backplane_tweak = 0
-    plane_radius_superstack_tweak = plane_radius_superstack.copy()
-    plane_radius_superstack_tweak = np.roll(np.roll(plane_radius_superstack_tweak, dx_backplane_tweak, axis=1), 
-                                      dy_backplane_tweak, axis=0)
-    
-    # Copy the tweaked versions over
-    
-    wcs_superstack          = wcs_superstack_tweak
-    plane_radius_superstack = plane_radius_superstack_tweak # Do not copy this back to the backplane itself! Breaks.
-
 # =============================================================================
 # Convert the stacks from DN to I/F
 # =============================================================================
@@ -783,9 +921,9 @@ if (__name__ == '__main__'):
 
 #%%%    
 # =============================================================================
-# Read a model ring image and implant it over the data image, if requested
+# Implants: read a model ring image and place it over the data image, if requested
 # =============================================================================
-    
+        
     do_implant = True
     
     if do_implant:
@@ -795,104 +933,17 @@ if (__name__ == '__main__'):
         # file_ring_implant = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
         
         file_ring_implant = dir_ring_img + 'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
-        
-        # dph-tunacan3.5kinc55
-        
+
         file_ring_short = file_ring_implant.split('/')[7]
-      
-        lun = open(file_ring_implant, 'rb')
-        print(f'Reading ring implant pickle file {file_ring_implant}')
-        (density) = pickle.load(lun)
-        lun.close()
-    
-        if 'sunflower' in file_ring_implant:
-            axis_sum = 1
-    
-        if 'tunacan' in file_ring_implant:
-            axis_sum = 1
-                
-        # Flatten, rotate, and scale the image appropriately, from 3D → 2D
-    
-        img_ring     = np.rot90(np.sum(density, axis_sum),1)
-        iof_max_ring = 1e-6   
-        img_ring_iof = iof_max_ring * img_ring / np.amax(img_ring) 
-        
-        # Get the km per pix of the superstack, and scale ring to match it
-        
-        scale_superstack = np.abs( (backplanes[0]['dRA_km'][0,1]) - (backplanes[0]['dRA_km'][0,0]) )
-        scale_ring = 500  # 500 km/pix, fixed
-        # if 'sunflower10k' in file_ring_pickle:
+
+        iof_max_ring = 1e-6
+
+        img_merged_iof  = ring_implant(img_superstack_median_iof, file_ring_implant, iof_max_ring, backplanes,
+                                            do_plot=True)
             
-        magfac = scale_ring / scale_superstack
-        
-        img_ring_iof_zoom = scipy.ndimage.zoom(img_ring_iof, magfac)
-        
-        # Convolve a PSF with the ring
-        
-        psf = img_superstack_median_iof.copy()
-        wheremax = np.where(psf == np.amax(psf))  # Returns 2D position
-        dxy_psf = 12  # Approx fullwidth of MU69, in pixels, to extract the PSF. Even number.
-        psf_extract = psf[int(wheremax[0]-dxy_psf/2):int(wheremax[0]+dxy_psf/2), 
-                          int(wheremax[1]-dxy_psf/2):int(wheremax[1]+dxy_psf/2)] 
-        psf_extract = psf_extract / np.sum(psf_extract)
-        
-        shape_ss = np.shape(img_superstack_median_iof)
-        shape_ring = np.shape(img_ring_iof_zoom)
-        
-        img_ring_iof_zoom_c = scipy.signal.convolve2d(img_ring_iof_zoom, psf_extract)
-        
-        # Scale the ring s.t. I/F = 2e-7 is the max. We should do this after convolve, rather than before, 
-        # since that is what we did in NH_ORT_TRACK4_CALIBRATE.PY as well
-        # XXXXX FIX THIS XXXXXX
-        
-        # Tweak the scaled image so it's even
-        
-        if shape_ring[0] %2:
-            img_ring_iof_zoom = img_ring_iof_zoom[:,0:-1]
-    
-        if shape_ring[1] %2:
-            img_ring_iof_zoom = img_ring_iof_zoom[0:-1,:]
-            
-        shape_ring = np.shape(img_ring_iof_zoom_c)
-    
-        img_merged_iof = img_superstack_median_iof.copy()
-        
-        img_merged_iof[ int(shape_ss[0]/2-shape_ring[0]/2) : int(shape_ss[0]/2+shape_ring[0]/2),
-                    int(shape_ss[1]/2-shape_ring[1]/2) : int(shape_ss[1]/2+shape_ring[1]/2) ] += img_ring_iof_zoom_c
-        
-    
-        hbt.figsize((15,15))
-        plt.subplot(2,2,1)
-        width_plot_pix = 450
-                
-        plot_img_wcs(img_superstack_median_iof, wcs_superstack, width=width_plot_pix, do_show=False, title='Stack',
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                     cmap='plasma')
-        
-        plt.subplot(2,2,2)
-        plot_img_wcs(img_ring_iof_zoom, wcs_superstack, width=width_plot_pix, do_show=False, 
-                     title=f'{file_ring_short}, I/F={iof_max_ring:.0e}', do_stretch=False, do_inhibit_axes=True, 
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                     cmap='plasma')
-
-        plt.subplot(2,2,3)
-        plot_img_wcs(img_ring_iof_zoom_c, wcs_superstack, width=width_plot_pix, do_show=False, 
-                     title=f'Convolved', do_stretch=False, do_inhibit_axes=True, 
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                     cmap='plasma')
-
-        plt.subplot(2,2,4)        
-        plot_img_wcs(img_merged_iof, wcs_superstack, width=width_plot_pix, do_show=False, 
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                     title=f'Stack + Convolved',
-                     cmap='plasma')
-        
-        plt.show()
-        hbt.figsize()
-
 #%%%
 # =============================================================================
-#     Now that the WCS and all images are set, make some plots
+#     Make a pair of final plots of the superstack, with and without aimpoints + sunflower rings
 # =============================================================================
     
     width_pix_plot = 40*zoom
@@ -1001,9 +1052,12 @@ if (__name__ == '__main__'):
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
                  do_colorbar=True)
 
+    plt.show()
+    
 #%%%    
 # =============================================================================
 # Make a set of plots showing the field, the superstack, and all the individual stacks
+#   This is a grid 3 x N.    
 # =============================================================================
     
     hbt.figsize((8,8))
@@ -1044,29 +1098,6 @@ if (__name__ == '__main__'):
     hbt.fontsize()
     
 #%%%
-# =============================================================================
-# Now make a bunch of summary plots, including radial profile
-# =============================================================================
-    
-# =============================================================================
-# Make a plot showing the RA / Dec axes of the superstack zoom
-# =============================================================================
-
-    do_wcs_axes = False
-    
-    if do_wcs_axes:
-        plot_img_wcs(stretch(img_superstack_median), wcs_superstack, cmap=cmap_superstack, width=150, 
-                     title='Superstack',
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base])
-    
-        from astropy.visualization import wcsaxes
-        from astropy.utils.data import get_pkg_data_filename
-        
-        fig = plt.imshow(stretch(img_haz[key]))
-        ax = fig.add_axes([0.15, 0.1, 0.8, 0.8], projection=wcs_field)
-        plt.show()
-        
-        ax = plt.subplot(projection=wcs_field)
 
 # =============================================================================
 # Now look up the pole position, for plot labels
