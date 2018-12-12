@@ -395,7 +395,7 @@ if (__name__ == '__main__'):
 
     ########## SET PARAMETERS HERE #################
     
-    zoom = 6     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
@@ -928,6 +928,7 @@ if (__name__ == '__main__'):
     
     if do_implant:
         dir_ring_img =    '/Users/throop/data/ORT5/throop/deliveries/'
+        dir_ring_img =    '/Users/throop/Dropbox/'   # This is not where most files are, but we put one here.
                 
         # file_ring_implant = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
         # file_ring_implant = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
