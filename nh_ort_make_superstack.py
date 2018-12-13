@@ -429,20 +429,20 @@ if (__name__ == '__main__'):
         dir_images    = os.path.join(dir_data, name_ort, 'throop', 'backplaned')
         dir_out       = os.path.join(dir_data, name_ort, 'throop', 'stacks')
         reqids_haz  = [
-                        # 'KALR_MU69_OpNav_L4_2018228', 
-                        # 'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
-                        # 'KALR_MU69_OpNav_L4_2018267', 
-                        # 'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
-                        # 'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
-                        # 'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
-                        # 'KALR_MU69_OpNav_L4_2018314', 
-                        # 'KALR_MU69_OpNav_L4_2018315',
-                        # 'KALR_MU69_OpNav_L4_2018316',
-                        # 'KALR_MU69_OpNav_L4_2018317',
-                        # 'KALR_MU69_OpNav_L4_2018319',
-                        # 'KALR_MU69_OpNav_L4_2018325',
-                        # 'KALR_MU69_Hazard_L4_2018325',  # 110 frames
-                        # 'KALR_MU69_OpNav_L4_2018326',
+                        'KALR_MU69_OpNav_L4_2018228', 
+                        'KALR_MU69_OpNav_L4_2018258', 'KALR_MU69_OpNav_L4_2018264',
+                        'KALR_MU69_OpNav_L4_2018267', 
+                        'KALR_MU69_OpNav_L4_2018284', 'KALR_MU69_OpNav_L4_2018287', 'KALR_MU69_OpNav_L4_2018298',
+                        'KALR_MU69_OpNav_L4_2018301', 'KALR_MU69_OpNav_L4_2018304',
+                        'KALR_MU69_OpNav_L4_2018306', 'KALR_MU69_OpNav_L4_2018311',
+                        'KALR_MU69_OpNav_L4_2018314', 
+                        'KALR_MU69_OpNav_L4_2018315',
+                        'KALR_MU69_OpNav_L4_2018316',
+                        'KALR_MU69_OpNav_L4_2018317',
+                        'KALR_MU69_OpNav_L4_2018319',
+                        'KALR_MU69_OpNav_L4_2018325',
+                        'KALR_MU69_Hazard_L4_2018325',  # 110 frames
+                        'KALR_MU69_OpNav_L4_2018326',
 
                  # A pretty good stack: 330 .. 341
                  
@@ -470,12 +470,12 @@ if (__name__ == '__main__'):
                         'KALR_MU69_Hazard_L4_2018347',
                        ]
 
-        reqids_haz  = [        
+        # reqids_haz  = [        
         #                             # 'KALR_MU69_Hazard_L4_2018334',
         #                             # 'KALR_MU69_Hazard_L4_2018340',
         #                             'KALR_MU69_Hazard_L4_2018344',
-                                    'KALR_MU69_Hazard_L4_2018347',
-        ]
+                                    # 'KALR_MU69_Hazard_L4_2018347',
+        # ]
 
         # reqids_haz  = [        
 
@@ -943,7 +943,7 @@ if (__name__ == '__main__'):
     (st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
     r_sun_mu69= sp.vnorm(st[0:3]) * km2au # NH distance, in AU
     pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming LORRI 4x4)
-    TEXP        = stack_haz[reqid_i].t['exptime'][0]
+    TEXP        = stack_haz[reqid_i].t['exptime'][0]  # Exposure time of the field frames. All are 29.967 sec.
 
     I_median = img_superstack_median / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
     I_mean   = img_superstack_mean   / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
@@ -960,17 +960,28 @@ if (__name__ == '__main__'):
     
     if do_implant:
         dir_ring_img =    '/Users/throop/data/ORT5/throop/deliveries/'
-        # dir_ring_img =    '/Users/throop/Dropbox/'   # This is not where most files are, but we put one here.
-                
-        file_ring_implant = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
-        # file_ring_implant = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
+    
+        # Set the ring to read. Note that when changing this, need to also change the resolution 
+        # in the function itself. Either 250 km/pix or 500 km/pix. That is the resolution used for the 
+        # simulations by DPH/DK. If ring position looks off by 2x, then change this value in the function.
         
-        # file_ring_implant = dir_ring_img + 'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
+        file_ring_implant = dir_ring_img + \
+            'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl' # 250 km/pix
+            
+        # file_ring_implant = dir_ring_img + \
+            # 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
+        
+        # file_ring_implant = dir_ring_img + \
+            # 'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
 
         file_ring_short = file_ring_implant.split('/')[7]
 
+        # Set the I/F of the ring
+        
         iof_max_ring = 1e-6
 
+        # And implant it!
+        
         img_merged_iof  = ring_implant(img_superstack_median_iof, file_ring_implant, iof_max_ring, backplanes,
                                             do_plot=True)
             
