@@ -61,25 +61,32 @@ files_fits = glob.glob(os.path.join(dir_in, f'*z{zoom}.fits'))
 
 doy     = {}
 img_haz = {}
+img_field = {}
+img_diff = {}
 wcs     = {}
 reqids   = []
 
 for file in files_fits:
     hdu = fits.open(file)
-    img_i = hdu[2].data  # 1=image; 2=field; 3=differential
+    # img_i = hdu[2].data  # 1=image; 2=field; 3=differential
     # plt.imshow(img_i, origin='lower')
     wcs_i = WCS(file)
     # plot_img_wcs(img_i, wcs, width=50, do_show=False)
-    hdu.close()
     # plt.show()
     
     file_short = file.split('/')[7]  # Longer than reqid -- it's the full string
     reqid_i = '_'.join(file_short.split('_')[3:6])
     doy_i = file_short.split('_')[5]
     reqids.append(reqid_i)
-    img_haz[reqid_i] = img_i
+    
+    img_haz[reqid_i] = hdu[0].data
+    img_field[reqid_i] = hdu[1].data
+    img_diff[reqid_i] = hdu[2].data
+
     doy[reqid_i] = doy_i 
     wcs[reqid_i] = wcs_i
+
+    hdu.close()
 
 s = sorted(doy.items(), key=operator.itemgetter(1))
 
@@ -98,13 +105,15 @@ reqids = reqids_sorted
 # Start the movie
     
 #%%
-f = plt.figure(frameon=False, figsize=(4, 5), dpi=100)
+f = plt.figure(frameon=False, figsize=(15, 5), dpi=100)
 canvas_width, canvas_height = f.canvas.get_width_height()
 ax = f.add_axes([0, 0, 1, 1])
 ax.axis('off')
-fps = 5
+fps = 10
 width=100
-file_out_mov = f'movie_f{fps}_w{width}.mp4'
+cmap = 'Greys_r'
+
+file_out_mov = f'movie_f{fps}_w{width}_{cmap}.mp4'
 
 cmdstring = ('ffmpeg', 
     '-y', '-r', f'{fps}', # overwrite, fps
@@ -114,11 +123,25 @@ cmdstring = ('ffmpeg',
     '-vcodec', 'mpeg4', file_out_mov) # output encoding
 p = subprocess.Popen(cmdstring, stdin=subprocess.PIPE)
 
+vmax = 100
+
 for reqid_i in reqids:
     
     # draw the frame
+
+    plt.subplot(1,3,1)    
+    plot_img_wcs(img_haz[reqid_i], wcs[reqid_i], width=width, do_show=False, title=reqid_i,
+                 do_stretch=False, vmin=5, vmax=vmax, cmap=cmap)
+
+    plt.subplot(1,3,2)    
+    plot_img_wcs(img_field[reqid_i], wcs[reqid_i], width=width, do_show=False, title=reqid_i,
+                 do_stretch=False, vmin=5, vmax=vmax, cmap=cmap)
+                 
+
+    plt.subplot(1,3,3)    
+    plot_img_wcs(img_diff[reqid_i], wcs[reqid_i], width=width, do_show=False, title=reqid_i,
+                 do_stretch=False, vmin=-15, vmax=vmax, cmap=cmap)
     
-    plot_img_wcs(img_haz[reqid_i], wcs[reqid_i], width=width, do_show=False, title=reqid_i)
     plt.draw()
 
     # extract the image as an ARGB string
@@ -129,6 +152,8 @@ for reqid_i in reqids:
 
 # Finish up
 p.communicate()
+
+print(f'Wrote: {file_out_mov}')
 
     
     
