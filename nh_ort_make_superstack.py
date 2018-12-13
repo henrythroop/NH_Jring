@@ -51,7 +51,11 @@ def gaus(x,a,x0,sigma):
 
 #%%%
     
-def nh_ort_make_superstack(stack, img, img_field, 
+def nh_ort_make_superstack(stack, 
+                           img, 
+                           img_field,
+                           exptime,
+                           exptime_field,
                            name_stack_base, 
                            do_save_all=False, 
                            do_backplanes=True, 
@@ -297,7 +301,7 @@ def ring_implant(img, file_ring_implant, iof_max_ring, backplanes, do_plot=True)
     # Get the km per pix of the superstack, and scale ring to match it
     
     scale_superstack = np.abs( (backplanes[0]['dRA_km'][0,1]) - (backplanes[0]['dRA_km'][0,0]) )
-    scale_ring = 500  # 500 km/pix, fixed
+    scale_ring = 250  # 500 km/pix, fixed
     # if 'sunflower10k' in file_ring_pickle:
         
     magfac = scale_ring / scale_superstack
@@ -395,7 +399,7 @@ if (__name__ == '__main__'):
 
     ########## SET PARAMETERS HERE #################
     
-    zoom = 1     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
@@ -442,44 +446,45 @@ if (__name__ == '__main__'):
 
                  # A pretty good stack: 330 .. 341
                  
-                        # 'KALR_MU69_OpNav_L4_2018330',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018331',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018332',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018330',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018331',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018332',  # 10 frames
                         
-                        # 'KALR_MU69_OpNav_L4_2018334',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018335',  # 10 frames
-                        # 'KALR_MU69_OpNav_L4_2018337',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018334',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018335',  # 10 frames
+                        'KALR_MU69_OpNav_L4_2018337',  # 10 frames
                         'KALR_MU69_Hazard_L4_2018334',  # 96 frames
 
-                        # 'KALR_MU69_OpNav_L4_2018338',
-                        # 'KALR_MU69_OpNav_L4_2018339',
+                        'KALR_MU69_OpNav_L4_2018338',
+                        'KALR_MU69_OpNav_L4_2018339',
                         'KALR_MU69_Hazard_L4_2018340',  # 61 frames
-                        # 'KALR_MU69_OpNav_L4_2018340',
-                        # 'KALR_MU69_OpNav_L4_2018341',
+                        'KALR_MU69_OpNav_L4_2018340',
+                        'KALR_MU69_OpNav_L4_2018341',
                         
                         'KALR_MU69_OpNav_L4_2018342', # 6 frames
                         'KALR_MU69_OpNav_L4_2018343',  # 6 frames 
                         'KALR_MU69_OpNav_L4_2018344', # 6 frames
                         'KALR_MU69_OpNav_L4_2018345', # 6 frames
                         'KALR_MU69_Hazard_L4_2018340',  # 61 frames
-                        'KALR_MU69_Hazard_L4_2018344',  # 28 frames
-
+                        'KALR_MU69_Hazard_L4_2018344',  # 52 frames
+                        'KALR_MU69_Hazard_L4_2018347',
                        ]
 
         reqids_haz  = [        
-                                    # 'KALR_MU69_Hazard_L4_2018334',
-                                    # 'KALR_MU69_Hazard_L4_2018340',
-                                    'KALR_MU69_Hazard_L4_2018344',
+        #                             # 'KALR_MU69_Hazard_L4_2018334',
+        #                             # 'KALR_MU69_Hazard_L4_2018340',
+        #                             'KALR_MU69_Hazard_L4_2018344',
+                                    'KALR_MU69_Hazard_L4_2018347',
         ]
 
-        reqids_haz  = [        
+        # reqids_haz  = [        
 
-        #                 'KALR_MU69_OpNav_L4_2018342', # 6 frames
-        #                 'KALR_MU69_OpNav_L4_2018343',  # 6 frames 
-        #                 'KALR_MU69_OpNav_L4_2018344', # 6 frames
-                        'KALR_MU69_OpNav_L4_2018345', # 6 frames
+        # #                 'KALR_MU69_OpNav_L4_2018342', # 6 frames
+        # #                 'KALR_MU69_OpNav_L4_2018343',  # 6 frames 
+        # #                 'KALR_MU69_OpNav_L4_2018344', # 6 frames
+                        # 'KALR_MU69_OpNav_L4_2018347', # 6 frames
 
-        ]
+        # ]
   
 #####
                         
@@ -589,7 +594,7 @@ if (__name__ == '__main__'):
         # Check if we have a flattened, zoomed stack already on disk.
         # If we do, then reload it. This lets us skip this loop (to load), *and* the next loop (to flatten).
         
-        if os.path.isfile(file_stack_pkl + 'XXX'):
+        if os.path.isfile(file_stack_pkl):
             print(f'Restoring flattened stack: {file_stack_pkl}')
 
             lun = open(file_stack_pkl, 'rb')
@@ -693,9 +698,14 @@ if (__name__ == '__main__'):
                   stack_field[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
                            do_force=do_force_flatten_field, do_save=False)
             
+            # Scale the field frames s.t. exptimes match the main exposure
+            # We do not adjust the EXPTIME in the field header, but the DN values will be scaled.
+            
+            img_field[reqid_i] *= (exptime_haz_i / exptime_field_i)
+            
             # Do the image subtraction
             
-            img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field[reqid_i] * (exptime_haz_i / exptime_field_i)
+            img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field[reqid_i]
                                   
             # Save stack as FITS
             # Put three planes in this: Haz, Field, Diff
@@ -728,7 +738,7 @@ if (__name__ == '__main__'):
                  cmap = 'plasma')
 
             plt.subplot(1,2,2)  # Plot image - field
-            plot_img_wcs(img_haz[reqid_i]-img_field[reqid_i], wcs_haz[reqid_i], title = reqid_i, 
+            plot_img_wcs(img_haz_diff[reqid_i], wcs_haz[reqid_i], title = reqid_i + ' diff', 
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[reqid_i], 
                  width=width_extract,
                  do_show=False,
@@ -809,6 +819,7 @@ if (__name__ == '__main__'):
     
     keys = list(stack_haz.keys())
     
+    
     pixscale_km = {}
     for key in keys:
         pixscale_km[key] = stack_haz[key].pixscale_x_km
@@ -827,11 +838,19 @@ if (__name__ == '__main__'):
     
     wcs_superstack = wcs_haz[name_stack_base]
     
+    # Get the exposure times
+    
+    exptime_haz   = np.median(stack_haz[name_stack_base].t['exptime'])
+    exptime_field = np.median(stack_field[name_stack_base].t['exptime'])
+
     # Make the superstack, and get the backplanes.
     
     print('Making superstack...')
     
-    (img_superstack_mean, img_superstack_median, backplanes) = nh_ort_make_superstack(stack_haz, img_haz, img_field, 
+    (img_superstack_mean, img_superstack_median, backplanes) = nh_ort_make_superstack(stack_haz, 
+                                                                          img_haz, img_field, 
+                                                                          exptime_haz,
+                                                                          exptime_field,
                                                                           name_stack_base, 
                                                                           do_save_all=True, dir=dir_out,
                                                                           str_name=str_name, do_center=True,
@@ -941,12 +960,12 @@ if (__name__ == '__main__'):
     
     if do_implant:
         dir_ring_img =    '/Users/throop/data/ORT5/throop/deliveries/'
-        dir_ring_img =    '/Users/throop/Dropbox/'   # This is not where most files are, but we put one here.
+        # dir_ring_img =    '/Users/throop/Dropbox/'   # This is not where most files are, but we put one here.
                 
-        # file_ring_implant = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
+        file_ring_implant = dir_ring_img + 'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
         # file_ring_implant = dir_ring_img + 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
         
-        file_ring_implant = dir_ring_img + 'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
+        # file_ring_implant = dir_ring_img + 'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
 
         file_ring_short = file_ring_implant.split('/')[7]
 
@@ -1081,7 +1100,7 @@ if (__name__ == '__main__'):
     
     stretchz=astropy.visualization.ManualInterval(vmin=2, vmax=40)
     
-    width_postage = 50
+    width_postage = 120
     
     for key in keys:
         keystr = key.split('_')[-1]
@@ -1355,72 +1374,3 @@ if (__name__ == '__main__'):
 ######
         
 
-### Do some one-off testing 
-
-hbt.figsize((10,8))
-h = img_haz[key]
-f = img_field[key]
-
-if (zoom == 4):
-    hc = h[600:800, 600:800]
-    fc = f[600:800, 600:800]
-
-if (zoom == 1):
-    hc = h[200:250, 200:250]
-    fc = f[200:250, 200:250]
-
-hc = h
-fc = f
-
-exptime_haz   = np.median( stack_haz  [reqid_i].t['exptime'] )
-exptime_field = np.median( stack_field[reqid_i].t['exptime'] )
-
-#%%%
-
-plt.hist(hc.ravel(), bins=50, range=(0,100), alpha=0.5, color='blue', label=f'Data, exptime={exptime_haz}')
-# plt.hist((fc * exptime_haz / exptime_field).ravel(), bins=50, range=(0,100), alpha=0.5, color='red', label='Field')
-plt.hist(fc.ravel(), bins=50, range=(0,100), alpha=0.5, color='red', label=f'Field, exptime={exptime_field}')
-plt.legend()
-plt.show()
-
-
-plt.set_cmap('plasma')
-hbt.figsize((18,12))
-
-plt.subplot(2,4,1)
-plt.imshow(stretch(fc))
-plt.title(f'Field, {exptime_field}')
-
-plt.subplot(2,4,2)
-plt.imshow(stretch(hc))
-plt.title(f'Haz, {exptime_haz}')
-
-plt.subplot(2,4,3)
-plt.imshow(stretch(hc-fc))
-plt.title('haz-field')
-
-ratio = 1/(exptime_haz/exptime_field) # This is messed up -- backwards??
-
-plt.subplot(2,4,4)
-plt.imshow(stretch(hc - fc*ratio))
-plt.title(f'haz-{ratio:4.3}*field')
-
-#
-
-plt.subplot(2,4,5)
-plt.hist(fc.ravel(), bins=30, range=(-50,50))
-
-plt.subplot(2,4,6)
-plt.hist(hc.ravel(), bins=30, range=(-50,50))
-
-plt.subplot(2,4,7)
-plt.hist((hc-fc).ravel(), bins=30, range=(-50,50))
-
-plt.subplot(2,4,8)
-plt.hist((hc-fc*ratio).ravel(), bins=30, range=(-50,50))
-
-
-plt.show()
-
-
-        
