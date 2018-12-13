@@ -116,7 +116,6 @@ def nh_ort_track4_flyby(dir_in=None, dir_out=None, name_trajectory = 'prime'):
     
     files = sorted(files)
 
-    
     plt.set_cmap('plasma')
 
     utc_ca = '2019 1 Jan 05:33:00'
@@ -445,6 +444,12 @@ def make_table_grid_positions():
  
     sp.furnsh(f'kernels_kem_{name_trajectory}.tm')
     
+    # Get the OD version. This might not work.
+    
+    # files = hbt.list_kernels_loaded()
+    # for file in files:
+        # if 
+    
 #    file_in = '/Users/throop/Data/ORT2/throop/track4/ort2-ring_v2.2_q2.0_pv0.10_rho0.22.grid4d.gz'
 #    file_in = '/Users/throop/Data/ORT5/throop/deliveries/tuna9k/ort5_None_y3.0_q3.5_pv0.70_rho1.00.dust.txt'
     file_in = '/Users/throop/Data/ORT5/kaufmann/deliveries/chr3-tunacan10k/chr3-0003' + \
@@ -564,8 +569,8 @@ if (__name__ == '__main__'):
     
     # NB: It would make sense to parallelize this loop below. That way I could run a bunch of these in parallel.
     
-    name_trajectory = 'prime'
-    # name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
+    # name_trajectory = 'prime'
+    name_trajectory = 'alternate'  # 'prime' or 'alternate'. For ORT5, use 'prime' on 3.5k, and 'alternate' on 10k. 
     
     # dir_in  = '/Users/throop/data/ORT4/throop/ort4_bc3_10cbr2_dph/'
     # dir_in  = '/Users/throop/data/ORT5/throop/deliveries/chr3-sunflower3.5k/'
@@ -576,7 +581,10 @@ if (__name__ == '__main__'):
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k-DPH/'
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-tunacan3.5kinc55/'
     dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-tunacan3.5kinc70v1/'
-    # dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-sunflower10k/'
+    dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-sunflower10k/'
+    dir_in = '/Users/throop/data/ORT5/throop/deliveries/dph-sunflower3.5k/'
+    dir_in = '/Users/throop/data/ORT5/throop/deliveries/dek-chr3-sunflower3.5k/'
+    dir_in = '/Users/throop/data/ORT5/throop/deliveries/dek-chr3-sunflower10k/'
 
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_a'
     # dir_in = '/Users/throop/data/ORT5/throop/deliveries/sun10k_b'

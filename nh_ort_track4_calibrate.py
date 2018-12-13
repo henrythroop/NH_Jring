@@ -417,6 +417,9 @@ def nh_ort_track4_calibrate(dir_in, dir_out, runs, do_force=False):
                     val_img_med     = np.median(img[img != 0])   # Get median of non-zero pixels. Usually too low.
                     val_img_max_blur= np.amax(scipy.ndimage.filters.gaussian_filter(img,4))
                                                                  # As per MRS, blur it and take max
+                                                                 # NB: Technically blurring is due to PSF,
+                                                                 # so it should be a function of bin size.
+                                                                 # But by exec decision, we are ignoring that for now.
 
                     # Now calculate the actual calibration coefficient. 
                     # E_0 is the dust production rate, particles/km2/sec. 
@@ -797,8 +800,8 @@ if __name__ == '__main__':
     
     ## These directories must end with '/'
     
-    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower3.5k/' # done
-    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k/'
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/dek-chr3-sunflower3.5k/' # done
+    dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/dek-chr3-sunflower10k/'
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-tunacan10k/'
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k-subsets16-dek'
     
@@ -811,11 +814,13 @@ if __name__ == '__main__':
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10kfast-DPH/'
 
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan10k/'
+    
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan3.5k/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-sunflower10k/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-sunflower3.5k/'
 
-    dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan3.5kinc55/'
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan3.5kinc55/'
+    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan3.5kinc70v1/'
     
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan10kinc55/'
     
