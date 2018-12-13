@@ -395,7 +395,7 @@ if (__name__ == '__main__'):
 
     ########## SET PARAMETERS HERE #################
     
-    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 1     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
@@ -472,14 +472,14 @@ if (__name__ == '__main__'):
                                     'KALR_MU69_Hazard_L4_2018344',
         ]
 
-        # reqids_haz  = [        
+        reqids_haz  = [        
 
         #                 'KALR_MU69_OpNav_L4_2018342', # 6 frames
         #                 'KALR_MU69_OpNav_L4_2018343',  # 6 frames 
         #                 'KALR_MU69_OpNav_L4_2018344', # 6 frames
-        #                 'KALR_MU69_OpNav_L4_2018345', # 6 frames
+                        'KALR_MU69_OpNav_L4_2018345', # 6 frames
 
-        # ]
+        ]
   
 #####
                         
@@ -589,7 +589,7 @@ if (__name__ == '__main__'):
         # Check if we have a flattened, zoomed stack already on disk.
         # If we do, then reload it. This lets us skip this loop (to load), *and* the next loop (to flatten).
         
-        if os.path.isfile(file_stack_pkl):
+        if os.path.isfile(file_stack_pkl + 'XXX'):
             print(f'Restoring flattened stack: {file_stack_pkl}')
 
             lun = open(file_stack_pkl, 'rb')
@@ -678,6 +678,9 @@ if (__name__ == '__main__'):
 
             num_planes = stack_haz[reqid_i].num_planes
             
+            exptime_haz_i   = np.median(stack_haz[reqid_i].t['exptime'])
+            exptime_field_i = np.median(stack_field[reqid_i].t['exptime'])
+            
             # Flatten the hazard frames
             
             (img_haz[reqid_i], wcs_haz[reqid_i])  =\
@@ -689,17 +692,27 @@ if (__name__ == '__main__'):
             (img_field[reqid_i], wcs_field[reqid_i])  =\
                   stack_field[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
                            do_force=do_force_flatten_field, do_save=False)
-                  
-            img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field[reqid_i]
+            
+            # Do the image subtraction
+            
+            img_haz_diff[reqid_i] = img_haz[reqid_i] - img_field[reqid_i] * (exptime_haz_i / exptime_field_i)
                                   
             # Save stack as FITS
+            # Put three planes in this: Haz, Field, Diff
             
             file_out_fits = os.path.join(dir_out, 
                                          f'stack_{reqid_i}_{name_ort}_n{num_planes}_z{zoom}.fits')
             
-            hdu = fits.PrimaryHDU(img_haz[reqid_i])
-            hdu.writeto(file_out_fits, overwrite=True)
-            print(f'Wrote FITS: {file_out_fits}')
+            hdu1 = fits.PrimaryHDU(img_haz[reqid_i])
+            hdu2 = fits.ImageHDU(img_field[reqid_i])
+            hdu3 = fits.ImageHDU(img_haz_diff[reqid_i])
+            
+            hdulist = fits.HDUList([hdu1, hdu2, hdu3])
+            hdulist.writeto(file_out_fits, overwrite=True)
+
+            # hdu.writeto(file_out_fits, overwrite=True)
+            
+            print(f'Wrote multi-plane FITS: {file_out_fits}')
             
             # Plot an extracted image, and save as PNG
             
@@ -1341,6 +1354,73 @@ if (__name__ == '__main__'):
 
 ######
         
-    
+
+### Do some one-off testing 
+
+hbt.figsize((10,8))
+h = img_haz[key]
+f = img_field[key]
+
+if (zoom == 4):
+    hc = h[600:800, 600:800]
+    fc = f[600:800, 600:800]
+
+if (zoom == 1):
+    hc = h[200:250, 200:250]
+    fc = f[200:250, 200:250]
+
+hc = h
+fc = f
+
+exptime_haz   = np.median( stack_haz  [reqid_i].t['exptime'] )
+exptime_field = np.median( stack_field[reqid_i].t['exptime'] )
+
+#%%%
+
+plt.hist(hc.ravel(), bins=50, range=(0,100), alpha=0.5, color='blue', label=f'Data, exptime={exptime_haz}')
+# plt.hist((fc * exptime_haz / exptime_field).ravel(), bins=50, range=(0,100), alpha=0.5, color='red', label='Field')
+plt.hist(fc.ravel(), bins=50, range=(0,100), alpha=0.5, color='red', label=f'Field, exptime={exptime_field}')
+plt.legend()
+plt.show()
+
+
+plt.set_cmap('plasma')
+hbt.figsize((18,12))
+
+plt.subplot(2,4,1)
+plt.imshow(stretch(fc))
+plt.title(f'Field, {exptime_field}')
+
+plt.subplot(2,4,2)
+plt.imshow(stretch(hc))
+plt.title(f'Haz, {exptime_haz}')
+
+plt.subplot(2,4,3)
+plt.imshow(stretch(hc-fc))
+plt.title('haz-field')
+
+ratio = 1/(exptime_haz/exptime_field) # This is messed up -- backwards??
+
+plt.subplot(2,4,4)
+plt.imshow(stretch(hc - fc*ratio))
+plt.title(f'haz-{ratio:4.3}*field')
+
+#
+
+plt.subplot(2,4,5)
+plt.hist(fc.ravel(), bins=30, range=(-50,50))
+
+plt.subplot(2,4,6)
+plt.hist(hc.ravel(), bins=30, range=(-50,50))
+
+plt.subplot(2,4,7)
+plt.hist((hc-fc).ravel(), bins=30, range=(-50,50))
+
+plt.subplot(2,4,8)
+plt.hist((hc-fc*ratio).ravel(), bins=30, range=(-50,50))
+
+
+plt.show()
+
 
         
