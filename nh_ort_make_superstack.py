@@ -65,7 +65,7 @@ def nh_ort_make_superstack(stack,
                            do_center=True,
                            frame='2014_MU69_SUNFLOWER_ROT',
                            wcs = '',
-                           do_fast_backplanes = False):
+                           do_fast_backplanes = False, **kwargs):
     
     """
     This makes a superstack image. The output image has resolution matching the lowest resolution 
@@ -261,7 +261,8 @@ def nh_ort_make_superstack(stack,
 # Implant a ring into an image
 # =============================================================================
 
-def ring_implant(img, file_ring_implant, iof_max_ring, backplanes, do_plot=True):
+def ring_implant(img, file_ring_implant, resolution, iof_max_ring, backplanes, width_plot_pix=450, 
+                 do_plot=True, **kwargs):
     """
     Implant a ring into an image.
 
@@ -273,13 +274,22 @@ def ring_implant(img, file_ring_implant, iof_max_ring, backplanes, do_plot=True)
      
     file_ring_implant:
         Filename of a 'grid file' defining the ring. This file is output by NH_ORT_TRACK4_FLYBY.PY
+
+    resolution:
+        Resolution of the grid image, km/pix. This is specified ultimately by the header.txt file.
          
     iof:
         The I/F of the peak of the smeared image
          
     do_plot:
         Boolean. Make plots of the implanted ring?
-     
+    
+    Optional parameters
+    -----    
+    
+    width_plot_pix:
+        Size of the plot, in zoomed LORRI pixels.
+        
     """
          
     lun = open(file_ring_implant, 'rb')
@@ -296,12 +306,14 @@ def ring_implant(img, file_ring_implant, iof_max_ring, backplanes, do_plot=True)
     # Flatten, rotate, and scale the image appropriately, from 3D → 2D
 
     img_ring     = np.rot90(np.sum(density, axis_sum),1)
-    img_ring_iof = iof_max_ring * img_ring / np.amax(img_ring) 
+
+    img_ring_iof = iof_max_ring * img_ring / np.amax(img_ring) # Scale the I/F. We adjust this later, after convolve.
     
     # Get the km per pix of the superstack, and scale ring to match it
     
     scale_superstack = np.abs( (backplanes[0]['dRA_km'][0,1]) - (backplanes[0]['dRA_km'][0,0]) )
-    scale_ring = 250  # 500 km/pix, fixed
+
+    scale_ring = resolution  # resolution of grid image, km/pix
     # if 'sunflower10k' in file_ring_pickle:
         
     magfac = scale_ring / scale_superstack
@@ -319,12 +331,13 @@ def ring_implant(img, file_ring_implant, iof_max_ring, backplanes, do_plot=True)
     
     shape_ss = np.shape(img_superstack_median_iof)
     shape_ring = np.shape(img_ring_iof_zoom)
-    
-    img_ring_iof_zoom_c = scipy.signal.convolve2d(img_ring_iof_zoom, psf_extract)
-    
-    # Scale the ring s.t. I/F = 2e-7 is the max. We should do this after convolve, rather than before, 
+
+    # Scale the ring s.t. I/F is set to the proper value. We do this after convolve, rather than before, 
     # since that is what we did in NH_ORT_TRACK4_CALIBRATE.PY as well
-    # XXXXX FIX THIS XXXXXX
+    
+    img_ring_iof_zoom_c = scipy.signal.convolve2d(img_ring_iof_zoom, psf_extract)    
+    
+    img_ring_iof_zoom_c *= (iof_max_ring / np.amax(img_ring_iof_zoom_c))
     
     # Tweak the scaled image so it's even
     
@@ -344,11 +357,10 @@ def ring_implant(img, file_ring_implant, iof_max_ring, backplanes, do_plot=True)
     if do_plot:               
         hbt.figsize((15,15))
         plt.subplot(2,2,1)
-        width_plot_pix = 450
                 
         plot_img_wcs(img_superstack_median_iof, wcs_superstack, width=width_plot_pix, do_show=False, title='Stack',
                      name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                     cmap='plasma')
+                     cmap='plasma', **kwargs)
         
         plt.subplot(2,2,2)
         plot_img_wcs(img_ring_iof_zoom, wcs_superstack, width=width_plot_pix, do_show=False, 
@@ -366,7 +378,7 @@ def ring_implant(img, file_ring_implant, iof_max_ring, backplanes, do_plot=True)
         plot_img_wcs(img_merged_iof, wcs_superstack, width=width_plot_pix, do_show=False, 
                      name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
                      title=f'Stack + Convolved',
-                     cmap='plasma')
+                     cmap='plasma', **kwargs)
         
         plt.show()
         hbt.figsize()
@@ -470,12 +482,12 @@ if (__name__ == '__main__'):
                         'KALR_MU69_Hazard_L4_2018347',
                        ]
 
-        # reqids_haz  = [        
-        #                             # 'KALR_MU69_Hazard_L4_2018334',
-        #                             # 'KALR_MU69_Hazard_L4_2018340',
-        #                             'KALR_MU69_Hazard_L4_2018344',
-                                    # 'KALR_MU69_Hazard_L4_2018347',
-        # ]
+        reqids_haz  = [        
+                                    'KALR_MU69_Hazard_L4_2018334',
+                                    'KALR_MU69_Hazard_L4_2018340',
+                                    'KALR_MU69_Hazard_L4_2018344',
+                                    'KALR_MU69_Hazard_L4_2018347',
+        ]
 
         # reqids_haz  = [        
 
@@ -965,24 +977,31 @@ if (__name__ == '__main__'):
         # in the function itself. Either 250 km/pix or 500 km/pix. That is the resolution used for the 
         # simulations by DPH/DK. If ring position looks off by 2x, then change this value in the function.
         
-        file_ring_implant = dir_ring_img + \
-            'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl' # 250 km/pix
+        # (file_ring_implant, resolution) = (dir_ring_img + 
+        #      'dph-sunflower3.5k/ort5_None_y3.0_q2.5_pv0.05_rho0.46.dust_img.pkl', 250)
             
-        # file_ring_implant = dir_ring_img + \
-            # 'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl' # don't use
-        
-        # file_ring_implant = dir_ring_img + \
-            # 'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl'
+          
+        # (file_ring_implant, resolution) = (dir_ring_img + \
+        #     'dph-tunacan3.5kinc55/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl', 250)
+            
+        (file_ring_implant, resolution) = (dir_ring_img + \
+            'dph-tunacan10kinc70/None_None_y3.0_q2.5_pv0.05_rho1.00.dust_img.pkl', 500)
 
+        (file_ring_implant, resolution) = (dir_ring_img + \
+            'dph-sunflower10k/ort5_None_y2.2_q2.5_pv0.05_rho0.46.dust_img.pkl', 250)
+        
         file_ring_short = file_ring_implant.split('/')[7]
 
         # Set the I/F of the ring
         
-        iof_max_ring = 1e-6
+        iof_max_ring = 5e-7
 
         # And implant it!
         
-        img_merged_iof  = ring_implant(img_superstack_median_iof, file_ring_implant, iof_max_ring, backplanes,
+        img_merged_iof  = ring_implant(img_superstack_median_iof, file_ring_implant, resolution, iof_max_ring,
+                                            backplanes,
+                                            vmin=-1e-6, vmax=2e-6,
+                                            width_plot_pix=700,
                                             do_plot=True)
             
 #%%%
@@ -990,7 +1009,7 @@ if (__name__ == '__main__'):
 #     Make a pair of final plots of the superstack, with and without aimpoints + sunflower rings
 # =============================================================================
     
-    width_pix_plot = 40*zoom
+    width_pix_plot = 50*zoom
     
     # Define the ring sizes.
     # For the SUNFLOWER ring, we just take a radial profile outward, and plot it.
@@ -1006,16 +1025,23 @@ if (__name__ == '__main__'):
     plt.show()  # for some reason the figsize() isn't working, so maybe flush things out??
     
     hbt.figsize((20,8))
-    hbt.fontsize(10)
+    hbt.fontsize(14)
 
     plt.subplot(1,2,1)
     
+    # Set a min and max range for the plot.
+    # We might change this, but for comparing images, it is good to keep this fixed.
+    # NB: Simon's plots go -1e-6 .. 3e-6
+    
+    vmin = -1e-6
+    vmax =  2e-6
+    
     plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
 #                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
-                 title = f'{str_stack}, {str_reqid}, {frametype}', 
+                 title = f'{str_stack}, {str_reqid}', 
                  width=width_pix_plot,do_show=False,
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                 do_colorbar=True)
+                 do_colorbar=True, do_stretch=False, vmin=-1e-6, vmax=2e-6)
         
     # Construct the image of ring masks
     # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly
@@ -1050,7 +1076,7 @@ if (__name__ == '__main__'):
     
         mask_ring = mask_ring0 | mask_ring1
     
-    plt.imshow(np.logical_not(mask_ring), alpha=0.08, origin='lower')
+    plt.imshow(np.logical_not(mask_ring), alpha=0.12, origin='lower')
     
     # Mark the aimpoints on the plot
     
@@ -1086,7 +1112,7 @@ if (__name__ == '__main__'):
         (x, y) = wcs_superstack.wcs_world2pix(ra_aimpoint*hbt.r2d, dec_aimpoint*hbt.r2d, 0)
         print(f'Trajectory = {trajectory}, CA RA/Dec = {ra_aimpoint*hbt.r2d, (dec_aimpoint*hbt.r2d)}')
         
-        plt.plot(x, y, marker = 'X', markersize=10, color='blue')
+        plt.plot(x, y, marker = 'X', markersize=10, color='lightgreen')
      
     plt.subplot(1,2,2)
 
@@ -1094,7 +1120,7 @@ if (__name__ == '__main__'):
                  title = f'{str_stack}, {str_reqid}', 
                  width=width_pix_plot,do_show=False,
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                 do_colorbar=True)
+                 do_colorbar=True, vmin=-1e-6, vmax=2e-6, do_stretch=False)
 
     plt.show()
     

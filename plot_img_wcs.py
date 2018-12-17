@@ -21,6 +21,8 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
                  et = None, do_stretch=True,
                  do_inhibit_axes=False,
                  do_colorbar=False,
+                 do_plot_fiducial=True,
+                 # vmin=None, vmax=None,
                  **kwargs):
  
 
@@ -60,6 +62,9 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
     do_inhibit_axes:
         Boolean. If set, do not print the x and y values on the respective axes.
     
+    do_plot_fiducial:
+        Boolean. If set, plot little red dots on the edges, showing the original image center location.
+        
     ra: 
         RA to center on [degrees]
         
@@ -84,7 +89,7 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
     
     
     if not(do_stretch):    
-        plt.imshow(img, origin='lower', **kwargs)
+        fig = plt.imshow(img, origin='lower', **kwargs)
     else:
         fig = plt.imshow(img_stretch, origin='lower', **kwargs)
     
@@ -132,8 +137,9 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
     
     # Make some markers on the edge, so we can tell if MU69 is actually properly centered, or not.
     
-    plt.plot([ycenter, ycenter, ycenter+hw, ycenter-hw], [xcenter-hw, xcenter+hw, xcenter, xcenter], 
-             marker = 'o', color='red', ls='None')
+    if do_plot_fiducial:
+        plt.plot([ycenter, ycenter, ycenter+hw, ycenter-hw], [xcenter-hw, xcenter+hw, xcenter, xcenter], 
+                 marker = 'o', color='red', ls='None')
         
     plt.title(title)
 

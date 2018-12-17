@@ -49,6 +49,9 @@ import hbt
 
 dir_in = '/Users/throop/Data/MU69_Approach/throop/stacks'
 
+hbt.unload_kernels_all()
+sp.furnsh('kernels_kem_prime.tm')
+
 # '/Users/throop/Data/MU69_Approach/throop/stacks/stack_KALR_MU69_Hazard_L4_2018344_MU69_Approach_n28_z6.png'
 
 zoom = 4
@@ -64,9 +67,11 @@ img_haz = {}
 img_field = {}
 img_diff = {}
 wcs     = {}
+img_haz_med   = {}
 reqids   = []
 
 for file in files_fits:
+    print(f'Reading FITS file: {file}')
     hdu = fits.open(file)
     # img_i = hdu[2].data  # 1=image; 2=field; 3=differential
     # plt.imshow(img_i, origin='lower')
@@ -82,6 +87,15 @@ for file in files_fits:
     img_haz[reqid_i] = hdu[0].data
     img_field[reqid_i] = hdu[1].data
     img_diff[reqid_i] = hdu[2].data
+    
+    # Calc the median of this frame
+    
+    img_haz_med[reqid_i] = np.nanmedian(img_haz[reqid_i][img_haz[reqid_i] > 0] )
+
+    if (img_haz_med[reqid_i] < 20):
+        img_haz[reqid_i] *= 29.967 / 19.967  # Balance the exposures, since some are shorter
+        # img_haz[reqid_i] *= 29.967 / 19.967  # Balance the exposures, since some are shorter
+        img_diff[reqid_i] *= 29.967 / 19.967  # Balance the exposures, since some are shorter
 
     doy[reqid_i] = doy_i 
     wcs[reqid_i] = wcs_i
@@ -96,64 +110,83 @@ for s_i in s:
     
 reqids = reqids_sorted
 
-# for reqid_i in reqids:
-#     plot_img_wcs(img_haz[reqid_i], wcs[reqid_i], width=50, do_show=False, title=reqid_i)
-#     plt.show()
+# Duplicate a final reqid a couple of times, just so the movie will pause
 
-
-
+for i in range(5):
+    reqids.append(reqids[-1])
+    
 # Start the movie
     
 #%%
-f = plt.figure(frameon=False, figsize=(15, 5), dpi=100)
-canvas_width, canvas_height = f.canvas.get_width_height()
-ax = f.add_axes([0, 0, 1, 1])
-ax.axis('off')
-fps = 10
-width=100
+fps = 8
+
+width=150  # Width of the image, in LORRI pixels
+
 cmap = 'Greys_r'
+hbt.fontsize(18)
 
-file_out_mov = f'movie_f{fps}_w{width}_{cmap}.mp4'
+dir_frames = 'frames'
 
-cmdstring = ('ffmpeg', 
-    '-y', '-r', f'{fps}', # overwrite, fps
-    '-s', '%dx%d' % (canvas_width, canvas_height), # size of image string
-    '-pix_fmt', 'argb', # format
-    '-f', 'rawvideo',  '-i', '-', # tell ffmpeg to expect raw video from the pipe
-    '-vcodec', 'mpeg4', file_out_mov) # output encoding
-p = subprocess.Popen(cmdstring, stdin=subprocess.PIPE)
+vmax = 100 # For vertical scaling
+dpi  = 50
 
-vmax = 100
+file_out_base = os.path.join(dir_frames, f'movie_w{width}_d{dpi}_{cmap}')
 
-for reqid_i in reqids:
+file_out_gif = f'{file_out_base}_n{len(reqids)}_f{fps}.gif'
+
+for i,reqid_i in enumerate(reqids):
+
+    # Convert from DOY to calendar day
+
+    file_out_frame = f'{file_out_base}_{i:03}.png'
+    
+    doy = reqid_i.split('_')[-1][-3:]
+    
+    et = sp.utc2et(f'2018::{doy} 12:00:00')
+    utc = sp.timout(et, "Month DD, YYYY", 18)
+    utc = utc.replace(' 0', ' ')
     
     # draw the frame
 
-    plt.subplot(1,3,1)    
-    plot_img_wcs(img_haz[reqid_i], wcs[reqid_i], width=width, do_show=False, title=reqid_i,
-                 do_stretch=False, vmin=5, vmax=vmax, cmap=cmap)
+    f = plt.figure(frameon=False, figsize=(10, 5), dpi=dpi)  # Change dpi to change output size
+    # f.patch.set_facecolor('pink')
+    canvas_width, canvas_height = f.canvas.get_width_height()
+    ax = f.add_axes([0, 0, 1, 1])
+    ax.axis('off')
+    # ax.set_facecolor('pink')
 
-    plt.subplot(1,3,2)    
-    plot_img_wcs(img_field[reqid_i], wcs[reqid_i], width=width, do_show=False, title=reqid_i,
-                 do_stretch=False, vmin=5, vmax=vmax, cmap=cmap)
+    plt.subplot(1,2,1)
+    ax = plt.gca()
+    # ax.set_facecolor('pink')
+    
+    str_dt = f'K{int(doy)-366} days'
+    plot_img_wcs(img_haz[reqid_i], wcs[reqid_i], width=width, do_show=False, title=str_dt,
+                 do_stretch=False, vmin=5, vmax=vmax, cmap=cmap, do_inhibit_axes=True,
+                 do_plot_fiducial=False,)
+
+    # plt.subplot(1,3,2)    
+    # plot_img_wcs(img_field[reqid_i], wcs[reqid_i], width=width, do_show=False, title=reqid_i,
+    #              do_stretch=False, vmin=5, vmax=vmax, cmap=cmap, do_inhibit_axes=True)
                  
 
-    plt.subplot(1,3,3)    
-    plot_img_wcs(img_diff[reqid_i], wcs[reqid_i], width=width, do_show=False, title=reqid_i,
-                 do_stretch=False, vmin=-15, vmax=vmax, cmap=cmap)
+    plt.subplot(1,2,2)    
+    plot_img_wcs(img_diff[reqid_i], wcs[reqid_i], width=width, do_show=False, title=utc,
+                 do_stretch=False, vmin=-vmax*0.5, vmax=vmax, cmap=cmap, do_inhibit_axes=True,
+                 do_plot_fiducial=False,)
+
+    plt.tight_layout()
+    # plt.gca().set_facecolor('yellow')
     
-    plt.draw()
-
-    # extract the image as an ARGB string
-    string = f.canvas.tostring_argb()
-
-    # write to pipe
-    p.stdin.write(string)
-
-# Finish up
-p.communicate()
-
-print(f'Wrote: {file_out_mov}')
-
+    plt.savefig(file_out_frame)
+    plt.show()
     
+    print(f'Wrote frame {i:03}: {file_out_frame}')
+
+str_convert = f'convert -delay {int(100/fps)} {file_out_base}*.png {file_out_gif}'
+os.system(str_convert)
+
+# print(str_convert)
+
+print(f'Wrote: {file_out_gif}')
+
     

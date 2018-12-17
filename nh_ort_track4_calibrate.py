@@ -801,7 +801,7 @@ if __name__ == '__main__':
     ## These directories must end with '/'
     
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/dek-chr3-sunflower3.5k/' # done
-    dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/dek-chr3-sunflower10k/'
+    # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/dek-chr3-sunflower10k/'
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-tunacan10k/'
     # dir_in = '/Users/throop/data/ORT5/kaufmann/deliveries/chr3-sunflower10k-subsets16-dek'
     
@@ -813,7 +813,8 @@ if __name__ == '__main__':
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10k-DPH/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/sun10kfast-DPH/'
 
-    # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan10k/'
+    dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan10k/'
+    dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan10kinc70/'
     
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-tunacan3.5k/'
     # dir_in = '/Users/throop/data/ORT5/hamilton/deliveries/dph-sunflower10k/'

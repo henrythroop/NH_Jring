@@ -108,6 +108,8 @@ class image_stack:
             
         do_lorri_destripe = True  # I didn't use this at first, but it is a clear improvement.
         
+        do_lorri_dedark   = True  # Remove dark current from LORRI?
+        
         files1 = glob.glob(os.path.join(dir,      prefix + '*.fit*'))     # Look in dir
         files2 = glob.glob(os.path.join(dir, '*', prefix + '*.fit*'))     # Look in subdirs
         
@@ -185,6 +187,16 @@ class image_stack:
                     'float64', 'float64', 'float64', 'float64', 'float64', 'float64', 
                     'float64', 'float64', 'float64', 'float64', 'object', 'object'  ))
         
+        # Read the LORRI dark frame. This is a one-off frame for MU69 approach, made by Marc Buie.
+        # It is only valid for 4x4 LORRI.
+        # Units are DN/sec of dark current.
+        
+        if do_lorri_dedark:
+            file_dark = '/Users/throop/Data/MU69_Approach/2018dark_mwb_v2.fits'
+            hdu = fits.open(file_dark)
+            arr_lorri_dark = hdu['PRIMARY'].data
+            hdu.close()
+            
         if (len(files)):
             print("Reading {} files from {}".format(len(files), dir))
             
@@ -225,7 +237,12 @@ class image_stack:
                 
                 if do_lorri_destripe:
                     arr = hbt.lorri_destripe(arr)
-                    
+                
+                # Calibrate out dark current, if requested
+                
+                if do_lorri_dedark:
+                    arr = arr - exptime * arr_lorri_dark
+                
                 # Read the WCS coords of this file.
                 # XXX Suppress warnings about WCS SIP coords which Buie's files get.
                 # However, looks like AstroPy doesn't use proper warning mechanism??
