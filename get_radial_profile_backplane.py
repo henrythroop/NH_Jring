@@ -128,7 +128,7 @@ def get_radial_profile_backplane_quadrant(im, radius_plane, longitude_plane, met
                                      radius_plane <= radius_1d[i+1],),
                                      quadrant_plane == j)
         
-            print(f'Summing {np.sum(is_good)} cells')
+            # print(f'Summing {np.sum(is_good)} cells')
             
             if (method == 'mean'):
                 profile_1d[j,i]   = np.nanmean(im[is_good])
