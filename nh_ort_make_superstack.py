@@ -34,6 +34,7 @@ import hbt
 from   matplotlib.figure import Figure
 from   get_radial_profile_circular import get_radial_profile_circular
 from   get_radial_profile_backplane import get_radial_profile_backplane
+from   get_radial_profile_backplane import get_radial_profile_backplane_quadrant
 from   plot_img_wcs import plot_img_wcs
 from   image_stack import image_stack
 from   compute_backplanes import compute_backplanes
@@ -491,10 +492,24 @@ if (__name__ == '__main__'):
 
         # reqids_haz  = [        
 
-        # #                 'KALR_MU69_OpNav_L4_2018342', # 6 frames
-        # #                 'KALR_MU69_OpNav_L4_2018343',  # 6 frames 
-        # #                 'KALR_MU69_OpNav_L4_2018344', # 6 frames
-                        # 'KALR_MU69_OpNav_L4_2018347', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018342', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018343',  # 6 frames 
+        #                 'KALR_MU69_OpNav_L4_2018344',  # 6 frames 
+        #                 'KALR_MU69_OpNav_L4_2018345', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018347', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018348', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018349', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018350', # 6 frames
+
+        # ]
+        
+        # reqids_haz  = [        
+
+        #                 'KALR_MU69_OpNav_L4_2018353', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018354',  # 6 frames 
+        #                 'KALR_MU69_OpNav_L4_2018355', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018357', # 6 frames
+        #                 'KALR_MU69_OpNav_L4_2018358', # 6 frames
 
         # ]
   
@@ -892,6 +907,8 @@ if (__name__ == '__main__'):
     plane_radius_superstack = backplanes[0]['Radius_eq']
     r = plane_radius_superstack.copy()
 
+    plane_longitude_superstack = backplanes[0]['Longitude_eq']
+
     centroid = scipy.ndimage.measurements.center_of_mass(r < 10000)
 #    print(f'Centroid is {centroid}')
 
@@ -1009,7 +1026,7 @@ if (__name__ == '__main__'):
 #     Make a pair of final plots of the superstack, with and without aimpoints + sunflower rings
 # =============================================================================
     
-    width_pix_plot = 50*zoom
+    width_pix_plot = 100*zoom
     
     # Define the ring sizes.
     # For the SUNFLOWER ring, we just take a radial profile outward, and plot it.
@@ -1041,7 +1058,7 @@ if (__name__ == '__main__'):
                  title = f'{str_stack}, {str_reqid}', 
                  width=width_pix_plot,do_show=False,
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                 do_colorbar=True, do_stretch=False, vmin=-1e-6, vmax=2e-6)
+                 do_colorbar=True, do_stretch=False, vmin=vmin, vmax=vmax)
         
     # Construct the image of ring masks
     # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly
@@ -1120,7 +1137,7 @@ if (__name__ == '__main__'):
                  title = f'{str_stack}, {str_reqid}', 
                  width=width_pix_plot,do_show=False,
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                 do_colorbar=True, vmin=-1e-6, vmax=2e-6, do_stretch=False)
+                 do_colorbar=True, vmin=vmin, vmax=vmax, do_stretch=False)
 
     plt.show()
     
@@ -1238,13 +1255,13 @@ if (__name__ == '__main__'):
           
     else:  # Take a sunflower radial profile
         
-        (radius,  profile_iof_mean, profile_iof_std)   = get_radial_profile_backplane(img_superstack_mean_iof,
-                                             plane_radius_superstack, method = 'mean', num_pts = num_pts, 
-                                             do_std=True)
                                              
         (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
                                              plane_radius_superstack, method = 'median', num_pts = num_pts)
 
+        (radius_quadrant,  profile_iof_quadrant)   = get_radial_profile_backplane_quadrant(img_superstack_mean_iof,
+                                             plane_radius_superstack, plane_azimuth_superstack, method = 'mean', 
+                                             num_pts = num_pts/4)
         if do_implant:
             (radius,  profile_merged_iof)   = get_radial_profile_backplane(img_merged_iof,
                                              plane_radius_superstack, method = 'median', num_pts = num_pts)
@@ -1327,6 +1344,39 @@ if (__name__ == '__main__'):
     plt.legend(loc = 'upper right')
     plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
     plt.show()
+
+
+#%%%
+# =============================================================================
+# Plot the radial profile, for quadrants
+# =============================================================================
+
+    do_profile_quadrant = True
+  
+    if do_profile_quadrant:
+      
+        (radius_quadrant,  profile_iof_quadrant)   = get_radial_profile_backplane_quadrant(img_superstack_mean_iof,
+                                             plane_radius_superstack, plane_longitude_superstack, method = 'median', 
+                                             num_pts = num_pts/8)
+
+        plt.plot(radius_quadrant, profile_iof_quadrant[0] - bias,
+             label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
+                     f'dr={round(np.diff(radius)[0]):.0f} km', color='white')
+
+        
+        for i in range(4):
+            plt.plot(radius_quadrant, profile_iof_quadrant[i] - bias, label=f'Quadrant {i}')
+
+        plt.ylim((-1e-7, 2e-6))
+        plt.xlim((0,10000))
+
+        plt.xlim((0, radius_max_km))
+        plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
+        plt.xlabel('Radius [km]')
+        plt.ylabel('I/F')
+        plt.legend(loc = 'upper right')
+        plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
+        plt.show()
 
 #%%%
 # =============================================================================

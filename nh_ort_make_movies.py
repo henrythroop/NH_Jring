@@ -120,7 +120,7 @@ for i in range(5):
 #%%
 fps = 8
 
-width=150  # Width of the image, in LORRI pixels
+width=150  # Width of the image, in LORRI pixels. Usually keep at 150
 
 cmap = 'Greys_r'
 hbt.fontsize(18)
@@ -128,7 +128,7 @@ hbt.fontsize(18)
 dir_frames = 'frames'
 
 vmax = 100 # For vertical scaling
-dpi  = 50
+dpi  = 50  # Size of the output picture. 200 for cathy. 50 for web.
 
 file_out_base = os.path.join(dir_frames, f'movie_w{width}_d{dpi}_{cmap}')
 
