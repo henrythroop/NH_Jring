@@ -107,9 +107,9 @@ def nh_ort_make_backplanes(digit_filter, frame, q):
         dir_data_ort = '/Users/throop/Data/MU69_Approach'
         dir_in  = os.path.join(dir_data_ort, 'porter')
         dir_out = os.path.join(dir_data_ort, 'throop', 'backplaned')
-        files = glob.glob(os.path.join(dir_in,'*', '*_pwcs.fits'))  # OpNav field data (older)
-        
-        files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018267', '*_pwcs2.fits')) # OpNav data
+
+        # files = glob.glob(os.path.join(dir_in,'*', '*_pwcs.fits'))  # OpNav field data (older)        
+        # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018267', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits')) # OpNav data
         # files = glob.glob(os.path.join(dir_in, 'KALR_MU69_OpNav_L4_2018284', '*_pwcs2.fits')) # OpNav data
@@ -247,7 +247,7 @@ if (__name__ == '__main__'):
     # Run code here
 
     digit_filters = ['12', '34', '56', '78', '90']
-    frames        = ['2014_MU69_SUNFLOWER_ROT', '2014_MU69_TUNACAN_ROT']
+    frames        = ['2014_MU69_SUNFLOWER_ROT']  #, '2014_MU69_TUNACAN_ROT']
     
     q = Queue()  # Start up the process queue
 
