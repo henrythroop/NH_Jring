@@ -22,7 +22,8 @@ from plot_img_wcs import plot_img_wcs
 
 def plot_backplanes(file,
                        name_target = None,
-                       name_observer = None):
+                       name_observer = None,
+                       width = None):
     
     """
     This is a simple function to take a FITS file, and make a plot to the screen of all the backplanes.
@@ -81,16 +82,28 @@ def plot_backplanes(file,
 
 # Plot the image, using plot_img_wcs
 
+    # Set the image size to plot, based on 1x1 vs. 4x4
+    # Some files are called 'L1L4', so I guess these are really L1??
+    # This setting luckily doesn't realy matter -- it is just used for plotting, and doesn't affect results.
+    
+    if not width:
+        if 'L1' in file:
+            width = 400
+        else:
+            width = 100 
+    
     hbt.figsize((8,8)) 
     
     w = WCS(file)
     plot_img_wcs(hdu[0].data, w, do_show=False, name_target='MU69', name_observer = 'New Horizons',
-         et = hdu[0].header['SPCSCET'], width=100)
+         et = hdu[0].header['SPCSCET'], width=width)
     
-    radius_ring = 10_000  # This needs to be adjusted for different distances.
+    radius_ring = 3_500  # This needs to be adjusted for different distances.
+    
     radius_arr = hdu['Radius_eq'].data
     radius_good = np.logical_and(radius_arr > radius_ring*0.95, radius_arr < radius_ring*1.05)
     plt.imshow(radius_good, alpha=0.3, origin='lower', cmap='plasma')
+    plt.title(f'{os.path.basename(file)}, {radius_ring} km')
     plt.show()    
     
 #    Plot the image, using an older stupider method.
@@ -162,9 +175,11 @@ if (__name__ == '__main__'):
 #    file = '/Users/throop/Data/ORT1/throop/backplaned/K1LR_HAZ00/lor_0405178272_0x633_pwcs_backplaned.fits'
 
     file  = '/Users/throop/Data/MU69_Approach/throop/test/lor_0405121318_0x633_pwcs2_backplane.fits'
+    file = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav-EX_L1_2018359/lor_0408034199_0x630_pwcs2_backplaned.fits'
+    # file = '/Users/throop/Data/MU69_Approach/throop/backplaned/KALR_MU69_OpNav_L4_2018359/lor_0408034438_0x633_pwcs2_backplaned.fits'
     
     name_observer = 'New Horizons'
     name_target = 'MU69'
-    plot_backplanes(file, name_target = name_target, name_observer = name_observer)
+    plot_backplanes(file, name_target = name_target, name_observer = name_observer, width=500)
     
     

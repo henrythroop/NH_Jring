@@ -92,10 +92,13 @@ for file in files_fits:
     
     img_haz_med[reqid_i] = np.nanmedian(img_haz[reqid_i][img_haz[reqid_i] > 0] )
 
-    if (img_haz_med[reqid_i] < 20):
-        img_haz[reqid_i] *= 29.967 / 19.967  # Balance the exposures, since some are shorter
-        # img_haz[reqid_i] *= 29.967 / 19.967  # Balance the exposures, since some are shorter
-        img_diff[reqid_i] *= 29.967 / 19.967  # Balance the exposures, since some are shorter
+    if (10 < img_haz_med[reqid_i] < 20):
+        img_haz[reqid_i] *= 29.967 / 19.967  # Balance the 20-sec exposures
+        img_diff[reqid_i] *= 29.967 / 19.967
+
+    if (5 < img_haz_med[reqid_i] < 10):
+        img_haz[reqid_i] *= 29.967 / 9.967  # Balance the 10-sec exposures
+        img_diff[reqid_i] *= 29.967 / 9.967  
 
     doy[reqid_i] = doy_i 
     wcs[reqid_i] = wcs_i
@@ -110,25 +113,37 @@ for s_i in s:
     
 reqids = reqids_sorted
 
-# Duplicate a final reqid a couple of times, just so the movie will pause
 
-for i in range(5):
-    reqids.append(reqids[-1])
     
 # Start the movie
     
 #%%
 fps = 8
 
-width=150  # Width of the image, in LORRI pixels. Usually keep at 150
+width=150  # Width of the image, in LORRI pixels. Usually keep at 150. 200 starts to show hot pixels, which distract.
 
 cmap = 'Greys_r'
 hbt.fontsize(18)
 
-dir_frames = 'frames'
+# If requested, just use a subset of the frames (e.g., first 20)
+
+num_files_max = None
+
+num_files_max = 37  # Comment out or set to None to use all frames. There is a big jump to 38. 37 is good, though it 
+                    # ends at K-14d.
+
+if (num_files_max):
+    reqids = reqids[0:num_files_max]
+
+# Duplicate the final reqid a couple of times, just so the movie will pause
+
+for i in range(5):
+    reqids.append(reqids[-1])
+    
+dir_frames = '/Users/throop/Data/MU69_Approach/frames'
 
 vmax = 100 # For vertical scaling
-dpi  = 50  # Size of the output picture. 200 for cathy. 50 for web.
+dpi  = 50  # Size of the output picture. 200 for cathy. 50 for web. 100 for high-res web.
 
 file_out_base = os.path.join(dir_frames, f'movie_w{width}_d{dpi}_{cmap}')
 
@@ -143,10 +158,10 @@ for i,reqid_i in enumerate(reqids):
     doy = reqid_i.split('_')[-1][-3:]
     
     et = sp.utc2et(f'2018::{doy} 12:00:00')
-    utc = sp.timout(et, "Month DD, YYYY", 18)
+    utc = sp.timout(et, "Month DD, YYYY", 20)
     utc = utc.replace(' 0', ' ')
     
-    # draw the frame
+    # Draw the frame
 
     f = plt.figure(frameon=False, figsize=(10, 5), dpi=dpi)  # Change dpi to change output size
     # f.patch.set_facecolor('pink')
@@ -189,4 +204,6 @@ os.system(str_convert)
 
 print(f'Wrote: {file_out_gif}')
 
+str_rm = f'rm {file_out_base}*.png'
+os.system(str_rm)
     
