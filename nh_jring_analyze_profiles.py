@@ -342,6 +342,7 @@ class ring_profile:
 
 # =============================================================================
 # Return number of radial bins
+# This is a scalar, because number of radial bins is typically always fixed.    
 # =============================================================================
     
     @property         # Property -- allow it to be num_bins_radius, not num_bins_radius()    
@@ -351,14 +352,19 @@ class ring_profile:
 
 # =============================================================================
 # Return size of azimuthal array
+# This is a 1D array, because number of azimuthal bins is not constant.
 # =============================================================================
     
     @property    
     def num_bins_azimuth(self):
         
-        return np.shape(self.profile_azimuth_arr)[1]
+        n   = self.num_profiles 
+        
+        out = np.zeros(n).astype(int)
+        for i in range(n):
+            out[i] = int(np.shape(self.profile_azimuth_arr[i])[0])
+        return out
 
- 
 # =============================================================================
 # Return number of profiles
 # =============================================================================
@@ -378,11 +384,13 @@ class ring_profile:
 
     def dn2iof(self):
         
-# The math here follows directly from that in "NH Ring Calibration.pynb", which I used for Pluto rings.
-# That in turn follows from Hal Weaver's writeup.
-# The key constants are RSOLAR and F_solar, which together convert from DN to I/F.
-# 
-# How to use: Call ring.dn2iof() once. Then after that, any reference to the profiles is in I/F, not DN.
+        """        
+        The math here follows directly from that in "NH Ring Calibration.pynb", which I used for Pluto rings.
+        That in turn follows from Hal Weaver's writeup.
+        The key constants are RSOLAR and F_solar, which together convert from DN to I/F.
+        
+        How to use: Call ring.dn2iof() once. Then after that, any reference to the profiles is in I/F, not DN.
+        """
         
         RSOLAR =  221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
 
@@ -428,10 +436,15 @@ class ring_profile:
         self.profile_radius_units = 'Normal I/F'
         
         # Do the same for azimuthal profile
+        
+        # For this, we do it profile-by-profile, since the length varies, and this is easier than 
+        # making a 2D array to multiply it by blindly.
+        # Weirdly, I had to rewrite this to handle variable length in Jan-2019. How did it ever work before that?
 
-        TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_azimuth,1)))
-        mu_2D = np.transpose(np.tile(mu, (self.num_bins_azimuth,1)))
-        self.profile_azimuth_arr = self.profile_azimuth_arr / TEXP_2D / RSOLAR * math.pi * r**2 / F_solar * 4 * mu_2D
+        for i in range(self.num_profiles):
+            TEXP = self.exptime_arr[i]
+            self.profile_azimuth_arr[i] = \
+              self.profile_azimuth_arr[i] / TEXP / RSOLAR * math.pi * r**2 / F_solar * 4 * mu[i]
         
         self.profile_azimuth_units = 'Normal I/F'
         
@@ -567,9 +580,9 @@ class ring_profile:
             
             theta_i = (theta_i / rad_per_pix).astype(int) * rad_per_pix
             
-            # Calculate the offset
+            # Calculate the offset  XXX dying here
             
-            offset_pix = np.where(theta_i[0] > az_arr)[0][-1]
+            offset_pix = np.where(theta_i[0] >= az_arr)[0][-1]
             
             # Load the unwound 1D array into the 2D array
     
@@ -1711,10 +1724,13 @@ for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e
     
     # Plot the radial profile itself
     
+    label_long = r'{}, {:.1f}°, {:.1f}°'.format(s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d)
+
+    label_short = r'$\alpha$ = {:.1f}, Elev = {:.1f}°'.format(t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d)
+    
     ax1.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i] + i * dy,
              linewidth=3,
-             label = r'{}, {:.1f}°, {:.1f}°'.format(
-                  s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d) )
+             label = label_short)
     
     # Plot the line denoting limits for main ring core
     
@@ -1731,18 +1747,30 @@ for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e
         ax1.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
                   np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
                   color = 'grey', linestyle='dotted')
+
+    # Print the phase angle on the curve
+
+    xval = 119  # Plot the label here  # works at 119
+    index = int(np.digitize(xval, t_mean['radius'][i]/1000))
+    yval = t_mean['profile_radius'][i][index] + dy*(i+0.2)
+    
+    ax1.text(xval-0, yval, rf"$\alpha = {t_mean['phase'][i]*hbt.r2d:.1f}$°")
                          
-ax1.set_ylim((-1e-6,3e-6 + dy*i))
+ax1.set_ylim(-1e-6,2e-6 + dy*i)
 
 # Set the x axis, in 1000 km.
 
-xlim_kkm = np.array((115,133))
+xlim_kkm = np.array((117.5,131))
 ax1.set_xlim(xlim_kkm)
 ax1.set_xlabel('Radius [1000 km]')
-ax1.set_title('J-ring radial profiles, summed per sequence, binning={}'.format(BINS_SMOOTH), y=1.04) 
+ax1.set_title('Radial Profiles'.format(BINS_SMOOTH), y=1.04) 
                                                             # Bump up the y axis
-ax1.set_ylabel('I/F')
-ax1.legend()
+ax1.set_ylabel('I/F + offset')
+
+do_legend = False
+if do_legend:
+    ax1.legend()
+    
 plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
 
 # Mark position of Metis + Adrastea
@@ -1756,11 +1784,15 @@ ax1.text(ring.A_ADRASTEA.to('km').value/1000, -5e-7, 'A')
 # Put the second axis on the top
 
 ax2.plot([1,1])
-ax2.set_xlabel('Radius [R_J]')
+ax2.set_xlabel('Radius [RJ]')
 ax2.set_xlim(xlim_kkm * 1000 / 71492) # Create these automatically from values on the other X axis.
 plt.gca().xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))
 
 plt.show()
+
+file_out = 'plot_jring_profiles_radial_all.png'
+plt.savefig(ring.dir_out + file_out)
+print(f'Wrote: {ring.dir_out + file_out}')
 
 #%%%
     
@@ -1770,7 +1802,7 @@ plt.show()
 
 hbt.figsize((12,8))
 
-hbt.set_fontsize(size=15)
+hbt.set_fontsize(15)
 
 for i in range(len(t_mean['phase'])):
     plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_main'][i], #yerr=t_std['area_dn'][i],
@@ -1864,8 +1896,8 @@ shift = np.array(shift,dtype=int)  # Must be integers, for np.roll() to work in 
 
 profile = []
 
-bin0  = int(a.num_bins_azimuth/2 - num_bins_az_central/2)
-bin1  = int(a.num_bins_azimuth/2 + num_bins_az_central/2)
+bin0  = int(np.mean(a.num_bins_azimuth)/2 - num_bins_az_central/2)
+bin1  = int(np.mean(a.num_bins_azimuth)/2 + num_bins_az_central/2)
 
 for i in range(a.num_profiles):        
     image_i = a.image_unwrapped_arr[i] 
@@ -1915,7 +1947,7 @@ plt.xlim((127.5,130))
 plt.ylabel(a.profile_radius_units)
 plt.xlabel('Radius [1000 km]')
 plt.title("{}, shifted by preset, central {} az bins".format(a, num_bins_az_central))
-plt.ylim((0, np.amax(profile_mean + dy*(i+3))))
+plt.ylim((0, np.nanmax(profile_mean + dy*(i+3))))
 plt.show()
 
 # Now that we have a sum, we can do the correlation
@@ -1993,7 +2025,7 @@ plt.xlim((127.5,130))
 plt.ylabel(a.profile_radius_units)
 plt.xlabel('Radius [1000 km]')
 plt.title("{}, shifted by centroid, central {} az bins".format(a, num_bins_az_central))
-plt.ylim((0, np.amax(profile_mean + dy*(i+3))))
+plt.ylim((0, np.nanmax(profile_mean + dy*(i+3))))
 plt.show()
 
 
@@ -2132,9 +2164,8 @@ for i,images_i in enumerate(images):
     plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
     plt.title(f'Az Profile, unwind, {group}/, {a_ref}, smoothing {smoothing}')
     x = a0.azimuth_arr[0]
-    y[i] = a0.profile_azimuth_arr[0]
+
 plt.legend(fontsize=8)
-#plt.xlim(xlim)
 plt.xlabel('Az [rad]')
 plt.ylabel('DN')
 plt.show()
@@ -2209,7 +2240,7 @@ for i,images_i in enumerate(images):
 
     # Make a strip lot of all the data
     
-    im_extract = a0.make_strip_mosaic(a=3,do_plot=True, do_unwind=True)
+    im_extract = a0.make_strip_mosaic(do_plot=True, do_unwind=True)  # Did have a=3 param??
 
     # Now that we have read in all the profiles (and their pre-unwrapped images),
     # loop over them, and extract the profile from the images. This will not apply stray light corrections,
@@ -2835,13 +2866,14 @@ for i in range(len(images)):
         
     
 #%%%
-    
+
+## Jan-2019. I think this is the end of the useful code + plots. This looks like a duplicate, and doesn't work.
+        
 # Now make a plot superimposing the radial profiles, with the stacked mosaics
 
 
 hbt.figsize(20,10)
 hbt.fontsize(18)
-
 
 plt.xlabel('Azimuth [mrad]')
 plt.title(f'J-Ring Azimuthal Brightness Map, with Unwrapped Data, {ring}')
@@ -2850,7 +2882,6 @@ plt.title(f'J-Ring Azimuthal Brightness Map, with Unwrapped Data, {ring}')
 plt.legend(loc = 'lower right')    
 
 # Plot the image mosaic stack
-
 
 # For comparison, plot the map generated not from images, but from extracted profiles
 
