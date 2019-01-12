@@ -1384,18 +1384,18 @@ pass
 
 stretch = astropy.visualization.PercentileInterval(95)
 
-# Do a test with Metis in the frame
+# # Do a test with Metis in the frame
     
-a = ring_profile()
-self = a
-plot_azimuthal=True
-plot_legend=True
-a.load(8,hbt.frange(0,18), key_radius='full')
-a.plot_azimuthal(plot_legend=True)
-a.plot_radial()
-a.plot(plot_legend=False, plot_azimuthal=True, title=a,a_unwind=129700*u.km)
-a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=False, title=a, 
-      a_unwind=129700*u.km)
+# a = ring_profile()
+# self = a
+# plot_azimuthal=True
+# plot_legend=True
+# a.load(8,hbt.frange(0,18), key_radius='full')
+# a.plot_azimuthal(plot_legend=True)
+# a.plot_radial()
+# a.plot(plot_legend=False, plot_azimuthal=True, title=a,a_unwind=129700*u.km)
+# a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=False, title=a, 
+#       a_unwind=129700*u.km)
 
 
 
@@ -1451,7 +1451,18 @@ params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tup
                  (7, hbt.frange(58,60), 'full'),                 
                  (7, hbt.frange(61,63), 'full'),
                  (7, hbt.frange(91,93), 'full'),
-                 (7, hbt.frange(94,96), 'full')]
+                 (7, hbt.frange(94,96), 'full'),
+                 (8, hbt.frange(0,24), 'full'),
+                 (8, hbt.frange(25,48), 'full'),
+                 (8, hbt.frange(54,72), 'full'),
+                 (8, hbt.frange(73,90), 'full'),
+                 (8, hbt.frange(91,111), 'full'),
+                 
+                 (5, hbt.frange(1,6),   'full'),
+
+                 (6, hbt.frange(12,15),   'full'),
+                 
+                 ]
 
 # Loop over each of the sets of images
 # For each image set, sum the individual profiles, and get one final profile
@@ -1602,6 +1613,15 @@ t_mean['radius_main'][t_mean['sequence'] == '7/52-54 full'] = np.array((118.5,  
 t_mean['radius_main'][t_mean['sequence'] == '7/91-93 full'] = np.array((118.5,  129.55))*1000 # lt blue
 t_mean['radius_main'][t_mean['sequence'] == '7/94-96 full'] = np.array((120.5,  130.5))*1000 # dk blue top
 
+t_mean['radius_main'][t_mean['sequence'] == '8/0-24 full'] = np.array((120.5,  130.5))*1000 # XX adding this
+t_mean['radius_main'][t_mean['sequence'] == '8/25-48 full'] = np.array((120.5,  130.5))*1000 # XX adding this
+t_mean['radius_main'][t_mean['sequence'] == '8/54-72 full'] = np.array((120.5,  130.5))*1000 # XX adding this
+t_mean['radius_main'][t_mean['sequence'] == '8/73-90 full'] = np.array((120.5,  130.5))*1000 # XX adding this
+t_mean['radius_main'][t_mean['sequence'] == '8/91-111 full'] = np.array((120.5,  130.5))*1000 # XX adding this
+
+t_mean['radius_main'][t_mean['sequence'] == '5/1-6 full'] = np.array((120.5,  130.5))*1000 # XX adding this
+t_mean['radius_main'][t_mean['sequence'] == '6/12-15 full'] = np.array((120.5,  130.5))*1000 # XX adding this
+
 # Now that we have the radii of the inner core calculated, look up the bin limits for the inner core
 
 for i in range(num_sequences):
@@ -1726,7 +1746,7 @@ for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e
     
     label_long = r'{}, {:.1f}°, {:.1f}°'.format(s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d)
 
-    label_short = r'$\alpha$ = {:.1f}, Elev = {:.1f}°'.format(t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d)
+    label_short = r'{}, $\alpha$ = {:.1f}, Elev = {:.1f}°'.format(s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d)
     
     ax1.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i] + i * dy,
              linewidth=3,
@@ -1754,7 +1774,7 @@ for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e
     index = int(np.digitize(xval, t_mean['radius'][i]/1000))
     yval = t_mean['profile_radius'][i][index] + dy*(i+0.2)
     
-    ax1.text(xval-0, yval, rf"$\alpha = {t_mean['phase'][i]*hbt.r2d:.1f}$°")
+    ax1.text(xval-0, yval, rf"{s}, $\alpha = {t_mean['phase'][i]*hbt.r2d:.1f}$°")
                          
 ax1.set_ylim(-1e-6,2e-6 + dy*i)
 
@@ -1788,11 +1808,14 @@ ax2.set_xlabel('Radius [RJ]')
 ax2.set_xlim(xlim_kkm * 1000 / 71492) # Create these automatically from values on the other X axis.
 plt.gca().xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))
 
-plt.show()
-
 file_out = 'plot_jring_profiles_radial_all.png'
+plt.tight_layout()
+
 plt.savefig(ring.dir_out + file_out)
+
+plt.show()
 print(f'Wrote: {ring.dir_out + file_out}')
+
 
 #%%%
     

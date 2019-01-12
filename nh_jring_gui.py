@@ -137,7 +137,7 @@ class App:
 
         hbt.set_plot_defaults()
         
-        hbt.set_fontsize(size=8)    # Set a pretty small font here
+        hbt.set_fontsize(8)    # Set a pretty small font here
         self.bgcolor = '#ECECEC'    # ECECEC is the 'default' background for a lot of the ttk widgets.
         
         (r2d, d2r) = (hbt.r2d, hbt.d2r)
@@ -387,7 +387,7 @@ class App:
                                     ylim = (1023,0)) # Return the axes
  
         self.canvas1 = FigureCanvasTkAgg(self.fig1,master=master)
-        self.canvas1.show()
+        self.canvas1.draw() # XXX was show() 11-Jan
         self.ax1.imshow(hbt.read_lorri('')) # Put up an empty frame, if file = ''
         
 # Set up Plot 2 : Radial / Azimuthal profiles
@@ -400,7 +400,7 @@ class App:
                                     label = 'Plot') # Return the axes
 
         self.canvas2 = FigureCanvasTkAgg(self.fig2,master=master)
-        self.canvas2.show()  
+        self.canvas2.draw() # XXX was show()  
 
 # Set up Plot 3 : Unwrapped ring
         
@@ -413,7 +413,7 @@ class App:
  
         self.canvas3 = FigureCanvasTkAgg(self.fig3,master=master)
         self.ax3.imshow(hbt.read_lorri(''))
-        self.canvas3.show()  
+        self.canvas3.draw() # XXX was show()  
 
 # Set up Plot 4 : Debugging / Misc window
      
@@ -425,7 +425,7 @@ class App:
                                     label = 'Image') # Return the axes
  
         self.canvas4 = FigureCanvasTkAgg(self.fig4,master=master)
-        self.canvas4.show()
+        self.canvas4.draw() # XXX was show()
         plot4 = self.ax4.plot([1,2], [3,5]) # Put up an empty frame, if file = ''
         
 # Put objects into appropriate grid positions
@@ -810,7 +810,7 @@ class App:
 #        self.fig1.tight_layout() # Remove all the extra whitespace -- nice!
 #        self.canvas1.draw()
         
-        self.canvas3.show()
+        self.canvas3.draw()
             
 #==============================================================================
 # Plot the radial and azimuthal profiles
@@ -856,7 +856,7 @@ class App:
         
         self.ax2.set_ylim(hbt.mm(vals_central))
 
-        self.canvas2.show()
+        self.canvas2.draw()
 
         self.ax4.clear()  # Clear lines from the current plot.
         
@@ -915,7 +915,7 @@ class App:
             ax41 = self.ax4.twiny()
             ax41.set_xlim(list(hbt.mm(bins_radius/1000/71.4)))
             
-        self.canvas4.show()
+        self.canvas4.draw()
         
 ##########
 # Recenter the image. That is, this resets the slider positions to (0,0). 
