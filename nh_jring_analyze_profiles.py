@@ -263,6 +263,7 @@ class ring_profile:
         for index_image in index_images:
             file = self.get_export_analysis_filename(index_group, index_image)
             
+            print(f'Attempting to load image {index_group}/{index_image}: {file}')
             lun = open(file, 'rb')
             vals = pickle.load(lun)
             lun.close()
@@ -1614,26 +1615,29 @@ t_mean['radius_core'][t_mean['sequence'] == '5/1-6 full'] = np.array((128.0,  12
 t_mean['radius_core'][t_mean['sequence'] == '6/12-15 full'] = np.array((128.0,  129.5))*1000 # XX adding this
 
 # Set boundaries for wide portion of main ring
+# Originally I had this set for 118.0 .. 129.5 Kkm. But, DePater @ Table 6.1 says that main ring 
+# should start at 1.71 or 1.72 RJ = 122 or 123 Kkm. There is an inflection point there, so I will start counting there.
 
-t_mean['radius_main'][t_mean['sequence'] == '7/8-15 full']  = np.array((118,    129.5))*1000
-t_mean['radius_main'][t_mean['sequence'] == '7/0-7 full']   = np.array((118,    129.5))*1000
-t_mean['radius_main'][t_mean['sequence'] == '7/24-31 full'] = np.array((118,    129.5))*1000
-t_mean['radius_main'][t_mean['sequence'] == '7/16-23 full'] = np.array((118,    129.5))*1000 # Red
-t_mean['radius_main'][t_mean['sequence'] == '7/36-39 full'] = np.array((118,    129.25))*1000 # Purple
-t_mean['radius_main'][t_mean['sequence'] == '7/32-35 full'] = np.array((118.7,  129.6))*1000   # Brown
-t_mean['radius_main'][t_mean['sequence'] == '7/40-42 full'] = np.array((118.5,  129.70))*1000 # pink
-t_mean['radius_main'][t_mean['sequence'] == '7/61-63 full'] = np.array((119.2,  129.50))*1000 # grey
-t_mean['radius_main'][t_mean['sequence'] == '7/52-54 full'] = np.array((118.5,  129.50))*1000 # olive
-t_mean['radius_main'][t_mean['sequence'] == '7/91-93 full'] = np.array((118.5,  129.55))*1000 # lt blue
-t_mean['radius_main'][t_mean['sequence'] == '7/94-96 full'] = np.array((120.5,  130.5))*1000 # dk blue top
 
-t_mean['radius_main'][t_mean['sequence'] == '8/0-24 full'] = np.array((120.5,  130.5))*1000 # XX adding this
-t_mean['radius_main'][t_mean['sequence'] == '8/25-48 full'] = np.array((120.5,  130.5))*1000 # XX adding this
-t_mean['radius_main'][t_mean['sequence'] == '8/54-72 full'] = np.array((120.5,  130.5))*1000 # XX adding this
-t_mean['radius_main'][t_mean['sequence'] == '8/73-90 full'] = np.array((120.5,  130.5))*1000 # XX adding this
-t_mean['radius_main'][t_mean['sequence'] == '8/91-111 full'] = np.array((120.5,  130.5))*1000 # XX adding this
-t_mean['radius_main'][t_mean['sequence'] == '5/1-6 full'] = np.array((120.5,  130.5))*1000 # XX adding this
-t_mean['radius_main'][t_mean['sequence'] == '6/12-15 full'] = np.array((120.5,  130.5))*1000 # XX adding this
+t_mean['radius_main'][t_mean['sequence'] == '7/8-15 full']  = np.array((122,    129.7))*1000
+t_mean['radius_main'][t_mean['sequence'] == '7/0-7 full']   = np.array((122,    129.7))*1000
+t_mean['radius_main'][t_mean['sequence'] == '7/24-31 full'] = np.array((122,    129.7))*1000
+t_mean['radius_main'][t_mean['sequence'] == '7/16-23 full'] = np.array((122,    129.7))*1000 # Red
+t_mean['radius_main'][t_mean['sequence'] == '7/36-39 full'] = np.array((122,    129.7))*1000 # Purple
+t_mean['radius_main'][t_mean['sequence'] == '7/32-35 full'] = np.array((122,  129.7))*1000   # Brown
+t_mean['radius_main'][t_mean['sequence'] == '7/40-42 full'] = np.array((122,  129.70))*1000 # pink
+t_mean['radius_main'][t_mean['sequence'] == '7/61-63 full'] = np.array((122,  129.70))*1000 # grey
+t_mean['radius_main'][t_mean['sequence'] == '7/52-54 full'] = np.array((122,  129.70))*1000 # olive
+t_mean['radius_main'][t_mean['sequence'] == '7/91-93 full'] = np.array((122,  129.7))*1000 # lt blue
+t_mean['radius_main'][t_mean['sequence'] == '7/94-96 full'] = np.array((122,  129.7))*1000 # dk blue top
+
+t_mean['radius_main'][t_mean['sequence'] == '8/0-24 full']   = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '8/25-48 full']  = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '8/54-72 full']  = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '8/73-90 full']  = np.array((122,  129.7))*1000
+t_mean['radius_main'][t_mean['sequence'] == '8/91-111 full'] = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '5/1-6 full']    = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '6/12-15 full']  = np.array((122,  129.7))*1000 
 
 # Define the ring width for the purpose of normalization.
 # As per TPW04, we want the radially averaged normal I/F, assuming width of 6500 km
@@ -1853,7 +1857,6 @@ plt.savefig(ring.dir_out + file_out)
 plt.show()
 print(f'Wrote: {ring.dir_out + file_out}')
 
-
 #%%%
     
 # =============================================================================
@@ -1903,7 +1906,7 @@ plt.plot([], [], marker = '*', ms = 10, lw=3, mew=3, linestyle='none', color='bl
 
 plt.title('Jupiter ring, by sequence')
 plt.xlabel('Angle [deg]')
-plt.ylabel(t_mean['profile_radius_units'][0][0])
+plt.ylabel('Mean ' + t_mean['profile_radius_units'][0] + ', 6500 km')
 plt.yscale('log')
 plt.ylim((1e-9,1e-4))
 plt.legend()
@@ -1934,19 +1937,20 @@ for file in files_out_idl:
         
         if 'core' in file:
             lun.write(f"{t_mean['area_core'][i]:12.3e} {t_mean['phase'][i]*hbt.r2d:10.3f}   " + \
-                         "iof*0.0 0.000   0.000   0.5d*um       NewHorizons   LORRI   Clear \n")
+                         "iof*0.0 0.000   0.000   0.5d*um       NewHorizons   LORRI   Clear_core \n")
         if 'dust' in file:
             lun.write(f"{t_mean['area_main'][i]:12.3e} {t_mean['phase'][i]*hbt.r2d:10.3f}   " + \
-                         "iof*0.0 0.000   0.000   0.5d*um       NewHorizons   LORRI   Clear \n")
+                         "iof*0.0 0.000   0.000   0.5d*um       NewHorizons   LORRI   Clear_dust \n")
 
         if 'total' in file:
             lun.write(f"{t_mean['area_total'][i]:12.3e} {t_mean['phase'][i]*hbt.r2d:10.3f}   " + \
-                         "iof*0.0 0.000   0.000   0.5d*um       NewHorizons   LORRI   Clear \n")
+                         "iof*0.0 0.000   0.000   0.5d*um       NewHorizons   LORRI   Clear_total \n")
 
             
     lun.close()
     print(f'Wrote: {file}')    
     
+#%%%
     
 # =============================================================================
 # Now make some customized individual profiles. For a 'best merged set' profile thing.
