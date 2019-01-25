@@ -263,7 +263,7 @@ class ring_profile:
         for index_image in index_images:
             file = self.get_export_analysis_filename(index_group, index_image)
             
-            print(f'Attempting to load image {index_group}/{index_image}: {file}')
+            # print(f'Attempting to load image {index_group}/{index_image}: {file}')
             lun = open(file, 'rb')
             vals = pickle.load(lun)
             lun.close()
@@ -546,7 +546,7 @@ class ring_profile:
             
         # First flatten radial profiles. This is easy -- we just take the mean of all the profiles.
                 
-        self.profile_radius_arr[0] = np.nanmean(self.profile_radius_arr, axis=0) # Save the flattened profile
+        self.profile_radius_arr[0] = hbt.nanmean(self.profile_radius_arr, axis=0) # Save the flattened profile
 
         # Now do the azimuthal profiles. This is much harder, since we need to unwind them to make sense of them.
 
@@ -599,7 +599,7 @@ class ring_profile:
 
         warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
         
-        self.profile_azimuth_arr = np.array([np.nanmean(unwind_2d,        axis=0)])    # Save the flattened profile
+        self.profile_azimuth_arr = np.array([hbt.nanmean(unwind_2d,        axis=0)])    # Save the flattened profile
         self.profile_radius_arr  = np.array([self.profile_radius_arr[0]])
 
         # For statistics, count up how many datapoints went into each az bin.
@@ -628,9 +628,9 @@ class ring_profile:
         # Flatten the images and mask arrays, by taking median (that is, reducing from N images, to 1.)
         # XXX Stacking images is hard and requires more subtlety to unwrap. Not doing this yet.
         
-#        self.image_unwrapped_arr = np.array([np.nanmedian(self.image_unwrapped_arr, axis=0)])
-#        self.mask_objects_unwrapped_arr = np.array([np.nanmedian(self.mask_objects_unwrapped_arr, axis=0)])
-#        self.mask_stray_unwrapped_arr = np.array([np.nanmedian(self.mask_stray_unwrapped_arr, axis=0)])
+#        self.image_unwrapped_arr = np.array([hbt.nanmedian(self.image_unwrapped_arr, axis=0)])
+#        self.mask_objects_unwrapped_arr = np.array([hbt.nanmedian(self.mask_objects_unwrapped_arr, axis=0)])
+#        self.mask_stray_unwrapped_arr = np.array([hbt.nanmedian(self.mask_stray_unwrapped_arr, axis=0)])
         
         self.image_unwrapped_arr = np.array([self.image_unwrapped_arr[0]])
         self.mask_objects_unwrapped_arr = np.array([self.mask_objects_unwrapped_arr[0]])
@@ -1114,14 +1114,14 @@ class ring_profile:
         
         # Generate azimuthal profiles
         
-        profile_im     = np.nanmedian(im_mosaic,               axis=0)
-        profile_masked = np.nanmedian(im_mosaic * mask_mosaic, axis=0)
+        profile_im     = hbt.nanmedian(im_mosaic,               axis=0)
+        profile_masked = hbt.nanmedian(im_mosaic * mask_mosaic, axis=0)
         
         # Construct a single long strip of the image
         
         mask_strip_arr[mask_strip_arr == 0] = np.nan   # Change 0 → nan
-        im_strip     = np.nanmedian(im_strip_arr, axis=0)
-        masked_strip = np.nanmedian(mask_strip_arr * im_strip_arr, axis=0)
+        im_strip     = hbt.nanmedian(im_strip_arr, axis=0)
+        masked_strip = hbt.nanmedian(mask_strip_arr * im_strip_arr, axis=0)
         
         # Make plots, if requested
         
@@ -2007,7 +2007,7 @@ for i in range(a.num_profiles):
                               a.mask_objects_unwrapped_arr[i][:,:])  # XXX This mask mergering isn't working right.
 
     # Now actually sum to get the radial profile. These two should give identical results.
-    profile_i = np.nanmean( image_i[:,bin0:bin1], axis=1)
+    profile_i = hbt.nanmean( image_i[:,bin0:bin1], axis=1)
     profile_i2 = nh_jring_extract_profile_from_unwrapped(a.image_unwrapped_arr[i],
                                                         a.radius_arr[i][:],
                                                         a.azimuth_arr[i][:],
@@ -3164,8 +3164,8 @@ plt.show()
 ((im,mask),(profile, profile_masked), strip, az_arr)=\
     ring.make_strip_mosaic(do_plot_masked=True, do_unwind=True, do_plot=True, do_plot_profiles=True, dwidth_chop=0)
 
-profile8_1 = np.nanmedian(im, axis=0)
-profile_mask8_1 = np.nanmedian(mask * im, axis=0)
+profile8_1 = hbt.nanmedian(im, axis=0)
+profile_mask8_1 = hbt.nanmedian(mask * im, axis=0)
 #plt.plot(profile, alpha=0.3)
 #plt.plot(profile_mask, alpha=0.3)
 #plt.xlim((0,6300))
@@ -3174,8 +3174,8 @@ profile_mask8_1 = np.nanmedian(mask * im, axis=0)
 ((im,mask),(profile,profile_mask), strip, az_arr)=ring8_2.make_strip_mosaic(do_unwind=True, do_plot_image=True, 
                                                              do_plot_profile=True)
 
-profile = np.nanmedian(im, axis=0)
-profile_mask = np.nanmedian(mask * im, axis=0)
+profile = hbt.nanmedian(im, axis=0)
+profile_mask = hbt.nanmedian(mask * im, axis=0)
 plt.plot(profile, alpha=0.3)
 plt.plot(profile8_1, alpha=0.3)
 plt.plot(profile_mask, alpha=0.3)
@@ -3183,8 +3183,8 @@ plt.plot(profile_mask8_1, alpha=0.3)
 plt.xlim((0,6300))
 plt.show()
 
-profile = np.nanmedian(im, axis=0)
-profile_mask = np.nanmedian(mask * im, axis=0)
+profile = hbt.nanmedian(im, axis=0)
+profile_mask = hbt.nanmedian(mask * im, axis=0)
 plt.plot(profile, alpha=0.3)
 plt.plot(profile_mask, alpha=0.3)
 plt.show()
@@ -3269,8 +3269,8 @@ im_mosaic_masked = im_mosaic.copy()
 im_mosaic_masked[mask_s_mosaic == False] = np.nan
 plt.imshow(im_mosaic_masked)
 
-profile=np.nanmedian(im_mosaic, axis=0)
-profile_masked = np.nanmedian(im_mosaic_masked, axis=0)
+profile=hbt.nanmedian(im_mosaic, axis=0)
+profile_masked = hbt.nanmedian(im_mosaic_masked, axis=0)
 
 hbt.figsize((20,5))
 plt.plot(profile, label = 'Masked, no stray or objects', alpha=0.5)
