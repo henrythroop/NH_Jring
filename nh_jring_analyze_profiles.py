@@ -263,6 +263,7 @@ class ring_profile:
         for index_image in index_images:
             file = self.get_export_analysis_filename(index_group, index_image)
             
+            # print(f'Attempting to load image {index_group}/{index_image}: {file}')
             lun = open(file, 'rb')
             vals = pickle.load(lun)
             lun.close()
@@ -342,6 +343,7 @@ class ring_profile:
 
 # =============================================================================
 # Return number of radial bins
+# This is a scalar, because number of radial bins is typically always fixed.    
 # =============================================================================
     
     @property         # Property -- allow it to be num_bins_radius, not num_bins_radius()    
@@ -351,14 +353,19 @@ class ring_profile:
 
 # =============================================================================
 # Return size of azimuthal array
+# This is a 1D array, because number of azimuthal bins is not constant.
 # =============================================================================
     
     @property    
     def num_bins_azimuth(self):
         
-        return np.shape(self.profile_azimuth_arr)[1]
+        n   = self.num_profiles 
+        
+        out = np.zeros(n).astype(int)
+        for i in range(n):
+            out[i] = int(np.shape(self.profile_azimuth_arr[i])[0])
+        return out
 
- 
 # =============================================================================
 # Return number of profiles
 # =============================================================================
@@ -378,11 +385,13 @@ class ring_profile:
 
     def dn2iof(self):
         
-# The math here follows directly from that in "NH Ring Calibration.pynb", which I used for Pluto rings.
-# That in turn follows from Hal Weaver's writeup.
-# The key constants are RSOLAR and F_solar, which together convert from DN to I/F.
-# 
-# How to use: Call ring.dn2iof() once. Then after that, any reference to the profiles is in I/F, not DN.
+        """        
+        The math here follows directly from that in "NH Ring Calibration.pynb", which I used for Pluto rings.
+        That in turn follows from Hal Weaver's writeup.
+        The key constants are RSOLAR and F_solar, which together convert from DN to I/F.
+        
+        How to use: Call ring.dn2iof() once. Then after that, any reference to the profiles is in I/F, not DN.
+        """
         
         RSOLAR =  221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
 
@@ -428,10 +437,15 @@ class ring_profile:
         self.profile_radius_units = 'Normal I/F'
         
         # Do the same for azimuthal profile
+        
+        # For this, we do it profile-by-profile, since the length varies, and this is easier than 
+        # making a 2D array to multiply it by blindly.
+        # Weirdly, I had to rewrite this to handle variable length in Jan-2019. How did it ever work before that?
 
-        TEXP_2D = np.transpose(np.tile(self.exptime_arr, (self.num_bins_azimuth,1)))
-        mu_2D = np.transpose(np.tile(mu, (self.num_bins_azimuth,1)))
-        self.profile_azimuth_arr = self.profile_azimuth_arr / TEXP_2D / RSOLAR * math.pi * r**2 / F_solar * 4 * mu_2D
+        for i in range(self.num_profiles):
+            TEXP = self.exptime_arr[i]
+            self.profile_azimuth_arr[i] = \
+              self.profile_azimuth_arr[i] / TEXP / RSOLAR * math.pi * r**2 / F_solar * 4 * mu[i]
         
         self.profile_azimuth_units = 'Normal I/F'
         
@@ -532,7 +546,7 @@ class ring_profile:
             
         # First flatten radial profiles. This is easy -- we just take the mean of all the profiles.
                 
-        self.profile_radius_arr[0] = np.nanmean(self.profile_radius_arr, axis=0) # Save the flattened profile
+        self.profile_radius_arr[0] = hbt.nanmean(self.profile_radius_arr, axis=0) # Save the flattened profile
 
         # Now do the azimuthal profiles. This is much harder, since we need to unwind them to make sense of them.
 
@@ -567,9 +581,9 @@ class ring_profile:
             
             theta_i = (theta_i / rad_per_pix).astype(int) * rad_per_pix
             
-            # Calculate the offset
+            # Calculate the offset  XXX dying here
             
-            offset_pix = np.where(theta_i[0] > az_arr)[0][-1]
+            offset_pix = np.where(theta_i[0] >= az_arr)[0][-1]
             
             # Load the unwound 1D array into the 2D array
     
@@ -585,7 +599,7 @@ class ring_profile:
 
         warnings.simplefilter(action = "ignore", category = RuntimeWarning)  # "<" causes a warning with NaN's...
         
-        self.profile_azimuth_arr = np.array([np.nanmean(unwind_2d,        axis=0)])    # Save the flattened profile
+        self.profile_azimuth_arr = np.array([hbt.nanmean(unwind_2d,        axis=0)])    # Save the flattened profile
         self.profile_radius_arr  = np.array([self.profile_radius_arr[0]])
 
         # For statistics, count up how many datapoints went into each az bin.
@@ -614,9 +628,9 @@ class ring_profile:
         # Flatten the images and mask arrays, by taking median (that is, reducing from N images, to 1.)
         # XXX Stacking images is hard and requires more subtlety to unwrap. Not doing this yet.
         
-#        self.image_unwrapped_arr = np.array([np.nanmedian(self.image_unwrapped_arr, axis=0)])
-#        self.mask_objects_unwrapped_arr = np.array([np.nanmedian(self.mask_objects_unwrapped_arr, axis=0)])
-#        self.mask_stray_unwrapped_arr = np.array([np.nanmedian(self.mask_stray_unwrapped_arr, axis=0)])
+#        self.image_unwrapped_arr = np.array([hbt.nanmedian(self.image_unwrapped_arr, axis=0)])
+#        self.mask_objects_unwrapped_arr = np.array([hbt.nanmedian(self.mask_objects_unwrapped_arr, axis=0)])
+#        self.mask_stray_unwrapped_arr = np.array([hbt.nanmedian(self.mask_stray_unwrapped_arr, axis=0)])
         
         self.image_unwrapped_arr = np.array([self.image_unwrapped_arr[0]])
         self.mask_objects_unwrapped_arr = np.array([self.mask_objects_unwrapped_arr[0]])
@@ -1100,14 +1114,14 @@ class ring_profile:
         
         # Generate azimuthal profiles
         
-        profile_im     = np.nanmedian(im_mosaic,               axis=0)
-        profile_masked = np.nanmedian(im_mosaic * mask_mosaic, axis=0)
+        profile_im     = hbt.nanmedian(im_mosaic,               axis=0)
+        profile_masked = hbt.nanmedian(im_mosaic * mask_mosaic, axis=0)
         
         # Construct a single long strip of the image
         
         mask_strip_arr[mask_strip_arr == 0] = np.nan   # Change 0 → nan
-        im_strip     = np.nanmedian(im_strip_arr, axis=0)
-        masked_strip = np.nanmedian(mask_strip_arr * im_strip_arr, axis=0)
+        im_strip     = hbt.nanmedian(im_strip_arr, axis=0)
+        masked_strip = hbt.nanmedian(mask_strip_arr * im_strip_arr, axis=0)
         
         # Make plots, if requested
         
@@ -1371,18 +1385,18 @@ pass
 
 stretch = astropy.visualization.PercentileInterval(95)
 
-# Do a test with Metis in the frame
+# # Do a test with Metis in the frame
     
-a = ring_profile()
-self = a
-plot_azimuthal=True
-plot_legend=True
-a.load(8,hbt.frange(0,18), key_radius='full')
-a.plot_azimuthal(plot_legend=True)
-a.plot_radial()
-a.plot(plot_legend=False, plot_azimuthal=True, title=a,a_unwind=129700*u.km)
-a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=False, title=a, 
-      a_unwind=129700*u.km)
+# a = ring_profile()
+# self = a
+# plot_azimuthal=True
+# plot_legend=True
+# a.load(8,hbt.frange(0,18), key_radius='full')
+# a.plot_azimuthal(plot_legend=True)
+# a.plot_radial()
+# a.plot(plot_legend=False, plot_azimuthal=True, title=a,a_unwind=129700*u.km)
+# a.load(8,hbt.frange(24,48), key_radius='full').plot(plot_legend=False, plot_azimuthal=True, plot_radial=False, title=a, 
+#       a_unwind=129700*u.km)
 
 
 
@@ -1438,7 +1452,18 @@ params        = [(7, hbt.frange(0,7),   'full'),  # For each plot, we list a tup
                  (7, hbt.frange(58,60), 'full'),                 
                  (7, hbt.frange(61,63), 'full'),
                  (7, hbt.frange(91,93), 'full'),
-                 (7, hbt.frange(94,96), 'full')]
+                 (7, hbt.frange(94,96), 'full'),
+                 (8, hbt.frange(0,24), 'full'),
+                 (8, hbt.frange(25,48), 'full'),
+                 (8, hbt.frange(54,72), 'full'),
+                 (8, hbt.frange(73,90), 'full'),
+                 (8, hbt.frange(91,111), 'full'),
+                 
+                 (5, hbt.frange(1,6),   'full'),
+
+                 (6, hbt.frange(12,15),   'full'),
+                 
+                 ]
 
 # Loop over each of the sets of images
 # For each image set, sum the individual profiles, and get one final profile
@@ -1533,15 +1558,18 @@ num_sequences = len(t_mean)
 # Set the core and main ring positions. I have individually measured each of these.
 
 radius_core_default = np.array([127.5, 129.5])*1000   # Radius, in units of 1000 km.
-radius_main_default = np.array([118.0, 130.0])*1000
+radius_main_default = np.array([118.0, 130.0])*1000  # XXX for testing, try this 122 .. 130.
 
 t_mean.add_column(Table.Column(np.tile(radius_core_default, (num_sequences,1)),name='radius_core'))
 t_mean.add_column(Table.Column(np.tile(radius_main_default, (num_sequences,1)),name='radius_main'))
 t_mean.add_column(Table.Column(np.tile((0,0), (num_sequences,1)), name='bin_core'))
+
 # Core radii, used
+
 t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_core'))
 t_mean.add_column(Table.Column(np.tile((0,0), (num_sequences,1)), name='bin_main'))
 t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_main'))
+t_mean.add_column(Table.Column(np.zeros(num_sequences), name='area_total'))
 
 # Copy the units over (which don't get aggregated properly, since they are a string)
 
@@ -1565,29 +1593,57 @@ t_mean.sort('phase')
 # Extract separately the brightness of the moonlet core vs the brightness of the main ring
 # =============================================================================
 # These radial limits have been set individually for each profile. I think they are very good.
+
 t_mean['radius_core'][t_mean['sequence'] == '7/8-15 full']  = np.array((127.85, 129.5))*1000
 t_mean['radius_core'][t_mean['sequence'] == '7/0-7 full']   = np.array((127.65, 129.35))*1000
 t_mean['radius_core'][t_mean['sequence'] == '7/24-31 full'] = np.array((127.8,  129.5))*1000
-t_mean['radius_core'][t_mean['sequence'] == '7/16-23 full'] = np.array((127.65, 129.55))*1000 # Red
+t_mean['radius_core'][t_mean['sequence'] == '7/16-23 full'] = np.array((127.65, 129.50))*1000 # Red
 t_mean['radius_core'][t_mean['sequence'] == '7/36-39 full'] = np.array((127.75, 129.25))*1000 # Purple
-t_mean['radius_core'][t_mean['sequence'] == '7/32-35 full'] = np.array((127.8,  129.6))*1000   # Brown
+t_mean['radius_core'][t_mean['sequence'] == '7/32-35 full'] = np.array((127.9,  129.6))*1000   # Brown
 t_mean['radius_core'][t_mean['sequence'] == '7/40-42 full'] = np.array((128.0,  129.70))*1000 # pink
 t_mean['radius_core'][t_mean['sequence'] == '7/61-63 full'] = np.array((127.8,  129.50))*1000 # grey
 t_mean['radius_core'][t_mean['sequence'] == '7/52-54 full'] = np.array((127.5,  129.50))*1000 # olive
 t_mean['radius_core'][t_mean['sequence'] == '7/91-93 full'] = np.array((128.0,  129.55))*1000 # lt blue
 t_mean['radius_core'][t_mean['sequence'] == '7/94-96 full'] = np.array((127.5,  129.3))*1000 # dk blue top
 
-t_mean['radius_main'][t_mean['sequence'] == '7/8-15 full']  = np.array((118,    129.5))*1000
-t_mean['radius_main'][t_mean['sequence'] == '7/0-7 full']   = np.array((118,    129.5))*1000
-t_mean['radius_main'][t_mean['sequence'] == '7/24-31 full'] = np.array((118,    129.5))*1000
-t_mean['radius_main'][t_mean['sequence'] == '7/16-23 full'] = np.array((118,    129.5))*1000 # Red
-t_mean['radius_main'][t_mean['sequence'] == '7/36-39 full'] = np.array((118,    129.25))*1000 # Purple
-t_mean['radius_main'][t_mean['sequence'] == '7/32-35 full'] = np.array((118.7,  129.6))*1000   # Brown
-t_mean['radius_main'][t_mean['sequence'] == '7/40-42 full'] = np.array((118.5,  129.70))*1000 # pink
-t_mean['radius_main'][t_mean['sequence'] == '7/61-63 full'] = np.array((119.2,  129.50))*1000 # grey
-t_mean['radius_main'][t_mean['sequence'] == '7/52-54 full'] = np.array((118.5,  129.50))*1000 # olive
-t_mean['radius_main'][t_mean['sequence'] == '7/91-93 full'] = np.array((118.5,  129.55))*1000 # lt blue
-t_mean['radius_main'][t_mean['sequence'] == '7/94-96 full'] = np.array((120.5,  130.5))*1000 # dk blue top
+t_mean['radius_core'][t_mean['sequence'] == '8/0-24 full'] = np.array((127.9,  129.7))*1000 # XX adding this
+t_mean['radius_core'][t_mean['sequence'] == '8/25-48 full'] = np.array((127.9,  129.7))*1000 # XX adding this
+t_mean['radius_core'][t_mean['sequence'] == '8/54-72 full'] = np.array((127.8,  129.3))*1000 # XX adding this
+t_mean['radius_core'][t_mean['sequence'] == '8/73-90 full'] = np.array((127.9,  129.5))*1000 # XX adding this
+t_mean['radius_core'][t_mean['sequence'] == '8/91-111 full'] = np.array((127.8,  129.5))*1000 # XX adding this
+t_mean['radius_core'][t_mean['sequence'] == '5/1-6 full'] = np.array((128.0,  129.5))*1000 # XX adding this
+t_mean['radius_core'][t_mean['sequence'] == '6/12-15 full'] = np.array((128.0,  129.5))*1000 # XX adding this
+
+# Set boundaries for wide portion of main ring
+# Originally I had this set for 118.0 .. 129.5 Kkm. But, DePater @ Table 6.1 says that main ring 
+# should start at 1.71 or 1.72 RJ = 122 or 123 Kkm. There is an inflection point there, so I will start counting there.
+
+
+t_mean['radius_main'][t_mean['sequence'] == '7/8-15 full']  = np.array((122,    129.7))*1000
+t_mean['radius_main'][t_mean['sequence'] == '7/0-7 full']   = np.array((122,    129.7))*1000
+t_mean['radius_main'][t_mean['sequence'] == '7/24-31 full'] = np.array((122,    129.7))*1000
+t_mean['radius_main'][t_mean['sequence'] == '7/16-23 full'] = np.array((122,    129.7))*1000 # Red
+t_mean['radius_main'][t_mean['sequence'] == '7/36-39 full'] = np.array((122,    129.7))*1000 # Purple
+t_mean['radius_main'][t_mean['sequence'] == '7/32-35 full'] = np.array((122,  129.7))*1000   # Brown
+t_mean['radius_main'][t_mean['sequence'] == '7/40-42 full'] = np.array((122,  129.70))*1000 # pink
+t_mean['radius_main'][t_mean['sequence'] == '7/61-63 full'] = np.array((122,  129.70))*1000 # grey
+t_mean['radius_main'][t_mean['sequence'] == '7/52-54 full'] = np.array((122,  129.70))*1000 # olive
+t_mean['radius_main'][t_mean['sequence'] == '7/91-93 full'] = np.array((122,  129.7))*1000 # lt blue
+t_mean['radius_main'][t_mean['sequence'] == '7/94-96 full'] = np.array((122,  129.7))*1000 # dk blue top
+
+t_mean['radius_main'][t_mean['sequence'] == '8/0-24 full']   = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '8/25-48 full']  = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '8/54-72 full']  = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '8/73-90 full']  = np.array((122,  129.7))*1000
+t_mean['radius_main'][t_mean['sequence'] == '8/91-111 full'] = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '5/1-6 full']    = np.array((122,  129.7))*1000 
+t_mean['radius_main'][t_mean['sequence'] == '6/12-15 full']  = np.array((122,  129.7))*1000 
+
+# Define the ring width for the purpose of normalization.
+# As per TPW04, we want the radially averaged normal I/F, assuming width of 6500 km
+# Units of t_mean['profile_radius'] are km, so this is km also
+
+width_ring_normalize = 6500 
 
 # Now that we have the radii of the inner core calculated, look up the bin limits for the inner core
 
@@ -1617,15 +1673,23 @@ for i in range(num_sequences):
     (area_i_core, line, bins) = area_between_line_curve(t_mean['radius'][i],
                                      t_mean['profile_radius'][i],
                                      t_mean['radius_core'][i])
-    t_mean['area_core'][i] = area_i_core
+    t_mean['area_core'][i] = area_i_core / width_ring_normalize
     
-# Calculate the area under the curve for the main ring.
+# Calculate the area under the curve for the main ring, *excluding the core*.
 # For the main ring, we subtract off the area already measured for the core
 
     (area_i_main, line, bins) = area_between_line_curve(t_mean['radius'][i],
                                      t_mean['profile_radius'][i],
                                      t_mean['radius_main'][i])
-    t_mean['area_main'][i] = area_i_main - area_i_core
+    t_mean['area_main'][i] = (area_i_main - area_i_core) / width_ring_normalize
+
+# Calculate the area under the curve for the main ring, *TOTAL* including both dust + core.
+
+    (area_i_total, line, bins) = area_between_line_curve(t_mean['radius'][i],
+                                     t_mean['profile_radius'][i],
+                                     t_mean['radius_main'][i])
+    t_mean['area_total'][i] = (area_i_main) / width_ring_normalize
+
     
 # =============================================================================
 # Do some Mie calculations
@@ -1648,7 +1712,9 @@ r_break=15*u.micron
 
 # Define ratio of small:large bodies
 
-ratio_lambert_mie = 0.20  # Ratio of Lambertian:Mie (or actually, Lambertian:Total)
+ratio_lambert    = 0.40  # Ratio of Lambertian:Mie (or actually, Lambertian:Total)
+ratio_isotropic  = 0.1
+ratio_mie        = 1 - (ratio_lambert + ratio_isotropic)
 
 r      = hbt.frange(rmin, rmax, num_r, log=True)*u.micron  # Astropy bug? When I run frange(), it drops the units.
 n      = hbt.powerdist_broken(r, r_break, q_1, q_2)        # Power law  
@@ -1676,10 +1742,18 @@ ang_data  = t_mean['phase']*u.rad
 p11_lambert_data  = hbt.scatter_lambert(ang_data)
 p11_lambert_model = hbt.scatter_lambert(ang_model)
 
+p11_isotropic_data  = hbt.scatter_isotropic(ang_data)
+p11_isotropic_model = hbt.scatter_isotropic(ang_model)
+
 # Merge Mie + Lambertian in the specified ratios
 
-p11_merged_model = p11_mie_model * (1-ratio_lambert_mie) + p11_lambert_model * ratio_lambert_mie
-p11_merged_data  = p11_mie_data  * (1-ratio_lambert_mie) + p11_lambert_data  * ratio_lambert_mie
+p11_merged_model = p11_mie_model       * ratio_mie + \
+                   p11_lambert_model   * ratio_lambert + \
+                   p11_isotropic_model * ratio_isotropic
+                   
+p11_merged_data  = p11_mie_data  * ratio_mie +\
+                   p11_lambert_data * ratio_lambert + \
+                   p11_isotropic_data * ratio_isotropic
 
 # Do a linfit to compute proper magnitude of model, to fit data
 
@@ -1711,10 +1785,13 @@ for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e
     
     # Plot the radial profile itself
     
+    label_long = r'{}, {:.1f}°, {:.1f}°'.format(s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d)
+
+    label_short = r'{}, $\alpha$ = {:.1f}, Elev = {:.1f}°'.format(s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d)
+    
     ax1.plot(t_mean['radius'][i]/1000, t_mean['profile_radius'][i] + i * dy,
              linewidth=3,
-             label = r'{}, {:.1f}°, {:.1f}°'.format(
-                  s, t_mean['phase'][i]*hbt.r2d, t_mean['elev'][i]*hbt.r2d) )
+             label = label_short)
     
     # Plot the line denoting limits for main ring core
     
@@ -1731,18 +1808,30 @@ for i,s in enumerate(t_mean['sequence']):  # Loop over the text sequence name (e
         ax1.plot( np.array( (t_mean['radius'][i][bins[0]], t_mean['radius'][i][bins[1]]) )/1000 ,
                   np.array( (t_mean['profile_radius'][i][bins[0]], t_mean['profile_radius'][i][bins[1]]))  + i*dy,
                   color = 'grey', linestyle='dotted')
+
+    # Print the phase angle on the curve
+
+    xval = 119  # Plot the label here  # works at 119
+    index = int(np.digitize(xval, t_mean['radius'][i]/1000))
+    yval = t_mean['profile_radius'][i][index] + dy*(i+0.2)
+    
+    ax1.text(xval-0, yval, rf"{s}, $\alpha = {t_mean['phase'][i]*hbt.r2d:.1f}$°")
                          
-ax1.set_ylim((-1e-6,3e-6 + dy*i))
+ax1.set_ylim(-1e-6,2e-6 + dy*i)
 
 # Set the x axis, in 1000 km.
 
-xlim_kkm = np.array((115,133))
+xlim_kkm = np.array((117.5,131))
 ax1.set_xlim(xlim_kkm)
 ax1.set_xlabel('Radius [1000 km]')
-ax1.set_title('J-ring radial profiles, summed per sequence, binning={}'.format(BINS_SMOOTH), y=1.04) 
+ax1.set_title('Radial Profiles'.format(BINS_SMOOTH), y=1.04) 
                                                             # Bump up the y axis
-ax1.set_ylabel('I/F')
-ax1.legend()
+ax1.set_ylabel('I/F + offset')
+
+do_legend = False
+if do_legend:
+    ax1.legend()
+    
 plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
 
 # Mark position of Metis + Adrastea
@@ -1756,11 +1845,17 @@ ax1.text(ring.A_ADRASTEA.to('km').value/1000, -5e-7, 'A')
 # Put the second axis on the top
 
 ax2.plot([1,1])
-ax2.set_xlabel('Radius [R_J]')
+ax2.set_xlabel('Radius [RJ]')
 ax2.set_xlim(xlim_kkm * 1000 / 71492) # Create these automatically from values on the other X axis.
 plt.gca().xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))
 
+file_out = 'plot_jring_profiles_radial_all.png'
+plt.tight_layout()
+
+plt.savefig(ring.dir_out + file_out)
+
 plt.show()
+print(f'Wrote: {ring.dir_out + file_out}')
 
 #%%%
     
@@ -1768,56 +1863,95 @@ plt.show()
 # Plot the main phase curve, separated into contributions of Main ring + Core
 # =============================================================================
 
+
 hbt.figsize((12,8))
 
-hbt.set_fontsize(size=15)
+hbt.set_fontsize(15)
 
-for i in range(len(t_mean['phase'])):
+num_obs = len(t_mean['phase'])
+
+for i in range(num_obs):
     plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_main'][i], #yerr=t_std['area_dn'][i],
-             marker = 'o', ms=10, linestyle = 'none', alpha=0.5)
+             marker = 'o', ms=10, linestyle = 'none', alpha=0.5, color='blue')
 
     plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_core'][i],
-             marker = '+', ms=12, markeredgewidth=3, lw=3, linestyle = 'none')
+             marker = '+', ms=12, markeredgewidth=3, lw=3, linestyle = 'none', color='red')
 
-plt.plot(ang_model.to('deg'), p11_mie_model        * scalefac_merged_log * (1-ratio_lambert_mie), 
+    plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_total'][i],
+             marker = '*', ms=12, markeredgewidth=3, lw=3, linestyle = 'none', alpha=0.2, color='black')
+    # plt.errorbar(t_mean['phase'][i] * hbt.r2d, t_mean['area_total'][i],
+             # marker = 'o', ms=12, markeredgewidth=3, lw=3, linestyle = 'none', alpha=0.5, color='pink')
+
+plt.plot(ang_model.to('deg'), p11_mie_model        * scalefac_merged_log * (1-ratio_lambert), 
          label = 'q = ({},{}), rb={}, n={}'.format(q_1, q_2, r_break, nm_refract), color = 'black', 
          linestyle = 'dotted')
 
-plt.plot(ang_model.to('deg'), p11_lambert_model    * scalefac_merged_log * ratio_lambert_mie, label = 'Lambert', 
+plt.plot(ang_model.to('deg'), p11_lambert_model    * scalefac_merged_log * ratio_lambert, label = 'Lambert', 
          color='black', linestyle='dashed')
 
+plt.plot(ang_model.to('deg'), p11_isotropic_model    * scalefac_merged_log * ratio_isotropic, label = 'Isotropic', 
+         color='black', linestyle='solid')
+
 plt.plot(ang_model.to('deg'), p11_merged_model     * scalefac_merged_log, 
-         label = 'Merged, ratio = {}'.format(ratio_lambert_mie), 
+         label = 'Merged, ratio = {}'.format(ratio_lambert), 
          color='black', linestyle = 'dashdot')
 import matplotlib.lines as mlines
 
 #symbol_plus = mlines.Line2D([], [], color='black', marker='+', ms=12, mew=3, linestyle='none')
 #symbol_circle = mlines.Line2D([], [], color = 'black', marker = 'o', ms=10, ls='none')
 
-plt.plot([], [], marker = 'o', ms = 10,              linestyle='none', color='black', label='Main Ring, everything')
+plt.plot([], [], marker = 'o', ms = 10,              linestyle='none', color='black', label='Main Ring, dust')
 plt.plot([], [], marker = '+', ms = 10, lw=3, mew=3, linestyle='none', color='black', label='Main Ring, core only')
+plt.plot([], [], marker = '*', ms = 10, lw=3, mew=3, linestyle='none', color='black', label='Main Ring, dust+core')
 
 plt.title('Jupiter ring, by sequence')
 plt.xlabel('Angle [deg]')
-plt.ylabel(t_mean['profile_radius_units'][0][0])
+plt.ylabel('Mean ' + t_mean['profile_radius_units'][0] + ', 6500 km')
 plt.yscale('log')
-plt.ylim((1e-6,1e-3))
+plt.ylim((1e-9,1e-4))
 plt.legend()
 plt.show()
 
+#%%%
+
 # =============================================================================
-# Plot the phase curve, with one point per image XXX DO NOT PLOT
+# Now output the data points for IDL, to be used by ~/idl/j/jring_cassini/inversion/jring.pro
 # =============================================================================
 
-# This is duplicated by much better radial profiles above. Skip it.
+dir_idl = '/Users/throop/idl/jupiter_cassini/j/inversion/input/'
 
-if False:
-    plt.plot(t['phase'] * hbt.r2d, t['area_dn'], marker = 'o', linestyle = 'none', label=t['label'])
-    #plt.yscale('log')
-    plt.title('Phase Curve, New Horizons J-Ring, one point per image')
-    plt.ylim((1e-7, 3e-4))
-    plt.show()
- 
+files_out_idl = [dir_idl + 'nh_lorri_core.txt',
+                 dir_idl + 'nh_lorri_dust.txt',
+                 dir_idl + 'nh_lorri_total.txt']
+
+for file in files_out_idl:
+    lun = open(file, 'w')
+    lun.write(
+            
+   '#  I/F          Phase     Err_I/F ErrPha  Longit  Alam          Platform      Inst    Filter1 \n')
+      
+       # 3.501e-05    173.666   iof*0.3 0.000   0.000   nh_lorri_core NewHorizons LORRI Clear 
+       
+      #       3.358d-5  4.213  iof*0.03 0.000   0.000   nh_lorri_full NewHorizons LORRI Clear')
+    for i in range(num_obs):
+        
+        if 'core' in file:
+            lun.write(f"{t_mean['area_core'][i]:12.3e} {t_mean['phase'][i]*hbt.r2d:10.3f}   " + \
+                         "iof*0.0 0.000   0.000   0.5d*um       NewHorizons   LORRI   Clear_core \n")
+        if 'dust' in file:
+            lun.write(f"{t_mean['area_main'][i]:12.3e} {t_mean['phase'][i]*hbt.r2d:10.3f}   " + \
+                         "iof*0.0 0.000   0.000   0.5d*um       NewHorizons   LORRI   Clear_dust \n")
+
+        if 'total' in file:
+            lun.write(f"{t_mean['area_total'][i]:12.3e} {t_mean['phase'][i]*hbt.r2d:10.3f}   " + \
+                         "iof*0.0 0.000   0.000   0.5d*um       NewHorizons   LORRI   Clear_total \n")
+
+            
+    lun.close()
+    print(f'Wrote: {file}')    
+    
+#%%%
+    
 # =============================================================================
 # Now make some customized individual profiles. For a 'best merged set' profile thing.
 # =============================================================================
@@ -1843,8 +1977,8 @@ a = ring_profile()
 hbt.set_fontsize(20)
 lw                  = 3.5          # Line weight 
 dy                  = 3           # Offset between adjacent lines 
-num_bins_az_central = 15            # How many azimuthal bins do we use for the profile?
-
+num_bins_az_central = 150            # How many azimuthal bins do we use for the profile?
+xlim                = (127,131)      # Plotting limits, in 1000 km.
 
 a.load(7, hbt.frange(40,42),key_radius='full')
 shift               = [1, 0, 1]     # This is the # of bins to shift it *outward* by. Negative is inward.
@@ -1852,35 +1986,63 @@ shift               = [1, 0, 1]     # This is the # of bins to shift it *outward
 a.load(7, hbt.frange(24,31),key_radius='full')
 shift               = [0, 0, 0, 2, 0, 0, 0, 1]     # This is the # of bins to shift it *outward* by. Negative is inward.
 
-images = np.delete(hbt.frange(0,47),16)  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
-images = np.delete(hbt.frange(0,47),(16,18,19))  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
-images = np.delete(hbt.frange(0,47),(16,18,19,29))  # 0-47, but exclude a few specific bad profiles (bg, or satellites)
+a.load(5, hbt.frange(1,6),key_radius='full')
+shift               = [0, 0, 0, 0, 0, 0]     # This is the # of bins to shift it *outward* by. Negative is inward.
 
-a.load(8, images, key_radius='full')
-shift = np.zeros(48)
+# images = np.delete(hbt.frange(0,47),16)  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
+# images = np.delete(hbt.frange(0,47),(16,18,19))  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
+# images = np.delete(hbt.frange(0,47),(16,18,19,29))  # 0-47, but exclude a few specific bad profiles (bg, or satellites)
+# a.load(8, images, key_radius='full')
+# shift = np.zeros(48)
 
-# From the image, extract just the central few azimuthal bins and make a profile. These are the best and most reliable2
-shift = np.array(shift,dtype=int)  # Must be integers, for np.roll() to work in np 1.11. Floats allowed in np 1.13.
+# From the image, extract just the central few azimuthal bins and make a profile. These are the best and most reliable.
+shift = np.array(shift,dtype=int)  # Must be integers, for np.roll() to work.
 
 profile = []
 
-bin0  = int(a.num_bins_azimuth/2 - num_bins_az_central/2)
-bin1  = int(a.num_bins_azimuth/2 + num_bins_az_central/2)
+bin0_az  = int(np.mean(a.num_bins_azimuth)/2 - num_bins_az_central/2)
+bin1_az  = int(np.mean(a.num_bins_azimuth)/2 + num_bins_az_central/2)
+bin0_rad = int(np.digitize(xlim[0]*1000, a.radius_arr[0]))
+bin1_rad = int(np.digitize(xlim[1]*1000, a.radius_arr[1]))
 
 for i in range(a.num_profiles):        
-    image_i = a.image_unwrapped_arr[i] 
-    mask = hbt.nanlogical_and(a.mask_stray_unwrapped_arr[i][:,:], 
-                              a.mask_objects_unwrapped_arr[i][:,:])  # XXX This mask mergering isn't working right.
-
+    image_u_i = a.image_unwrapped_arr[i] 
+    mask_u_i  = hbt.nanlogical_and(a.mask_stray_unwrapped_arr[i][:,:], 
+                                 a.mask_objects_unwrapped_arr[i][:,:])
+    image_um_i = image_u_i * mask_u_i  # Mask the image
+    
     # Now actually sum to get the radial profile. These two should give identical results.
-    profile_i = np.nanmean( image_i[:,bin0:bin1], axis=1)
-    profile_i2 = nh_jring_extract_profile_from_unwrapped(a.image_unwrapped_arr[i],
-                                                        a.radius_arr[i][:],
-                                                        a.azimuth_arr[i][:],
-                                                        0.047,
-                                                        'radial',
-                                                        mask_unwrapped=mask)
-    profile.append(profile_i)
+    profile_i = hbt.nanmean( image_um_i[:,bin0_az:bin1_az], axis=1)
+    
+    if (i == 0):
+        im_tiled = image_um_i[bin0_rad:bin1_rad,bin0_az:bin1_az]
+        im_stacked = [im_tiled]
+        
+    else:
+        im_tiled = np.vstack((im_merged, image_um_i[bin0_rad:bin1_rad,bin0_az:bin1_az]))
+        im_stacked.append(image_um_i[bin0_rad:bin1_rad,bin0_az:bin1_az])
+
+im_stacked = hbt.nanmedian(im_stacked, axis=0)
+im_tiled = np.vstack((im_tiled, im_stacked))
+
+# Make a nice plot showing the stacked ring image, and the radial profile
+
+hbt.fontsize(12)
+hbt.figsize(10,10)
+plt.subplot(2,1,1)       
+plt.imshow(stretch(im_stacked), origin='lower', 
+           extent=[a.azimuth_arr[0][bin0_az], a.azimuth_arr[0][bin1_az],
+                   a.radius_arr[0][bin0_rad]/1000, a.radius_arr[0][bin1_rad]/1000],
+           aspect='auto'        
+                   )
+    
+plt.title(f'Stacked unwrapped ring, {a}')
+# plt.show()
+
+plt.subplot(2,1,2)
+plt.plot(a.radius_arr[0][bin0_rad:bin1_rad]/1000, np.nansum(im_stacked, axis=1))
+plt.title(f'Radial profile from summing unwrapped, {a}')
+plt.show()
 
 # Compute the the mean of all the profiles.
 
@@ -1892,10 +2054,25 @@ for i,p in enumerate(profile):
 i += 1
 profile_mean = profile_sum / i
 
+# Show the actual images
+
+for i in range(a.num_profiles):
+    plt.imshow(a.image_unwrapped_arr[0][:,bin0_az:bin1_az])
+    
+# Make a plot of the individual profiles
+
+plt.subplot(2,1,1)
+for i in range(a.num_profiles):
+    plt.plot(a.radius_arr[0]/1000, profile[i] + i/2., label=f'{a.index_group_arr[i]}/{a.index_image_arr[i]}')
+    
+plt.xlim(xlim)
+plt.legend()
+    
 # Make a plot of the summed radial profile
 
+plt.subplot(2,1,2)
 plt.plot(a.radius_arr[0]/1000, profile_mean + dy*i, label = 'Mean', lw=lw)
-plt.xlim((127.5, 130))
+plt.xlim(xlim)
 plt.title("{}, shifted by preset, central {} az bins".format(a, num_bins_az_central))
 plt.xlabel('Radius [1000 km]')
 plt.show()
@@ -1915,7 +2092,7 @@ plt.xlim((127.5,130))
 plt.ylabel(a.profile_radius_units)
 plt.xlabel('Radius [1000 km]')
 plt.title("{}, shifted by preset, central {} az bins".format(a, num_bins_az_central))
-plt.ylim((0, np.amax(profile_mean + dy*(i+3))))
+plt.ylim((0, np.nanmax(profile_mean + dy*(i+3))))
 plt.show()
 
 # Now that we have a sum, we can do the correlation
@@ -1993,7 +2170,7 @@ plt.xlim((127.5,130))
 plt.ylabel(a.profile_radius_units)
 plt.xlabel('Radius [1000 km]')
 plt.title("{}, shifted by centroid, central {} az bins".format(a, num_bins_az_central))
-plt.ylim((0, np.amax(profile_mean + dy*(i+3))))
+plt.ylim((0, np.nanmax(profile_mean + dy*(i+3))))
 plt.show()
 
 
@@ -2132,9 +2309,8 @@ for i,images_i in enumerate(images):
     plt.plot(a0.azimuth_arr[0], a0.profile_azimuth_arr[0], label=a0.__str__(), alpha=0.7)
     plt.title(f'Az Profile, unwind, {group}/, {a_ref}, smoothing {smoothing}')
     x = a0.azimuth_arr[0]
-    y[i] = a0.profile_azimuth_arr[0]
+
 plt.legend(fontsize=8)
-#plt.xlim(xlim)
 plt.xlabel('Az [rad]')
 plt.ylabel('DN')
 plt.show()
@@ -2209,7 +2385,7 @@ for i,images_i in enumerate(images):
 
     # Make a strip lot of all the data
     
-    im_extract = a0.make_strip_mosaic(a=3,do_plot=True, do_unwind=True)
+    im_extract = a0.make_strip_mosaic(do_plot=True, do_unwind=True)  # Did have a=3 param??
 
     # Now that we have read in all the profiles (and their pre-unwrapped images),
     # loop over them, and extract the profile from the images. This will not apply stray light corrections,
@@ -2422,8 +2598,8 @@ for i,images_i in enumerate(images):  # Load each image set
             # Extract the masked profile
             
             profile_azimuth_masked[key] = nh_jring_extract_profile_from_unwrapped(a0.image_unwrapped_arr[j], 
-                                                  self.radius_arr[j],   # Array defining bins of radius
-                                                  self.azimuth_arr[j],  # Array defining bins of azimuth
+                                                  a0.radius_arr[j],   # Array defining bins of radius
+                                                  a0.azimuth_arr[j],  # Array defining bins of azimuth
                                                   range_of_radius[key],        # range of rad used for az profile
                                                   'azimuth',
                                                   mask_unwrapped = a0.mask_objects_unwrapped_arr[j])   
@@ -2431,8 +2607,8 @@ for i,images_i in enumerate(images):  # Load each image set
             # Extract the non-masked, raw profile
             
             profile_azimuth_raw[key] = nh_jring_extract_profile_from_unwrapped(a0.image_unwrapped_arr[j], 
-                                                  self.radius_arr[j],   # Array defining bins of radius
-                                                  self.azimuth_arr[j],  # Array defining bins of azimuth
+                                                  a0.radius_arr[j],   # Array defining bins of radius
+                                                  a0.azimuth_arr[j],  # Array defining bins of azimuth
                                                   range_of_radius[key],        # range of rad used for az profile
                                                   'azimuth',
                                                   mask_unwrapped = a0.mask_stray_unwrapped_arr[j])      # Remove the BG
@@ -2835,13 +3011,14 @@ for i in range(len(images)):
         
     
 #%%%
-    
+
+## Jan-2019. I think this is the end of the useful code + plots. This looks like a duplicate, and doesn't work.
+        
 # Now make a plot superimposing the radial profiles, with the stacked mosaics
 
 
 hbt.figsize(20,10)
 hbt.fontsize(18)
-
 
 plt.xlabel('Azimuth [mrad]')
 plt.title(f'J-Ring Azimuthal Brightness Map, with Unwrapped Data, {ring}')
@@ -2851,7 +3028,6 @@ plt.legend(loc = 'lower right')
 
 # Plot the image mosaic stack
 
-
 # For comparison, plot the map generated not from images, but from extracted profiles
 
 do_plot_map_extracted = True
@@ -2860,24 +3036,6 @@ if do_plot_map_extracted:
     plt.title(f'J-Ring Azimuthal Brightness Map, from Individual Az Profiles, {ring}')
     plt.ylabel(f'Image Number, {ring}')
     plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 a2 = ring_profile()
 a2.load(8,hbt.frange(0,48),key_radius='core').plot(plot_legend=False)
@@ -3031,8 +3189,8 @@ plt.show()
 ((im,mask),(profile, profile_masked), strip, az_arr)=\
     ring.make_strip_mosaic(do_plot_masked=True, do_unwind=True, do_plot=True, do_plot_profiles=True, dwidth_chop=0)
 
-profile8_1 = np.nanmedian(im, axis=0)
-profile_mask8_1 = np.nanmedian(mask * im, axis=0)
+profile8_1 = hbt.nanmedian(im, axis=0)
+profile_mask8_1 = hbt.nanmedian(mask * im, axis=0)
 #plt.plot(profile, alpha=0.3)
 #plt.plot(profile_mask, alpha=0.3)
 #plt.xlim((0,6300))
@@ -3041,8 +3199,8 @@ profile_mask8_1 = np.nanmedian(mask * im, axis=0)
 ((im,mask),(profile,profile_mask), strip, az_arr)=ring8_2.make_strip_mosaic(do_unwind=True, do_plot_image=True, 
                                                              do_plot_profile=True)
 
-profile = np.nanmedian(im, axis=0)
-profile_mask = np.nanmedian(mask * im, axis=0)
+profile = hbt.nanmedian(im, axis=0)
+profile_mask = hbt.nanmedian(mask * im, axis=0)
 plt.plot(profile, alpha=0.3)
 plt.plot(profile8_1, alpha=0.3)
 plt.plot(profile_mask, alpha=0.3)
@@ -3050,8 +3208,8 @@ plt.plot(profile_mask8_1, alpha=0.3)
 plt.xlim((0,6300))
 plt.show()
 
-profile = np.nanmedian(im, axis=0)
-profile_mask = np.nanmedian(mask * im, axis=0)
+profile = hbt.nanmedian(im, axis=0)
+profile_mask = hbt.nanmedian(mask * im, axis=0)
 plt.plot(profile, alpha=0.3)
 plt.plot(profile_mask, alpha=0.3)
 plt.show()
@@ -3136,8 +3294,8 @@ im_mosaic_masked = im_mosaic.copy()
 im_mosaic_masked[mask_s_mosaic == False] = np.nan
 plt.imshow(im_mosaic_masked)
 
-profile=np.nanmedian(im_mosaic, axis=0)
-profile_masked = np.nanmedian(im_mosaic_masked, axis=0)
+profile=hbt.nanmedian(im_mosaic, axis=0)
+profile_masked = hbt.nanmedian(im_mosaic_masked, axis=0)
 
 hbt.figsize((20,5))
 plt.plot(profile, label = 'Masked, no stray or objects', alpha=0.5)

@@ -3,6 +3,11 @@
 """
 Created on Fri Mar  2 11:43:11 2018
 
+THIS IS MY MAIN CODE TO MAKE SUPERSTACKS, IMPLANT RINGS, TAKE RADIAL PROFILES, ETC,
+FOR THE MU69 FLYBY.
+
+IT IS CALLED 'ORT' BUT THAT IS JUST HISTORICAL.
+
 @author: throop
 """
 
@@ -25,7 +30,6 @@ import pickle # For load/save
 
 import scipy
 import copy
-
 
 # HBT imports
 

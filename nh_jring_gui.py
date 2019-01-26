@@ -137,7 +137,7 @@ class App:
 
         hbt.set_plot_defaults()
         
-        hbt.set_fontsize(size=8)    # Set a pretty small font here
+        hbt.set_fontsize(8)    # Set a pretty small font here
         self.bgcolor = '#ECECEC'    # ECECEC is the 'default' background for a lot of the ttk widgets.
         
         (r2d, d2r) = (hbt.r2d, hbt.d2r)
@@ -387,7 +387,7 @@ class App:
                                     ylim = (1023,0)) # Return the axes
  
         self.canvas1 = FigureCanvasTkAgg(self.fig1,master=master)
-        self.canvas1.show()
+        self.canvas1.draw() # XXX was show() 11-Jan
         self.ax1.imshow(hbt.read_lorri('')) # Put up an empty frame, if file = ''
         
 # Set up Plot 2 : Radial / Azimuthal profiles
@@ -400,7 +400,7 @@ class App:
                                     label = 'Plot') # Return the axes
 
         self.canvas2 = FigureCanvasTkAgg(self.fig2,master=master)
-        self.canvas2.show()  
+        self.canvas2.draw() # XXX was show()  
 
 # Set up Plot 3 : Unwrapped ring
         
@@ -413,7 +413,7 @@ class App:
  
         self.canvas3 = FigureCanvasTkAgg(self.fig3,master=master)
         self.ax3.imshow(hbt.read_lorri(''))
-        self.canvas3.show()  
+        self.canvas3.draw() # XXX was show()  
 
 # Set up Plot 4 : Debugging / Misc window
      
@@ -425,7 +425,7 @@ class App:
                                     label = 'Image') # Return the axes
  
         self.canvas4 = FigureCanvasTkAgg(self.fig4,master=master)
-        self.canvas4.show()
+        self.canvas4.draw() # XXX was show()
         plot4 = self.ax4.plot([1,2], [3,5]) # Put up an empty frame, if file = ''
         
 # Put objects into appropriate grid positions
@@ -564,6 +564,31 @@ class App:
 
         dir_export = '/Users/throop/data/NH_Jring/out/'
         file_export = dir_export + t['Shortname'].replace('_opnav', '').replace('.fit', '_analysis.pkl')
+
+        return(file_export)
+
+# =============================================================================
+# Get the name of the processed image file to export
+# =============================================================================
+
+    def get_export_image_filename(self, index_group = None, index_image = None):
+
+        if (index_image is None):
+            index_image = self.index_image  # Use the current image, unless one is passed
+
+        if (index_group is None):
+            index_group = self.index_group
+
+#        else:
+                           # Use the passed-in image name
+        
+        groupmask = self.t['Desc'] == self.groups[index_group]
+        t_group = self.t[groupmask]  # 
+        
+        t = t_group[index_image]  # Grab this, read-only, since we use it a lot.
+
+        dir_export = '/Users/throop/data/NH_Jring/out/'
+        file_export = dir_export + t['Shortname'].replace('_opnav', '').replace('.fit', '_processed.fit')
 
         return(file_export)
         
@@ -786,9 +811,9 @@ class App:
             mask_unwrapped_denan[isnan] = 0
             mask_unwrapped_denan = mask_unwrapped_denan.astype('bool')
 #            mm = hbt.mm(sigma_clip(dn_grid[mask_unwrapped_denan], sigma_lower=1000, sigma_upper=3, 
-#                                           iters=10))
+#                                           maxiters=10))
             mm = hbt.mm(sigma_clip(dn_grid[mask_unwrapped_denan], sigma_lower=3, sigma_upper=3, 
-                                           iters=10))
+                                           maxiters=10))
             
         stretch_mm = astropy.visualization.ManualInterval(vmin=mm[0], vmax=mm[1])        
         
@@ -810,7 +835,7 @@ class App:
 #        self.fig1.tight_layout() # Remove all the extra whitespace -- nice!
 #        self.canvas1.draw()
         
-        self.canvas3.show()
+        self.canvas3.draw()
             
 #==============================================================================
 # Plot the radial and azimuthal profiles
@@ -856,7 +881,7 @@ class App:
         
         self.ax2.set_ylim(hbt.mm(vals_central))
 
-        self.canvas2.show()
+        self.canvas2.draw()
 
         self.ax4.clear()  # Clear lines from the current plot.
         
@@ -915,7 +940,7 @@ class App:
             ax41 = self.ax4.twiny()
             ax41.set_xlim(list(hbt.mm(bins_radius/1000/71.4)))
             
-        self.canvas4.show()
+        self.canvas4.draw()
         
 ##########
 # Recenter the image. That is, this resets the slider positions to (0,0). 
@@ -1060,6 +1085,9 @@ class App:
 # Load info from header
 
         header = hbt.get_image_header(file)
+        
+        self.header = header  # Save the header i its entirety, so we can output it later
+        
         self.et = header['SPCSCET']
         self.utc = sp.et2utc(self.et, 'C', 0)
         
@@ -1328,8 +1356,8 @@ the internal state which is already correct. This does *not* refresh the image i
         # Compute the proper stretch, based only on the datapoints that show thru the mask. 
         # And, remove outliers like CR's from this stretch.
         
-#        mm = hbt.mm(sigma_clip(self.image_processed[mask], sigma_lower=1000, sigma_upper=3, iters=10))
-        mm = hbt.mm(sigma_clip(self.image_processed[mask], sigma_lower=3, sigma_upper=3, iters=20))
+#        mm = hbt.mm(sigma_clip(self.image_processed[mask], sigma_lower=1000, sigma_upper=3, maxiters=10))
+        mm = hbt.mm(sigma_clip(self.image_processed[mask], sigma_lower=3, sigma_upper=3, maxiters=20))
 
         stretch_mm = astropy.visualization.ManualInterval(vmin=mm[0], vmax=mm[1])
         
@@ -1725,8 +1753,16 @@ the internal state which is already correct. This does *not* refresh the image i
 # Export results for this image to a file
 ##########
 
-    def export_analysis(self, verbose=True):
+    def export_analysis(self, verbose=True, do_export_image=True):
 
+        """
+        
+        Outputs analysis to a .pkl file.
+        
+        do_export_image: If set, then also outputs the processed image to a FITS file.
+        
+        """
+        
         t = self.t_group[self.index_image]  # Grab this, read-only, since we use it a lot.
         dir_export = '/Users/throop/data/NH_Jring/out/'
         
@@ -1776,6 +1812,20 @@ the internal state which is already correct. This does *not* refresh the image i
         
         print("Wrote results: {}".format(file_export))
         
+        # If requested, also write the processed image as a FITS file.
+        
+        if do_export_image:
+            
+            file_out_fits = self.get_export_image_filename()
+             
+            # Construct the output FITS file, using the original FITS header, and the processed image data
+            
+            hdu = fits.PrimaryHDU(self.image_processed, header=self.header)            
+            hdu.writeto(file_out_fits, overwrite=True)
+            
+            print(f'Wrote: {file_out_fits}')
+            print('\n')  # A blank line. Rare but I think it is OK here.
+            
 ##########
 # (p)revious image
 ##########

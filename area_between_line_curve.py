@@ -65,6 +65,10 @@ def area_between_line_curve(data_x, data_y, limits_x, bins=False, binning=None, 
     dy = data_y_use[-1] - data_y_use[0]		# Get the overall dx and dy from one end of the band to the other
     dx = data_x_use[-1] - data_x_use[0]
 
+    # Get the width of one bin. I am assuming x spacing is uniform.
+    
+    dx_bin = data_x_use[1] - data_x_use[0]  
+    
     # Fit the line to the endpoints
     
     m = dy / dx		          # Slope
@@ -74,15 +78,17 @@ def area_between_line_curve(data_x, data_y, limits_x, bins=False, binning=None, 
     						# We don't fit to the line or anything.
 
     # Sum the curve
+    # ** Ahh, this is not really the area under the curve. It is just the sum of Y values, not sum of Y * dx.
+    # ** So, multiply by dx_bin to get the real area.
     
-    area = sum(data_y_use - line)
+    area = sum((data_y_use - line)*dx_bin)
     
     # Take the mean, if requested
     
     if mean:
         area = area / len(data_x)
         
-    # Create the output line
+    # Create the output line, from the coefficients we've already calculatd
     
     line_out = m * data_x + b    # A fit to the line, covering the whole input data range
     
