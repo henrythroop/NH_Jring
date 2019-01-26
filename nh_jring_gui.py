@@ -1824,6 +1824,7 @@ the internal state which is already correct. This does *not* refresh the image i
             hdu.writeto(file_out_fits, overwrite=True)
             
             print(f'Wrote: {file_out_fits}')
+            print('\n')  # A blank line. Rare but I think it is OK here.
             
 ##########
 # (p)revious image

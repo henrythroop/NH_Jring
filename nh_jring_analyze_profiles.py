@@ -1977,8 +1977,8 @@ a = ring_profile()
 hbt.set_fontsize(20)
 lw                  = 3.5          # Line weight 
 dy                  = 3           # Offset between adjacent lines 
-num_bins_az_central = 15            # How many azimuthal bins do we use for the profile?
-
+num_bins_az_central = 150            # How many azimuthal bins do we use for the profile?
+xlim                = (127,131)      # Plotting limits, in 1000 km.
 
 a.load(7, hbt.frange(40,42),key_radius='full')
 shift               = [1, 0, 1]     # This is the # of bins to shift it *outward* by. Negative is inward.
@@ -1986,35 +1986,63 @@ shift               = [1, 0, 1]     # This is the # of bins to shift it *outward
 a.load(7, hbt.frange(24,31),key_radius='full')
 shift               = [0, 0, 0, 2, 0, 0, 0, 1]     # This is the # of bins to shift it *outward* by. Negative is inward.
 
-images = np.delete(hbt.frange(0,47),16)  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
-images = np.delete(hbt.frange(0,47),(16,18,19))  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
-images = np.delete(hbt.frange(0,47),(16,18,19,29))  # 0-47, but exclude a few specific bad profiles (bg, or satellites)
+a.load(5, hbt.frange(1,6),key_radius='full')
+shift               = [0, 0, 0, 0, 0, 0]     # This is the # of bins to shift it *outward* by. Negative is inward.
 
-a.load(8, images, key_radius='full')
-shift = np.zeros(48)
+# images = np.delete(hbt.frange(0,47),16)  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
+# images = np.delete(hbt.frange(0,47),(16,18,19))  # 0-47, but exclude #16 (bad background level, maybe due to Metis)
+# images = np.delete(hbt.frange(0,47),(16,18,19,29))  # 0-47, but exclude a few specific bad profiles (bg, or satellites)
+# a.load(8, images, key_radius='full')
+# shift = np.zeros(48)
 
-# From the image, extract just the central few azimuthal bins and make a profile. These are the best and most reliable2
-shift = np.array(shift,dtype=int)  # Must be integers, for np.roll() to work in np 1.11. Floats allowed in np 1.13.
+# From the image, extract just the central few azimuthal bins and make a profile. These are the best and most reliable.
+shift = np.array(shift,dtype=int)  # Must be integers, for np.roll() to work.
 
 profile = []
 
-bin0  = int(np.mean(a.num_bins_azimuth)/2 - num_bins_az_central/2)
-bin1  = int(np.mean(a.num_bins_azimuth)/2 + num_bins_az_central/2)
+bin0_az  = int(np.mean(a.num_bins_azimuth)/2 - num_bins_az_central/2)
+bin1_az  = int(np.mean(a.num_bins_azimuth)/2 + num_bins_az_central/2)
+bin0_rad = int(np.digitize(xlim[0]*1000, a.radius_arr[0]))
+bin1_rad = int(np.digitize(xlim[1]*1000, a.radius_arr[1]))
 
 for i in range(a.num_profiles):        
-    image_i = a.image_unwrapped_arr[i] 
-    mask = hbt.nanlogical_and(a.mask_stray_unwrapped_arr[i][:,:], 
-                              a.mask_objects_unwrapped_arr[i][:,:])  # XXX This mask mergering isn't working right.
-
+    image_u_i = a.image_unwrapped_arr[i] 
+    mask_u_i  = hbt.nanlogical_and(a.mask_stray_unwrapped_arr[i][:,:], 
+                                 a.mask_objects_unwrapped_arr[i][:,:])
+    image_um_i = image_u_i * mask_u_i  # Mask the image
+    
     # Now actually sum to get the radial profile. These two should give identical results.
-    profile_i = hbt.nanmean( image_i[:,bin0:bin1], axis=1)
-    profile_i2 = nh_jring_extract_profile_from_unwrapped(a.image_unwrapped_arr[i],
-                                                        a.radius_arr[i][:],
-                                                        a.azimuth_arr[i][:],
-                                                        0.047,
-                                                        'radial',
-                                                        mask_unwrapped=mask)
-    profile.append(profile_i)
+    profile_i = hbt.nanmean( image_um_i[:,bin0_az:bin1_az], axis=1)
+    
+    if (i == 0):
+        im_tiled = image_um_i[bin0_rad:bin1_rad,bin0_az:bin1_az]
+        im_stacked = [im_tiled]
+        
+    else:
+        im_tiled = np.vstack((im_merged, image_um_i[bin0_rad:bin1_rad,bin0_az:bin1_az]))
+        im_stacked.append(image_um_i[bin0_rad:bin1_rad,bin0_az:bin1_az])
+
+im_stacked = hbt.nanmedian(im_stacked, axis=0)
+im_tiled = np.vstack((im_tiled, im_stacked))
+
+# Make a nice plot showing the stacked ring image, and the radial profile
+
+hbt.fontsize(12)
+hbt.figsize(10,10)
+plt.subplot(2,1,1)       
+plt.imshow(stretch(im_stacked), origin='lower', 
+           extent=[a.azimuth_arr[0][bin0_az], a.azimuth_arr[0][bin1_az],
+                   a.radius_arr[0][bin0_rad]/1000, a.radius_arr[0][bin1_rad]/1000],
+           aspect='auto'        
+                   )
+    
+plt.title(f'Stacked unwrapped ring, {a}')
+# plt.show()
+
+plt.subplot(2,1,2)
+plt.plot(a.radius_arr[0][bin0_rad:bin1_rad]/1000, np.nansum(im_stacked, axis=1))
+plt.title(f'Radial profile from summing unwrapped, {a}')
+plt.show()
 
 # Compute the the mean of all the profiles.
 
@@ -2026,10 +2054,25 @@ for i,p in enumerate(profile):
 i += 1
 profile_mean = profile_sum / i
 
+# Show the actual images
+
+for i in range(a.num_profiles):
+    plt.imshow(a.image_unwrapped_arr[0][:,bin0_az:bin1_az])
+    
+# Make a plot of the individual profiles
+
+plt.subplot(2,1,1)
+for i in range(a.num_profiles):
+    plt.plot(a.radius_arr[0]/1000, profile[i] + i/2., label=f'{a.index_group_arr[i]}/{a.index_image_arr[i]}')
+    
+plt.xlim(xlim)
+plt.legend()
+    
 # Make a plot of the summed radial profile
 
+plt.subplot(2,1,2)
 plt.plot(a.radius_arr[0]/1000, profile_mean + dy*i, label = 'Mean', lw=lw)
-plt.xlim((127.5, 130))
+plt.xlim(xlim)
 plt.title("{}, shifted by preset, central {} az bins".format(a, num_bins_az_central))
 plt.xlabel('Radius [1000 km]')
 plt.show()
@@ -2993,24 +3036,6 @@ if do_plot_map_extracted:
     plt.title(f'J-Ring Azimuthal Brightness Map, from Individual Az Profiles, {ring}')
     plt.ylabel(f'Image Number, {ring}')
     plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 a2 = ring_profile()
 a2.load(8,hbt.frange(0,48),key_radius='core').plot(plot_legend=False)
