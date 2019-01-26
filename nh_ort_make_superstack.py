@@ -489,7 +489,7 @@ if (__name__ == '__main__'):
                                     'KALR_MU69_Hazard_L4_2018344',
                                     'KALR_MU69_Hazard_L4_2018347',
         ]
-
+   
         # reqids_haz  = [        
 
         #                 'KALR_MU69_OpNav_L4_2018342', # 6 frames
@@ -503,15 +503,27 @@ if (__name__ == '__main__'):
 
         # ]
         
-        # reqids_haz  = [        
+        reqids_haz += [        
 
-        #                 'KALR_MU69_OpNav_L4_2018353', # 6 frames
-        #                 'KALR_MU69_OpNav_L4_2018354',  # 6 frames 
-        #                 'KALR_MU69_OpNav_L4_2018355', # 6 frames
-        #                 'KALR_MU69_OpNav_L4_2018357', # 6 frames
-        #                 'KALR_MU69_OpNav_L4_2018358', # 6 frames
+                        'KALR_MU69_OpNav_L4_2018353', # 6 frames
+                        'KALR_MU69_OpNav_L4_2018354',  # 6 frames 
+                        'KALR_MU69_OpNav_L4_2018355', # 6 frames
+                        'KALR_MU69_OpNav_L4_2018357', # 6 frames
+                        'KALR_MU69_OpNav_L4_2018358', # 6 frames
+                        'KALR_MU69_OpNav_L4_2018359', # 6 frames
 
-        # ]
+        ]
+  
+        
+        reqids_haz = [        
+
+                        # 'KELR_MU69_NAV-CRIT_L4_2018360',
+                        # 'KELR_MU69_NAV-CRIT_L4_2018361',
+                        # 'KELR_MU69_NAV-CRIT_L4_2018362',
+                        # 'KELR_MU69_NAV-CRIT_L4_2018363',
+                        'KELR_MU69_NAV-CRIT_L4_2018364',
+
+        ]
   
 #####
                         
@@ -985,7 +997,7 @@ if (__name__ == '__main__'):
 # Implants: read a model ring image and place it over the data image, if requested
 # =============================================================================
         
-    do_implant = True
+    do_implant = False
     
     if do_implant:
         dir_ring_img =    '/Users/throop/data/ORT5/throop/deliveries/'
@@ -1026,7 +1038,7 @@ if (__name__ == '__main__'):
 #     Make a pair of final plots of the superstack, with and without aimpoints + sunflower rings
 # =============================================================================
     
-    width_pix_plot = 100*zoom
+    width_pix_plot = 400*zoom
     
     # Define the ring sizes.
     # For the SUNFLOWER ring, we just take a radial profile outward, and plot it.
@@ -1051,7 +1063,7 @@ if (__name__ == '__main__'):
     # NB: Simon's plots go -1e-6 .. 3e-6
     
     vmin = -1e-6
-    vmax =  2e-6
+    vmax =  1e-5
     
     plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
 #                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
@@ -1260,7 +1272,7 @@ if (__name__ == '__main__'):
                                              plane_radius_superstack, method = 'median', num_pts = num_pts)
 
         (radius_quadrant,  profile_iof_quadrant)   = get_radial_profile_backplane_quadrant(img_superstack_mean_iof,
-                                             plane_radius_superstack, plane_azimuth_superstack, method = 'mean', 
+                                             plane_radius_superstack, plane_longitude_superstack, method = 'mean', 
                                              num_pts = num_pts/4)
         if do_implant:
             (radius,  profile_merged_iof)   = get_radial_profile_backplane(img_merged_iof,
@@ -1272,13 +1284,13 @@ if (__name__ == '__main__'):
 
     # Calculate the bias level, crudely
 
-    radius_max_km = 20000
+    radius_max_km = 5000
         
     bin_radial_end = np.digitize(radius_max_km, radius)
     
     bias       = np.amin(profile_iof[0][0:bin_radial_end])
-    bias_merged = np.amin(profile_merged_iof[0:bin_radial_end])
-        
+
+    bias_merged = bias 
 # =============================================================================
 # Fit a gaussian to the radial profile, if requested
 # =============================================================================
@@ -1320,8 +1332,8 @@ if (__name__ == '__main__'):
     if do_plot_errorbars:
         plt.errorbar(radius, profile_iof - bias, yerr = profile_iof_std,
              label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
-        
-    plt.xlim(0,50000)
+    
+    plt.xlim(0,radius_max_km)
     if do_tunacan:
         plt.ylim((0,1e-5))
     else:
