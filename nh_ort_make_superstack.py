@@ -487,12 +487,12 @@ if (__name__ == '__main__'):
                         'KALR_MU69_Hazard_L4_2018347',
                        ]
 
-        reqids_haz  = [        
-                                    'KALR_MU69_Hazard_L4_2018334',
-                                    'KALR_MU69_Hazard_L4_2018340',
-                                    'KALR_MU69_Hazard_L4_2018344',
-                                    'KALR_MU69_Hazard_L4_2018347',
-        ]
+        # reqids_haz  = [          # For final MU69 Approach image
+        #                             'KALR_MU69_Hazard_L4_2018334',
+        #                             'KALR_MU69_Hazard_L4_2018340',
+        #                             'KALR_MU69_Hazard_L4_2018344',
+        #                             'KALR_MU69_Hazard_L4_2018347',
+        # ]
 
         # reqids_haz  = [        
 
@@ -516,6 +516,12 @@ if (__name__ == '__main__'):
         #                 'KALR_MU69_OpNav_L4_2018358', # 6 frames
 
         # ]
+        
+        reqids_haz = ['KELR_MU69_APDEEP_L4_2018365A',
+                      'KELR_MU69_APDEEP_L4_2018365B',
+                      'KELR_MU69_APDEEP_L4_2018365E',
+                      'KELR_MU69_APDEEP_L4_2018365F',
+                      ]
   
 #####
                         
@@ -989,7 +995,7 @@ if (__name__ == '__main__'):
 # Implants: read a model ring image and place it over the data image, if requested
 # =============================================================================
         
-    do_implant = True
+    do_implant = False
     
     if do_implant:
         dir_ring_img =    '/Users/throop/data/ORT5/throop/deliveries/'
