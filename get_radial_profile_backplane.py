@@ -17,6 +17,7 @@ Created on Fri Jan 19 16:20:36 2018
 import hbt
 import numpy as np
 import astropy.stats
+import warnings
 
 def get_radial_profile_backplane(im, radius_plane, method='median', num_pts = 100, do_std=False):
 
@@ -61,16 +62,20 @@ def get_radial_profile_backplane(im, radius_plane, method='median', num_pts = 10
         is_good = np.logical_and(radius_plane >= radius_1d[i],
                                  radius_plane <= radius_1d[i+1]) 
     
-        if (method == 'mean'):
-            profile_1d[i]   = np.nanmean(im[is_good])
-    
-        if (method == 'median'):
-            profile_1d[i] = np.nanmedian(im[is_good])
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)    
 
-        clipped = astropy.stats.sigma_clip(im[is_good], sigma=1.5)
+            if (method == 'mean'):
+                profile_1d[i]   = np.nanmean(im[is_good])
         
-        std_1d[i] = np.std(clipped)
-        
+            if (method == 'median'):
+                profile_1d[i] = np.nanmedian(im[is_good])
+    
+            clipped = astropy.stats.sigma_clip(im[is_good], sigma=1.5)
+            
+            std_1d[i] = np.std(clipped)
+            
     if do_std: 
         return (radius_1d, profile_1d, std_1d)
     

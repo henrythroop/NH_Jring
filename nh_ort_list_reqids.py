@@ -49,23 +49,30 @@ def nh_ort_list_reqids():
         
         list_wcs = glob.glob(os.path.join(dir, '*.fits'))
         
-        num_wcs_arr.append(len(list_wcs))
-        
-        latest_file = max(list_wcs, key=os.path.getctime)   # This is a bit of python magic I didn't know of!
-
-        ctime = os.path.getctime(latest_file)  
-        ctime_arr.append(ctime)
-        t_latest_arr.append(time.ctime(ctime))
-        
-        dir2=dir.replace(dir_wcs, dir_backplanes_s)
-        list_backplanes_s = glob.glob(os.path.join(dir2, '*.fits'))
-
-        dir2=dir.replace(dir_wcs, dir_backplanes_t)
-        list_backplanes_t = glob.glob(os.path.join(dir2, '*.fits'))
-
-        num_backplanes_t_arr.append(len(list_backplanes_t))
-        num_backplanes_s_arr.append(len(list_backplanes_s))
-                                                       
+        if list_wcs:
+            num_wcs_arr.append(len(list_wcs))
+            
+            latest_file = max(list_wcs, key=os.path.getctime)   # This is a bit of python magic I didn't know of!
+    
+            ctime = os.path.getctime(latest_file)  
+            ctime_arr.append(ctime)
+            t_latest_arr.append(time.ctime(ctime))
+            
+            dir2=dir.replace(dir_wcs, dir_backplanes_s)
+            list_backplanes_s = glob.glob(os.path.join(dir2, '*.fits'))
+    
+            dir2=dir.replace(dir_wcs, dir_backplanes_t)
+            list_backplanes_t = glob.glob(os.path.join(dir2, '*.fits'))
+    
+            num_backplanes_t_arr.append(len(list_backplanes_t))
+            num_backplanes_s_arr.append(len(list_backplanes_s))
+        else:
+            num_backplanes_s_arr.append(0)
+            num_backplanes_t_arr.append(0)
+            t_latest_arr.append(0)
+            ctime_arr.append(0)
+            num_wcs_arr.append(0)
+                                               
     t = Table([reqid_arr, num_wcs_arr, num_backplanes_s_arr, num_backplanes_t_arr, t_latest_arr, ctime_arr], 
               names=('ReqID', '# WCS', '# Sun', '# Tuna', 'WCS Time', 'ctime'), 
               )
@@ -84,7 +91,12 @@ def nh_ort_list_reqids():
     # Print it
     
     print(t2)
-    
+  
+    # Print it, again, all rows, just in case Python truncates it on us
+
+    for row in t2:
+        print(row.as_void())
+
     # Sum and print.
     # I wish I could then do t2.add_row() to add this to the main column, but there is a column mismatch
     

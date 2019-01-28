@@ -238,9 +238,9 @@ class image_stack:
                 if do_lorri_destripe:
                     arr = hbt.lorri_destripe(arr)
                 
-                # Calibrate out dark current, if requested
+                # Calibrate out dark current, if requested, and if a 4X4
                 
-                if do_lorri_dedark:
+                if do_lorri_dedark and (hbt.sizex(arr) == 256):
                     arr = arr - exptime * arr_lorri_dark
                 
                 # Read the WCS coords of this file.
@@ -370,7 +370,7 @@ class image_stack:
 # Calculate alignments between all frames
 # =============================================================================
 
-    def align(self, method = 'wcs', center = None):
+    def align(self, method = 'wcs', center = None, body = None):
         """
         Take a loaded stack, and set the shift amounts for each image.
         
@@ -444,6 +444,39 @@ class image_stack:
             
             self.t['shift_pix_x'] = shift_x_pix
             self.t['shift_pix_y'] = shift_y_pix
+
+        if (method.upper() == 'BODY'):    
+            
+            num_images = self.size[0]
+
+            shift_x_pix = self.t['shift_x_pix']
+            shift_y_pix = self.t['shift_y_pix']
+
+            for i in range(num_images):
+                
+                hdu = fits.open(self.t['filename'][i])
+                et_i = hdu['PRIMARY'].header['SPCSCET']
+                hdu.close()
+                self.t['et'][i] = et_i  # This was badly populated -- here we fix it
+                abcorr = 'LT'
+                frame = 'J2000'
+                name_observer = 'New Horizons'
+                (st,lt) = sp.spkezr(body, et_i, frame, abcorr, name_observer)
+                vec_obs_targ = st[0:3]
+                (_, ra, dec) = sp.recrad(vec_obs_targ)  # get ra dec in radians
+                # print(f'For image {}')
+            
+                wcs = self.t['wcs'][i]  # Get WCS for this image
+                (pos_pix_x, pos_pix_y) = wcs.wcs_world2pix(ra*hbt.r2d, dec*hbt.r2d, 0)  # degrees → pixels
+                
+                shift_x_pix[i] = self.dx_pix/2 - pos_pix_x
+                shift_y_pix[i] = self.dy_pix/2 - pos_pix_y
+
+            # Save these values back to the table, where they live
+            
+            self.t['shift_pix_x'] = shift_x_pix
+            self.t['shift_pix_y'] = shift_y_pix
+            
             
 # =============================================================================
 # Load a pickle file from disk. 
@@ -757,9 +790,19 @@ class image_stack:
         
         if (method == 'mean'):
             arr_flat   = np.nanmean(arr,0)    # Fast
+
+        if (method == 'mean0'):   # Get a mean of the values, excluding any zero pixels (by converting to nan)
+            arrnan = arr.copy()
+            arrnan[arrnan==0] = np.nan
+            arr_flat   = np.nanmean(arrnan,0)    # Fast
             
         if (method == 'median'):
             arr_flat = np.nanmedian(arr,0)  # Slow -- about 15x longer
+
+        if (method == 'median0'):
+            arrnan = arr.copy()
+            arrnan[arrnan==0] = np.nan
+            arr_flat = np.nanmedian(arrnan,0)  # Slow -- about 15x longer
 
 # =============================================================================
 #      Modify the WCS structure to fit the new image that has been created
@@ -776,7 +819,7 @@ class image_stack:
     
         if do_plot:
             plot_img_wcs(self.t['data'][0], wcs, title = 'Original, plane 0',
-                         name_target='MU69', et = self.t['et'][0], name_observer='New Horizons') 
+                         name_target='2486958', et = self.t['et'][0], name_observer='New Horizons') 
                # XXX I want to plot the stack name here!
         
 #        print(f'WCS for above: {wcs}')
