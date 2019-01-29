@@ -67,14 +67,14 @@ def get_radial_profile_backplane(im, radius_plane, method='median', num_pts = 10
             warnings.simplefilter("ignore", category=RuntimeWarning)    
 
             if (method == 'mean'):
-                profile_1d[i]   = np.nanmean(im[is_good])
+                profile_1d[i]   = hbt.nanmean(im[is_good])
         
             if (method == 'median'):
-                profile_1d[i] = np.nanmedian(im[is_good])
+                profile_1d[i] = hbt.nanmedian(im[is_good])
     
-            clipped = astropy.stats.sigma_clip(im[is_good], sigma=1.5)
+            # clipped = astropy.stats.sigma_clip(im[is_good], sigma=1.5)
             
-            std_1d[i] = np.std(clipped)
+            # std_1d[i] = np.nanstd(clipped)
             
     if do_std: 
         return (radius_1d, profile_1d, std_1d)
@@ -136,14 +136,14 @@ def get_radial_profile_backplane_quadrant(im, radius_plane, longitude_plane, met
             # print(f'Summing {np.sum(is_good)} cells')
             
             if (method == 'mean'):
-                profile_1d[j,i]   = np.nanmean(im[is_good])
+                profile_1d[j,i]   = hbt.nanmean(im[is_good])
         
             if (method == 'median'):
-                profile_1d[j,i] = np.nanmedian(im[is_good])
+                profile_1d[j,i] = hbt.nanmedian(im[is_good])
     
-            clipped = astropy.stats.sigma_clip(im[is_good], sigma=1.5)
+            # clipped = astropy.stats.sigma_clip(im[is_good], sigma=1.5)
             
-            std_1d[j,i] = np.std(clipped)
+            # std_1d[j,i] = np.nanstd(clipped)
         
     if do_std: 
         return (radius_1d, profile_1d, std_1d)
