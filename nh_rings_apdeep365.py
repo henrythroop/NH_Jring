@@ -70,7 +70,7 @@ def nh_ort_make_superstack(stack,
                            do_center=True,
                            frame='2014_MU69_SUNFLOWER_ROT',
                            wcs = '',
-                           style_output = 'small',  # 'small' or 'full'
+                           format_out = 'small',  # 'small' or 'full'
                            do_fast_backplanes = False, **kwargs):
     
     """
@@ -101,7 +101,7 @@ def nh_ort_make_superstack(stack,
         Which one of the input stacks do we use for the 'base' for the superstack? Typically this will be 
         the highest-resolution one. This stack is used to set the output resolution, and the ET (ie, center position).
     
-    style_output:
+    format_out:
         string to describe the format of the output. 
         - default 'small' = crop to the size of the final frame (ie, where all the data overlap). 
         - 'full' = use all the data, showing all frames, even where some are not overlapping.
@@ -172,7 +172,7 @@ def nh_ort_make_superstack(stack,
         
 #    pixscale = stack[name_stack_base].pixscale_x_km  # This is the pixel scale of the final stack.
                                                                  # Zoom has not been applied yet.
-    if style_output == 'small':
+    if format_out == 'small':
 
         # Take the shape of the highest res frame, as is
     
@@ -210,7 +210,7 @@ def nh_ort_make_superstack(stack,
         
         # Calculate the position in the output array, based on centering the image
         
-        if (style_output == 'small'):   # If we crop this image to fit it exactly to the output frame
+        if (format_out == 'small'):   # If we crop this image to fit it exactly to the output frame
             
             edge_left = int( (size_in[0]-size_out[0])/2)
             edge_top  = int( (size_in[1]-size_out[1])/2)
@@ -220,7 +220,7 @@ def nh_ort_make_superstack(stack,
             
             print(f'Zoomed image cropped to shape {np.shape(arr_out)}')
 
-        if (style_output == 'full'):  # If we take this entire frame, pad it, and then put that into the output
+        if (format_out == 'full'):  # If we take this entire frame, pad it, and then put that into the output
             
             edge_left = int( (size_out[0]-size_in[0])/2)
             edge_top  = int( (size_out[1]-size_in[1])/2)
@@ -243,13 +243,13 @@ def nh_ort_make_superstack(stack,
         #     shift_y = 0
         #     arr_out = arr_out
             
-        # Do a one-off to rotation 365A / 365B into proper orientation. This will invalidate their WCS info, but oh well.
+        # # Do a one-off to rotation 365A / 365B into proper orientation. This will invalidate their WCS info, but oh well.
         
-        if ('2018365B' in reqid_i) or ('2018365B' in reqid_i):
-            arr_out = np.rot90(arr_out, 1)
+        # if ('2018365B' in reqid_i) or ('2018365B' in reqid_i):
+        #     arr_out = np.rot90(arr_out, 1)
  
         plt.imshow(stretch(arr_out))
-        plt.title(f'zoomed frame {key}, x{magfac}')
+        plt.title(f'zoomed frame {key}, x{magfac[key]}')
         plt.show()
                     
         img_rescale[reqid_i]  = arr_out
@@ -269,13 +269,14 @@ def nh_ort_make_superstack(stack,
     img_rescale_median = np.median(img_rescale_3d, axis=0)  
     img_rescale_mean   = np.mean(  img_rescale_3d, axis=0)
     
-    plt.plot(img_rescale_3d[0,800,:])
-    plt.plot(img_rescale_3d[1,800,:])
-    plt.plot(img_rescale_3d[2,800,:])
-    plt.plot(img_rescale_3d[3,800,:])
+    plt.imshow(stretch(img_rescale_median))
+    
+    # plt.plot(img_rescale_3d[1,800,:])
+    # plt.plot(img_rescale_3d[2,800,:])
+    # plt.plot(img_rescale_3d[3,800,:])
 
-    plt.ylim(0,50)
-    plt.xlim(500,1000)
+    # plt.ylim(0,50)
+    # plt.xlim(500,1000)
     
     plt.show()
       
@@ -479,7 +480,7 @@ if (__name__ == '__main__'):
 
     ########## SET PARAMETERS HERE #################
     
-    zoom = 1     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 2     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
@@ -849,75 +850,29 @@ if (__name__ == '__main__'):
                                                                           str_name=str_name, do_center=True,
                                                                           do_backplanes=do_backplanes,
                                                                           frame=frame,
+                                                                          format_out = 'full',
                                                                           wcs = wcs_haz[name_stack_base],
                                                                           )
+ 
+    pixscale_km_superstack = np.abs(backplanes[0]['dRA_km'][0,0] - backplanes[0]['dRA_km'][0,1])
     
     for key in keys:
         plot_img_wcs(img_haz[key], wcs_haz[key], cmap=cmap_superstack,
-                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key], width=500,
+                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key],
+                  width=200,
+                  scale_km = stack_haz[key].pixscale_x_km,
+                  label_axis='km',
                   do_show=False, title=key)
         plt.show()
 
         
 #%%%
-# =============================================================================
-#     Adjust the WCS and backplanes, if needed
-# =============================================================================    
-    
-    # OK, now do a q&d adjust. The radius backplane is off by a few pixels, and I don't know why. 
-    # Just go ahead and shift it and force it to be centered (that is, at center of array, which is where
-    # MU69 usually should be). 
-    # This is not the best solution, but it'll work for now.
-    
-    # Get the centroid of the radius 
 
     plane_radius_superstack = backplanes[0]['Radius_eq']
-    r = plane_radius_superstack.copy()
-
     plane_longitude_superstack = backplanes[0]['Longitude_eq']
 
-    centroid = scipy.ndimage.measurements.center_of_mass(r < 10000)
-#    print(f'Centroid is {centroid}')
-
-    dxy = np.array(np.shape(r))/2 - np.array(scipy.ndimage.measurements.center_of_mass(r < 5000))  
-    r_roll = np.roll(r, np.round(dxy.astype(int)), axis=(0, 1))
-
-    centroid = scipy.ndimage.measurements.center_of_mass(r_roll < 10000)
-#    print(f'Centroid is {centroid}')
-    
-    # Save the shifted 'radius' backplane back to the array
-    
-    backplanes[0]['Radius_eq'] = r_roll
-
-    plane_radius_superstack = backplanes[0]['Radius_eq']
-    plane_azimuth_superstack = backplanes[0]['Longitude_eq']
-    
-    do_wcs_tweaks = False
-        
-    if do_wcs_tweaks:
-        
-        dx_wcs_tweak = 0.0   # Positive values shift to the right
-        dy_wcs_tweak = 0.0  #   was 1.5, 1. Now 3.5, 6. Now (4, 3). Now (4,4). Now (0,0)
-        
-        wcs_superstack_tweak = wcs_superstack.deepcopy()
-        wcs_translate_pix(wcs_superstack_tweak, dx_wcs_tweak, dy_wcs_tweak)
-        
-        # Tweak the backplane slightly as well. Not sure quite why this is necessary, since backplane should 
-        # be exactly aligned w/ WCS.
-        
-        dx_backplane_tweak = 0
-        dy_backplane_tweak = 0
-        plane_radius_superstack_tweak = plane_radius_superstack.copy()
-        plane_radius_superstack_tweak = np.roll(np.roll(plane_radius_superstack_tweak, dx_backplane_tweak, axis=1), 
-                                          dy_backplane_tweak, axis=0)
-        
-        # Copy the tweaked versions over
-        
-        wcs_superstack          = wcs_superstack_tweak
-        plane_radius_superstack = plane_radius_superstack_tweak # Do not copy this back to the backplane itself! Breaks.
-    
 # =============================================================================
-# Convert the stacks from DN to I/F
+# Convert the stacks and superstacks from DN to I/F
 # =============================================================================
     
     # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
@@ -942,6 +897,14 @@ if (__name__ == '__main__'):
     pixscale_km =  (r_nh_mu69/km2au * (0.3*hbt.d2r / 256)) / zoom # km per pix (assuming LORRI 4x4)
     TEXP        = stack_haz[reqid_i].t['exptime'][0]  # Exposure time of the field frames. All are 29.967 sec.
 
+    # Convert stacks
+    
+    img_haz_iof = {}
+    for key in keys:
+        img_haz_iof[key] = math.pi * img_haz[key]  * r_sun_mu69**2 / F_solar / stack_haz[key].t['exptime'][0] / RSOLAR
+
+    # Convert superstacks
+
     I_median = img_superstack_median / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
     I_mean   = img_superstack_mean   / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
     
@@ -949,24 +912,24 @@ if (__name__ == '__main__'):
     img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 
 
+### Take radial profiles of each of the stacks
+### Take radial profiles of the superstack
+    
 #%%%
 # =============================================================================
 #     Make a pair of final plots of the superstack, with and without aimpoints + sunflower rings
 # =============================================================================
     
-    width_pix_plot = 500*zoom
+    width_pix_plot_arr = [1000, 300]
     
     # Define the ring sizes.
     # For the SUNFLOWER ring, we just take a radial profile outward, and plot it.
     # For the TUNACAN   ring, we need to assume a vertical thickness. I make two rings, assuming two thicknesses.
     
-    a_ring_km = [3500, 10000]         # For the sunflower *and* the tunacan, we use these as the central ring radii.
+    a_ring_km = [1000, 3000]         # For the sunflower *and* the tunacan, we use these as the central ring radii.
                                       # These values are used to *plot* both TUNA and SUNFLOWER. But they are not
                                       # used in computation of either one.
                                   
-    thick_tuna_km = [1000, 2000]  # Midplane distance to limit to, in km. For TUNACAN only. This is used in 
-                                     # computing the ring profile. 
-    
     plt.show()  # for some reason the figsize() isn't working, so maybe flush things out??
     
     hbt.figsize((20,8))
@@ -981,86 +944,148 @@ if (__name__ == '__main__'):
     vmin = -1e-6
     vmax =  3e-5
     
+    # Construct a circular radius plane. We do not use the actual backplane, but just a circle.
+    
+    
     plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
 #                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
                  title = f'{str_stack}, {str_reqid}', 
-                 width=width_pix_plot,do_show=False,
+                 # width=width_pix_plot,
+                 do_show=False,
+                 scale_km=pixscale_km_superstack,
+                 label_axis = 'KM',
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                 do_colorbar=True, do_stretch=False, vmin=vmin, vmax=vmax)
+                 do_colorbar=True, do_stretch=True, width=1000)
         
     # Construct the image of ring masks
     # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly    
 
      # Make the sunflower ring masks
         
-    da_ring_km = 300   # Width of the lines in the ring to plot, in km    
-    rad = plane_radius_superstack    
-    mask_ring0 = (rad > a_ring_km[0]) & (rad < (a_ring_km[0] + da_ring_km) )
-    mask_ring1 = (rad > a_ring_km[1]) & (rad < (a_ring_km[1] + da_ring_km) )
+    da_ring_km = 100   # Width of the lines in the ring to plot, in km    
+
+    radius_km = hbt.dist_center(np.shape(img_superstack_median_iof)[0]) * pixscale_km_superstack
+
+    # radius_km = hbt.dist_center(np.shape(img_superstack_median_iof)[0]) * pixscale_km_superstack
+
+    mask_ring0 = (radius_km > a_ring_km[0]) & (radius_km < (a_ring_km[0] + da_ring_km) )
+    mask_ring1 = (radius_km > a_ring_km[1]) & (radius_km < (a_ring_km[1] + da_ring_km) )
 
     mask_ring = mask_ring0 | mask_ring1
 
-    plt.imshow(np.logical_not(mask_ring), alpha=0.12, origin='lower')
-         
-    plt.subplot(1,2,2)
+    img_superstack_median_iof_masked = img_superstack_median_iof * (mask_ring == False).astype(int)
+    
 
-    plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
-                 title = f'{str_stack}, {str_reqid}', 
-                 width=width_pix_plot,do_show=False,
-                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                 do_colorbar=True, vmin=vmin, vmax=vmax, do_stretch=False)
-
-    plt.show()
+    for w_i in width_pix_plot_arr:     
+        plt.subplot(1,2,1)
+    
+        vmin = 0e-5
+        vmax = 2e-5
+        plot_img_wcs(img_superstack_median_iof_masked, wcs_superstack, cmap=cmap_superstack, 
+                     title = f'{str_stack}, {str_reqid}', 
+                     width=w_i,
+                     do_show=False,
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     do_colorbar=True, vmin=vmin, vmax=vmax, do_stretch=False,
+                     scale_km=pixscale_km_superstack,
+                     label_axis = '[km]')
+    
+        plt.subplot(1,2,2)
+    
+        plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
+                     title = f'{str_stack}, {str_reqid}', 
+                     width=w_i,
+                     do_show=False,
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     do_colorbar=True, vmin=vmin, vmax=vmax, do_stretch=False,
+                     scale_km=pixscale_km_superstack,
+                     label_axis = '[km]')
+        
+        plt.show()
     
 #%%%    
 # =============================================================================
-# Make a set of plots showing the field, the superstack, and all the individual stacks
-#   This is a grid 3 x N.    
+# Make a set of plots showing the image stack and the radial profile, for each stack.
 # =============================================================================
     
-    hbt.figsize((8,8))
+    hbt.figsize((12,6))
     hbt.fontsize(12)
     
-    # plot_img_wcs(stretch(img_field), wcs_superstack, cmap=cmap_superstack, width=150, title='Field')
-    
-    stretchz=astropy.visualization.ManualInterval(vmin=2, vmax=40)
-    
-    width_postage = 120
-    
+    plot_img_wcs((img_superstack_median_iof), wcs_superstack, cmap=cmap_superstack, title='Superstack', width=200)
+            
     for key in keys:
         keystr = key.split('_')[-1]
+  
+        pixscale_i = stack_haz[key].pixscale_x_km
         
-        plt.imshow(stretch(img_haz[key]))
-        plt.title(keys[0] + ' No Field')
+        plt.subplot(1,2,1)
+        plot_img_wcs(stretch(img_haz[key]), wcs_haz[key], do_stretch=True, cmap=cmap_superstack,
+                     scale_km = pixscale_i, label_axis = '[km]', title = key, do_show=False)
+        
+        plt.subplot(1,2,2)
+        width_profile_pix = 1
+        (radius,profile) = get_radial_profile_circular(img_haz_iof[key], width=width_profile_pix)
+        plt.xlabel('km')
+        plt.ylabel('I/F')
+        plt.ylim((0, 2e-5))
+        bin_radius_max = np.where([np.isnan(profile)][0])[0][0]
+        radius_max = radius[bin_radius_max] * pixscale_i
+        iof_min = np.amin(profile[0:bin_radius_max])
+
+        plt.plot(radius * pixscale_i, profile)
+        plt.xlim((0, radius_max))
+        plt.ylim((iof_min, 2e-5))
+        plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+        plt.title(f'Profile, {keystr}, dr={width_profile_pix * pixscale_i:.1f} km')
+        
+        plt.tight_layout()
         plt.show()
         
-        # plt.subplot(1,3,1)
-
-        # plot_img_wcs(stretch(img_field[key]), wcs_field[key], cmap=cmap_superstack, width=width_postage, 
-        #              title = 'Field',
-        #              do_show=False, name_observer = 'New Horizons', name_target = 'Sun', et = et_haz[key],
-        #              )
-
-        # plt.subplot(1,3,2)
-        # plot_img_wcs(stretch(img_haz[key]), wcs_field[key], cmap=cmap_superstack, width=width_postage, 
-        #              title = f'Haz, {keystr}',
-        #              do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key],
-        #              do_inhibit_axes=True,
-        #              )
-        
-        # plt.subplot(1,3,3)
-        # plot_img_wcs(stretch(img_haz[key] - img_field[key]), 
-        #              wcs_field[key], cmap=cmap_superstack, width=width_postage, title = f'Haz-field, {keystr}',
-        #              do_show=False, name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key],
-        #              do_inhibit_axes=True,
-        #              )
-        
-        plt.show()
-     
     hbt.figsize() 
     hbt.fontsize()
-    
+
 #%%%
+# =============================================================================
+# Make plots showing the image stack and the radial profile, for superstack
+# =============================================================================
+    
+    hbt.figsize((12,6))
+    hbt.fontsize(12)
+    
+    keystr = 'superstack'
+  
+    pixscale_i = pixscale_km_superstack
+    
+    plt.subplot(1,2,1)
+    plot_img_wcs((img_superstack_median_iof), wcs_superstack, cmap=cmap_superstack, title='Superstack', 
+                 width=500, do_show=False)
+    # plot_img_wcs(stretch(img_haz[key]), wcs_haz[key], do_stretch=True, cmap=cmap_superstack,
+    #              scale_km = pixscale_i, label_axis = '[km]', title = key, do_show=False)
+    
+    plt.subplot(1,2,2)
+    width_profile_pix = 1
+    (radius,profile) = get_radial_profile_circular(img_superstack_median_iof, width=width_profile_pix)
+    plt.xlabel('km')
+    plt.ylabel('I/F')
+    plt.ylim((0, 2e-5))
+    # radius_max = radius[bin_radius_max] * pixscale_i
+    radius_max = 1400
+    bin_radius_max = np.digitize(radius_max, radius)
+    
+    iof_min = np.median(profile[0:bin_radius_max-2]) # Doesn't work well.
+
+    plt.plot(radius * pixscale_i, profile - iof_min)
+    plt.xlim((0, radius_max))
+    plt.ylim((iof_min, 2e-5))
+    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+    plt.title(f'Profile, {keystr}, dr={width_profile_pix * pixscale_i:.1f} km')
+    
+    plt.tight_layout()
+    plt.show()
+        
+    hbt.figsize() 
+    hbt.fontsize()
+
 
 # =============================================================================
 # Now look up the pole position, for plot labels
@@ -1216,7 +1241,15 @@ if (__name__ == '__main__'):
         print(f'Wrote: {file_out}')
         print(f' scp {file_out} ixion:\~/MU69_Approach/astrometry' )  # We don't copy it, but put up string for user.
 
+### Do a dummy check on the brightnesses. The stars in the later sequence seem much brighter, despite the same exptime.
 
+    for key in keys:        
+        plt.imshow(stretch(img_haz[key]))
+        plt.title(key)
+        plt.show()
+        
+        
 ######
         
 
+# 
