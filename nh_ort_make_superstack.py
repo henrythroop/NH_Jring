@@ -416,7 +416,7 @@ if (__name__ == '__main__'):
 
     ########## SET PARAMETERS HERE #################
     
-    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 1     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
@@ -520,9 +520,9 @@ if (__name__ == '__main__'):
         # ]
         
         reqids_haz = ['KELR_MU69_APDEEP_L4_2018365A',
-                      'KELR_MU69_APDEEP_L4_2018365B',
-                      'KELR_MU69_APDEEP_L4_2018365E',
-                      'KELR_MU69_APDEEP_L4_2018365F',
+                      # 'KELR_MU69_APDEEP_L4_2018365B',
+                      # 'KELR_MU69_APDEEP_L4_2018365E',
+                      # 'KELR_MU69_APDEEP_L4_2018365F',
                       ]
 
   
@@ -729,13 +729,13 @@ if (__name__ == '__main__'):
             # Flatten the hazard frames
             
             (img_haz[reqid_i], wcs_haz[reqid_i])  =\
-                  stack_haz[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
+                  stack_haz[reqid_i].flatten(do_subpixel=False,  method='median0',zoom=zoom, padding=pad, 
                            do_force=do_force_flatten_haz, do_save=False)
             
             # Flatten the field frames
             
             (img_field[reqid_i], wcs_field[reqid_i])  =\
-                  stack_field[reqid_i].flatten(do_subpixel=False,  method='median',zoom=zoom, padding=pad, 
+                  stack_field[reqid_i].flatten(do_subpixel=False,  method='median0',zoom=zoom, padding=pad, 
                            do_force=do_force_flatten_field, do_save=False)
             
             # Scale the field frames s.t. exptimes match the main exposure
