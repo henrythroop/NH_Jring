@@ -22,7 +22,9 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
                  do_inhibit_axes=False,
                  do_colorbar=False,
                  do_plot_fiducial=True,
+                 label_axis=None,
                  # vmin=None, vmax=None,
+                 scale_km=None,
                  **kwargs):
  
 
@@ -76,29 +78,76 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
     et:
         If *all* of these parameters are supplied, then the RA and Dec are taken from a call to SPKEZR,
         rather than from the supplied RA/Dec.
+    
+    scale_km:
+        pixel scale in km/pix. If this is passed, then xy axes are labeled in km from center.
+        If this is 'None', then xy axes are labeled in pixels.
+
+    label_axis:
+        Text to label the axes with (e.g., 'pixels' or 'km from MU69'). If None, then no label is plotted.
         
     """
 
     stretch_percent = 90    
     stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
-    vmax = np.percentile(img, 95)
-    vmin = np.percentile(img,  5)
+
     
-    img_stretch = np.clip(img, a_min=vmin, a_max=vmax)
+    # Set the width and height appropriately
     
+    if not width:                        # If no width passed, then just use the default.
+        width = np.shape(img)[0]
+        
+    hw = int(width/2)
+    ycenter = int((np.shape(img)[0])/2)  # Vertical
+    xcenter = int((np.shape(img)[0])/2)  # Horizontal
+    
+    x0 = xcenter-hw  # center positions, in pixels
+    x1 = xcenter+hw
+    y0 = ycenter-hw
+    y1 = ycenter+hw
+
+    # Crop the image if needed
+
+    img_crop = img[x0:x1, y0:y1]
+
+    ycenter_crop = int((np.shape(img_crop)[0])/2)  # Vertical
+    xcenter_crop = int((np.shape(img_crop)[0])/2)  # Horizontal
+    
+    # Stretch the image vertically. Must do this after the crop, not before!
+    
+    vmax = np.percentile(img_crop, 95)
+    vmin = np.percentile(img_crop,  5)    
+
+    img_crop_stretch = np.clip(img_crop, a_min=vmin, a_max=vmax)
+
+    # If requested, calculate the x and y axes, in km
+    
+    extent = None # Set ehe default value
+    
+    size = np.shape(img_crop_stretch)
+
+    if scale_km is not None:
+        extent = [-size[0]/2 * scale_km, size[0]/2 * scale_km,
+                  -size[1]/2 * scale_km, size[1]/2 * scale_km]    
+        # print(f'extent = {extent}')
+        
+    else:
+       extent = [0, size[0], 0, size[1] ]
+
+    # Do the actual imshow()
     
     if not(do_stretch):    
-        fig = plt.imshow(img, origin='lower', **kwargs)
+        fig = plt.imshow(img_crop, origin='lower', extent=extent, **kwargs)
     else:
-        fig = plt.imshow(img_stretch, origin='lower', **kwargs)
+        fig = plt.imshow(img_crop_stretch, origin='lower', extent=extent, **kwargs)
     
     # If requested, inhibit printing values on the x and y axes
     
     if do_inhibit_axes:
         plt.gca().get_xaxis().set_visible(False)
         plt.gca().get_yaxis().set_visible(False)
-    
+        
     # If requested, use SPICE to determine the position to plot
     
     if name_target and name_observer and et:
@@ -121,26 +170,36 @@ def plot_img_wcs(img, wcs, ra=274.73344, dec=-20.86170, markersize=5, alpha=0.5,
 
     # print(f'Position xy: {x}, {y}')
     
-    plt.plot(x, y, marker = 'o', markersize = markersize, alpha=alpha, color=color)
-
-    # Set the width and height appropriately
     
-    if not width:                        # If no width passed, then just use the default.
-        width = np.shape(img)[0]
-        
-    hw = int(width/2)
-    ycenter = int((np.shape(img)[0])/2)  # Vertical
-    xcenter = int((np.shape(img)[0])/2)  # Horizontal
-    
-    plt.xlim((xcenter-hw, xcenter+hw))
-    plt.ylim((ycenter-hw, ycenter+hw))
+    # plt.xlim((xcenter-hw, xcenter+hw))
+    # plt.ylim((ycenter-hw, ycenter+hw))
     
     # Make some markers on the edge, so we can tell if MU69 is actually properly centered, or not.
     
     if do_plot_fiducial:
-        plt.plot([ycenter, ycenter, ycenter+hw, ycenter-hw], [xcenter-hw, xcenter+hw, xcenter, xcenter], 
+        if scale_km is not None:
+            # Mark center
+            # plt.plot(x, y, marker = 'o', markersize = markersize, alpha=alpha, color=color)  
+            # Mark four edges
+            plt.plot([0*scale_km, 0*scale_km, hw*scale_km, -hw*scale_km], [-hw*scale_km, hw*scale_km, 0,0], 
                  marker = 'o', color='red', ls='None')
-        
+        else:
+            # Mark center
+            # Mark four edges
+            # plt.plot(0, 0, marker = 'o', markersize = markersize, alpha=alpha, color=color)              
+            plt.plot([ycenter_crop, ycenter_crop, ycenter_crop+hw, ycenter_crop-hw], 
+                     [xcenter_crop-hw, xcenter_crop+hw, xcenter_crop, xcenter_crop], 
+                 marker = 'o', color='red', ls='None')
+
+    # Label axes, if requested
+    if label_axis is not None:
+        # if scale_km is not None:        
+            # text = 'km'
+        # else:
+            # text = 'pix'    
+        plt.xlabel(label_axis)
+        plt.ylabel(label_axis)
+            
     plt.title(title)
 
     # Plot a colorbar, if requested
@@ -180,4 +239,28 @@ if (__name__ == '__main__'):
     # Pass the image data, WCS, and ET, and plot it
     
     plot_img_wcs(img, w, name_observer='New Horizons', name_target = 'MU69', et=et, do_colorbar=True)
+
+    plot_img_wcs(img, w, name_observer='New Horizons', name_target = 'MU69', et=et, scale_km = 100, 
+                 do_colorbar=True, label_axis='km', cmap='plasma')
+
+
+
+    plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
+#                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
+                 title = f'{str_stack}, {str_reqid}', 
+                 # width=width_pix_plot,
+                 do_show=False,
+                 name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                 # extent = None,
+                 scale_km = 100,
+                 label_axis='km',
+                 do_colorbar=True, do_stretch=True)
+
     
+#%%%    
+    # d = hbt.dist_center(100)
+    # plt.imshow(d[0:50,0:50],extent=[-1,1,-2,2], origin='lower', aspect=0.2)
+    # # plt.xlim((0,50))
+    # # plt.ylim((0,50))
+    # # plt.plot([1,2],[3,5])
+    # plt.show()
