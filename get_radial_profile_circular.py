@@ -55,6 +55,10 @@ def get_profile_linear(arr, pos=None, method='median', axis_move = 1):
     # plt.show()
     
     return(dist_pix_1d, profile)    
+
+# =============================================================================
+# GET RADIAL PROFILE CIRCULAR 
+# =============================================================================
     
 def get_radial_profile_circular(arr, pos = None, width=1, a_xy = (1,1), method='median'):
 
@@ -77,7 +81,8 @@ def get_radial_profile_circular(arr, pos = None, width=1, a_xy = (1,1), method='
         Position of the center of the circle, in pixels. If omitted, assume center of image.
         
     width:
-        Some sort of scaling? Not really sure. Just keep at default.
+        Bin width, in pixels. If this is the default, then the length of the output array
+        will be essentially the distance from center to diagonal corner -- i.e,., sqrt(2) * hbt.sizex(arr)/2
         
     a_xy:
         Semimajor axes. Tuple. This account for, in a crude way, the tilt of a flat ring.
