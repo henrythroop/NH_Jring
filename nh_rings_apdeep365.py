@@ -70,6 +70,7 @@ def nh_ort_make_superstack(stack,
                            do_center=True,
                            frame='2014_MU69_SUNFLOWER_ROT',
                            wcs = '',
+                           style_output = 'small',  # 'small' or 'full'
                            do_fast_backplanes = False, **kwargs):
     
     """
@@ -99,6 +100,11 @@ def nh_ort_make_superstack(stack,
         String, which identifies an item in the `stack`.' 
         Which one of the input stacks do we use for the 'base' for the superstack? Typically this will be 
         the highest-resolution one. This stack is used to set the output resolution, and the ET (ie, center position).
+    
+    style_output:
+        string to describe the format of the output. 
+        - default 'small' = crop to the size of the final frame (ie, where all the data overlap). 
+        - 'full' = use all the data, showing all frames, even where some are not overlapping.
         
     Optional parameters
     -----
@@ -144,80 +150,99 @@ def nh_ort_make_superstack(stack,
         
     keys = list(stack.keys())
     
-    pixscale_km = {}
+    # Set up a bunch of dictionaries, one per plane
+    
+    pixscale_km = {}   # Pixel scale
+    magfac      = {}   # Magnification factor
+    shape_mag   = {}   # Shape when magnified
+            
+    # Search for the highest-res stack, and make it so that the superstack matches the resolution of that stack.
+    # Regardless of size, we always take the highest resolution one.    
+
     for key in keys:
         pixscale_km[key] = stack[key].pixscale_x_km
-        
-    # Search for the highest-res stack, and make it so that the superstack matches the resolution of that stack.
-    
     pixscale_km_out = min(pixscale_km.values())
-    
-    # Look up what the index is for this image
+    for key in keys:
+        magfac[key]      = stack[key].pixscale_x_km / pixscale_km_out
+        shape_mag[key]   = (np.ceil(np.array(np.shape(img[key])) * magfac[key])).astype(int)
+
+    # Look up the name of the 'base' plane -- that is, the highest resolution (smallest pixscale)
     
     name_stack_base = keys[np.where(pixscale_km_out == np.array(list(pixscale_km.values())))[0][0]]
-    
+        
 #    pixscale = stack[name_stack_base].pixscale_x_km  # This is the pixel scale of the final stack.
                                                                  # Zoom has not been applied yet.
-    size_out = np.shape(img[name_stack_base])
+    if style_output == 'small':
+
+        # Take the shape of the highest res frame, as is
     
+        size_out = np.shape(img[name_stack_base])
+    
+    else:  # Take the shape of the largest frame, when mag'd. This is more complicated to determine than it should be!
+        
+        size_out_x = np.max(np.array(list(shape_mag.values()))[:,0]).astype(int)
+        size_out_y = np.max(np.array(list(shape_mag.values()))[:,1]).astype(int)
+        
+        size_out = (size_out_x, size_out_y)
+        
     print(f'Final output size = {size_out}')
+    
+    # Create an array (not a list) for the output images to go into
     
     img_rescale_3d = np.zeros((len(keys),size_out[0],size_out[1]))
     img_rescale = {}
+    img_zoom    = {}
     
     # Loop over every individual stack, and zoom them.
-    # NB: Scipy.ndimage.zoom does not work for NaN?
+    # Assuming we use WCS centering, each one is centered.
     
     for i,key in enumerate(keys):
         
-        magfac    = stack[key].pixscale_x_km / pixscale_km_out
-        if img_field is not None:
-            arr       = scipy.ndimage.zoom(img[key] - img_field[key], magfac)
-        else:
-            img_denan = img[key].copy()
-            img_denan[np.isnan(img_denan)] = 0.
-            arr       = scipy.ndimage.zoom(img_denan, magfac)
+        img_denan = img[key].copy()
+        img_denan[np.isnan(img_denan)] = 0.  # Convert any NAN to 0, since ndimage.zoom propagates NAN
+        img_zoom[key] = scipy.ndimage.zoom(img_denan, magfac[key])
+        
+        arr = img_zoom[key]
         
         print(f'Zoomed image {key} by {magfac}')
         
         size_in   = np.shape(arr)
-        edge_left = int( (size_in[0]-size_out[0])/2)
-        edge_top  = int( (size_in[1]-size_out[1])/2)
         
-        arr_out = arr[ edge_left : edge_left+size_out[0], 
-                       edge_top  : edge_left+size_out[1] ]
+        # Calculate the position in the output array, based on centering the image
         
-        print(f'Zoomed image cropped to shape {np.shape(arr_out)}')
-        
-        # If requested, do a centroid on the central region of the image. 
-        # Then shift the entire image based on this, to put brightest object at center of frame.
-        # This is the old style of aligning. It does *not* work for actual MU69 OpNav approach images, because
-        # these are taken far enough out that MU69 is definitely not the brightest thing in the images.
-    
-        if (method == 'brightest'):
-            extract = arr_out[int(size_out[0]/2)-50:int(size_out[0]/2+50),    # 100x100 pixel region. Hardcoded, ugh.
-                              int(size_out[0]/2)-50:int(size_out[0]/2+50)]
-            shift_x = 50 - hbt.wheremax(np.sum(extract, axis=0))
-            shift_y = 50 - hbt.wheremax(np.sum(extract, axis=1))  # vertical axis on screen. 
-                                                                  #  Axis=0. - means value is too large. 
-            arr_out = np.roll(np.roll(arr_out, shift_x, axis=1), shift_y, axis=0)
+        if (style_output == 'small'):   # If we crop this image to fit it exactly to the output frame
             
-            # print(f'Rolling by {shift_x}, {shift_y} to align {key} into superstack')
-        
-        if (method == 'wcs'):
-            # Align based on WCS (ie, alignment has already been done). 
-            # This is a much better method. If we have done things right, then MU69 should
-            # be already centered, so we just copy the image right in.
-            # The only possible issue is that for MU69, I am currently assuming no target motion. Might have to 
-            # adjust my stack-creation routines later if this is an issue. And, this would not work properly for 
-            # (e.g.) HST images.
+            edge_left = int( (size_in[0]-size_out[0])/2)
+            edge_top  = int( (size_in[1]-size_out[1])/2)
             
-            shift_x = 0
-            shift_y = 0
-            arr_out = arr_out
+            arr_out = arr[ edge_left : edge_left+size_out[0], 
+                           edge_top  : edge_left+size_out[1] ]
             
-            # print(f'Aligned by WCS. Rolling by {shift_x}, {shift_y} to align {key} into superstack')
-       
+            print(f'Zoomed image cropped to shape {np.shape(arr_out)}')
+
+        if (style_output == 'full'):  # If we take this entire frame, pad it, and then put that into the output
+            
+            edge_left = int( (size_out[0]-size_in[0])/2)
+            edge_top  = int( (size_out[1]-size_in[1])/2)
+            
+            arr_out = np.zeros(size_out)
+            
+            arr_out[ edge_left : edge_left+size_in[0], edge_top:edge_top+size_in[1] ] = arr
+            
+            print(f'Zoomed image padded to shape {np.shape(arr_out)}')
+            
+        # if (method == 'wcs'):
+        #     # Align based on WCS (ie, alignment has already been done). 
+        #     # This is a much better method. If we have done things right, then MU69 should
+        #     # be already centered, so we just copy the image right in.
+        #     # The only possible issue is that for MU69, I am currently assuming no target motion. Might have to 
+        #     # adjust my stack-creation routines later if this is an issue. And, this would not work properly for 
+        #     # (e.g.) HST images.
+            
+        #     shift_x = 0
+        #     shift_y = 0
+        #     arr_out = arr_out
+            
         # Do a one-off to rotation 365A / 365B into proper orientation. This will invalidate their WCS info, but oh well.
         
         if ('2018365B' in reqid_i) or ('2018365B' in reqid_i):
@@ -244,6 +269,16 @@ def nh_ort_make_superstack(stack,
     img_rescale_median = np.median(img_rescale_3d, axis=0)  
     img_rescale_mean   = np.mean(  img_rescale_3d, axis=0)
     
+    plt.plot(img_rescale_3d[0,800,:])
+    plt.plot(img_rescale_3d[1,800,:])
+    plt.plot(img_rescale_3d[2,800,:])
+    plt.plot(img_rescale_3d[3,800,:])
+
+    plt.ylim(0,50)
+    plt.xlim(500,1000)
+    
+    plt.show()
+      
     # Put the WCS info in a header, which we will write to FITS file
     
     header = wcs.to_header()
