@@ -30,6 +30,7 @@ import pickle # For load/save
 
 import scipy
 import copy
+from astropy.convolution import convolve, Gaussian1DKernel, Box1DKernel
 
 # HBT imports
 
@@ -70,7 +71,8 @@ def nh_ort_make_superstack(stack,
                            do_center=True,
                            frame='2014_MU69_SUNFLOWER_ROT',
                            wcs = '',
-                           format_out = 'small',  # 'small' or 'full'
+                           format_out = 'small',  # 'small' or 'full',
+                           zoom = 1,
                            do_fast_backplanes = False, **kwargs):
     
     """
@@ -152,7 +154,7 @@ def nh_ort_make_superstack(stack,
     
     # Set up a bunch of dictionaries, one per plane
     
-    pixscale_km = {}   # Pixel scale
+    pixscale_km = {}   # Pixel scale. Note that this is the 
     magfac      = {}   # Magnification factor
     shape_mag   = {}   # Shape when magnified
             
@@ -204,7 +206,7 @@ def nh_ort_make_superstack(stack,
         
         arr = img_zoom[key]
         
-        print(f'Zoomed image {key} by {magfac}')
+        print(f'Zoomed image {key} by {magfac[key]}')
         
         size_in   = np.shape(arr)
         
@@ -319,141 +321,63 @@ def nh_ort_make_superstack(stack,
             print(f'Computing backplanes using frame={frame}: {path_out_main}')
             planes = compute_backplanes(path_out_main, 'MU69', frame, 'New Horizons', angle3=30*hbt.d2r)
 
-    if do_backplanes:        
-        return((img_rescale_mean, img_rescale_median, planes))
-    else:
-        return((img_rescale_mean, img_rescale_median, None))
-
-#%%%
+    if not do_backplanes:
+        planes = None           # Make sure to set planes to None if none requested
         
-# =============================================================================
-# Implant a ring into an image
-# =============================================================================
+    return((img_rescale_mean, img_rescale_median, planes, pixscale_km_out))
 
-def ring_implant(img, file_ring_implant, resolution, iof_max_ring, backplanes, width_plot_pix=450, 
-                 do_plot=True, **kwargs):
+
+### Make a ring annulus mask
+    
+def mask_annulus(arr, a, da, pixscale=1, tau=1, shape='tophat', width_gauss = None):
+    
     """
-    Implant a ring into an image.
-
+    Create a fake ring with a specified radius, width, and optical depth.
+    
     Parameters
     -----
-     
-    img: 
-        Image array to implant in. Assumed units of I/F
-     
-    file_ring_implant:
-        Filename of a 'grid file' defining the ring. This file is output by NH_ORT_TRACK4_FLYBY.PY
-
-    resolution:
-        Resolution of the grid image, km/pix. This is specified ultimately by the header.txt file.
-         
-    iof:
-        The I/F of the peak of the smeared image
-         
-    do_plot:
-        Boolean. Make plots of the implanted ring?
     
-    Optional parameters
-    -----    
+    arr:
+        Input array. Used just as a size reference. Must be square.
+        
+    a:
+        Ring radius, in km or pixels.
+        
+    da:
+        Ring width, in km or pixels.
+        
+    pixscale:
+        Pixels per km. Or, 1 to indicate that all measurements are in pixels.
+        
+    tau:
+        Optical depth.
     
-    width_plot_pix:
-        Size of the plot, in zoomed LORRI pixels.
+    shape:
+        Ring profile. 'tophat', 'triangle', etc.
+        
+    width_gauss:
+        Width of the gaussian convolution kernel, in pixels.
         
     """
-         
-    lun = open(file_ring_implant, 'rb')
-    print(f'Reading ring implant pickle file {file_ring_implant}')
-    (density) = pickle.load(lun)
-    lun.close()
-
-    if 'sunflower' in file_ring_implant:
-        axis_sum = 1
-
-    if 'tunacan' in file_ring_implant:
-        axis_sum = 1
-            
-    # Flatten, rotate, and scale the image appropriately, from 3D → 2D
-
-    img_ring     = np.rot90(np.sum(density, axis_sum),1)
-
-    img_ring_iof = iof_max_ring * img_ring / np.amax(img_ring) # Scale the I/F. We adjust this later, after convolve.
     
-    # Get the km per pix of the superstack, and scale ring to match it
+    arr_out = np.zeros(np.shape(arr))
     
-    scale_superstack = np.abs( (backplanes[0]['dRA_km'][0,1]) - (backplanes[0]['dRA_km'][0,0]) )
-
-    scale_ring = resolution  # resolution of grid image, km/pix
-    # if 'sunflower10k' in file_ring_pickle:
+    dist    = hbt.dist_center(hbt.sizex(arr)) * pixscale
+    
+    # if (shape == 'tophat'):
+    
+    mask = ((dist > (a - da/2)) & (dist < (a + da/2))).astype(int) * tau
+    
+    if width_gauss:
+        kernel = astropy.convolution.Gaussian2DKernel(width_gauss / pixscale)
+        mask_convolved = astropy.convolution.convolve(mask, kernel)
         
-    magfac = scale_ring / scale_superstack
-    
-    img_ring_iof_zoom = scipy.ndimage.zoom(img_ring_iof, magfac)
-    
-    # Convolve a PSF with the ring
-    
-    psf = img_superstack_median_iof.copy()
-    wheremax = np.where(psf == np.amax(psf))  # Returns 2D position
-    dxy_psf = 12  # Approx fullwidth of MU69, in pixels, to extract the PSF. Even number.
-    psf_extract = psf[int(wheremax[0]-dxy_psf/2):int(wheremax[0]+dxy_psf/2), 
-                      int(wheremax[1]-dxy_psf/2):int(wheremax[1]+dxy_psf/2)] 
-    psf_extract = psf_extract / np.sum(psf_extract)
-    
-    shape_ss = np.shape(img_superstack_median_iof)
-    shape_ring = np.shape(img_ring_iof_zoom)
-
-    # Scale the ring s.t. I/F is set to the proper value. We do this after convolve, rather than before, 
-    # since that is what we did in NH_ORT_TRACK4_CALIBRATE.PY as well
-    
-    img_ring_iof_zoom_c = scipy.signal.convolve2d(img_ring_iof_zoom, psf_extract)    
-    
-    img_ring_iof_zoom_c *= (iof_max_ring / np.amax(img_ring_iof_zoom_c))
-    
-    # Tweak the scaled image so it's even
-    
-    if shape_ring[0] %2:
-        img_ring_iof_zoom = img_ring_iof_zoom[:,0:-1]
-
-    if shape_ring[1] %2:
-        img_ring_iof_zoom = img_ring_iof_zoom[0:-1,:]
+        mask = mask_convolved
         
-    shape_ring = np.shape(img_ring_iof_zoom_c)
-
-    img_merged_iof = img_superstack_median_iof.copy()
+    return mask
     
-    img_merged_iof[ int(shape_ss[0]/2-shape_ring[0]/2) : int(shape_ss[0]/2+shape_ring[0]/2),
-                int(shape_ss[1]/2-shape_ring[1]/2) : int(shape_ss[1]/2+shape_ring[1]/2) ] += img_ring_iof_zoom_c
-    
-    if do_plot:               
-        hbt.figsize((15,15))
-        plt.subplot(2,2,1)
-                
-        plot_img_wcs(img_superstack_median_iof, wcs_superstack, width=width_plot_pix, do_show=False, title='Stack',
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                     cmap='plasma', **kwargs)
-        
-        plt.subplot(2,2,2)
-        plot_img_wcs(img_ring_iof_zoom, wcs_superstack, width=width_plot_pix, do_show=False, 
-                     title=f'{file_ring_short}, I/F={iof_max_ring:.0e}', do_stretch=False, do_inhibit_axes=True, 
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                     cmap='plasma')
+#%%%
 
-        plt.subplot(2,2,3)
-        plot_img_wcs(img_ring_iof_zoom_c, wcs_superstack, width=width_plot_pix, do_show=False, 
-                     title=f'Convolved', do_stretch=False, do_inhibit_axes=True, 
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                     cmap='plasma')
-
-        plt.subplot(2,2,4)        
-        plot_img_wcs(img_merged_iof, wcs_superstack, width=width_plot_pix, do_show=False, 
-                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                     title=f'Stack + Convolved',
-                     cmap='plasma', **kwargs)
-        
-        plt.show()
-        hbt.figsize()
-        
-    return img_merged_iof
-    
 # =============================================================================
 # End of function definitions
 # =============================================================================
@@ -480,7 +404,7 @@ if (__name__ == '__main__'):
 
     ########## SET PARAMETERS HERE #################
     
-    zoom = 2     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
+    zoom = 4     # How much to magnify images by before shifting. 4 (ie, 1x1 expands to 4x4) is typical
                   # 1 is faster; 4 is slower but better.
 
     width = 1  # Bin width for radial profiles
@@ -815,7 +739,7 @@ if (__name__ == '__main__'):
     
     pixscale_km = {}
     for key in keys:
-        pixscale_km[key] = stack_haz[key].pixscale_x_km
+        pixscale_km[key] = stack_haz[key].pixscale_x_km / zoom
         
     # Search for the highest-res stack, and make it so that the superstack matches the resolution of that stack.
     
@@ -840,9 +764,10 @@ if (__name__ == '__main__'):
     
     print('Making superstack...')
     
-    do_backplanes = True  # IF this is false, then 'None' is returned for backplanes
+    do_backplanes = False  # IF this is false, then 'None' is returned for backplanes
             
-    (img_superstack_mean, img_superstack_median, backplanes) = nh_ort_make_superstack(stack_haz, 
+    (img_superstack_mean, img_superstack_median, backplanes, pixscale_km_superstack) = \
+                                                                          nh_ort_make_superstack(stack_haz, 
                                                                           img_haz, None, 
                                                                           exptime_haz, None,
                                                                           name_stack_base, 
@@ -853,23 +778,81 @@ if (__name__ == '__main__'):
                                                                           format_out = 'full',
                                                                           wcs = wcs_haz[name_stack_base],
                                                                           )
- 
-    pixscale_km_superstack = np.abs(backplanes[0]['dRA_km'][0,0] - backplanes[0]['dRA_km'][0,1])
+    
+    
+    # plot_img_wcs(img_superstack_median, wcs_haz[name_stack_base], width=1800)
+
+    # Set the pixel scale of the superstack properly. Strangely, stacks themself list the original
+    # resolution, not the mag'd resolution, so nh_ort_make_superstack has no way of knowing.
+    
+    pixscale_km_superstack /= zoom
+    
+    # Center the superstack on MU69
+    # NB: We need to call this routine 2x: once with big box, and once with narrower, to converge in on it.
+
+    (img_superstack_mean, shift)   = hbt.center_array_by_mass(img_superstack_mean,   boxwidth=300*zoom)
+    (img_superstack_mean, shift)   = hbt.center_array_by_mass(img_superstack_mean,   boxwidth=100*zoom)
+    (img_superstack_mean, shift)   = hbt.center_array_by_mass(img_superstack_mean,   boxwidth= 20*zoom)
+    print(f'Superstack Shift mean = {shift}')
+    
+    (img_superstack_median, shift) = hbt.center_array_by_mass(img_superstack_median, boxwidth=300*zoom)
+    (img_superstack_median, shift) = hbt.center_array_by_mass(img_superstack_median, boxwidth=100*zoom)
+    (img_superstack_median, shift) = hbt.center_array_by_mass(img_superstack_median, boxwidth= 20*zoom)
+    print(f'Superstack Shift median = {shift}')
+
+#%%%    
+    # Center each of the stacks on MU69, using simple centroid
+
+    keys = img_haz.keys()
+    
+    for key in keys:
+        for boxwidth_i in [20]:
+            (img_shift,shift) = hbt.center_array_by_mass(img_haz[key], boxwidth=boxwidth_i*zoom)
+            img_haz[key] = img_shift
+            plt.imshow(stretch(crop(img_shift, (400,400))))
+            plt.title(f'{key}, just shifted {shift}, boxwidth {boxwidth_i}')
+            plt.show()      
+    
+    # Test centering algorithms
+    
+    
+    # Check the centering, using WCS
+    
+    for key in keys:
+            plot_img_wcs(img_haz[key], wcs_haz[key], cmap=cmap_superstack,
+                  width=200,
+                  scale_km = stack_haz[key].pixscale_x_km / zoom,
+                  label_axis='km',
+                  do_show=True, title=key)
+    
+    for key in keys:
+            plot_img_wcs(img_haz[key], wcs_haz[key], cmap=cmap_superstack,
+                  width=200,
+                  scale_km = stack_haz[key].pixscale_x_km / zoom,
+                  label_axis='km',
+                  do_show=True, title=key)
+            
+    # Make a plot of all the stacks
+    
+    keys = list(keys)
     
     for key in keys:
         plot_img_wcs(img_haz[key], wcs_haz[key], cmap=cmap_superstack,
                   name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[key],
                   width=200,
-                  scale_km = stack_haz[key].pixscale_x_km,
+                  scale_km = stack_haz[key].pixscale_x_km / zoom,
                   label_axis='km',
                   do_show=False, title=key)
         plt.show()
 
-        
+    # Construct a radius backplane. Make this from scratch, *not* from SPICE.
+    
+    plane_radius_superstack = hbt.dist_center(np.shape(img_superstack_median)[0]) * pixscale_km_superstack
+         
 #%%%
 
-    plane_radius_superstack = backplanes[0]['Radius_eq']
-    plane_longitude_superstack = backplanes[0]['Longitude_eq']
+    # plane_radius_superstack = backplanes[0]['Radius_eq']
+    # plane_longitude_superstack = backplanes[0]['Longitude_eq']
 
 # =============================================================================
 # Convert the stacks and superstacks from DN to I/F
@@ -920,18 +903,15 @@ if (__name__ == '__main__'):
 #     Make a pair of final plots of the superstack, with and without aimpoints + sunflower rings
 # =============================================================================
     
-    width_pix_plot_arr = [1000, 300]
+    width_pix_plot_arr = [1000, 400]
     
     # Define the ring sizes.
     # For the SUNFLOWER ring, we just take a radial profile outward, and plot it.
     # For the TUNACAN   ring, we need to assume a vertical thickness. I make two rings, assuming two thicknesses.
     
-    a_ring_km = [1000, 3000]         # For the sunflower *and* the tunacan, we use these as the central ring radii.
-                                      # These values are used to *plot* both TUNA and SUNFLOWER. But they are not
-                                      # used in computation of either one.
-                                  
-    plt.show()  # for some reason the figsize() isn't working, so maybe flush things out??
-    
+    a_ring_km = [250, 500]      
+    da_ring_km = 10   # Width of the lines in the ring to plot, in km    
+        
     hbt.figsize((20,8))
     hbt.fontsize(14)
 
@@ -943,10 +923,7 @@ if (__name__ == '__main__'):
     
     vmin = -1e-6
     vmax =  3e-5
-    
-    # Construct a circular radius plane. We do not use the actual backplane, but just a circle.
-    
-    
+        
     plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
 #                 title = f'{str_stack}, {str_reqid}, ring at {a_ring_km} km', 
                  title = f'{str_stack}, {str_reqid}', 
@@ -955,26 +932,20 @@ if (__name__ == '__main__'):
                  scale_km=pixscale_km_superstack,
                  label_axis = 'KM',
                  name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
-                 do_colorbar=True, do_stretch=True, width=1000)
+                 do_colorbar=True, do_stretch=True, width=6000)
         
-    # Construct the image of ring masks
-    # We plot these the same in TUNACAN or SUNFLOWER -- they are just marked on directly    
+    # Construct the image of ring masks. This can be either from superstack, or constructed ad hoc.
 
-     # Make the sunflower ring masks
-        
-    da_ring_km = 100   # Width of the lines in the ring to plot, in km    
+    radius_km = plane_radius_superstack
 
-    radius_km = hbt.dist_center(np.shape(img_superstack_median_iof)[0]) * pixscale_km_superstack
-
-    # radius_km = hbt.dist_center(np.shape(img_superstack_median_iof)[0]) * pixscale_km_superstack
-
-    mask_ring0 = (radius_km > a_ring_km[0]) & (radius_km < (a_ring_km[0] + da_ring_km) )
-    mask_ring1 = (radius_km > a_ring_km[1]) & (radius_km < (a_ring_km[1] + da_ring_km) )
+    # Make the mask
+    
+    mask_ring0 = (radius_km > (a_ring_km[0] - da_ring_km/2)) & (radius_km < ((a_ring_km[0] + da_ring_km/2) ))
+    mask_ring1 = (radius_km > (a_ring_km[1] - da_ring_km/2)) & (radius_km < ((a_ring_km[1] + da_ring_km/2) ))
 
     mask_ring = mask_ring0 | mask_ring1
 
     img_superstack_median_iof_masked = img_superstack_median_iof * (mask_ring == False).astype(int)
-    
 
     for w_i in width_pix_plot_arr:     
         plt.subplot(1,2,1)
@@ -993,6 +964,7 @@ if (__name__ == '__main__'):
         plt.subplot(1,2,2)
     
         plot_img_wcs(img_superstack_median_iof, wcs_superstack, cmap=cmap_superstack, 
+        # plot_img_wcs(diff, wcs_superstack, cmap=cmap_superstack, 
                      title = f'{str_stack}, {str_reqid}', 
                      width=w_i,
                      do_show=False,
@@ -1016,7 +988,7 @@ if (__name__ == '__main__'):
     for key in keys:
         keystr = key.split('_')[-1]
   
-        pixscale_i = stack_haz[key].pixscale_x_km
+        pixscale_i = stack_haz[key].pixscale_x_km / zoom
         
         plt.subplot(1,2,1)
         plot_img_wcs(stretch(img_haz[key]), wcs_haz[key], do_stretch=True, cmap=cmap_superstack,
@@ -1058,13 +1030,20 @@ if (__name__ == '__main__'):
     
     plt.subplot(1,2,1)
     plot_img_wcs((img_superstack_median_iof), wcs_superstack, cmap=cmap_superstack, title='Superstack', 
-                 width=500, do_show=False)
+                 do_show=False)
+    
     # plot_img_wcs(stretch(img_haz[key]), wcs_haz[key], do_stretch=True, cmap=cmap_superstack,
     #              scale_km = pixscale_i, label_axis = '[km]', title = key, do_show=False)
     
     plt.subplot(1,2,2)
-    width_profile_pix = 1
+    width_profile_pix = zoom
+    
+    # Get the profile. This is really slow for zoom=4! And, ideally we would do it for width_profile_pix = 1.
+    
     (radius,profile) = get_radial_profile_circular(img_superstack_median_iof, width=width_profile_pix)
+
+    # Make a plot
+    
     plt.xlabel('km')
     plt.ylabel('I/F')
     plt.ylim((0, 2e-5))
@@ -1076,16 +1055,18 @@ if (__name__ == '__main__'):
 
     plt.plot(radius * pixscale_i, profile - iof_min)
     plt.xlim((0, radius_max))
-    plt.ylim((iof_min, 2e-5))
-    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+    plt.ylim((0, 5e-6))
+    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
     plt.title(f'Profile, {keystr}, dr={width_profile_pix * pixscale_i:.1f} km')
+    plt.xlabel('km')
+    plt.ylabel('I/F')
+    
     
     plt.tight_layout()
     plt.show()
         
     hbt.figsize() 
     hbt.fontsize()
-
 
 # =============================================================================
 # Now look up the pole position, for plot labels
@@ -1108,6 +1089,190 @@ if (__name__ == '__main__'):
     vec_j2k = sp.mxv(mx_frame_j2k, vec)
     (_, ra_pole, dec_pole) = sp.recrad(vec_j2k)
 
+#%%%
+
+# =============================================================================
+# Now make some implants, and add these to the dictionary for analysis
+# =============================================================================
+    
+# Create some implant rings
+    
+    tau_implant = 1e-6
+    a_ring      = 300
+    da_ring     = 5
+
+    tau_implant = 2e-6
+    a_ring      = 1000
+    da_ring     = 10
+
+    width_gauss_implant = zoom*2
+    
+    keys = img_haz_iof.keys()
+
+    # First get rid of the old implants, if they are there
+    # Iterate over all the keys in the dictionary. But, we can't change a dictionary in place while iterating,
+    # so we make a *list* of the keys, and then iterate over that.
+    
+    for key in list(keys):
+        if '_implant' in key:
+            del img_haz_iof[key]
+            del stack_haz[key]
+            del wcs_haz[key]
+            print(f'Deleted {key} from dictionary')
+
+    # Now create and add the new implants. Just add each one to the dictionary.
+            
+    for key in list(keys):
+        key_implant = key + '_implant'
+        
+        if key_implant not in keys and 'implant' not in key:
+            pixscale_km = stack_haz[key].pixscale_x_km / zoom
+            arr = img_haz_iof[key]
+
+            arr_implant = (arr + 
+               mask_annulus(arr, a_ring, da_ring, pixscale=pixscale_km, width_gauss=width_gauss_implant, tau=tau_implant) )
+            
+            img_haz[key_implant]     = arr_implant
+            img_haz_iof[key_implant] = arr_implant
+            stack_haz[key_implant]   = stack_haz[key]
+            wcs_haz[key_implant]     = wcs_haz[key]
+            
+            print(f'Implanted {key} → {key_implant}')
+        else:
+            print(f'Already exists: {key_implant}')
+
+    keys = img_haz_iof.keys()
+    
+#%%%    
+# =============================================================================
+# Now do some special processing, like subtracting Field A - Field, B, etc.
+# Differential.    
+# =============================================================================
+    
+    do_implants = True
+    
+    key1 = ['KELR_MU69_APDEEP_L4_2018365A', 'KELR_MU69_APDEEP_L4_2018365E']
+    key2 = ['KELR_MU69_APDEEP_L4_2018365B', 'KELR_MU69_APDEEP_L4_2018365F']
+
+    if do_implants:
+        key1 = ['KELR_MU69_APDEEP_L4_2018365A_implant', 'KELR_MU69_APDEEP_L4_2018365E_implant']
+        key2 = ['KELR_MU69_APDEEP_L4_2018365B_implant', 'KELR_MU69_APDEEP_L4_2018365F_implant']
+    
+    pairs = ['AB', 'EF'] 
+    
+    dxy   = {}
+    profile_diff = {}
+    radius_km_diff = {}
+    
+    dxy['1'] = [[9,0],   [50,   0]]  # zoom level 1. These shift values are btwn A and B, etc. Set these by hand.
+    dxy['2'] = [[18, 0], [99,   0]]  # zoom level 2
+    dxy['4'] = [[36, 0], [200,  1]]  # zoom level 4
+    
+    hbt.fontsize(15)
+    width_profile_pix = 1
+    
+    for i in range(len(key1)):
+
+        pair = pairs[i]
+        
+        pixscale_km = stack_haz[key1[i]].pixscale_x_km / zoom
+
+        if 'implant' in key1[i]:
+            keystr = f'Stack difference, {key1[i][-12:]} - {key2[i][-12:]}'
+        else:    
+            keystr = f'Stack difference, {key1[i][-4:]} - {key2[i][-4:]}'
+ 
+        hbt.figsize((15,15)) 
+
+        diff = (img_haz_iof[key1[i]] - np.roll(img_haz_iof[key2[i]],dxy[f'{zoom}'][i], axis=[0,1]))
+        plt.subplot(1,2,1)
+        
+        plot_img_wcs(stretch(diff), wcs_haz[key1[i]], scale_km=pixscale_km, label_axis='km',title=keystr, 
+                     do_show=False, cmap='Greys_r', do_colorbar=False)
+        
+        # Use this line below for testing shifts manually. remove the stretch() initially.
+
+        # plt.imshow(stretch( (img_haz_iof[key1[i]] - np.roll(img_haz_iof[key2[i]],[9,0], axis=[0,1])) ))
+        
+        # End commented line!
+        
+        plt.subplot(1,2,2)
+        
+        plot_img_wcs(diff, wcs_haz[key1[i]], scale_km=pixscale_km, label_axis='km', width=200*zoom, 
+                     do_stretch=True, title=keystr, do_show=False)
+ 
+        # plot_img_wcs(img_haz_iof[key1[i]], wcs_haz[key1[i]], scale_km=pixscale_km, label_axis='km', width=200*zoom, 
+        #              do_stretch=True, title=keystr, do_show=False)
+        
+        # plt.imshow(stretch(diff))
+        # plt.title(keystr)
+        plt.show()
+
+        (radius,profile) = get_radial_profile_circular(diff, width=width_profile_pix)
+        
+        profile_diff[pair] = profile
+        radius_km_diff[pair]  = radius * pixscale_km
+        
+        # plt.xlabel('km')
+        # plt.ylabel('I/F')
+        # plt.ylim((0, 2e-5))
+        # radius_max = radius[bin_radius_max] * pixscale_i
+        
+        bin_radius_max = np.where(np.isnan(profile))[0][0]
+        
+        iof_min = np.nanmin(profile[0:bin_radius_max-2]) # Doesn't work well.
+    
+        hbt.figsize((15,5)) 
+        plt.plot(radius*pixscale_km, profile - iof_min)
+        plt.xlim((0, radius[bin_radius_max]*pixscale_km))
+        plt.xlabel('km')
+        plt.ylim((0, 5e-6))
+        plt.ylabel('I/F')
+        plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+        plt.title(f'Circular profile, {keystr}, dr={width_profile_pix * pixscale_km:.1f} km, zoom={zoom}')
+        plt.show()
+
+# Plot all the radial profiles together on one plot
+
+    radius_km_max = 2000        
+    for pair in pairs:
+        
+        bin_radius_max = int(np.digitize(1000, radius_km_diff[pair]))
+        bias = np.amin(profile_diff[pair][0:bin_radius_max])
+        
+        plt.plot(radius_km_diff[pair], profile_diff[pair]-bias, label=pair)
+        
+    plt.legend()
+    plt.title(f'Circular profile, {keystr}, dr={width_profile_pix * pixscale_km:.1f} km, zoom={zoom}')
+    plt.ylim((-3e-7,5e-6))
+    plt.xlabel('km')
+    plt.ylabel('I/F')
+    plt.xlim(0,radius_km_max)
+    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+    if do_implants:
+        plt.axvline(a_ring, alpha=0.2, color='red', linestyle='--')
+    plt.show()
+
+#%%%
+    
+# Make an implated ring at a specified location, in the differential image
+    
+    diff_masked = diff * (1 - mask_annulus(diff, 250, 20, pixscale=pixscale_km, width_gauss=2))
+
+    plot_img_wcs(diff_masked, wcs_superstack, cmap=cmap_superstack, 
+                     title = f'{str_stack}, {str_reqid}', 
+                     width=w_i,
+                     do_show=False,
+                     name_observer = 'New Horizons', name_target = 'MU69', et = et_haz[name_stack_base],
+                     do_colorbar=True, vmin=-vmax, vmax=vmax, do_stretch=False,
+                     scale_km=pixscale_km_superstack,
+                     label_axis = '[km]')
+
+
+
+    # if (shape == 'triangle'):
+    #     mask_triangle = ()
+    
 # =============================================================================
 #     Calculate the radial profile, in I/F units 
 # =============================================================================
@@ -1120,97 +1285,97 @@ if (__name__ == '__main__'):
     
     # Take a sunflower radial profile  
                                              
-    (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
-                                         plane_radius_superstack, method = 'median', num_pts = num_pts)
+    # (radius,  profile_iof_median)   = get_radial_profile_backplane(img_superstack_median_iof,
+    #                                      plane_radius_superstack, method = 'median', num_pts = num_pts)
 
-    (radius_quadrant,  profile_iof_quadrant)   = get_radial_profile_backplane_quadrant(img_superstack_mean_iof,
-                                         plane_radius_superstack, plane_azimuth_superstack, method = 'median', 
-                                         num_pts = num_pts/2)
+    # (radius_quadrant,  profile_iof_quadrant)   = get_radial_profile_backplane_quadrant(img_superstack_mean_iof,
+    #                                      plane_radius_superstack, plane_azimuth_superstack, method = 'median', 
+    #                                      num_pts = num_pts/2)
         
-    profile_iof[0] = profile_iof_median  # Just pick one -- they both are similar
+    # profile_iof[0] = profile_iof_median  # Just pick one -- they both are similar
 
-    # Calculate the bias level, crudely
+    # # Calculate the bias level, crudely
 
-    radius_max_km = 1200
-    bin_radial_end = np.digitize(radius_max_km*0.9, radius)
-    bias       = np.nanmin(profile_iof[0][10:bin_radial_end])
-    bias = 8e-6
+    # radius_max_km = 1200
+    # bin_radial_end = np.digitize(radius_max_km*0.9, radius)
+    # bias       = np.nanmin(profile_iof[0][10:bin_radial_end])
+    # bias = 8e-6
     
 # =============================================================================
 # Fit a gaussian to the radial profile, if requested
 # =============================================================================
 
-    do_fit_profile = False
+    # do_fit_profile = False
     
-    if do_fit_profile:
-        r_0         = 4000      # Inner radius to ignore in gauss fit, in km
-        radius_ring = 9000      # Starting point for gaussfit for ring position, in km
-        hw_ring     = 1000      # Starting point for ring halfwidth, in km
+    # if do_fit_profile:
+    #     r_0         = 4000      # Inner radius to ignore in gauss fit, in km
+    #     radius_ring = 9000      # Starting point for gaussfit for ring position, in km
+    #     hw_ring     = 1000      # Starting point for ring halfwidth, in km
         
         
-        bin_0 = hbt.x2bin(r_0, radius)
-        x = radius[bin_0:]
-        y = profile_iof[bin_0:]            
+    #     bin_0 = hbt.x2bin(r_0, radius)
+    #     x = radius[bin_0:]
+    #     y = profile_iof[bin_0:]            
         
-        popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
+    #     popt,pcov = curve_fit(gaus,x,y,p0=[radius_ring,0,hw_ring])
     
 # =============================================================================
 # Plot the radial profile
 # =============================================================================
     
-    hbt.figsize((16,6))
-    hbt.fontsize(12)
-    ylim_profile = (-2e-6, 2e-5)
-    xlim_profile = (0, radius_max_km)
+    # hbt.figsize((16,6))
+    # hbt.fontsize(12)
+    # ylim_profile = (-2e-6, 2e-5)
+    # xlim_profile = (0, radius_max_km)
 
-    plt.subplot(1,2,1)
-    plt.plot(radius, profile_iof[0] - bias,
-         label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
-                 f'dr={round(np.diff(radius)[0]):.0f} km')
+    # plt.subplot(1,2,1)
+    # plt.plot(radius, profile_iof[0] - bias,
+    #      label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
+    #              f'dr={round(np.diff(radius)[0]):.0f} km')
 
-    do_plot_errorbars = False
+    # do_plot_errorbars = False
     
-    if do_plot_errorbars:
-        plt.errorbar(radius, profile_iof - bias, yerr = profile_iof_std,
-             label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
+    # if do_plot_errorbars:
+    #     plt.errorbar(radius, profile_iof - bias, yerr = profile_iof_std,
+    #          label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}, {dec_pole*hbt.r2d:.0f}) deg')
         
     
-    do_plot_mean=False
-    if do_plot_mean:            # Can plot the mean. But the median is much more useful
-        plt.plot(radius, profile_iof_mean - bias, label = 'mean')
+    # do_plot_mean=False
+    # if do_plot_mean:            # Can plot the mean. But the median is much more useful
+    #     plt.plot(radius, profile_iof_mean - bias, label = 'mean')
     
-    if do_fit_profile:
-        plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=1.5, 
-                 label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
+    # if do_fit_profile:
+    #     plt.plot(x,gaus(x,*popt),'ro:', marker = None, ls = '--', lw=1.5, 
+    #              label = f'Fit, radius={popt[1]:.0f} km, FWHM={2.35 * popt[2]:.0f} km')
     
     # FWHM = 2.35 * sigma: https://ned.ipac.caltech.edu/level5/Leo/Stats2_3.html
         
-    plt.xlim(xlim_profile)
-    plt.ylim(ylim_profile)
-    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
-    plt.xlabel('Radius [km]')
-    plt.ylabel('I/F')
-    plt.legend(loc = 'upper right')
-    plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
+#     plt.xlim(xlim_profile)
+#     plt.ylim(ylim_profile)
+#     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
+#     plt.xlabel('Radius [km]')
+#     plt.ylabel('I/F')
+#     plt.legend(loc = 'upper right')
+#     plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
 
-# Plot the radial profile, for quadrants
+# # Plot the radial profile, for quadrants
 
-    plt.subplot(1,2,2)
-    plt.plot(radius_quadrant, profile_iof_quadrant[0] - bias,
-         label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
-                 f'dr={round(np.diff(radius_quadrant)[0]):.0f} km', color='white')
+#     plt.subplot(1,2,2)
+#     plt.plot(radius_quadrant, profile_iof_quadrant[0] - bias,
+#          label = f'Median, pole = ({ra_pole*hbt.r2d:.0f}°, {dec_pole*hbt.r2d:.0f}°), ' + 
+#                  f'dr={round(np.diff(radius_quadrant)[0]):.0f} km', color='white')
     
-    for i in range(4):
-        plt.plot(radius_quadrant, profile_iof_quadrant[i] - bias, label=f'Quadrant {i}', alpha=0.7)
+#     for i in range(4):
+#         plt.plot(radius_quadrant, profile_iof_quadrant[i] - bias, label=f'Quadrant {i}', alpha=0.7)
 
-    plt.xlim((0, radius_max_km))
-    plt.ylim(ylim_profile)
-    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
-    plt.xlabel('Radius [km]')
-    plt.ylabel('I/F')
-    plt.legend(loc = 'upper right')
-    plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
-    plt.show()
+#     plt.xlim((0, radius_max_km))
+#     plt.ylim(ylim_profile)
+#     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
+#     plt.xlabel('Radius [km]')
+#     plt.ylabel('I/F')
+#     plt.legend(loc = 'upper right')
+#     plt.title(f'Radial profile, {frametype}, {str_stack} {str_reqid}')
+#     plt.show()
 
 #%%%
                          
@@ -1241,13 +1406,6 @@ if (__name__ == '__main__'):
         print(f'Wrote: {file_out}')
         print(f' scp {file_out} ixion:\~/MU69_Approach/astrometry' )  # We don't copy it, but put up string for user.
 
-### Do a dummy check on the brightnesses. The stars in the later sequence seem much brighter, despite the same exptime.
-
-    for key in keys:        
-        plt.imshow(stretch(img_haz[key]))
-        plt.title(key)
-        plt.show()
-        
         
 ######
         
