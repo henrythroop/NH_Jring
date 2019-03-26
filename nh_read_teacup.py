@@ -163,8 +163,9 @@ plt.imshow(stretch(img_mosaic), origin='lower')
 
 # Take some radial profiles of it. 
 
-(radius_pix, dn) = get_radial_profile_circular(img_mosaic, width=10)
-plt.plot(radius_pix, dn)
+binwidth_profile = 2
+(radius_pix, dn_profile) = get_radial_profile_circular(img_mosaic, width=binwidth_profile)
+plt.plot(radius_pix, dn_profile)
 
 # Calculate the pixel scale
 
@@ -172,7 +173,51 @@ pixscale = np.mean(dist_arr)
 
 # Convert from DN to IoF:
 
-RSOLAR  = '98313.172'          /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum      # This is the MVIC value, in MVIC header
+# =============================================================================
+# Convert the image from DN to I/F
+# =============================================================================
+    
+    # Apply Hal's conversion formula from p. 7, to compute I/F and print it.
+
+RSOLAR_MVIC  = 98313.172   #       /(DN/s)/(erg/cm^2/s/Ang/sr), Solar spectrum  # MVIC value in MVIC frame header
+
+# RSOLAR_LORRI_1X1 = 221999.98  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+# RSOLAR_LORRI_4X4 = 3800640.0  # Diffuse sensitivity, LORRI 1X1. Units are (DN/s/pixel)/(erg/cm^2/s/A/sr)
+
+# Define the solar flux, from Hal's paper.
+FSOLAR_LORRI  = 176.	     	    # We want to be sure to use LORRI value, not MVIC value!
+                                 # X XXX 176 is LORRI value. What is MVIC value??
+F_solar       = FSOLAR_LORRI # Flux from Hal's paper
+RSOLAR        = RSOLAR_MVIC
+
+km2au = 1 / (u.au/u.km).to('1')
+    
+# Calculate the MU69-Sun distance, in AU (or look it up).         
+
+exptime        = header['EXPTIME'] # ET for the final image stack
+(st,lt)   = sp.spkezr('MU69', et_arr[0], 'J2000', 'LT', 'New Horizons')
+r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+(st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
+r_sun_mu69= sp.vnorm(st[0:3]) * km2au # NH distance, in AU
+pixscale_km =  (r_nh_mu69/km2au) * header['PIXFOV'] / 1e6 # km per pix (assuming LORRI 4x4)
+TEXP        = header['exptime']  # Exposure time of the field frames. All are 29.967 sec.
+
+I = dn_profile / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
+# I_mean   = img_superstack_mean   / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
+
+profile_iof = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+
+plt.plot(radius_pix*pixscale_km, profile_iof)
+plt.title(f'Profile, Binwidth = {binwidth_profile * pixscale_km} km, Exptime = {exptime} sec')
+plt.ylim((-1e-4,1e-4))
+plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+plt.show()
+
+    # img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+
+
+
+
 
 
 t = Table(   [et, ra_mu69, dec_mu69, ra_bsight, dec_bsight, vsep, dist, file_short],

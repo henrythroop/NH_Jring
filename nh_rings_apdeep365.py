@@ -809,7 +809,7 @@ if (__name__ == '__main__'):
         for boxwidth_i in [20]:
             (img_shift,shift) = hbt.center_array_by_mass(img_haz[key], boxwidth=boxwidth_i*zoom)
             img_haz[key] = img_shift
-            plt.imshow(stretch(crop(img_shift, (400,400))))
+            plt.imshow(stretch(hbt.crop(img_shift, (400,400))))
             plt.title(f'{key}, just shifted {shift}, boxwidth {boxwidth_i}')
             plt.show()      
     
@@ -1149,7 +1149,7 @@ if (__name__ == '__main__'):
 # Differential.    
 # =============================================================================
     
-    do_implants = True
+    do_implants = False
     
     key1 = ['KELR_MU69_APDEEP_L4_2018365A', 'KELR_MU69_APDEEP_L4_2018365E']
     key2 = ['KELR_MU69_APDEEP_L4_2018365B', 'KELR_MU69_APDEEP_L4_2018365F']
@@ -1238,22 +1238,35 @@ if (__name__ == '__main__'):
     for pair in pairs:
         
         bin_radius_max = int(np.digitize(1000, radius_km_diff[pair]))
+        x = radius_km_diff[pair]
+        y = profile_diff[pair]
+        fit = np.polyfit(x[50:700], y[50:700], 6)
+        bg  = np.poly1d(fit)
+        
         bias = np.amin(profile_diff[pair][0:bin_radius_max])
         
-        plt.plot(radius_km_diff[pair], profile_diff[pair]-bias, label=pair)
+        plt.plot(radius_km_diff[pair][0:-550], profile_diff[pair][0:-550]-bg(x)[0:-550], label=pair)
         
     plt.legend()
     plt.title(f'Circular profile, {keystr}, dr={width_profile_pix * pixscale_km:.1f} km, zoom={zoom}')
-    plt.ylim((-3e-7,5e-6))
+    plt.ylim((-3e-7,2e-6))
     plt.xlabel('km')
     plt.ylabel('I/F')
     plt.xlim(0,radius_km_max)
-    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1e'))
     if do_implants:
         plt.axvline(a_ring, alpha=0.2, color='red', linestyle='--')
     plt.show()
 
-#%%%
+
+### For dummy check, get the times
+    
+    for key in keys:
+        et0 = stack_haz[key].t['utc'][0]
+        et1 = stack_haz[key].t['utc'][-1]
+        print(f'{key} : {et0} .. {et1}')
+        
+#%%
     
 # Make an implated ring at a specified location, in the differential image
     
