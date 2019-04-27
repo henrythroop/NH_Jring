@@ -13,10 +13,9 @@ Created on Sat Mar 16 00:24:12 2019
 """
 Created on Fri Mar  2 11:43:11 2018
 
-THIS IS MY MAIN CODE TO MAKE SUPERSTACKS, IMPLANT RINGS, TAKE RADIAL PROFILES, ETC,
-FOR THE MU69 FLYBY.
+This program is to read the mosaic'ed FITS file that Tod Lauer has created of the teacup.
 
-IT IS CALLED 'ORT' BUT THAT IS JUST HISTORICAL.
+HBT March 2019
 
 @author: throop
 """
@@ -59,18 +58,20 @@ from   wcs_translate_pix import wcs_translate_pix, wcs_zoom
 
 # Load the proper kernels
 
+file_tm = 'kernels_kem_prime.tm'
 hbt.unload_kernels_all()
 sp.furnsh(file_tm)
 
 stretch_percent = 90    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
-# Start reading the files
+# Read the file
+
+file_mosaic = '/Users/throop/Data/MU69/teacup/dpdeep_mos_tea_v2.fits'
 
 dir = '/Users/throop/Data/MU69/teacup/'
-files = glob.glob(dir + '*.fit*')
 
-file_tm = 'kernels_kem_prime.tm'
+files = glob.glob(dir + 'mpf*.fit*')
 
 ra_mu69_arr = []
 dec_mu69_arr = []
@@ -161,11 +162,41 @@ for i in range(len(files)):
 hbt.figsize((12,10))    
 plt.imshow(stretch(img_mosaic), origin='lower')
 
+#### Now process Tod's Teacup Mosaic
+
+# Load Tod's actual mosaic
+
+hdu = fits.open(file_mosaic)
+header = hdu['PRIMARY'].header
+img_lauer = hdu['PRIMARY'].data
+
+plt.set_cmap('Greys_r')
+plt.imshow(stretch(img_lauer),origin='lower')
+plt.plot([pos_x_mu69],[pos_y_mu69], marker = 'o', color='red')
+# plt.plot([1000],[1000], marker = 'o', color='red',linestyle='None')
+plt.show()
+
+pos_x_mu69 = 3400
+pos_y_mu69 = 450
+
 # Take some radial profiles of it. 
+
+binwidth_profile = 20
+(radius_pix, dn_profile) = get_radial_profile_circular(img_lauer, pos=(pos_y_mu69, pos_x_mu69), width=binwidth_profile)
+
+plt.plot(radius_pix, dn_profile)
+plt.xlim((0,1000))
+plt.show()
+
+# For comparison, do the same on the raw frames.
 
 binwidth_profile = 2
 (radius_pix, dn_profile) = get_radial_profile_circular(img_mosaic, width=binwidth_profile)
 plt.plot(radius_pix, dn_profile)
+plt.xlim((0,1000))
+plt.ylim((-2, 1))
+plt.show()
+
 
 # Calculate the pixel scale
 
@@ -215,11 +246,6 @@ plt.show()
 
     # img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 
-
-
-
-
-
 t = Table(   [et, ra_mu69, dec_mu69, ra_bsight, dec_bsight, vsep, dist, file_short],
               names = ['ET', 'RA_mu69', 'Dec_mu69', 'RA_bsight', 'Dec_bsight', 'Angle', 'Range', 'File' ])
 
@@ -234,7 +260,6 @@ t.sort('ET')
 t['#'] = range(len(et))
 t.pprint(max_width=200) 
     
-    """
         
     keys = list(stack.keys())
     
