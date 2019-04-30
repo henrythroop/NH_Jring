@@ -11,6 +11,18 @@ import numpy as np
 
 def get_radial_profile_circular2(arr, pos = (0,0), width=1, a_xy = (1,1), method='median'):
 
+    
+    """
+    
+    I added quadrant code to this file. But, I accidentally added it to an *old* version of this file.
+    
+    To do:
+        
+        - Load the new version of get_radial_profile_circular.py
+        - Create a get_radial_profile_circular_quadrant() function in that.
+        - Base that function off of code here.
+        - HBT 30-Apr-2019
+        
     """
     Extract a radial profile from an image. 
     
