@@ -58,30 +58,36 @@ from   wcs_translate_pix import wcs_translate_pix, wcs_zoom
 
 # Load the proper kernels
 
-file_tm = 'kernels_kem_prime.tm'
+file_tm = '/Users/throop/git/NH_rings/kernels_kem_prime.tm'
 hbt.unload_kernels_all()
 sp.furnsh(file_tm)
 
 stretch_percent = 90    
 stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
 
-# Read the file
+# First read the *raw* files. We read these just to get the header info (exptime, et, etc)
 
-file_mosaic = '/Users/throop/Data/MU69/teacup/dpdeep_mos_tea_v2.fits'
-
+file_mosaic_teacup = '/Users/throop/Data/MU69/teacup/dpdeep_mos_tea_v2.fits'
 dir = '/Users/throop/Data/MU69/teacup/'
 
-files = glob.glob(dir + 'mpf*.fit*')
+files_raw = glob.glob(dir + 'mpf*.fit*')
 
-ra_mu69_arr = []
-dec_mu69_arr = []
-ra_bsight_arr = []
+ra_mu69_arr    = []
+dec_mu69_arr   = []
+ra_bsight_arr  = []
 dec_bsight_arr = []
-dist_arr = []
-et_arr = []
-vsep_arr = []
+dist_arr       = []
+et_arr         = []
+vsep_arr       = []
 file_short_arr = []
-img_arr = []
+img_arr        = []
+exptime_arr    = []
+
+# Just load one file
+
+files = [files_raw[0]]
+
+# Loop over all the raw frames
 
 for file in files:
     
@@ -105,13 +111,11 @@ for file in files:
 # Now compute the projected distance. I guess this is just the angular separation between the midpoint of 
 # this frame, and MU69.
     
-    # Set up WCS coord for this frame.
-    # OK, doesnt' exist -- don't do that!
+    # w = WCS.wcs(file)  # Load WCS -- but that does not exist for these individual MVIC frames!
     
-    # w = WCS.wcs(file)
-    
-    ra_bsight = header['SPCBRRA']
+    ra_bsight  = header['SPCBRRA']
     dec_bsight = header['SPCBRDEC']
+    exptime    = header['EXPTIME']
     
     # Turn this into a vector
     
@@ -132,22 +136,23 @@ for file in files:
     file_short_arr.append(file_short)
     dist_arr.append(dist)
     img_arr.append(img)
+    exptime_arr.append(exptime)
 
 # Now put them all into a table
     
 dec_bsight = np.array(dec_bsight_arr)
-ra_bsight = np.array(ra_bsight_arr)
-dec_mu69 = np.array(dec_mu69_arr)*hbt.r2d
-ra_mu69 = np.array(ra_mu69_arr)*hbt.r2d
-vsep = np.array(vsep_arr)
-et = np.array(et_arr)
+ra_bsight  = np.array(ra_bsight_arr)
+dec_mu69   = np.array(dec_mu69_arr)*hbt.r2d
+ra_mu69    = np.array(ra_mu69_arr)*hbt.r2d
+vsep       = np.array(vsep_arr)
+et         = np.array(et_arr)
 file_short = np.array(file_short_arr)
-dist = np.array(dist_arr)
+dist       = np.array(dist_arr)
+exptime    = np.array(exptime_arr)
 
-# And for the image array... beats me. For now, just stack them all together.
+# And for the image array, just stack them all next to each other in the Y direction
 
 num_files = len(files)
-# img_ar = np.zeros((num_files, np.shape(img)[0], np.shape(img)[1]))
 img_mosaic = np.zeros((num_files * np.shape(img)[0], np.shape(img)[1]))
 
 for i in range(len(files)):
@@ -162,40 +167,63 @@ for i in range(len(files)):
 hbt.figsize((12,10))    
 plt.imshow(stretch(img_mosaic), origin='lower')
 
-#### Now process Tod's Teacup Mosaic
+# =============================================================================
+# Now load and process Tod's teacup mosaic.
+# =============================================================================
 
-# Load Tod's actual mosaic
+# Load the FITS file
 
-hdu = fits.open(file_mosaic)
+hdu = fits.open(file_mosaic_teacup)
 header = hdu['PRIMARY'].header
 img_lauer = hdu['PRIMARY'].data
+
+pos_x_mu69 = 3400 # Position of MU69, from Tod
+pos_y_mu69 = 450
+
+# Convert all the 0.0's to NaN. Lauer makes them 0.
+
+indices_bg = img_lauer == 0.
+img_lauer[indices_bg] = np.nan
+
+# Plot the teacup
 
 plt.set_cmap('Greys_r')
 plt.imshow(stretch(img_lauer),origin='lower')
 plt.plot([pos_x_mu69],[pos_y_mu69], marker = 'o', color='red')
-# plt.plot([1000],[1000], marker = 'o', color='red',linestyle='None')
 plt.show()
-
-pos_x_mu69 = 3400
-pos_y_mu69 = 450
 
 # Take some radial profiles of it. 
 
-binwidth_profile = 20
-(radius_pix, dn_profile) = get_radial_profile_circular(img_lauer, pos=(pos_y_mu69, pos_x_mu69), width=binwidth_profile)
+binwidth_profile = 5
+(radius_pix, dn_profile) = get_radial_profile_circular(img_lauer, pos=(pos_y_mu69, pos_x_mu69), 
+                                                        width=binwidth_profile, method='median')
 
 plt.plot(radius_pix, dn_profile)
 plt.xlim((0,1000))
+plt.show()
+
+# Take a quadrant profile
+
+binwidth_profile = 5
+(radius_pix, dn_profile_quad) = get_radial_profile_circular_quadrant(img_lauer, pos=(pos_y_mu69, pos_x_mu69), 
+                                                        width=binwidth_profile, method='median')
+
+for i in range(4):
+    plt.plot(radius_pix, dn_profile_quad[i,:],label=f'Quadrant {i+1}')
+    
+plt.xlim((0,1000))
+plt.ylim((-0.5,0.5))
+plt.legend()
 plt.show()
 
 # For comparison, do the same on the raw frames.
 
-binwidth_profile = 2
-(radius_pix, dn_profile) = get_radial_profile_circular(img_mosaic, width=binwidth_profile)
-plt.plot(radius_pix, dn_profile)
-plt.xlim((0,1000))
-plt.ylim((-2, 1))
-plt.show()
+# binwidth_profile = 2
+# (radius_pix, dn_profile) = get_radial_profile_circular(img_mosaic, width=binwidth_profile)
+# plt.plot(radius_pix, dn_profile)
+# plt.xlim((0,1000))
+# plt.ylim((-2, 1))
+# plt.show()
 
 
 # Calculate the pixel scale
@@ -225,13 +253,15 @@ km2au = 1 / (u.au/u.km).to('1')
     
 # Calculate the MU69-Sun distance, in AU (or look it up).         
 
-exptime        = header['EXPTIME'] # ET for the final image stack
+# exptime        = header['EXPTIME'] # ET for the final image stack
+TEXP        = exptime[0]
 (st,lt)   = sp.spkezr('MU69', et_arr[0], 'J2000', 'LT', 'New Horizons')
 r_nh_mu69 = sp.vnorm(st[0:3]) * km2au # NH distance, in AU
-(st,lt)   = sp.spkezr('MU69', et, 'J2000', 'LT', 'Sun')
+(st,lt)   = sp.spkezr('MU69', et_arr[0], 'J2000', 'LT', 'Sun')
 r_sun_mu69= sp.vnorm(st[0:3]) * km2au # NH distance, in AU
 pixscale_km =  (r_nh_mu69/km2au) * header['PIXFOV'] / 1e6 # km per pix (assuming LORRI 4x4)
-TEXP        = header['exptime']  # Exposure time of the field frames. All are 29.967 sec.
+
+# TEXP        = header['exptime']  # Exposure time of the field frames. All are 29.967 sec.
 
 I = dn_profile / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
 # I_mean   = img_superstack_mean   / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
