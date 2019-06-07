@@ -112,7 +112,6 @@ for file in files:
 # Now compute the projected distance. I guess this is just the angular separation between the midpoint of 
 # this frame, and MU69.
     
-
     # Set up WCS coord for this frame.
 
     # w = WCS.wcs(file)  # Load WCS -- but that does not exist for these individual MVIC frames!
