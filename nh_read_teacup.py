@@ -48,6 +48,7 @@ import hbt
 
 from   matplotlib.figure import Figure
 from   get_radial_profile_circular import get_radial_profile_circular
+from   get_radial_profile_circular import get_radial_profile_circular_quadrant
 from   get_radial_profile_backplane import get_radial_profile_backplane
 from   get_radial_profile_backplane import get_radial_profile_backplane_quadrant
 from   plot_img_wcs import plot_img_wcs
@@ -138,6 +139,13 @@ for file in files:
     img_arr.append(img)
     exptime_arr.append(exptime)
 
+# Print the UT of the first image
+# I used this to get the roll angle orientation. Looks like we are rotated relative to the Sun. 
+# Ugh this makes getting the RA/Dec of each pixel complicated.
+    
+ut = sp.et2utc(et_arr[0], 'C', 0)
+print(f'First image taken at UT {ut}')
+    
 # Now put them all into a table
     
 dec_bsight = np.array(dec_bsight_arr)
@@ -183,6 +191,8 @@ img_lauer = hdu['PRIMARY'].data
 pos_x_mu69 = 3400 # Position of MU69, from Tod
 pos_y_mu69 = 450
 
+pixscale_km = 1.7646756177340408  # We calculate this later, but for now, we define it as a constant.
+
 # Convert all the 0.0's to NaN. Lauer makes them 0.
 
 indices_bg = img_lauer == 0.
@@ -198,6 +208,27 @@ plt.ylabel('y pix')
 plt.xlabel('x pix')
 plt.show()
 
+# Plot the teacup, with an annulus overlaid at 500 pixels radius
+
+plt.set_cmap('Greys_r')
+plt.imshow(stretch(img_lauer),origin='lower')
+plt.plot([pos_x_mu69],[pos_y_mu69], marker = 'o', color='none', mec='white', ms=130)
+plt.plot([pos_x_mu69],[pos_y_mu69], marker = 'o', color='red')
+plt.title(f'{os.path.basename(file_mosaic_teacup)}, {pixscale_km:.3} km/pix')
+plt.ylabel('y pix')
+plt.xlabel('x pix')
+plt.show()
+
+# Now, for each pixel, calc an RA / Dec for it.
+# Then use that to calculate the expected impact parameter radius at MU69, given the plane.
+# - Set up a plane, centered on MU69 and pointing at the RA / Dec of the pole (from Hal)
+# - Calc RA / Dec for each pixel
+# - Draw a vector to each pixel.
+# - Calc intersection btwn that vector, andthe plane defined above.
+# - Calc the distance from that point, to the center of MU69.
+# - Keep track of that radius for each pixel.
+# - Then take the radial profile from that.
+
 # Take some radial profiles of it. 
 
 binwidth_profile = 20
@@ -210,22 +241,38 @@ plt.show()
 
 # Take a quadrant profile
 
-binwidth_profile = 20
-(radius_pix, dn_profile_quad) = get_radial_profile_circular_quadrant(img_lauer, pos=(pos_y_mu69, pos_x_mu69), 
-                                                        width=binwidth_profile, method='median')
+# Set up a few different binwidths
 
-hbt.figsize((12,6))
-for i in range(4):
-    plt.plot(radius_pix, dn_profile_quad[i,:],label=f'Quadrant {i+1}', lw=3, alpha=0.6)
+binwidth_profile = [2,5,10,20]
+
+binwidth_profile = [60]
+radius_pix = {}
+dn_profile_quad = {}
+
+# And take radial profiles at each of them
+
+for width in binwidth_profile:
+    print(f'Generating profile for binwidth {width}...')
+    (radius_pix[width], dn_profile_quad[width]) = get_radial_profile_circular_quadrant(img_lauer, 
+                                                        pos=(pos_y_mu69, pos_x_mu69), 
+                                                        width=width, method='median')
+
+for width in binwidth_profile:
+
+    hbt.figsize((18,6))
+    hbt.fontsize(12)
+    for i in range(4):
+        plt.plot(radius_pix[width] * pixscale_km, 
+                 dn_profile_quad[width][i,:],label=f'Quadrant {i+1}', lw=3, alpha=0.6)
     
-title = f'{os.path.basename(file_mosaic_teacup)}, binwidth={binwidth_profile} pix'
-plt.xlim((0,1000))
-plt.ylim((-0.5,0.5))
-plt.title(title)
-plt.ylabel('DN')
-plt.xlabel('Pixels')
-plt.legend()
-plt.show()
+    title = f'{os.path.basename(file_mosaic_teacup)}, binning = {width} pix = {(width*pixscale_km):.1f} km'
+    plt.xlim((0,2000))
+    plt.ylim((-0.5,0.5))
+    plt.title(title)
+    plt.ylabel('DN')
+    plt.xlabel('Distance [km]')
+    plt.legend()
+    plt.show()
 
 # For comparison, do the same on the raw frames.
 
@@ -276,30 +323,34 @@ pixscale_km =  (r_nh_mu69/km2au) * pixfov / 1e6 # km per pix (assuming LORRI 4x4
 
 # Now convert from DN to I/F
 
-I                = dn_profile / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
-profile_iof      = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+# I                = dn_profile / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
+# profile_iof      = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 
-I                = dn_profile_quad / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
-profile_iof_quad = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
+profile_iof_quad = {}
+ 
+for width in binwidth_profile:
+    I                       = dn_profile_quad[width] / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
+    profile_iof_quad[width] = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 
-plt.plot(radius_pix*pixscale_km, profile_iof)
-plt.title(f'Profile, Binwidth = {binwidth_profile * pixscale_km} km, Exptime = {exptime} sec')
-plt.ylim((-1e-4,1e-4))
-plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
-plt.show()
+hbt.fontsize(15)
+for width in binwidth_profile:
 
-# for j in [1,2,3,4]:  # Plot all four quadrants
-for j in [1]:   # Plot one quadrant
-    plt.plot(radius_pix * pixscale_km, profile_iof_quad[j-1,:], alpha=0.5, label=f'Quadrant {j}')
-
-title = f'{os.path.basename(file_mosaic_teacup)}, binning = {binwidth_profile} pix = {(binwidth_profile * pixscale_km):.1f} km'
-plt.ylim((-5e-6, 2e-5))
-plt.xlabel('KM')
-plt.ylabel('I/F')
-plt.title(title)
-plt.legend()
-plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
-plt.show()
+    quadrants_to_plot = [1,2,3,4]
+    # quadrants_to_plot = [1]
+    
+    for j in quadrants_to_plot:  # Plot all four quadrants
+        plt.plot(radius_pix[width] * pixscale_km, profile_iof_quad[width][j-1,:], alpha=0.5, 
+                 lw = 3, label=f'Quadrant {j}')
+    
+    title = f'{os.path.basename(file_mosaic_teacup)}, binning = {width} pix = {(width * pixscale_km):.1f} km'
+    plt.ylim((-5e-6, 2e-5))
+    # plt.xlim((0,800))
+    plt.xlabel('Radius [km]')
+    plt.ylabel('I/F')
+    plt.title(title)
+    plt.legend()
+    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+    plt.show()
     
     # img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 
