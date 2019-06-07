@@ -112,7 +112,17 @@ for file in files:
 # Now compute the projected distance. I guess this is just the angular separation between the midpoint of 
 # this frame, and MU69.
     
+
+    # Set up WCS coord for this frame.
+
     # w = WCS.wcs(file)  # Load WCS -- but that does not exist for these individual MVIC frames!
+
+    # OK, doesn't exist -- don't do that!
+    # Neither Tod's mosaic nor the original FITS file has a WCS.
+    
+    # I could eye-ball it. I could create a SPICE kernel for an MU69 satellite (or ring) at 3000 km, in the proper
+    # plane which is defined by the known MU69 pole position. I can plot that in GV. And then I can manually
+    # tweak the ellipse equation to rotate and tilt an ellipse in python to match that?
     
     ra_bsight  = header['SPCBRRA']
     dec_bsight = header['SPCBRDEC']
