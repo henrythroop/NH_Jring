@@ -174,12 +174,34 @@ def get_radial_profile_circular_quadrant(arr, pos = None, width=1, a_xy = (1,1),
     
     # Here is the equation of a rotated ellipse. This seems to work.
     
-    dist_pix_2d = np.sqrt(    ((( ((xx-pos[0])*math.cos(theta) - (yy-pos[1])*math.sin(theta)))/a_xy[1]) ** 2) + 
-                              ((( ((yy-pos[1])*math.cos(theta) - (xx-pos[0])*math.sin(theta)))/a_xy[0]) ** 2) )
+    # hbt.figsize((10,10))
+    
+    # theta = 13.8 * hbt.d2r
+    
+    # a_xy = (1, 0.757)
+    
+    # Make the 2D distance array
+    
+    dist_pix_2d = np.sqrt(    ( (( ((xx-pos[0])*math.cos(theta) - (yy-pos[1])*math.sin(theta))) / a_xy[1]) ** 2) + 
+                              ( (( ((yy-pos[1])*math.cos(theta) + (xx-pos[0])*math.sin(theta))) / a_xy[0]) ** 2)   )
 
+    # Plot the 2D distance array
+    
+    do_plot_2d = True
+
+    if do_plot_2d:
+        plt.contour(dist_pix_2d)
+        plt.gca().set_aspect('equal')
+        plt.show()
+
+    # Make a 1D array, which is a list of distances from 0 .. (max of 2d array)
+    
     dist_pix_1d = hbt.frange(0, int(np.amax(dist_pix_2d)/width))*width
         
     profile_1d    = np.zeros((4, len(dist_pix_1d)))
+    
+    # Define some quadrants. These can really be defined however we like. In this case it is based on
+    # non-rotated positions -- just a straightforward xy.
     
     is_q1 = np.logical_and( (xx >= pos[0]), (yy >= pos[1]) )
     is_q2 = np.logical_and( (xx <  pos[0]), (yy >= pos[1]) )
@@ -191,7 +213,8 @@ def get_radial_profile_circular_quadrant(arr, pos = None, width=1, a_xy = (1,1),
     for i in range(len(dist_pix_1d)-2):
         for j in [1,2,3,4]:
 
-    # Identify the pixels which are at the right distance
+    # Identify the pixels which are at the right distance.
+    # Loop over the 1D array, and for each distance, find pixels in the 2D array at that distance. 
     
             is_good = np.logical_and( np.logical_and(dist_pix_2d >= dist_pix_1d[i],
                                                      dist_pix_2d <= dist_pix_1d[i+1]), quadrant_plane == j) 
@@ -202,9 +225,9 @@ def get_radial_profile_circular_quadrant(arr, pos = None, width=1, a_xy = (1,1),
             if (method == 'median'):
                 profile_1d[j-1, i] = np.nanmedian(arr[is_good])
         
-    # If requested, make a plot of the quadrants
+    # If requested, make a plot of the quadrants, superimposed with the data array
     
-    do_plot = False
+    do_plot_quadrants = True
     
     if do_plot:
         plt.imshow(quadrant_plane, origin='lower')
@@ -213,6 +236,18 @@ def get_radial_profile_circular_quadrant(arr, pos = None, width=1, a_xy = (1,1),
         plt.show()
         plt.imshow(stretch(arr), origin='lower')
         plt.show()
+
+    # If requested, make a plot of the quadrants, superimposed with the data array
+    
+    do_plot_quadrants = True
+    
+    if do_plot:
+        mask = np.logical_not(np.logical_and(dist_pix_2d > 1000, dist_pix_2d < 1100))
+        plt.imshow(mask, origin='lower')
+        plt.show()
+        plt.imshow(stretch(mask * arr), origin='lower')
+        plt.show()
+
 
     # Return results
     

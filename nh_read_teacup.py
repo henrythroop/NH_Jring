@@ -242,6 +242,7 @@ plt.show()
 
 binwidth_profile = 20
 (radius_pix, dn_profile) = get_radial_profile_circular(img_lauer, pos=(pos_y_mu69, pos_x_mu69), 
+                                                        a_xy = (1, 0.757), theta = 13.8*hbt.d2r,
                                                         width=binwidth_profile, method='median')
 
 plt.plot(radius_pix, dn_profile)
@@ -262,8 +263,10 @@ dn_profile_quad = {}
 
 for width in binwidth_profile:
     print(f'Generating profile for binwidth {width}...')
+
     (radius_pix[width], dn_profile_quad[width]) = get_radial_profile_circular_quadrant(img_lauer, 
                                                         pos=(pos_y_mu69, pos_x_mu69), 
+                                                        a_xy = (1, 0.757), theta = 13.8*hbt.d2r,
                                                         width=width, method='median')
 
 for width in binwidth_profile:
@@ -338,7 +341,7 @@ pixscale_km =  (r_nh_mu69/km2au) * pixfov / 1e6 # km per pix (assuming LORRI 4x4
 profile_iof_quad = {}
  
 for width in binwidth_profile:
-    I                       = dn_profile_quad[width] / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO. Dfft spectra.
+    I                       = dn_profile_quad[width] / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO.
     profile_iof_quad[width] = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 
 hbt.fontsize(15)
