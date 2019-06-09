@@ -240,6 +240,8 @@ plt.show()
 
 # Take some radial profiles of it. 
 
+# Should be (1, 0.757) and theta = 13.8 deg.
+
 binwidth_profile = 20
 (radius_pix, dn_profile) = get_radial_profile_circular(img_lauer, pos=(pos_y_mu69, pos_x_mu69), 
                                                         a_xy = (1, 0.757), theta = 13.8*hbt.d2r,
@@ -255,11 +257,15 @@ plt.show()
 
 binwidth_profile = [2,5,10,20]
 
-binwidth_profile = [60]
+binwidth_profile = [1,2,5,10,20,30,60]
+
+# binwidth_profile = [60]
+
 radius_pix = {}
 dn_profile_quad = {}
 
 # And take radial profiles at each of them
+# NB: I could do this loop multi-core
 
 for width in binwidth_profile:
     print(f'Generating profile for binwidth {width}...')
@@ -273,7 +279,9 @@ for width in binwidth_profile:
 
     hbt.figsize((18,6))
     hbt.fontsize(12)
-    for i in range(4):
+    quadrants_to_plot = [1,2]
+
+    for i in quadrants_to_plot:
         plt.plot(radius_pix[width] * pixscale_km, 
                  dn_profile_quad[width][i,:],label=f'Quadrant {i+1}', lw=3, alpha=0.6)
     
@@ -285,19 +293,6 @@ for width in binwidth_profile:
     plt.xlabel('Distance [km]')
     plt.legend()
     plt.show()
-
-# For comparison, do the same on the raw frames.
-
-# binwidth_profile = 2
-# (radius_pix, dn_profile) = get_radial_profile_circular(img_mosaic, width=binwidth_profile)
-# plt.plot(radius_pix, dn_profile)
-# plt.xlim((0,1000))
-# plt.ylim((-2, 1))
-# plt.show()
-
-# Calculate the pixel scale
-
-pixscale = np.mean(dist_arr)
 
 # Convert from DN to IoF:
 
@@ -345,24 +340,28 @@ for width in binwidth_profile:
     profile_iof_quad[width] = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 
 hbt.fontsize(15)
+
 for width in binwidth_profile:
 
-    quadrants_to_plot = [1,2,3,4]
-    # quadrants_to_plot = [1]
+    quadrants_to_plot = [1,2]  # Plot only 1 and 2 here, since they are by far the cleanest
     
-    for j in quadrants_to_plot:  # Plot all four quadrants
-        plt.plot(radius_pix[width] * pixscale_km, profile_iof_quad[width][j-1,:], alpha=0.5, 
-                 lw = 3, label=f'Quadrant {j}')
+    # quadrants_to_plot = [1,2,3,4]
     
-    title = f'{os.path.basename(file_mosaic_teacup)}, binning = {width} pix = {(width * pixscale_km):.1f} km'
-    plt.ylim((-5e-6, 2e-5))
-    # plt.xlim((0,800))
-    plt.xlabel('Radius [km]')
-    plt.ylabel('I/F')
-    plt.title(title)
-    plt.legend()
-    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
-    plt.show()
+    xlims_plot = [1000, 8000]
+    for xlim_i in xlims_plot:
+        for j in quadrants_to_plot:  # Plot all four quadrants
+            plt.plot(radius_pix[width] * pixscale_km, profile_iof_quad[width][j-1,:], alpha=0.5, 
+                     lw = 3, label=f'Quadrant {j}')
+        
+        title = f'{os.path.basename(file_mosaic_teacup)}, binning = {width} pix = {(width * pixscale_km):.1f} km'
+        plt.ylim((-5e-6, 2e-5))
+        plt.xlim((0,xlim_i))
+        plt.xlabel('Radius [km]')
+        plt.ylabel('I/F')
+        plt.title(title)
+        plt.legend()
+        plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
+        plt.show()
     
     # img_superstack_mean_iof   = math.pi * I_mean   * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 

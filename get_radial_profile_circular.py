@@ -8,6 +8,32 @@ Created on Fri Jan 19 16:20:36 2018
 
 import hbt
 import numpy as np
+import math
+import matplotlib.pyplot as plt # pyplot
+
+
+import glob
+import math
+import os.path
+import os
+from astropy.table import Table
+import astropy
+from   astropy.io import fits
+import astropy.table
+import matplotlib
+import matplotlib.pyplot as plt # pyplot
+from   matplotlib.figure import Figure
+import numpy as np
+import astropy.modeling
+import spiceypy as sp
+from   astropy import units as u           # Units library
+import pickle # For load/save
+
+from   astropy.wcs import WCS
+
+stretch_percent = 90    
+stretch = astropy.visualization.PercentileInterval(stretch_percent) # PI(90) scales to 5th..95th %ile.
+
 
 def get_profile_linear(arr, pos=None, method='median', axis_move = 1):
 
@@ -60,7 +86,7 @@ def get_profile_linear(arr, pos=None, method='median', axis_move = 1):
 # GET RADIAL PROFILE CIRCULAR 
 # =============================================================================
     
-def get_radial_profile_circular(arr, pos = None, width=1, a_xy = (1,1), method='median'):
+def get_radial_profile_circular(arr, pos = None, width=1, a_xy = (1,1), theta = 0, method='median'):
 
     """
     Extract a radial profile from an image. 
@@ -89,6 +115,9 @@ def get_radial_profile_circular(arr, pos = None, width=1, a_xy = (1,1), method='
         e.g., `a_xy = (1, cos(30 deg))` is for a ring tilted so as to be squished vertically.
         Default is for a face-on ring. This will break down for large angles. 
         What matters is the ratio of the supplied x and y values; the actual do not matter.
+    
+    theta:
+        Rotational angle, in radians.
         
     """
 
@@ -101,7 +130,11 @@ def get_radial_profile_circular(arr, pos = None, width=1, a_xy = (1,1), method='
     xx, yy = np.mgrid[:dx, :dy]  # What is this syntax all about? That is weird.
                                  # A: mgrid is a generator. np.meshgrid is the normal function version.
     
-    dist_pix_2d = np.sqrt( (((xx - pos[0])/a_xy[1]) ** 2) + (((yy - pos[1])/a_xy[0]) ** 2) )
+    # dist_pix_2d = np.sqrt( (((xx - pos[0])/a_xy[1]) ** 2) + (((yy - pos[1])/a_xy[0]) ** 2) )
+    
+    dist_pix_2d = np.sqrt(    ( (( ((xx-pos[0])*math.cos(theta) - (yy-pos[1])*math.sin(theta))) / a_xy[1]) ** 2) + 
+                              ( (( ((yy-pos[1])*math.cos(theta) + (xx-pos[0])*math.sin(theta))) / a_xy[0]) ** 2)   )
+  
 
     dist_pix_1d = hbt.frange(0, int(np.amax(dist_pix_2d)/width))*width
     
@@ -170,24 +203,20 @@ def get_radial_profile_circular_quadrant(arr, pos = None, width=1, a_xy = (1,1),
     xx, yy = np.mgrid[:dx, :dy]  # What is this syntax all about? That is weird.
                                  # A: mgrid is a generator. np.meshgrid is the normal function version.
     
+    # Make the 2D distance array
+    
+    # Equation for an ellipse, non-rotated
+    
     # dist_pix_2d = np.sqrt( (((xx - pos[0])/a_xy[1]) ** 2) + (((yy - pos[1])/a_xy[0]) ** 2) )
     
-    # Here is the equation of a rotated ellipse. This seems to work.
-    
-    # hbt.figsize((10,10))
-    
-    # theta = 13.8 * hbt.d2r
-    
-    # a_xy = (1, 0.757)
-    
-    # Make the 2D distance array
+    # Equation for an ellipse, rotated. This seems to work.
     
     dist_pix_2d = np.sqrt(    ( (( ((xx-pos[0])*math.cos(theta) - (yy-pos[1])*math.sin(theta))) / a_xy[1]) ** 2) + 
                               ( (( ((yy-pos[1])*math.cos(theta) + (xx-pos[0])*math.sin(theta))) / a_xy[0]) ** 2)   )
 
-    # Plot the 2D distance array
+    # Plot the 2D distance array. This is just for debugging really.
     
-    do_plot_2d = True
+    do_plot_2d = False
 
     if do_plot_2d:
         plt.contour(dist_pix_2d)
@@ -202,14 +231,30 @@ def get_radial_profile_circular_quadrant(arr, pos = None, width=1, a_xy = (1,1),
     
     # Define some quadrants. These can really be defined however we like. In this case it is based on
     # non-rotated positions -- just a straightforward xy.
+    # (Definitions seems backwards, but they give the right result like this.)
     
     is_q1 = np.logical_and( (xx >= pos[0]), (yy >= pos[1]) )
-    is_q2 = np.logical_and( (xx <  pos[0]), (yy >= pos[1]) )
+    is_q4 = np.logical_and( (xx <  pos[0]), (yy >= pos[1]) )
     is_q3 = np.logical_and( (xx <  pos[0]), (yy <  pos[1]) )
-    is_q4 = np.logical_and( (xx >= pos[0]), (yy <  pos[1]) )
+    is_q2 = np.logical_and( (xx >= pos[0]), (yy <  pos[1]) )
     
     quadrant_plane = (1 * is_q1) + (2 * is_q2) + (3 * is_q3) + (4 * is_q4)
+
+    # Do an implant, if requested.
+    # This is super-simple -- just set to zero the pixels between a set of radii.  
+
+    do_implant = False
     
+    if do_implant:
+        pixscale_km  = 1.765  # This is pix scale for Teacup image of Tod
+        a_implant_km = np.array([1000, 1050])
+        a_implant_pix = a_implant_km / pixscale_km
+
+        mask = np.logical_not(np.logical_and(dist_pix_2d > a_implant_pix[0], 
+                                             dist_pix_2d < a_implant_pix[1]))
+    
+        arr = mask * arr
+            
     for i in range(len(dist_pix_1d)-2):
         for j in [1,2,3,4]:
 
@@ -227,9 +272,9 @@ def get_radial_profile_circular_quadrant(arr, pos = None, width=1, a_xy = (1,1),
         
     # If requested, make a plot of the quadrants, superimposed with the data array
     
-    do_plot_quadrants = True
+    do_plot_quadrants = False
     
-    if do_plot:
+    if do_plot_quadrants:
         plt.imshow(quadrant_plane, origin='lower')
         plt.show()
         plt.imshow(stretch(quadrant_plane * arr), origin='lower')
@@ -237,14 +282,13 @@ def get_radial_profile_circular_quadrant(arr, pos = None, width=1, a_xy = (1,1),
         plt.imshow(stretch(arr), origin='lower')
         plt.show()
 
-    # If requested, make a plot of the quadrants, superimposed with the data array
+    # If requested, make a plot of the distance, masked into a ring -- essentially a ring implant
     
-    do_plot_quadrants = True
+    do_plot_quadrants_plus_data = False
     
-    if do_plot:
-        mask = np.logical_not(np.logical_and(dist_pix_2d > 1000, dist_pix_2d < 1100))
-        plt.imshow(mask, origin='lower')
-        plt.show()
+    if do_plot_quadrants_plus_data and do_implant:
+        # plt.imshow(mask, origin='lower')
+        # plt.show()
         plt.imshow(stretch(mask * arr), origin='lower')
         plt.show()
 
