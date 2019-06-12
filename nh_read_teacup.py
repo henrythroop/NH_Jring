@@ -243,9 +243,11 @@ plt.show()
 # Should be (1, 0.757) and theta = 13.8 deg.
 
 binwidth_profile = 20
+method = 'median'
+
 (radius_pix, dn_profile) = get_radial_profile_circular(img_lauer, pos=(pos_y_mu69, pos_x_mu69), 
                                                         a_xy = (1, 0.757), theta = 13.8*hbt.d2r,
-                                                        width=binwidth_profile, method='median')
+                                                        width=binwidth_profile, method=method)
 
 plt.plot(radius_pix, dn_profile)
 plt.xlim((0,1000))
@@ -255,11 +257,7 @@ plt.show()
 
 # Set up a few different binwidths
 
-binwidth_profile = [2,5,10,20]
-
-binwidth_profile = [1,2,5,10,20,30,60]
-
-# binwidth_profile = [60]
+binwidth_profile = [1,2,6,11,14,28,56]
 
 radius_pix = {}
 dn_profile_quad = {}
@@ -273,17 +271,17 @@ for width in binwidth_profile:
     (radius_pix[width], dn_profile_quad[width]) = get_radial_profile_circular_quadrant(img_lauer, 
                                                         pos=(pos_y_mu69, pos_x_mu69), 
                                                         a_xy = (1, 0.757), theta = 13.8*hbt.d2r,
-                                                        width=width, method='median')
+                                                        width=width, method=method)
 
 for width in binwidth_profile:
 
     hbt.figsize((18,6))
     hbt.fontsize(12)
-    quadrants_to_plot = [1,2]
+    quadrants_to_plot = [0,1,2,3]
 
     for i in quadrants_to_plot:
         plt.plot(radius_pix[width] * pixscale_km, 
-                 dn_profile_quad[width][i,:],label=f'Quadrant {i+1}', lw=3, alpha=0.6)
+                 dn_profile_quad[width][i,:],label=f'Quadrant {i+1}', lw=2, alpha=0.6)
     
     title = f'{os.path.basename(file_mosaic_teacup)}, binning = {width} pix = {(width*pixscale_km):.1f} km'
     plt.xlim((0,2000))
@@ -293,8 +291,6 @@ for width in binwidth_profile:
     plt.xlabel('Distance [km]')
     plt.legend()
     plt.show()
-
-# Convert from DN to IoF:
 
 # =============================================================================
 # Convert the image from DN to I/F
@@ -334,16 +330,20 @@ pixscale_km =  (r_nh_mu69/km2au) * pixfov / 1e6 # km per pix (assuming LORRI 4x4
 # profile_iof      = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 
 profile_iof_quad = {}
+
+# Make sure to bring in the tilt angle, and make this a *normal* I/F
+
+costheta = math.cos(40.8*hbt.d2r)  # Bring in the tilt angle
  
 for width in binwidth_profile:
-    I                       = dn_profile_quad[width] / TEXP / RSOLAR   # Could use RSOLAR, RJUPITER, or RPLUTO.
+    I                       = dn_profile_quad[width] / TEXP / RSOLAR * costheta # Could use RSOLAR, RJUPITER, or RPLUTO.
     profile_iof_quad[width] = math.pi * I * r_sun_mu69**2 / F_solar # Equation from Hal's paper
 
 hbt.fontsize(15)
 
 for width in binwidth_profile:
 
-    quadrants_to_plot = [1,2]  # Plot only 1 and 2 here, since they are by far the cleanest
+    quadrants_to_plot = [1,2,3,4]  # Plot only 1 and 2 here, since they are by far the cleanest
     
     # quadrants_to_plot = [1,2,3,4]
     
@@ -351,13 +351,13 @@ for width in binwidth_profile:
     for xlim_i in xlims_plot:
         for j in quadrants_to_plot:  # Plot all four quadrants
             plt.plot(radius_pix[width] * pixscale_km, profile_iof_quad[width][j-1,:], alpha=0.5, 
-                     lw = 3, label=f'Quadrant {j}')
+                     lw = 2, label=f'Quadrant {j}, {method}')
         
         title = f'{os.path.basename(file_mosaic_teacup)}, binning = {width} pix = {(width * pixscale_km):.1f} km'
         plt.ylim((-5e-6, 2e-5))
         plt.xlim((0,xlim_i))
         plt.xlabel('Radius [km]')
-        plt.ylabel('I/F')
+        plt.ylabel('Normal I/F')
         plt.title(title)
         plt.legend()
         plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2e'))
